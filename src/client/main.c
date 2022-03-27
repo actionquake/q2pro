@@ -2304,9 +2304,9 @@ static size_t CL_Texture_m(char *buffer, size_t size)
 	vec3_t maxs = { 1.f, 1.f, 1.f };
 	int mask = CONTENTS_SOLID | CONTENTS_WINDOW | CONTENTS_WATER | CONTENTS_SLIME | CONTENTS_LAVA;
 
-	AngleVectors(m_PlayerAngles, forward, NULL, NULL);
-	VectorMA(m_PlayerPos, 8192, forward, end);
-	CM_BoxTrace(&trace, m_PlayerPos, end, mins, maxs, cl.bsp->nodes, mask);
+	AngleVectors(cl.refdef.viewangles, forward, NULL, NULL);
+	VectorMA(cl.refdef.vieworg, 8192, forward, end);
+	CM_BoxTrace(&trace, cl.refdef.vieworg, end, mins, maxs, cl.bsp->nodes, mask);
 
 	return Q_scnprintf(buffer, size, "%s", trace.surface->name);
 }
