@@ -656,6 +656,39 @@ error:
 }
 
 /*
+============
+Cmd_OpenURL_f
+============
+*/
+static void Cmd_OpenURL_f(void)
+{
+	if (Cmd_Argc() != 2)
+	{
+		Com_Printf("openurl expects a single argument that is the URL to open");
+		return;
+	}
+
+	const char* url = Cmd_Argv(1);
+	if (Q_stricmpn(url, "http://", 7) && Q_stricmpn(url, "https://", 8))
+	{
+		Com_Printf("the URL must start with http:// or https://");
+		return;
+	}
+
+
+#ifdef __linux__
+    pid_t pid = fork();
+    if (pid == 0) {
+	const char* args[] = { "xdg-open", url, NULL};
+	execv("/usr/bin/xdg-open", (char* const*)args);
+	exit(0);
+    }
+#elif _WINDOWS
+	ShellExecuteA(0, 0, url, 0, 0, SW_SHOW);
+#endif
+}
+
+/*
 =============================================================================
 
                     MACRO EXECUTION
@@ -1878,6 +1911,7 @@ static const cmdreg_t c_cmd[] = {
     { "trigger", Cmd_Trigger_f },
     { "untrigger", Cmd_UnTrigger_f },
     { "if", Cmd_If_f },
+    { "openurl", Cmd_OpenURL_f },
 
     { NULL }
 };
