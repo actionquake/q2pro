@@ -664,14 +664,14 @@ static void Cmd_OpenURL_f(void)
 {
 	if (Cmd_Argc() != 2)
 	{
-		Com_Printf("openurl expects a single argument that is the URL to open");
+		Com_Printf("openurl expects a single argument that is the URL to open\n");
 		return;
 	}
 
 	const char* url = Cmd_Argv(1);
 	if (Q_stricmpn(url, "http://", 7) && Q_stricmpn(url, "https://", 8))
 	{
-		Com_Printf("the URL must start with http:// or https://");
+		Com_Printf("the URL must start with http:// or https://\n");
 		return;
 	}
 
