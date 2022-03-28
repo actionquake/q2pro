@@ -2295,7 +2295,7 @@ static size_t CL_WeaponModel_m(char *buffer, size_t size)
                        cl.configstrings[cl.frame.ps.gunindex + CS_MODELS]);
 }
 
-// texture macro from Mako
+// macro from Mako
 static size_t CL_Texture_m(char *buffer, size_t size)
 {
 	trace_t trace;
@@ -2822,7 +2822,7 @@ static void CL_InitLocal(void)
     Cmd_AddMacro("cl_ammo", CL_Ammo_m);
     Cmd_AddMacro("cl_armor", CL_Armor_m);
     Cmd_AddMacro("cl_weaponmodel", CL_WeaponModel_m);
-    Cmd_AddMacro("cl_texture", CL_Texture_m, NULL); // texture macro from 
+    Cmd_AddMacro("cl_texture", CL_Texture_m); // texture macro from 
 }
 
 /*
