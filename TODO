@@ -1,3 +1,5 @@
-+ macro to show texture name
+- openurl doesnt work on windows
+- enabling trigger on demos, need better if to work 
++ macro to show texture name ( only works when in a map, otherwise it crashes q2pro )
 + higlightnames from aprq2
-+ add time parameter to draw command
++ add time parameter to draw command from aprq2
