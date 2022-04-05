@@ -38,7 +38,7 @@ unsigned SV_Frame(unsigned msec);
 #if USE_SYSCON
 void SV_SetConsoleTitle(void);
 #endif
-//void SV_ConsoleOutput(const char *msg);
+void SV_ConsoleOutput(const char *msg);
 
 #if USE_MVD_CLIENT && USE_CLIENT
 int MVD_GetDemoPercent(bool *paused, int *framenum);

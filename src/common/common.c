@@ -456,7 +456,7 @@ void Com_LPrintf(print_type_t type, const char *fmt, ...)
         Sys_ConsoleOutput(msg);
 
         // remote console
-        //SV_ConsoleOutput(msg);
+        SV_ConsoleOutput(msg);
 
         // logfile
         if (com_logFile) {
