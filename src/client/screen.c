@@ -28,6 +28,7 @@ static struct {
     qhandle_t   crosshair_pic;
     int         crosshair_width, crosshair_height;
     color_t     crosshair_color;
+    int         scope_width, scope_height;
 
     qhandle_t   pause_pic;
     int         pause_width, pause_height;
@@ -1079,6 +1080,7 @@ static void scr_crosshair_changed(cvar_t *self)
     char buffer[16];
     int w, h;
     float scale;
+    qhandle_t scope_pic;
 
     if (scr_crosshair->integer > 0) {
         Q_snprintf(buffer, sizeof(buffer), "ch%i", scr_crosshair->integer);
@@ -1093,6 +1095,18 @@ static void scr_crosshair_changed(cvar_t *self)
             scr.crosshair_width = 1;
         if (scr.crosshair_height < 1)
             scr.crosshair_height = 1;
+
+        // action mod scope scaling
+        scope_pic = R_RegisterPic("scope2x");;
+        if (scope_pic) {
+            R_GetPicSize(&w, &h, scope_pic);
+            scr.scope_width = w * scale;
+            scr.scope_height = h * scale;
+            if (scr.scope_width < 1)
+                scr.scope_width = 1;
+            if (scr.scope_height < 1)
+                scr.scope_height = 1;
+        }
 
         if (ch_health->integer) {
             SCR_SetCrosshairColor();
@@ -1587,7 +1601,19 @@ static void SCR_ExecuteLayoutString(const char *s)
             }
             token = cl.configstrings[CS_IMAGES + value];
             if (token[0]) {
-                R_DrawPic(x, y, cl.image_precache[value]);
+                // action mod scope scaling
+                image_t *image = IMG_ForHandle(cl.image_precache[value]);
+                if (strncmp(image->name, "pics/scope", 10) == 0) {
+                    x = (scr.hud_width - scr.scope_width) / 2;
+                    y = (scr.hud_height - scr.scope_height) / 2;
+                    R_DrawStretchPic(x + ch_x->integer,
+                                     y + ch_y->integer,
+                                     scr.scope_width,
+                                     scr.scope_height,
+                                     cl.image_precache[value]);
+                } else {
+                    R_DrawPic(x, y, cl.image_precache[value]);
+                }
             }
             continue;
         }
