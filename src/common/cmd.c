@@ -28,6 +28,10 @@ with this program; if not, write to the Free Software Foundation, Inc.,
 #include "common/utils.h"
 #include "client/client.h"
 
+#ifdef _WIN32
+#include <windows.h>
+#endif
+
 #define Cmd_Malloc(size)        Z_TagMalloc(size, TAG_CMD)
 #define Cmd_CopyString(string)  Z_TagCopyString(string, TAG_CMD)
 
@@ -683,7 +687,7 @@ static void Cmd_OpenURL_f(void)
 	execv("/usr/bin/xdg-open", (char* const*)args);
 	exit(0);
     }
-#elif _WINDOWS
+#elif _WIN32
 	ShellExecuteA(0, 0, url, 0, 0, SW_SHOW);
 #endif
 }
