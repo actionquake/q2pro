@@ -2295,6 +2295,22 @@ static size_t CL_WeaponModel_m(char *buffer, size_t size)
                        cl.configstrings[cl.frame.ps.gunindex + CS_MODELS]);
 }
 
+// macro from Mako
+static size_t CL_Texture_m(char *buffer, size_t size)
+{
+	trace_t trace;
+	vec3_t forward, end;
+	vec3_t mins = { -1.f, -1.f, -1.f };
+	vec3_t maxs = { 1.f, 1.f, 1.f };
+	int mask = CONTENTS_SOLID | CONTENTS_WINDOW | CONTENTS_WATER | CONTENTS_SLIME | CONTENTS_LAVA;
+
+	AngleVectors(cl.refdef.viewangles, forward, NULL, NULL);
+	VectorMA(cl.refdef.vieworg, 8192, forward, end);
+	CM_BoxTrace(&trace, cl.refdef.vieworg, end, mins, maxs, cl.bsp->nodes, mask);
+
+	return Q_scnprintf(buffer, size, "%s", trace.surface->name);
+}
+
 /*
 ===============
 CL_WriteConfig
@@ -2806,6 +2822,7 @@ static void CL_InitLocal(void)
     Cmd_AddMacro("cl_ammo", CL_Ammo_m);
     Cmd_AddMacro("cl_armor", CL_Armor_m);
     Cmd_AddMacro("cl_weaponmodel", CL_WeaponModel_m);
+    Cmd_AddMacro("cl_texture", CL_Texture_m); // texture macro from 
 }
 
 /*
@@ -3051,7 +3068,7 @@ static int ref_extra, phys_extra, main_extra;
 static sync_mode_t sync_mode;
 
 #define MIN_PHYS_HZ 10
-#define MAX_PHYS_HZ 125
+#define MAX_PHYS_HZ 250
 #define MIN_REF_HZ MIN_PHYS_HZ
 #define MAX_REF_HZ 1000
 
