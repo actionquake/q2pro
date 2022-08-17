@@ -334,7 +334,7 @@ if get_option('discord-sdk')
     discord_dep_path = join_paths(meson.current_source_dir(), discord_inc_path)
     
     discord_dep = cc.find_library('discord', dirs : discord_dep_path)
-    discord_dep_dec = declare_dependency(link_with : discord_dep, include_directories : dis_inc)
+    discord_dep_dec = declare_dependency(dependencies : discord_dep, include_directories : dis_inc)
 
     client_deps += discord_dep
 
