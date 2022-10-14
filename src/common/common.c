@@ -261,54 +261,6 @@ static void logfile_param_changed(cvar_t *self)
 
 #if USE_AQTION
 
-static void statlogfile_write(print_type_t type, const char *s)
-{
-    char text[MAXPRINTMSG];
-    char buf[MAX_QPATH];
-    char *p, *maxp;
-    size_t len;
-    int ret;
-    int c;
-
-    len = 0;
-    p = text;
-    maxp = text + sizeof(text) - 1;
-    while (*s) {
-        if (com_logNewline) {
-            if (len > 0 && len < maxp - p) {
-                memcpy(p, buf, len);
-                p += len;
-            }
-            com_logNewline = false;
-        }
-
-        if (p == maxp) {
-            break;
-        }
-
-        c = *s++;
-        if (c == '\n') {
-            com_logNewline = true;
-        } else {
-            c = Q_charascii(c);
-        }
-
-        *p++ = c;
-    }
-    *p = 0;
-
-    len = p - text;
-    ret = FS_Write(text, len, com_statlogFile);
-    if (ret != len) {
-        // zero handle BEFORE doing anything else to avoid recursion
-        qhandle_t tmp = com_statlogFile;
-        com_statlogFile = 0;
-        FS_FCloseFile(tmp);
-        Com_EPrintf("Couldn't write stat log: %s\n", Q_ErrorString(ret));
-        Cvar_Set("statlogfile", "0");
-    }
-}
-
 static void statlogfile_close(void)
 {
     if (!com_statlogFile) {
@@ -359,6 +311,53 @@ static void statlogfile_param_changed(cvar_t *self)
     }
 }
 
+static void statlogfile_write(print_type_t type, const char *s)
+{
+    char text[MAXPRINTMSG];
+    char buf[MAX_QPATH];
+    char *p, *maxp;
+    size_t len;
+    int ret;
+    int c;
+
+    len = 0;
+    p = text;
+    maxp = text + sizeof(text) - 1;
+    while (*s) {
+        if (com_logNewline) {
+            if (len > 0 && len < maxp - p) {
+                memcpy(p, buf, len);
+                p += len;
+            }
+            com_logNewline = false;
+        }
+
+        if (p == maxp) {
+            break;
+        }
+
+        c = *s++;
+        if (c == '\n') {
+            com_logNewline = true;
+        } else {
+            c = Q_charascii(c);
+        }
+
+        *p++ = c;
+    }
+    *p = 0;
+
+    len = p - text;
+    ret = FS_Write(text, len, com_statlogFile);
+    if (ret != len) {
+        // zero handle BEFORE doing anything else to avoid recursion
+        qhandle_t tmp = com_statlogFile;
+        com_statlogFile = 0;
+        FS_FCloseFile(tmp);
+        Com_EPrintf("Couldn't write stat log: %s\n", Q_ErrorString(ret));
+        Cvar_Set("statlogfile", "0");
+    }
+}
 
 #endif
 
