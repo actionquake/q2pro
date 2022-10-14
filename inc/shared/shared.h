@@ -91,7 +91,8 @@ typedef enum {
     PRINT_DEVELOPER,    // only print when "developer 1"
     PRINT_WARNING,      // print in yellow color
     PRINT_ERROR,        // print in red color
-    PRINT_NOTICE        // print in cyan color
+    PRINT_NOTICE,       // print in cyan color
+    PRINT_STAT          // print stat messages
 } print_type_t;
 
 #ifdef AQTION_EXTENSION
