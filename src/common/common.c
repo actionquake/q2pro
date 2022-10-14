@@ -1105,6 +1105,11 @@ void Qcommon_Init(int argc, char **argv)
     logfile_name->changed = logfile_param_changed;
     logfile_enable_changed(logfile_enable);
 
+    #if USE_AQTION
+        statlogfile_enable->changed = statlogfile_enable_changed;
+        statlogfile_enable_changed(statlogfile_enable);
+    #endif
+
     // execute configs: default.cfg may come from the packfile, but config.cfg
     // and autoexec.cfg must be real files within the game directory
     Com_AddConfigFile(COM_DEFAULT_CFG, 0);
