@@ -303,14 +303,6 @@ static void statlogfile_enable_changed(cvar_t *self)
     }
 }
 
-static void statlogfile_param_changed(cvar_t *self)
-{
-    if (statlogfile_enable->integer) {
-        statlogfile_close();
-        statlogfile_open();
-    }
-}
-
 static void statlogfile_write(print_type_t type, const char *s)
 {
     char text[MAXPRINTMSG];
