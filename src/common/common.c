@@ -508,7 +508,7 @@ const char *Com_GetLastError(void)
 Com_Printf
 
 Both client and server can use this, and it will output
-to the apropriate place.
+to the appropriate place.
 =============
 */
 void Com_LPrintf(print_type_t type, const char *fmt, ...)
@@ -577,7 +577,7 @@ void Com_LPrintf(print_type_t type, const char *fmt, ...)
         //SV_ConsoleOutput(msg);
 
         // logfile
-        if (com_statlogFile && type == PRINT_STAT) {
+        if (com_statlogFile) {
             statlogfile_write(type, msg);
         } else if (com_logFile) {
             logfile_write(type, msg);
