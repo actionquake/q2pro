@@ -303,7 +303,7 @@ static void statlogfile_enable_changed(cvar_t *self)
     }
 }
 
-static void statlogfile_write(print_type_t type, const char *s)
+static void statlogfile_write(const char *s)
 {
     char text[MAXPRINTMSG];
     char buf[MAX_QPATH];
@@ -562,6 +562,7 @@ void Com_LPrintf(print_type_t type, const char *fmt, ...)
             break;
         case PRINT_STAT:
             Com_SetColor(COLOR_GREEN);
+            statlogfile_write(msg);
             break;
         default:
             break;
@@ -577,9 +578,7 @@ void Com_LPrintf(print_type_t type, const char *fmt, ...)
         //SV_ConsoleOutput(msg);
 
         // logfile
-        if (com_statlogFile) {
-            statlogfile_write(type, msg);
-        } else if (com_logFile) {
+        if (com_logFile) {
             logfile_write(type, msg);
         }
 
@@ -685,6 +684,9 @@ void Com_Error(error_type_t code, const char *fmt, ...)
 abort:
     if (com_logFile) {
         FS_Flush(com_logFile);
+    }
+    if (com_statlogFile) {
+        FS_Flush(com_statlogFile);
     }
     com_errorEntered = false;
     longjmp(com_abortframe, -1);
