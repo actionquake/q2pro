@@ -245,17 +245,17 @@ static void logfile_open(void)
 
 static void logfile_enable_changed(cvar_t *self)
 {
-    statlogfile_close();
+    logfile_close();
     if (self->integer) {
-        statlogfile_open();
+        logfile_open();
     }
 }
 
 static void logfile_param_changed(cvar_t *self)
 {
     if (logfile_enable->integer) {
-        statlogfile_close();
-        statlogfile_open();
+        logfile_close();
+        logfile_open();
     }
 }
 
