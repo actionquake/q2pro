@@ -62,6 +62,7 @@ static char     com_errorMsg[MAXERRORMSG]; // from Com_Printf/Com_Error
 static int      com_printEntered;
 
 static qhandle_t    com_logFile;
+static qhandle_t    com_statlogFile;
 static bool         com_logNewline;
 
 static char     **com_argv;
@@ -86,6 +87,10 @@ cvar_t  *logfile_enable;    // 1 = create new, 2 = append to existing
 cvar_t  *logfile_flush;     // 1 = flush after each print
 cvar_t  *logfile_name;
 cvar_t  *logfile_prefix;
+
+#if USE_AQTION
+cvar_t  *statlogfile_enable;  // 1 = create new, 2 = append to existing
+#endif
 
 #if USE_CLIENT
 cvar_t  *cl_running;
@@ -240,19 +245,122 @@ static void logfile_open(void)
 
 static void logfile_enable_changed(cvar_t *self)
 {
-    logfile_close();
+    statlogfile_close();
     if (self->integer) {
-        logfile_open();
+        statlogfile_open();
     }
 }
 
 static void logfile_param_changed(cvar_t *self)
 {
     if (logfile_enable->integer) {
-        logfile_close();
-        logfile_open();
+        statlogfile_close();
+        statlogfile_open();
     }
 }
+
+#if USE_AQTION
+
+static void statlogfile_write(print_type_t type, const char *s)
+{
+    char text[MAXPRINTMSG];
+    char buf[MAX_QPATH];
+    char *p, *maxp;
+    size_t len;
+    int ret;
+    int c;
+
+    len = 0;
+    p = text;
+    maxp = text + sizeof(text) - 1;
+    while (*s) {
+        if (com_logNewline) {
+            if (len > 0 && len < maxp - p) {
+                memcpy(p, buf, len);
+                p += len;
+            }
+            com_logNewline = false;
+        }
+
+        if (p == maxp) {
+            break;
+        }
+
+        c = *s++;
+        if (c == '\n') {
+            com_logNewline = true;
+        } else {
+            c = Q_charascii(c);
+        }
+
+        *p++ = c;
+    }
+    *p = 0;
+
+    len = p - text;
+    ret = FS_Write(text, len, com_statlogFile);
+    if (ret != len) {
+        // zero handle BEFORE doing anything else to avoid recursion
+        qhandle_t tmp = com_statlogFile;
+        com_statlogFile = 0;
+        FS_FCloseFile(tmp);
+        Com_EPrintf("Couldn't write stat log: %s\n", Q_ErrorString(ret));
+        Cvar_Set("statlogfile", "0");
+    }
+}
+
+static void statlogfile_close(void)
+{
+    if (!com_statlogFile) {
+        return;
+    }
+
+    Com_Printf("Closing stat log.\n");
+
+    FS_FCloseFile(com_statlogFile);
+    com_statlogFile = 0;
+}
+
+static void statlogfile_open(void)
+{
+    char buffer[MAX_OSPATH];
+    unsigned mode;
+    qhandle_t f;
+
+    mode = statlogfile_enable->integer > 1 ? FS_MODE_APPEND : FS_MODE_WRITE;
+    // Always write the full stat line, don't buffer
+    mode |= FS_BUF_NONE;
+
+    f = FS_EasyOpenFile(buffer, sizeof(buffer), mode | FS_FLAG_TEXT,
+                        "stats/", logfile_name->string, ".stats");
+    if (!f) {
+        Cvar_Set("statlogfile", "0");
+        return;
+    }
+
+    com_statlogFile = f;
+    com_logNewline = true;
+    Com_Printf("Logging stats to %s\n", buffer);
+}
+
+static void statlogfile_enable_changed(cvar_t *self)
+{
+    statlogfile_close();
+    if (self->integer) {
+        statlogfile_open();
+    }
+}
+
+static void statlogfile_param_changed(cvar_t *self)
+{
+    if (statlogfile_enable->integer) {
+        statlogfile_close();
+        statlogfile_open();
+    }
+}
+
+
+#endif
 
 size_t Com_FormatLocalTime(char *buffer, size_t size, const char *fmt)
 {
@@ -368,6 +476,16 @@ void Com_FlushLogs(void)
         logfile_enable_changed(logfile_enable);
     }
 }
+
+#ifdef USE_AQTION
+void Com_StatFlushLogs(void)
+{
+    if (statlogfile_enable) {
+        statlogfile_enable_changed(statlogfile_enable);
+    }
+}
+#endif
+
 #endif
 
 void Com_SetColor(color_index_t color)
@@ -466,6 +584,10 @@ void Com_LPrintf(print_type_t type, const char *fmt, ...)
         // logfile
         if (com_logFile) {
             logfile_write(type, msg);
+        }
+
+        if (com_statlogFile) {
+            statlogfile_write(type, msg);
         }
 
         if (type) {
@@ -908,6 +1030,9 @@ void Qcommon_Init(int argc, char **argv)
     logfile_flush = Cvar_Get("logfile_flush", "0", 0);
     logfile_name = Cvar_Get("logfile_name", "console", 0);
     logfile_prefix = Cvar_Get("logfile_prefix", "[%Y-%m-%d %H:%M] ", 0);
+#if USE_AQTION
+    statlogfile_enable = Cvar_Get("statlogfile", "0", 0);
+#endif
 #if USE_CLIENT
     dedicated = Cvar_Get("dedicated", "0", CVAR_NOSET);
     steamid = Cvar_Get("steamid", "0", CVAR_NOSET);
