@@ -91,6 +91,7 @@ jobs:
           CC: ${{ matrix.cc }}
           CFLAGS: -m32
           CXXFLAGS: -m32
+          LD_LIBRARY_PATH: /usr/lib/i386-linux-gnu/
 
       - name: patchelf path to discord_game_sdk.so
         run: |
