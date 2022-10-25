@@ -36,8 +36,12 @@ with this program; if not, write to the Free Software Foundation, Inc.,
 #endif // USE_PNG
 
 #if USE_JPG
+#ifdef _WIN32
 #include <jpeglib.h>
+#else
+#include "jpeglib.h"
 #endif
+#endif // Use local libjpeg9 header file on Linux/Mac
 
 #include <setjmp.h>
 
