@@ -89,7 +89,8 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y meson libsdl2-dev:i386 libopenal-dev:i386 libpng-dev:i386 \
           libjpeg9-dev:i386 zlib1g-dev:i386 mesa-common-dev:i386 libcurl4-gnutls-dev:i386 \
-          libx11-dev:i386 libxi-dev:i386 libwayland-dev:i386 wayland-protocols:i386 patchelf
+          libx11-dev:i386 libxi-dev:i386 libwayland-dev:i386 wayland-protocols:i386 \
+          libibus-1.0-dev:i386 libpulse-dev:i386 patchelf
 
       - name: Build
         run: |
