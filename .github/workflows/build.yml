@@ -85,7 +85,7 @@ jobs:
       - uses: actions/checkout@v2
       - name: Build
         run: |
-          meson setup ${{ env.MESON_ARGS }} builddir
+          meson setup --cross-file=.ci/x86-linux32.txt ${{ env.MESON_ARGS }} builddir
           ninja -vC builddir
         env:
           CC: ${{ matrix.cc }}
@@ -146,14 +146,14 @@ jobs:
     steps:
       - uses: actions/checkout@v2
 
-      - name: Install dependencies
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y meson libsdl2-dev libopenal-dev \
-          libpng-dev libjpeg-dev zlib1g-dev mesa-common-dev \
-          libcurl4-gnutls-dev libx11-dev libxi-dev \
-          libwayland-dev wayland-protocols libdecor-0-dev patchelf \
-          libogg-dev libvorbis-dev
+      # - name: Install dependencies
+      #   run: |
+      #     sudo apt-get update
+      #     sudo apt-get install -y meson libsdl2-dev libopenal-dev \
+      #     libpng-dev libjpeg9-dev zlib1g-dev mesa-common-dev \
+      #     libcurl4-gnutls-dev libx11-dev libxi-dev \
+      #     libwayland-dev wayland-protocols libdecor-0-dev patchelf \
+      #     libogg-dev libvorbis-dev
 
       - name: Build
         run: |
