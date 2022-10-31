@@ -834,7 +834,7 @@ void ClientObituary(edict_t * self, edict_t * inflictor, edict_t * attacker)
 
 			#if USE_AQTION
 			if (stat_logs->value) { // Only create stats logs if stat_logs is 1
-				LogKill(self, inflictor, self->client->attacker);
+				LogKill(self, self->client->attacker);
 			}
 			#endif
 
@@ -1213,7 +1213,7 @@ void ClientObituary(edict_t * self, edict_t * inflictor, edict_t * attacker)
 
 			#if USE_AQTION
 			if (stat_logs->value) {
-				LogKill(self, inflictor, attacker);
+				LogKill(self, attacker);
 			}
 			#endif
 

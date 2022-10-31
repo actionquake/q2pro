@@ -704,7 +704,7 @@ static void Cmd_God_f (edict_t * ent)
 	else
 		msg = "godmode ON\n";
 
-	gi.cprintf (ent, PRINT_HIGH, msg);
+	gi.cprintf (ent, PRINT_HIGH, "%s", msg);
 }
 
 
@@ -727,7 +727,7 @@ static void Cmd_Notarget_f (edict_t * ent)
 	else
 		msg = "notarget ON\n";
 
-	gi.cprintf (ent, PRINT_HIGH, msg);
+	gi.cprintf (ent, PRINT_HIGH, "%s", msg);
 }
 
 
@@ -753,7 +753,7 @@ static void Cmd_Noclip_f (edict_t * ent)
 		msg = "noclip ON\n";
 	}
 
-	gi.cprintf (ent, PRINT_HIGH, msg);
+	gi.cprintf (ent, PRINT_HIGH, "%s", msg);
 }
 
 
@@ -1697,7 +1697,7 @@ static void Cmd_PrintSettings_f( edict_t * ent )
 		(int)limchasecam->value, (int)tgren->value, (int)hc_single->value,
 		(int)use_punch->value, (int)use_classic->value );
 
-	gi.cprintf( ent, PRINT_HIGH, text );
+	gi.cprintf( ent, PRINT_HIGH, "%s", text );
 }
 
 static void Cmd_Follow_f( edict_t *ent )

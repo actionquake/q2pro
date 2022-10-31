@@ -700,7 +700,7 @@ void ACESP_RemoveBot(char *name)
 	}
 */
 	if(!freed)	
-		gi.bprintf (PRINT_MEDIUM, "No bot removed\n", name);
+		gi.bprintf (PRINT_MEDIUM, "No bot removed\n");
 
 //	ACESP_SaveBots(); // Save them again
 }
@@ -763,19 +763,3 @@ void	LTKsetBotName( char	*bot_name )
 		strcat( bot_name, names4[part2]);
 	}
 }
-
-int GetBotCount(void)
-{
-	int count;
-	edict_t pers;
-    // Count bots 
-    for (int i = 0; i < game.maxclients; i++)
-    {
-        if (pers.is_bot)
-        {
-            count++;
-        }
-    }
-	return count;
-}
-

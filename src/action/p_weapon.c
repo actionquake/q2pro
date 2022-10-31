@@ -2008,9 +2008,9 @@ void weapon_grenade_fire(edict_t* ent, qboolean held)
 	int speed;
 	int damrad = GRENADE_DAMRAD;
 
-	if (is_quad)
+	if (is_quad) {
 		damage *= 4;
-
+	}
 	VectorSet(offset, 8, 8, ent->viewheight - 8);
 	AngleVectors(ent->client->v_angle, forward, right, NULL);
 	P_ProjectSource(ent->client, ent->s.origin, offset, forward, right, start);

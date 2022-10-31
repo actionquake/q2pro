@@ -263,7 +263,8 @@
 
 #include <ctype.h>
 
-#include "shared/shared.h"
+#include "../../inc/shared/shared.h"
+#include "../../inc/shared/list.h"
 #include "q_ghud.h"
 #include <stddef.h>
 
@@ -271,7 +272,7 @@
 // short, server-visible gclient_t and edict_t structures,
 // because we define the full size ones in this file
 #define		GAME_INCLUDE
-#include	"shared/game.h"
+#include	"../../inc/shared/game.h"
 
 #include	"a_team.h"
 #include	"a_game.h"
@@ -1477,6 +1478,8 @@ void ED_CallSpawn( edict_t *ent );
 char* ED_NewString(char* string);
 void G_UpdateSpectatorStatusbar( void );
 void G_UpdatePlayerStatusbar( edict_t *ent, int force );
+int Gamemode(void);
+int Gamemodeflag(void);
 void generate_uuid();
 
 //
@@ -1506,7 +1509,7 @@ void ProduceShotgunDamageReport(edict_t*);
 
 //tng_stats.c
 void StatBotCheck(void);
-void LogKill(edict_t *self, edict_t *inflictor, edict_t *attacker);
+void LogKill(edict_t *self, edict_t *attacker);
 void LogWorldKill(edict_t *self);
 void LogMatch();
 void LogAward(char* steamid, char* discordid, int award);
@@ -1887,9 +1890,7 @@ struct gclient_s
 
 	// visiblity mask
 	unsigned int dimension_observe;
-
 };
-
 
 struct edict_s
 {
@@ -2113,7 +2114,8 @@ struct edict_s
 	int bot_speed; 
 	qboolean	bCrawl; 
 	qboolean	bLastJump; 
-	vec3_t	lastPosition; 
+	vec3_t	lastPosition;
+
 #endif
 };
 
