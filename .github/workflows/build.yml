@@ -80,7 +80,6 @@ jobs:
     runs-on: windows-latest
     strategy:
       matrix:
-        #arch: ["x86", "x64"]
         arch: ["x64"]
     steps:
       - uses: actions/checkout@v3
