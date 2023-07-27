@@ -2679,6 +2679,9 @@ static void CL_PacketEvent(void)
 
     CL_ParseServerMessage();
 
+    // Netgraph re-add
+    CL_AddNetgraph();
+
     SCR_LagSample();
 
     // if recording demo, write the message out
