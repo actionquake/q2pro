@@ -43,6 +43,7 @@ game_src += windows.compile_resources('res/game.rc',
   args:                rc_args,
   include_directories: rc_inc,
 )
+endif
 
 client_deps += subproject('khr-headers').get_variable('khr_headers_dep')
 
