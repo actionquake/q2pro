@@ -478,7 +478,6 @@ if get_option('aqtion-build')
   config.set10('AQTION_HUD', true)
 
   ## Only use if building action and q2pro together
-  ## Change shared_library('game' + cpu, game_src ... to action_src
   action_src += ltk_src
 
   # Win32 winsock compat
