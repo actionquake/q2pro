@@ -910,7 +910,7 @@ static void Con_DrawSolidConsole(void)
         // draw loading state
         switch (con.loadstate) {
         case LOAD_MAP:
-            text = cl.configstrings[CS_MODELS + 1];
+            text = cl.configstrings[cl.csr.models + 1];
             break;
         case LOAD_MODELS:
             text = "models";
@@ -1027,17 +1027,7 @@ void Con_RunConsole(void)
         return;
     }
 
-    if (con.currentHeight > con.destHeight) {
-        con.currentHeight -= con_speed->value * cls.frametime;
-        if (con.currentHeight < con.destHeight) {
-            con.currentHeight = con.destHeight;
-        }
-    } else if (con.currentHeight < con.destHeight) {
-        con.currentHeight += con_speed->value * cls.frametime;
-        if (con.currentHeight > con.destHeight) {
-            con.currentHeight = con.destHeight;
-        }
-    }
+    CL_AdvanceValue(&con.currentHeight, con.destHeight, con_speed->value);
 }
 
 /*

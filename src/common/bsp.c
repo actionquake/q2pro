@@ -76,8 +76,8 @@ LOAD(Visibility)
     }
 
     numclusters = BSP_Long();
-    if (numclusters > MAX_MAP_LEAFS) {
-        DEBUG("bad numclusters");
+    if (numclusters > MAX_MAP_CLUSTERS) {
+        DEBUG("too many clusters");
         return Q_ERR_INVALID_FORMAT;
     }
 
@@ -91,6 +91,7 @@ LOAD(Visibility)
     bsp->vis = ALLOC(count);
     bsp->vis->numclusters = numclusters;
     bsp->visrowsize = (numclusters + 7) >> 3;
+    Q_assert(bsp->visrowsize <= VIS_MAX_BYTES);
 
     for (i = 0; i < numclusters; i++) {
         for (j = 0; j < 2; j++) {
@@ -471,10 +472,6 @@ LOAD(Leafs)
         DEBUG("map with no leafs");
         return Q_ERR_INVALID_FORMAT;
     }
-    if (count > MAX_MAP_LEAFS) {
-        DEBUG("too many leafs");
-        return Q_ERR_INVALID_FORMAT;
-    }
 
     bsp->numleafs = count;
     bsp->leafs = ALLOC(sizeof(*out) * count);
@@ -617,7 +614,7 @@ LOAD(Nodes)
     return Q_ERR_SUCCESS;
 }
 
-LOAD(Submodels)
+LOAD(SubModels)
 {
     mmodel_t    *out;
     int         i, j;
@@ -753,36 +750,36 @@ LOAD(EntString)
 
 typedef struct {
     int (*load)(bsp_t *, const byte *, size_t);
+    const char *name;
     uint8_t lump;
     uint8_t disksize[2];
     uint32_t memsize;
 } lump_info_t;
 
-#define L(func, lump, mem_t, disksize1, disksize2) \
-    { BSP_Load##func, LUMP_##lump, { disksize1, disksize2 }, sizeof(mem_t) }
+#define L(name, lump, mem_t, disksize1, disksize2) \
+    { BSP_Load##name, #name, lump, { disksize1, disksize2 }, sizeof(mem_t) }
 
 static const lump_info_t bsp_lumps[] = {
-    L(Visibility,   VISIBILITY,     byte,            1,  1),
-    L(Texinfo,      TEXINFO,        mtexinfo_t,     76, 76),
-    L(Planes,       PLANES,         cplane_t,       20, 20),
-    L(BrushSides,   BRUSHSIDES,     mbrushside_t,    4,  8),
-    L(Brushes,      BRUSHES,        mbrush_t,       12, 12),
-    L(LeafBrushes,  LEAFBRUSHES,    mbrush_t *,      2,  4),
-    L(AreaPortals,  AREAPORTALS,    mareaportal_t,   8,  8),
-    L(Areas,        AREAS,          marea_t,         8,  8),
+    L(Visibility,    3, byte,            1,  1),
+    L(Texinfo,       5, mtexinfo_t,     76, 76),
+    L(Planes,        1, cplane_t,       20, 20),
+    L(BrushSides,   15, mbrushside_t,    4,  8),
+    L(Brushes,      14, mbrush_t,       12, 12),
+    L(LeafBrushes,  10, mbrush_t *,      2,  4),
+    L(AreaPortals,  18, mareaportal_t,   8,  8),
+    L(Areas,        17, marea_t,         8,  8),
 #if USE_REF
-    L(Lightmap,     LIGHTING,       byte,            1,  1),
-    L(Vertices,     VERTEXES,       mvertex_t,      12, 12),
-    L(Edges,        EDGES,          medge_t,         4,  8),
-    L(SurfEdges,    SURFEDGES,      msurfedge_t,     4,  4),
-    L(Faces,        FACES,          mface_t,        20, 28),
-    L(LeafFaces,    LEAFFACES,      mface_t *,       2,  4),
+    L(Lightmap,      7, byte,            1,  1),
+    L(Vertices,      2, mvertex_t,      12, 12),
+    L(Edges,        11, medge_t,         4,  8),
+    L(SurfEdges,    12, msurfedge_t,     4,  4),
+    L(Faces,         6, mface_t,        20, 28),
+    L(LeafFaces,     9, mface_t *,       2,  4),
 #endif
-    L(Leafs,        LEAFS,          mleaf_t,        28, 52),
-    L(Nodes,        NODES,          mnode_t,        28, 44),
-    L(Submodels,    MODELS,         mmodel_t,       48, 48),
-    L(EntString,    ENTSTRING,      char,            1,  1),
-    { NULL }
+    L(Leafs,         8, mleaf_t,        28, 52),
+    L(Nodes,         4, mnode_t,        28, 44),
+    L(SubModels,    13, mmodel_t,       48, 48),
+    L(EntString,     0, char,            1,  1),
 };
 
 #undef L
@@ -907,19 +904,17 @@ static int BSP_ValidateAreaPortals(bsp_t *bsp)
     mareaportal_t   *p;
     int             i;
 
-    bsp->lastareaportal = 0;
+    bsp->numportals = 0;
     for (i = 0, p = bsp->areaportals; i < bsp->numareaportals; i++, p++) {
-        if (p->portalnum >= MAX_MAP_AREAPORTALS) {
+        if (p->portalnum >= bsp->numareaportals) {
             DEBUG("bad portalnum");
             return Q_ERR_INVALID_FORMAT;
-        }
-        if (p->portalnum > bsp->lastareaportal) {
-            bsp->lastareaportal = p->portalnum;
         }
         if (p->otherarea >= bsp->numareas) {
             DEBUG("bad otherarea");
             return Q_ERR_INVALID_FORMAT;
         }
+        bsp->numportals = max(bsp->numportals, p->portalnum + 1);
     }
 
     return Q_ERR_SUCCESS;
@@ -1014,9 +1009,9 @@ int BSP_Load(const char *name, bsp_t **bsp_p)
     dheader_t       *header;
     const lump_info_t *info;
     uint32_t        filelen, ofs, len, end, count, maxpos;
-    int             ret;
-    byte            *lumpdata[HEADER_LUMPS];
-    size_t          lumpcount[HEADER_LUMPS];
+    int             i, ret;
+    uint32_t        lump_ofs[q_countof(bsp_lumps)];
+    uint32_t        lump_count[q_countof(bsp_lumps)];
     size_t          memsize;
     bool            extended = false;
 
@@ -1068,25 +1063,25 @@ int BSP_Load(const char *name, bsp_t **bsp_p)
     // byte swap and validate all lumps
     memsize = 0;
     maxpos = 0;
-    for (info = bsp_lumps; info->load; info++) {
+    for (i = 0, info = bsp_lumps; i < q_countof(bsp_lumps); i++, info++) {
         ofs = LittleLong(header->lumps[info->lump].fileofs);
         len = LittleLong(header->lumps[info->lump].filelen);
         end = ofs + len;
         if (end < ofs || end > filelen) {
-            Com_SetLastError(va("Lump %d out of bounds", info->lump));
+            Com_SetLastError(va("%s lump out of bounds", info->name));
             ret = Q_ERR_INVALID_FORMAT;
             goto fail2;
         }
         if (len % info->disksize[extended]) {
-            Com_SetLastError(va("Lump %d has odd size", info->lump));
+            Com_SetLastError(va("%s lump has odd size", info->name));
             ret = Q_ERR_INVALID_FORMAT;
             goto fail2;
         }
         count = len / info->disksize[extended];
-        Q_assert(count <= INT_MAX);
+        Q_assert(count <= INT_MAX / info->memsize);
 
-        lumpdata[info->lump] = buf + ofs;
-        lumpcount[info->lump] = count;
+        lump_ofs[i] = ofs;
+        lump_count[i] = count;
 
         // round to cacheline
         memsize += ALIGN(count * info->memsize, 64);
@@ -1106,8 +1101,8 @@ int BSP_Load(const char *name, bsp_t **bsp_p)
     bsp->checksum = Com_BlockChecksum(buf, filelen);
 
     // load all lumps
-    for (info = bsp_lumps; info->load; info++) {
-        ret = info->load(bsp, lumpdata[info->lump], lumpcount[info->lump]);
+    for (i = 0; i < q_countof(bsp_lumps); i++) {
+        ret = bsp_lumps[i].load(bsp, buf + lump_ofs[i], lump_count[i]);
         if (ret) {
             goto fail1;
         }
@@ -1343,6 +1338,11 @@ overrun:
                 Q_SetBit(mask, 939);
                 Q_SetBit(mask, 947);
             }
+        } else if (bsp->checksum == 0x2b2ccdd1) {
+            // mgu6m2, waterfall
+            Q_SetBit(mask, 213);
+            Q_SetBit(mask, 214);
+            Q_SetBit(mask, 217);
         }
     }
 

@@ -93,6 +93,8 @@ typedef struct {
     GLuint          u_bufnum;
     GLuint          programs[MAX_PROGRAMS];
     GLuint          texnums[NUM_TEXNUMS];
+    GLuint          queries[MAX_EDICTS];
+    GLenum          samples_passed;
     GLbitfield      stencil_buffer_bit;
     float           entity_modulate;
     uint32_t        inverse_intensity_33;
@@ -115,13 +117,16 @@ typedef struct {
     cplane_t        frustumPlanes[4];
     entity_t        *ent;
     bool            entrotated;
+    float           entscale;
     vec3_t          entaxis[3];
     GLfloat         entmatrix[16];
     lightpoint_t    lightpoint;
     int             num_beams;
+    int             num_flares;
     int             framebuffer_width;
     int             framebuffer_height;
     bool            framebuffer_ok;
+    byte            queryflags[MAX_EDICTS];
 } glRefdef_t;
 
 enum {
@@ -596,7 +601,7 @@ void GL_LightPoint(const vec3_t origin, vec3_t color);
 void R_AddSkySurface(mface_t *surf);
 void R_ClearSkyBox(void);
 void R_DrawSkyBox(void);
-void R_SetSky(const char *name, float rotate, const vec3_t axis);
+void R_SetSky(const char *name, float rotate, bool autorotate, const vec3_t axis);
 
 /*
  * gl_mesh.c

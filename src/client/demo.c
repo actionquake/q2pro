@@ -73,11 +73,23 @@ fail:
     return false;
 }
 
+void CL_PackEntity(entity_packed_t *out, const centity_state_t *in)
+{
+    MSG_PackEntity(out, &in->s, cl.csr.extended ? &in->x : NULL);
+
+    // repack solid 32 to 16
+    if (!cl.csr.extended && cl.esFlags & MSG_ES_LONGSOLID && in->solid && in->solid != PACKED_BSP) {
+        vec3_t mins, maxs;
+        MSG_UnpackSolid32_Ver1(in->solid, mins, maxs);
+        out->solid = MSG_PackSolid16(mins, maxs);
+    }
+}
+
 // writes a delta update of an entity_state_t list to the message.
 static void emit_packet_entities(server_frame_t *from, server_frame_t *to)
 {
     entity_packed_t oldpack, newpack;
-    entity_state_t *oldent, *newent;
+    centity_state_t *oldent, *newent;
     int     oldindex, newindex;
     int     oldnum, newnum;
     int     i, from_num_entities;
@@ -113,10 +125,12 @@ static void emit_packet_entities(server_frame_t *from, server_frame_t *to)
             // not changed at all. Note that players are always 'newentities',
             // this updates their old_origin always and prevents warping in case
             // of packet loss.
-            MSG_PackEntity(&oldpack, oldent, false);
-            MSG_PackEntity(&newpack, newent, false);
-            MSG_WriteDeltaEntity(&oldpack, &newpack,
-                                 newent->number <= cl.maxclients ? MSG_ES_NEWENTITY : 0);
+            msgEsFlags_t flags = cls.demo.esFlags;
+            if (newent->number <= cl.maxclients)
+                flags |= MSG_ES_NEWENTITY;
+            CL_PackEntity(&oldpack, oldent);
+            CL_PackEntity(&newpack, newent);
+            MSG_WriteDeltaEntity(&oldpack, &newpack, flags);
             oldindex++;
             newindex++;
             continue;
@@ -124,16 +138,16 @@ static void emit_packet_entities(server_frame_t *from, server_frame_t *to)
 
         if (newnum < oldnum) {
             // this is a new entity, send it from the baseline
-            MSG_PackEntity(&oldpack, &cl.baselines[newnum], false);
-            MSG_PackEntity(&newpack, newent, false);
-            MSG_WriteDeltaEntity(&oldpack, &newpack, MSG_ES_FORCE | MSG_ES_NEWENTITY);
+            CL_PackEntity(&oldpack, &cl.baselines[newnum]);
+            CL_PackEntity(&newpack, newent);
+            MSG_WriteDeltaEntity(&oldpack, &newpack, cls.demo.esFlags | MSG_ES_FORCE | MSG_ES_NEWENTITY);
             newindex++;
             continue;
         }
 
         if (newnum > oldnum) {
             // the old entity isn't present in the new message
-            MSG_PackEntity(&oldpack, oldent, false);
+            CL_PackEntity(&oldpack, oldent);
             MSG_WriteDeltaEntity(&oldpack, NULL, MSG_ES_FORCE);
             oldindex++;
             continue;
@@ -163,9 +177,9 @@ static void emit_delta_frame(server_frame_t *from, server_frame_t *to,
     MSG_PackPlayer(&newpack, &to->ps);
     if (from) {
         MSG_PackPlayer(&oldpack, &from->ps);
-        MSG_WriteDeltaPlayerstate_Default(&oldpack, &newpack);
+        MSG_WriteDeltaPlayerstate_Default(&oldpack, &newpack, cl.psFlags);
     } else {
-        MSG_WriteDeltaPlayerstate_Default(NULL, &newpack);
+        MSG_WriteDeltaPlayerstate_Default(NULL, &newpack, cl.psFlags);
     }
 
     // delta encode the entities
@@ -320,7 +334,7 @@ static void CL_Record_f(void)
     char    buffer[MAX_OSPATH];
     int     i, c;
     size_t  len;
-    entity_state_t  *ent;
+    centity_state_t *ent;
     entity_packed_t pack;
     char            *s;
     qhandle_t       f;
@@ -385,6 +399,9 @@ static void CL_Record_f(void)
     // the first frame will be delta uncompressed
     cls.demo.last_server_frame = -1;
 
+    if (cl.csr.extended)
+        size = MAX_MSGLEN;
+
     SZ_Init(&cls.demo.buffer, demo_buffer, size);
 
     // clear dirty configstrings
@@ -399,7 +416,10 @@ static void CL_Record_f(void)
 
     // send the serverdata
     MSG_WriteByte(svc_serverdata);
-    MSG_WriteLong(min(cls.serverProtocol, PROTOCOL_VERSION_DEFAULT));
+    if (cl.csr.extended)
+        MSG_WriteLong(PROTOCOL_VERSION_EXTENDED);
+    else
+        MSG_WriteLong(min(cls.serverProtocol, PROTOCOL_VERSION_DEFAULT));
     MSG_WriteLong(cl.servercount);
     MSG_WriteByte(1);      // demos are always attract loops
     MSG_WriteString(cl.gamedir);
@@ -407,7 +427,7 @@ static void CL_Record_f(void)
     MSG_WriteString(cl.configstrings[CS_NAME]);
 
     // configstrings
-    for (i = 0; i < MAX_CONFIGSTRINGS; i++) {
+    for (i = 0; i < cl.csr.end; i++) {
         s = cl.configstrings[i];
         if (!*s)
             continue;
@@ -425,19 +445,19 @@ static void CL_Record_f(void)
     }
 
     // baselines
-    for (i = 1; i < MAX_EDICTS; i++) {
+    for (i = 1; i < cl.csr.max_edicts; i++) {
         ent = &cl.baselines[i];
         if (!ent->number)
             continue;
 
-        if (msg_write.cursize + 64 > size) {
+        if (msg_write.cursize + MAX_PACKETENTITY_BYTES > size) {
             if (!CL_WriteDemoMessage(&msg_write))
                 return;
         }
 
         MSG_WriteByte(svc_spawnbaseline);
-        MSG_PackEntity(&pack, ent, false);
-        MSG_WriteDeltaEntity(NULL, &pack, MSG_ES_FORCE);
+        CL_PackEntity(&pack, ent);
+        MSG_WriteDeltaEntity(NULL, &pack, cls.demo.esFlags | MSG_ES_FORCE);
     }
 
     MSG_WriteByte(svc_stufftext);
@@ -752,7 +772,7 @@ static void CL_PlayDemo_f(void)
 static void CL_Demo_c(genctx_t *ctx, int argnum)
 {
     if (argnum == 1) {
-        FS_File_g("demos", "*.dm2;*.dm2.gz;*.mvd2;*.mvd2.gz", FS_SEARCH_SAVEPATH | FS_SEARCH_BYFILTER, ctx);
+        FS_File_g("demos", ".dm2;.dm2.gz;.mvd2;.mvd2.gz", FS_SEARCH_RECURSIVE, ctx);
     }
 }
 
@@ -813,7 +833,7 @@ void CL_EmitDemoSnapshot(void)
     }
 
     // write configstrings
-    for (i = 0; i < MAX_CONFIGSTRINGS; i++) {
+    for (i = 0; i < cl.csr.end; i++) {
         from = cl.baseconfigstrings[i];
         to = cl.configstrings[i];
 
@@ -884,7 +904,7 @@ void CL_FirstDemoFrame(void)
     Com_DPrintf("[%d] first frame\n", cl.frame.number);
 
     // save base configstrings
-    memcpy(cl.baseconfigstrings, cl.configstrings, sizeof(cl.baseconfigstrings));
+    memcpy(cl.baseconfigstrings, cl.configstrings, sizeof(cl.baseconfigstrings[0]) * cl.csr.end);
 
     // obtain file length and offset of the second frame
     len = FS_Length(cls.demo.playback);
@@ -1028,7 +1048,7 @@ static void CL_Seek_f(void)
             cls.demo.eof = false;
 
             // reset configstrings
-            for (i = 0; i < MAX_CONFIGSTRINGS; i++) {
+            for (i = 0; i < cl.csr.end; i++) {
                 from = cl.baseconfigstrings[i];
                 to = cl.configstrings[i];
 
@@ -1113,21 +1133,21 @@ done:
     cls.demo.seeking = false;
 }
 
-static void parse_info_string(demoInfo_t *info, int clientNum, int index)
+static void parse_info_string(demoInfo_t *info, int clientNum, int index, const cs_remap_t *csr)
 {
     char string[MAX_QPATH], *p;
 
     MSG_ReadString(string, sizeof(string));
 
-    if (index >= CS_PLAYERSKINS && index < CS_PLAYERSKINS + MAX_CLIENTS) {
-        if (index - CS_PLAYERSKINS == clientNum) {
+    if (index >= csr->playerskins && index < csr->playerskins + MAX_CLIENTS) {
+        if (index - csr->playerskins == clientNum) {
             Q_strlcpy(info->pov, string, sizeof(info->pov));
             p = strchr(info->pov, '\\');
             if (p) {
                 *p = 0;
             }
         }
-    } else if (index == CS_MODELS + 1) {
+    } else if (index == csr->models + 1) {
         Com_ParseMapName(info->map, string, sizeof(info->map));
     }
 }
@@ -1141,6 +1161,7 @@ demoInfo_t *CL_GetDemoInfo(const char *path, demoInfo_t *info)
 {
     qhandle_t f;
     int c, index, clientNum, type;
+    const cs_remap_t *csr = &cs_remap_old;
 
     FS_OpenFile(path, &f, FS_MODE_READ | FS_FLAG_GZIP);
     if (!f) {
@@ -1159,7 +1180,9 @@ demoInfo_t *CL_GetDemoInfo(const char *path, demoInfo_t *info)
             goto fail;
         }
         c = MSG_ReadLong();
-        if (c < PROTOCOL_VERSION_OLD || c > PROTOCOL_VERSION_DEFAULT) {
+        if (c == PROTOCOL_VERSION_EXTENDED) {
+            csr = &cs_remap_new;
+        } else if (c < PROTOCOL_VERSION_OLD || c > PROTOCOL_VERSION_DEFAULT) {
             goto fail;
         }
         MSG_ReadLong();
@@ -1179,33 +1202,37 @@ demoInfo_t *CL_GetDemoInfo(const char *path, demoInfo_t *info)
             if (c != svc_configstring) {
                 break;
             }
-            index = MSG_ReadShort();
-            if (index < 0 || index >= MAX_CONFIGSTRINGS) {
+            index = MSG_ReadWord();
+            if (index < 0 || index >= csr->end) {
                 goto fail;
             }
-            parse_info_string(info, clientNum, index);
+            parse_info_string(info, clientNum, index, csr);
         }
     } else {
-        if ((MSG_ReadByte() & SVCMD_MASK) != mvd_serverdata) {
+        c = MSG_ReadByte();
+        if ((c & SVCMD_MASK) != mvd_serverdata) {
             goto fail;
         }
         if (MSG_ReadLong() != PROTOCOL_VERSION_MVD) {
             goto fail;
         }
-        MSG_ReadShort();
+        if (c & (MVF_EXTLIMITS << SVCMD_BITS)) {
+            csr = &cs_remap_new;
+        }
+        MSG_ReadWord();
         MSG_ReadLong();
         MSG_ReadString(NULL, 0);
         clientNum = MSG_ReadShort();
 
         while (1) {
-            index = MSG_ReadShort();
-            if (index == MAX_CONFIGSTRINGS) {
+            index = MSG_ReadWord();
+            if (index == csr->end) {
                 break;
             }
-            if (index < 0 || index >= MAX_CONFIGSTRINGS) {
+            if (index < 0 || index >= csr->end) {
                 goto fail;
             }
-            parse_info_string(info, clientNum, index);
+            parse_info_string(info, clientNum, index, csr);
         }
     }
 

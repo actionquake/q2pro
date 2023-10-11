@@ -145,7 +145,7 @@ static void BSP_Test_f(void)
     int ret;
     unsigned start, end;
 
-    list = FS_ListFiles(NULL, ".bsp", FS_SEARCH_SAVEPATH | FS_SEARCH_RECURSIVE, &count);
+    list = FS_ListFiles(NULL, ".bsp", FS_SEARCH_RECURSIVE, &count);
     if (!list) {
         Com_Printf("No maps found\n");
         return;
@@ -519,7 +519,7 @@ static void Com_TestModels_f(void)
     int i, count, errors;
     unsigned start, end;
 
-    list = FS_ListFiles(NULL, ".md2", FS_SEARCH_SAVEPATH | FS_SEARCH_RECURSIVE, &count);
+    list = FS_ListFiles(NULL, ".md2", FS_SEARCH_RECURSIVE, &count);
     if (!list) {
         Com_Printf("No models found\n");
         return;
@@ -531,7 +531,7 @@ static void Com_TestModels_f(void)
 
     errors = 0;
     for (i = 0; i < count; i++) {
-        if (i > 0 && !(i & (MAX_MODELS - 1))) {
+        if (i > 0 && !(i & (MAX_MODELS_OLD - 1))) {
             R_EndRegistration();
             R_BeginRegistration(NULL);
         }
@@ -557,7 +557,7 @@ static void Com_TestImages_f(void)
     int i, count, errors;
     unsigned start, end;
 
-    list = FS_ListFiles(NULL, ".pcx;.wal;.png;.jpg;.tga", FS_SEARCH_SAVEPATH | FS_SEARCH_RECURSIVE, &count);
+    list = FS_ListFiles(NULL, ".pcx;.wal;.png;.jpg;.tga", FS_SEARCH_RECURSIVE, &count);
     if (!list) {
         Com_Printf("No images found\n");
         return;
@@ -569,7 +569,7 @@ static void Com_TestImages_f(void)
 
     errors = 0;
     for (i = 0; i < count; i++) {
-        if (i > 0 && !(i & (MAX_IMAGES - 1))) {
+        if (i > 0 && !(i & (MAX_IMAGES_OLD - 1))) {
             R_EndRegistration();
             R_BeginRegistration(NULL);
         }
@@ -597,7 +597,7 @@ static void Com_TestSounds_f(void)
     int i, count, errors;
     unsigned start, end;
 
-    list = FS_ListFiles(NULL, ".wav", FS_SEARCH_SAVEPATH | FS_SEARCH_RECURSIVE, &count);
+    list = FS_ListFiles(NULL, ".wav", FS_SEARCH_RECURSIVE, &count);
     if (!list) {
         Com_Printf("No sounds found\n");
         return;
@@ -609,7 +609,7 @@ static void Com_TestSounds_f(void)
 
     errors = 0;
     for (i = 0; i < count; i++) {
-        if (i > 0 && !(i & (MAX_SOUNDS - 1))) {
+        if (i > 0 && !(i & (MAX_SOUNDS_OLD - 1))) {
             S_EndRegistration();
             S_BeginRegistration();
         }

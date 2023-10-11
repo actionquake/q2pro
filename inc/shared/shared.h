@@ -66,13 +66,27 @@ typedef int qhandle_t;
 // per-level limits
 //
 #define MAX_CLIENTS         256     // absolute limit
-#define MAX_EDICTS          1024    // must change protocol to increase more
+#define MAX_EDICTS_OLD      1024    // must change protocol to increase more
+#define MAX_MODELS_OLD      256     // these are sent over the net as bytes
+#define MAX_SOUNDS_OLD      256     // so they cannot be blindly increased
+#define MAX_IMAGES_OLD      256
 #define MAX_LIGHTSTYLES     256
-#define MAX_MODELS          256     // these are sent over the net as bytes
-#define MAX_SOUNDS          256     // so they cannot be blindly increased
-#define MAX_IMAGES          256
 #define MAX_ITEMS           256
 #define MAX_GENERAL         (MAX_CLIENTS * 2) // general config strings
+
+#if USE_PROTOCOL_EXTENSIONS
+#define MAX_EDICTS          8192    // sent as ENTITYNUM_BITS, can't be increased
+#define MAX_MODELS          8192    // half is reserved for inline BSP models
+#define MAX_SOUNDS          2048
+#define MAX_IMAGES          2048
+#else
+#define MAX_EDICTS          MAX_EDICTS_OLD
+#define MAX_MODELS          MAX_MODELS_OLD
+#define MAX_SOUNDS          MAX_SOUNDS_OLD
+#define MAX_IMAGES          MAX_IMAGES_OLD
+#endif
+
+#define MODELINDEX_PLAYER   (MAX_MODELS_OLD - 1)
 
 #define MAX_CLIENT_NAME     16
 
@@ -275,6 +289,7 @@ typedef struct vrect_s {
 #define ALIGN(x, a)     (((x) + (a) - 1) & ~((a) - 1))
 
 #define BIT(n)          (1U << (n))
+#define BIT_ULL(n)      (1ULL << (n))
 
 #define SWAP(type, a, b) \
     do { type SWAP_tmp = a; a = b; b = SWAP_tmp; } while (0)
@@ -435,6 +450,11 @@ uint32_t Q_rand_uniform(uint32_t n);
 
 #define clamp(a,b,c)    ((a)<(b)?(a)=(b):(a)>(c)?(a)=(c):(a))
 #define cclamp(a,b,c)   ((b)>(c)?clamp(a,c,b):clamp(a,b,c))
+
+static inline int Q_clip(int a, int b, int c)
+{
+    return clamp(a, b, c);
+}
 
 #ifndef max
 #define max(a,b) ((a)>(b)?(a):(b))
@@ -710,11 +730,13 @@ CVARS (console variables)
                                 // but can be set from the command line
 #define CVAR_LATCH      BIT(4)  // save changes until server restart
 
+#if USE_CLIENT || USE_SERVER
 struct cvar_s;
 struct genctx_s;
 
 typedef void (*xchanged_t)(struct cvar_s *);
 typedef void (*xgenerator_t)(struct genctx_s *);
+#endif
 
 // nothing outside the cvar.*() functions should modify these fields!
 typedef struct cvar_s {
@@ -760,6 +782,7 @@ COLLISION DETECTION
 
 // remaining contents are non-visible, and don't eat brushes
 
+#define CONTENTS_PROJECTILECLIP BIT(14)     // KEX
 #define CONTENTS_AREAPORTAL     BIT(15)
 
 #define CONTENTS_PLAYERCLIP     BIT(16)
@@ -781,6 +804,11 @@ COLLISION DETECTION
 #define CONTENTS_TRANSLUCENT    BIT(28)     // auto set if any surface has trans
 #define CONTENTS_LADDER         BIT(29)
 
+//KEX
+#define CONTENTS_PLAYER         BIT(30)     // should never be on a brush, only in game
+#define CONTENTS_PROJECTILE     BIT(31)
+//KEX
+
 #define SURF_LIGHT              BIT(0)      // value will hold the light strength
 #define SURF_SLICK              BIT(1)      // effects game physics
 #define SURF_SKY                BIT(2)      // don't draw, but add to skybox
@@ -792,10 +820,12 @@ COLLISION DETECTION
 
 #define SURF_ALPHATEST          BIT(25)     // used by kmquake2
 
+//KEX
 #define SURF_N64_UV             BIT(28)
 #define SURF_N64_SCROLL_X       BIT(29)
 #define SURF_N64_SCROLL_Y       BIT(30)
 #define SURF_N64_SCROLL_FLIP    BIT(31)
+//KEX
 
 // content masks
 #define MASK_ALL                (-1)
@@ -868,7 +898,11 @@ typedef enum {
 #define PMF_TIME_LAND       BIT(4)      // pm_time is time before rejump
 #define PMF_TIME_TELEPORT   BIT(5)      // pm_time is non-moving time
 #define PMF_NO_PREDICTION   BIT(6)      // temporarily disables prediction (used for grappling hook)
-#define PMF_TELEPORT_BIT    BIT(7)      // used by q2pro
+#define PMF_TELEPORT_BIT    BIT(7)      // used by Q2PRO (non-extended servers)
+
+//KEX
+#define PMF_IGNORE_PLAYER_COLLISION     BIT(7)
+//KEX
 
 
 #ifdef AQTION_EXTENSION
@@ -949,6 +983,7 @@ typedef struct {
 // even if it has a zero index model.
 #define EF_ROTATE           BIT(0)      // rotate (bonus items)
 #define EF_GIB              BIT(1)      // leave a trail
+#define EF_BOB              BIT(2)      // used by KEX
 #define EF_BLASTER          BIT(3)      // redlight + trail
 #define EF_ROCKET           BIT(4)      // redlight + trail
 #define EF_GRENADE          BIT(5)
@@ -984,6 +1019,16 @@ typedef struct {
 #define EF_TRACKERTRAIL     BIT(31)
 //ROGUE
 
+// entity_state_t->morefx flags
+//KEX
+#define EFX_DUALFIRE            BIT(0)
+#define EFX_HOLOGRAM            BIT(1)
+#define EFX_FLASHLIGHT          BIT(2)
+#define EFX_BARREL_EXPLODING    BIT(3)
+#define EFX_TELEPORTER2         BIT(4)
+#define EFX_GRENADE_LIGHT       BIT(5)
+//KEX
+
 // entity_state_t->renderfx flags
 #define RF_MINLIGHT         BIT(0)      // allways have some light (viewmodel)
 #define RF_VIEWERMODEL      BIT(1)      // don't draw through eyes, only mirrors
@@ -999,6 +1044,7 @@ typedef struct {
 #define RF_SHELL_GREEN      BIT(11)
 #define RF_SHELL_BLUE       BIT(12)
 #define RF_NOSHADOW         BIT(13)     // used by YQ2
+#define RF_CASTSHADOW       BIT(14)     // used by KEX
 
 //ROGUE
 #define RF_IR_VISIBLE       BIT(15)
@@ -1006,6 +1052,21 @@ typedef struct {
 #define RF_SHELL_HALF_DAM   BIT(17)
 #define RF_USE_DISGUISE     BIT(18)
 //ROGUE
+
+//KEX
+#define RF_SHELL_LITE_GREEN BIT(19)
+#define RF_CUSTOM_LIGHT     BIT(20)
+#define RF_FLARE            BIT(21)
+#define RF_OLD_FRAME_LERP   BIT(22)
+#define RF_DOT_SHADOW       BIT(23)
+#define RF_LOW_PRIORITY     BIT(24)
+#define RF_NO_LOD           BIT(25)
+#define RF_STAIR_STEP       BIT(26)
+
+#define RF_NO_STEREO        RF_WEAPONMODEL
+#define RF_FLARE_LOCK_ANGLE RF_MINLIGHT
+#define RF_BEAM_LIGHTNING   (RF_BEAM | RF_GLOW)
+//KEX
 
 // player_state_t->refdef flags
 #define RDF_UNDERWATER      BIT(0)      // warp the screen as apropriate
@@ -1018,6 +1079,7 @@ typedef struct {
 
 #define RF_INDICATOR			(RF_TRANSLUCENT | RF_FULLBRIGHT | RF_DEPTHHACK)
 #define IS_INDICATOR(rflags)	((rflags & RF_INDICATOR) == RF_INDICATOR)
+#define RDF_TELEPORT_BIT    BIT(4)      // used by Q2PRO (extended servers)
 
 //
 // muzzle flashes / player effects
@@ -1098,6 +1160,7 @@ typedef enum {
     TE_BLUEHYPERBLASTER,
     TE_PLASMA_EXPLOSION,
     TE_TUNNEL_SPARKS,
+
 //ROGUE
     TE_BLASTER2,
     TE_RAILTRAIL2,
@@ -1126,6 +1189,17 @@ typedef enum {
     TE_EXPLOSION1_NP,
     TE_FLECHETTE,
 //ROGUE
+
+//[Paril-KEX]
+    TE_BLUEHYPERBLASTER_2,
+    TE_BFG_ZAP,
+    TE_BERSERK_SLAM,
+    TE_GRAPPLE_CABLE_2,
+    TE_POWER_SPLASH,
+    TE_LIGHTNING_BEAM,
+    TE_EXPLOSION1_NL,
+    TE_EXPLOSION2_NL,
+//[Paril-KEX]
 
     TE_NUM_ENTITIES
 } temp_event_t;
@@ -1156,6 +1230,7 @@ enum {
 };
 
 // sound attenuation values
+#define ATTN_LOOP_NONE          -1   // ugly hack for remaster
 #define ATTN_NONE               0    // full volume the entire level
 #define ATTN_LOUD               0.4  // handcannon
 #define ATTN_NORM               1
@@ -1189,6 +1264,14 @@ enum {
 
     MAX_STATS = 32
 };
+
+// STAT_LAYOUTS flags
+#define LAYOUTS_LAYOUT          BIT(0)
+#define LAYOUTS_INVENTORY       BIT(1)
+#define LAYOUTS_HIDE_HUD        BIT(2)
+#define LAYOUTS_INTERMISSION    BIT(3)
+#define LAYOUTS_HELP            BIT(4)
+#define LAYOUTS_HIDE_CROSSHAIR  BIT(5)
 
 // dmflags->value flags
 #define DF_NO_HEALTH        BIT(0)
@@ -1261,23 +1344,73 @@ enum {
 #define CS_SKYROTATE        4
 #define CS_STATUSBAR        5       // display program string
 
-#define CS_AIRACCEL         29      // air acceleration control
-#define CS_MAXCLIENTS       30
-#define CS_MAPCHECKSUM      31      // for catching cheater maps
+#define CS_AIRACCEL_OLD         29      // air acceleration control
+#define CS_MAXCLIENTS_OLD       30
+#define CS_MAPCHECKSUM_OLD      31      // for catching cheater maps
+#define CS_MODELS_OLD           32
+#define CS_SOUNDS_OLD           (CS_MODELS_OLD + MAX_MODELS_OLD)
+#define CS_IMAGES_OLD           (CS_SOUNDS_OLD + MAX_SOUNDS_OLD)
+#define CS_LIGHTS_OLD           (CS_IMAGES_OLD + MAX_IMAGES_OLD)
+#define CS_ITEMS_OLD            (CS_LIGHTS_OLD + MAX_LIGHTSTYLES)
+#define CS_PLAYERSKINS_OLD      (CS_ITEMS_OLD + MAX_ITEMS)
+#define CS_GENERAL_OLD          (CS_PLAYERSKINS_OLD + MAX_CLIENTS)
+#define MAX_CONFIGSTRINGS_OLD   (CS_GENERAL_OLD + MAX_GENERAL)
 
-#define CS_MODELS           32
-#define CS_SOUNDS           (CS_MODELS+MAX_MODELS)
-#define CS_IMAGES           (CS_SOUNDS+MAX_SOUNDS)
-#define CS_LIGHTS           (CS_IMAGES+MAX_IMAGES)
-#define CS_ITEMS            (CS_LIGHTS+MAX_LIGHTSTYLES)
-#define CS_PLAYERSKINS      (CS_ITEMS+MAX_ITEMS)
-#define CS_GENERAL          (CS_PLAYERSKINS+MAX_CLIENTS)
-#define MAX_CONFIGSTRINGS   (CS_GENERAL+MAX_GENERAL)
+#if USE_PROTOCOL_EXTENSIONS
+#define CS_AIRACCEL         59
+#define CS_MAXCLIENTS       60
+#define CS_MAPCHECKSUM      61
+#define CS_MODELS           62
+#define CS_SOUNDS           (CS_MODELS + MAX_MODELS)
+#define CS_IMAGES           (CS_SOUNDS + MAX_SOUNDS)
+#define CS_LIGHTS           (CS_IMAGES + MAX_IMAGES)
+#define CS_ITEMS            (CS_LIGHTS + MAX_LIGHTSTYLES)
+#define CS_PLAYERSKINS      (CS_ITEMS + MAX_ITEMS)
+#define CS_GENERAL          (CS_PLAYERSKINS + MAX_CLIENTS)
+#define MAX_CONFIGSTRINGS   (CS_GENERAL + MAX_GENERAL)
+#else
+#define CS_AIRACCEL         CS_AIRACCEL_OLD
+#define CS_MAXCLIENTS       CS_MAXCLIENTS_OLD
+#define CS_MAPCHECKSUM      CS_MAPCHECKSUM_OLD
+#define CS_MODELS           CS_MODELS_OLD
+#define CS_SOUNDS           CS_SOUNDS_OLD
+#define CS_IMAGES           CS_IMAGES_OLD
+#define CS_LIGHTS           CS_LIGHTS_OLD
+#define CS_ITEMS            CS_ITEMS_OLD
+#define CS_PLAYERSKINS      CS_PLAYERSKINS_OLD
+#define CS_GENERAL          CS_GENERAL_OLD
+#define MAX_CONFIGSTRINGS   MAX_CONFIGSTRINGS_OLD
+#endif
 
-// Some mods actually exploit CS_STATUSBAR to take space up to CS_AIRACCEL
-#define CS_SIZE(cs) \
-    ((cs) >= CS_STATUSBAR && (cs) < CS_AIRACCEL ? \
-      MAX_QPATH * (CS_AIRACCEL - (cs)) : MAX_QPATH)
+#if USE_PROTOCOL_EXTENSIONS
+
+typedef struct {
+    bool        extended;
+
+    uint16_t    max_edicts;
+    uint16_t    max_models;
+    uint16_t    max_sounds;
+    uint16_t    max_images;
+
+    uint16_t    airaccel;
+    uint16_t    maxclients;
+    uint16_t    mapchecksum;
+
+    uint16_t    models;
+    uint16_t    sounds;
+    uint16_t    images;
+    uint16_t    lights;
+    uint16_t    items;
+    uint16_t    playerskins;
+    uint16_t    general;
+
+    uint16_t    end;
+} cs_remap_t;
+
+extern const cs_remap_t     cs_remap_old;
+extern const cs_remap_t     cs_remap_new;
+
+#endif
 
 //==============================================
 
@@ -1293,7 +1426,11 @@ typedef enum {
     EV_FALL,
     EV_FALLFAR,
     EV_PLAYER_TELEPORT,
-    EV_OTHER_TELEPORT
+    EV_OTHER_TELEPORT,
+// KEX
+    EV_OTHER_FOOTSTEP,
+    EV_LADDER_STEP,
+// KEX
 } entity_event_t;
 
 // entity_state_t is the information conveyed from the server
@@ -1360,3 +1497,22 @@ typedef struct {
 } cvarsync_t;
 
 typedef char cvarsyncvalue_t[CVARSYNC_MAXSIZE];
+//==============================================
+
+#if USE_PROTOCOL_EXTENSIONS
+
+#define ENTITYNUM_BITS      13
+#define ENTITYNUM_MASK      (BIT(ENTITYNUM_BITS) - 1)
+
+#define GUNINDEX_BITS       13  // upper 3 bits are skinnum
+#define GUNINDEX_MASK       (BIT(GUNINDEX_BITS) - 1)
+
+typedef struct {
+    int         morefx;
+    float       alpha;
+    float       scale;
+    float       loop_volume;
+    float       loop_attenuation;
+} entity_state_extension_t;
+
+#endif

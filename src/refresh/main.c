@@ -154,6 +154,7 @@ glCullResult_t GL_CullSphere(const vec3_t origin, float radius)
         return CULL_IN;
     }
 
+    radius *= glr.entscale;
     cull = CULL_IN;
     for (i = 0, p = glr.frustumPlanes; i < 4; i++, p++) {
         dist = PlaneDiff(origin, p);
@@ -269,14 +270,26 @@ void GL_MultMatrix(GLfloat *restrict p, const GLfloat *restrict a, const GLfloat
 
 void GL_SetEntityAxis(void)
 {
-    if (VectorEmpty(glr.ent->angles)) {
-        glr.entrotated = false;
+    entity_t *e = glr.ent;
+
+    glr.entrotated = false;
+    glr.entscale = 1;
+
+    if (VectorEmpty(e->angles)) {
         VectorSet(glr.entaxis[0], 1, 0, 0);
         VectorSet(glr.entaxis[1], 0, 1, 0);
         VectorSet(glr.entaxis[2], 0, 0, 1);
     } else {
+        AnglesToAxis(e->angles, glr.entaxis);
         glr.entrotated = true;
-        AnglesToAxis(glr.ent->angles, glr.entaxis);
+    }
+
+    if (e->scale && e->scale != 1) {
+        VectorScale(glr.entaxis[0], e->scale, glr.entaxis[0]);
+        VectorScale(glr.entaxis[1], e->scale, glr.entaxis[1]);
+        VectorScale(glr.entaxis[2], e->scale, glr.entaxis[2]);
+        glr.entrotated = true;
+        glr.entscale = e->scale;
     }
 }
 
@@ -382,6 +395,112 @@ static void GL_DrawNullModel(void)
     qglDrawArrays(GL_LINES, 0, 6);
 }
 
+static void make_flare_quad(const entity_t *e, float scale, vec3_t points[4])
+{
+    vec3_t up, down, left, right;
+
+    scale *= e->scale;
+
+    VectorScale(glr.viewaxis[1], scale, left);
+    VectorScale(glr.viewaxis[1], -scale, right);
+    VectorScale(glr.viewaxis[2], -scale, down);
+    VectorScale(glr.viewaxis[2], scale, up);
+
+    VectorAdd3(e->origin, down, left, points[0]);
+    VectorAdd3(e->origin, up, left, points[1]);
+    VectorAdd3(e->origin, down, right, points[2]);
+    VectorAdd3(e->origin, up, right, points[3]);
+}
+
+#define FLARE_PENDING   1
+#define FLARE_VISIBLE   2
+
+static void GL_OccludeFlares(void)
+{
+    vec3_t points[4];
+    entity_t *e;
+    int i;
+
+    if (!glr.num_flares)
+        return;
+    if (!qglBeginQuery)
+        return;
+
+    GL_LoadMatrix(glr.viewmatrix);
+    GL_StateBits(GLS_DEPTHMASK_FALSE);
+    GL_ArrayBits(GLA_VERTEX);
+    qglColorMask(0, 0, 0, 0);
+    GL_ActiveTexture(0);
+    qglDisable(GL_TEXTURE_2D);
+    GL_VertexPointer(3, 0, &points[0][0]);
+
+    for (i = 0, e = glr.fd.entities; i < glr.fd.num_entities; i++, e++) {
+        if (!(e->flags & RF_FLARE))
+            continue;
+
+        Q_assert((unsigned)e->skinnum < MAX_EDICTS);
+        if (glr.queryflags[e->skinnum] & FLARE_PENDING)
+            continue;
+
+        make_flare_quad(e, 2.5f, points);
+
+        if (!gl_static.queries[e->skinnum])
+            qglGenQueries(1, &gl_static.queries[e->skinnum]);
+
+        qglBeginQuery(gl_static.samples_passed, gl_static.queries[e->skinnum]);
+        qglDrawArrays(GL_TRIANGLE_STRIP, 0, 4);
+        qglEndQuery(gl_static.samples_passed);
+
+        glr.queryflags[e->skinnum] |= FLARE_PENDING;
+    }
+
+    qglEnable(GL_TEXTURE_2D);
+    qglColorMask(1, 1, 1, 1);
+}
+
+static void GL_DrawFlare(const entity_t *e)
+{
+    vec3_t points[4];
+    GLuint result;
+
+    if (!qglBeginQuery)
+        return;
+
+    Q_assert((unsigned)e->skinnum < MAX_EDICTS);
+    if (glr.queryflags[e->skinnum] & FLARE_PENDING) {
+        qglGetQueryObjectuiv(gl_static.queries[e->skinnum], GL_QUERY_RESULT_AVAILABLE, &result);
+        if (result) {
+            qglGetQueryObjectuiv(gl_static.queries[e->skinnum], GL_QUERY_RESULT, &result);
+            if (result)
+                glr.queryflags[e->skinnum] |= FLARE_VISIBLE;
+            else
+                glr.queryflags[e->skinnum] &= ~FLARE_VISIBLE;
+            glr.queryflags[e->skinnum] &= ~FLARE_PENDING;
+        }
+    }
+
+    if (!(glr.queryflags[e->skinnum] & FLARE_PENDING))
+        glr.num_flares++;
+
+    if (!(glr.queryflags[e->skinnum] & FLARE_VISIBLE))
+        return;
+
+    GL_LoadMatrix(glr.viewmatrix);
+    GL_BindTexture(0, IMG_ForHandle(e->skin)->texnum);
+    GL_StateBits(GLS_DEPTHTEST_DISABLE | GLS_DEPTHMASK_FALSE | GLS_BLEND_BLEND);
+    GL_ArrayBits(GLA_VERTEX | GLA_TC);
+    GL_Color(e->rgba.u8[0] / 255.0f,
+             e->rgba.u8[1] / 255.0f,
+             e->rgba.u8[2] / 255.0f,
+             e->alpha * 0.5f);
+
+    make_flare_quad(e, 25.0f, points);
+
+    GL_TexCoordPointer(2, 0, quad_tc);
+    GL_VertexPointer(3, 0, &points[0][0]);
+    qglDrawArrays(GL_TRIANGLE_STRIP, 0, 4);
+}
+
 static void GL_DrawEntities(int mask)
 {
     entity_t *ent, *last;
@@ -399,6 +518,10 @@ static void GL_DrawEntities(int mask)
             continue;
         }
         if ((ent->flags & RF_TRANSLUCENT) != mask) {
+            continue;
+        }
+        if (ent->flags & RF_FLARE) {
+            GL_DrawFlare(ent);
             continue;
         }
 
@@ -541,6 +664,7 @@ void R_RenderFrame(refdef_t *fd)
 
     glr.fd = *fd;
     glr.num_beams = 0;
+    glr.num_flares = 0;
 
     if (gl_dynamic->integer != 1 || gl_vertexlight->integer) {
         glr.fd.num_dlights = 0;
@@ -591,6 +715,8 @@ void R_RenderFrame(refdef_t *fd)
     if (waterwarp) {
         qglBindFramebuffer(GL_FRAMEBUFFER, 0);
     }
+
+    GL_OccludeFlares();
 
     // go back into 2D mode
     GL_Setup2D();
@@ -887,6 +1013,19 @@ static void GL_PostInit(void)
     MOD_Init();
 }
 
+static void GL_InitQueries(void)
+{
+    gl_static.samples_passed = GL_SAMPLES_PASSED;
+    if (gl_config.ver_gl >= QGL_VER(3, 3) || gl_config.ver_es >= QGL_VER(3, 0))
+        gl_static.samples_passed = GL_ANY_SAMPLES_PASSED;
+}
+
+static void GL_ShutdownQueries(void)
+{
+    if (qglDeleteQueries)
+        qglDeleteQueries(MAX_EDICTS, gl_static.queries);
+}
+
 // ==============================================================================
 
 /*
@@ -925,6 +1064,8 @@ bool R_Init(bool total)
 
     GL_InitState();
 
+    GL_InitQueries();
+
     GL_InitTables();
 
     GL_PostInit();
@@ -959,6 +1100,8 @@ void R_Shutdown(bool total)
     if (!total) {
         return;
     }
+
+    GL_ShutdownQueries();
 
     GL_ShutdownState();
 

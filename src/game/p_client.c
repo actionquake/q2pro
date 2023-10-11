@@ -1143,8 +1143,8 @@ void PutClientInServer(edict_t *ent)
     ent->s.sound = 0;
     ent->s.effects = 0;
     ent->s.renderfx = 0;
-    ent->s.modelindex = 255;        // will use the skin specified model
-    ent->s.modelindex2 = 255;       // custom gun model
+    ent->s.modelindex = MODELINDEX_PLAYER;  // will use the skin specified model
+    ent->s.modelindex2 = MODELINDEX_PLAYER; // custom gun model
     // sknum is player num and weapon number
     // weapon number will be added in changeweapon
     ent->s.skinnum = ent - g_edicts - 1;
@@ -1233,6 +1233,10 @@ void ClientBeginDeathmatch(edict_t *ent)
         gi.WriteShort(ent - g_edicts);
         gi.WriteByte(MZ_LOGIN);
         gi.multicast(ent->s.origin, MULTICAST_PVS);
+
+        // hold in place briefly
+        ent->client->ps.pmove.pm_flags = PMF_TIME_TELEPORT;
+        ent->client->ps.pmove.pm_time = 200 >> 3;
     }
 
     gi.bprintf(PRINT_HIGH, "%s entered the game\n", ent->client->pers.netname);
@@ -1277,6 +1281,10 @@ void ClientBegin(edict_t *ent)
         ent->classname = "player";
         InitClientResp(ent->client);
         PutClientInServer(ent);
+
+        // hold in place briefly
+        ent->client->ps.pmove.pm_flags = PMF_TIME_TELEPORT;
+        ent->client->ps.pmove.pm_time = 200 >> 3;
     }
 
     if (level.intermission_framenum) {
@@ -1335,7 +1343,7 @@ void ClientUserinfoChanged(edict_t *ent, char *userinfo)
     playernum = ent - g_edicts - 1;
 
     // combine name and skin into a configstring
-    gi.configstring(CS_PLAYERSKINS + playernum, va("%s\\%s", ent->client->pers.netname, s));
+    gi.configstring(game.csr.playerskins + playernum, va("%s\\%s", ent->client->pers.netname, s));
 
     // fov
     if (deathmatch->value && ((int)dmflags->value & DF_FIXED_FOV)) {
@@ -1490,23 +1498,6 @@ trace_t q_gameabi PM_trace(const vec3_t start, const vec3_t mins, const vec3_t m
         return gi.trace(start, mins, maxs, end, pm_passent, MASK_DEADSOLID);
 }
 
-unsigned CheckBlock(void *b, int c)
-{
-    int v, i;
-    v = 0;
-    for (i = 0; i < c; i++)
-        v += ((byte *)b)[i];
-    return v;
-}
-void PrintPmove(pmove_t *pm)
-{
-    unsigned    c1, c2;
-
-    c1 = CheckBlock(&pm->s, sizeof(pm->s));
-    c2 = CheckBlock(&pm->cmd, sizeof(pm->cmd));
-    Com_Printf("sv %3i:%i %i\n", pm->cmd.impulse, c1, c2);
-}
-
 /*
 ==============
 ClientThink
@@ -1549,7 +1540,7 @@ void ClientThink(edict_t *ent, usercmd_t *ucmd)
 
         if (ent->movetype == MOVETYPE_NOCLIP)
             client->ps.pmove.pm_type = PM_SPECTATOR;
-        else if (ent->s.modelindex != 255)
+        else if (ent->s.modelindex != MODELINDEX_PLAYER)
             client->ps.pmove.pm_type = PM_GIB;
         else if (ent->deadflag)
             client->ps.pmove.pm_type = PM_DEAD;

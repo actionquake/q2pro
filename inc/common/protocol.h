@@ -22,7 +22,7 @@ with this program; if not, write to the Free Software Foundation, Inc.,
 // protocol.h -- communications protocols
 //
 
-#define MAX_MSGLEN  0x8000  // max length of a message, 32k
+#define MAX_MSGLEN  0x10000     // max length of a message, 64k
 
 #define PROTOCOL_VERSION_OLD        26
 #define PROTOCOL_VERSION_DEFAULT    34
@@ -30,6 +30,7 @@ with this program; if not, write to the Free Software Foundation, Inc.,
 #define PROTOCOL_VERSION_Q2PRO      36
 #define PROTOCOL_VERSION_MVD        37 // not used for UDP connections
 #define PROTOCOL_VERSION_AQTION     38
+#define PROTOCOL_VERSION_EXTENDED   3434
 
 #define PROTOCOL_VERSION_R1Q2_MINIMUM           1903    // b6377
 #define PROTOCOL_VERSION_R1Q2_UCMD              1904    // b7387
@@ -45,10 +46,13 @@ with this program; if not, write to the Free Software Foundation, Inc.,
 #define PROTOCOL_VERSION_Q2PRO_ZLIB_DOWNLOADS   1021    // r1358
 #define PROTOCOL_VERSION_Q2PRO_CLIENTNUM_SHORT  1022    // r2161
 #define PROTOCOL_VERSION_Q2PRO_CINEMATICS       1023    // r2263
-#define PROTOCOL_VERSION_Q2PRO_CURRENT          1023    // r2263
+#define PROTOCOL_VERSION_Q2PRO_EXTENDED_LIMITS  1024    // r2894
+#define PROTOCOL_VERSION_Q2PRO_CURRENT          1024    // r2894
 
 #define PROTOCOL_VERSION_MVD_MINIMUM            2009    // r168
-#define PROTOCOL_VERSION_MVD_CURRENT            2010    // r177
+#define PROTOCOL_VERSION_MVD_DEFAULT            2010    // r177
+#define PROTOCOL_VERSION_MVD_EXTENDED_LIMITS    2011    // r2894
+#define PROTOCOL_VERSION_MVD_CURRENT            2011    // r2894
 
 
 #define PROTOCOL_VERSION_AQTION_MINIMUM			3011	//  minimum is equivalent to PROTOCOL_VERSION_Q2PRO_ZLIB_DOWNLOADS
@@ -78,8 +82,13 @@ with this program; if not, write to the Free Software Foundation, Inc.,
     ((x) >= PROTOCOL_VERSION_AQTION_MINIMUM && \
      (x) <= PROTOCOL_VERSION_AQTION_CURRENT)
      
-#define VALIDATE_CLIENTNUM(x) \
-    ((x) >= -1 && (x) < MAX_EDICTS - 1)
+#define VALIDATE_CLIENTNUM(csr, x) \
+    ((x) >= -1 && (x) < (csr)->max_edicts - 1)
+
+#define Q2PRO_PF_STRAFEJUMP_HACK    BIT(0)
+#define Q2PRO_PF_QW_MODE            BIT(1)
+#define Q2PRO_PF_WATERJUMP_HACK     BIT(2)
+#define Q2PRO_PF_EXTENSIONS         BIT(3)
 
 //=========================================
 
@@ -101,8 +110,10 @@ with this program; if not, write to the Free Software Foundation, Inc.,
 #define SUPPRESSCOUNT_BITS      4
 #define SUPPRESSCOUNT_MASK      (BIT(SUPPRESSCOUNT_BITS) - 1)
 
-#define MAX_PACKET_ENTITIES     128
-#define MAX_PARSE_ENTITIES      2048    // should be MAX_PACKET_ENTITIES * UPDATE_BACKUP
+#define MAX_PACKET_ENTITIES_OLD 128
+
+#define MAX_PACKET_ENTITIES     512
+#define MAX_PARSE_ENTITIES      (MAX_PACKET_ENTITIES * UPDATE_BACKUP)
 #define PARSE_ENTITIES_MASK     (MAX_PARSE_ENTITIES - 1)
 
 #define MAX_PACKET_USERCMDS     32
@@ -153,12 +164,12 @@ typedef enum {
     svc_gamestate, // q2pro specific, means svc_playerupdate in r1q2
     svc_setting,
 
-	svc_reserved1,
-	svc_reserved2,
-	svc_reserved3,
-	svc_reserved4,
+    // q2pro specific operations
+    svc_configstringstream,
+    svc_baselinestream,
 
-	svc_ghudupdate,
+    // aqtion specific operations
+    svc_ghudupdate,
 
 	svc_extend = 30,
 	svc_userstatistic,
@@ -199,7 +210,7 @@ typedef enum {
 typedef enum {
     MVF_NOMSGS      = BIT(0),
     MVF_SINGLEPOV   = BIT(1),
-    MVF_RESERVED    = BIT(2)
+    MVF_EXTLIMITS   = BIT(2)
 } mvd_flags_t;
 
 //==============================================
@@ -247,9 +258,6 @@ typedef enum {
 #define PS_WEAPONFRAME      BIT(13)
 #define PS_RDFLAGS          BIT(14)
 #define PS_RESERVED         BIT(15)
-
-#define PS_BITS             16
-#define PS_MASK             (BIT(PS_BITS) - 1)
 
 // r1q2 protocol specific extra flags
 #define EPS_GUNOFFSET       BIT(0)
@@ -325,8 +333,9 @@ typedef enum {
 #define SND_VOLUME          BIT(0)  // a byte
 #define SND_ATTENUATION     BIT(1)  // a byte
 #define SND_POS             BIT(2)  // three coordinates
-#define SND_ENT             BIT(3)  // a short 0-2: channel, 3-12: entity
+#define SND_ENT             BIT(3)  // a short 0-2: channel, 3-15: entity
 #define SND_OFFSET          BIT(4)  // a byte, msec offset from frame start
+#define SND_INDEX16         BIT(5)  // index is 16-bit
 
 #define DEFAULT_SOUND_PACKET_VOLUME         1.0f
 #define DEFAULT_SOUND_PACKET_ATTENUATION    1.0f
@@ -370,6 +379,19 @@ typedef enum {
 #define U_SKIN16        BIT(25)
 #define U_SOUND         BIT(26)
 #define U_SOLID         BIT(27)
+#define U_MODEL16       BIT(28)
+#define U_MOREFX8       BIT(29)
+#define U_ALPHA         BIT(30)
+#define U_MOREBITS4     BIT(31)     // read one additional byte
+
+// fifth byte
+#define U_SCALE         BIT_ULL(32)
+#define U_MOREFX16      BIT_ULL(33)
+
+#define U_SKIN32        (U_SKIN8 | U_SKIN16)        // used for laser colors
+#define U_EFFECTS32     (U_EFFECTS8 | U_EFFECTS16)
+#define U_RENDERFX32    (U_RENDERFX8 | U_RENDERFX16)
+#define U_MOREFX32      (U_MOREFX8 | U_MOREFX16)
 
 // ==============================================================
 
@@ -391,6 +413,7 @@ typedef enum {
     CLS_NOGIBS            = 10,
     CLS_NOFOOTSTEPS,
     CLS_NOPREDICT,
+    CLS_NOFLARES,
 
     CLS_MAX
 } clientSetting_t;

@@ -133,11 +133,6 @@ extern const sndapi_t   snd_openal;
 
 //====================================================================
 
-// only begin attenuating sound volumes when outside the FULLVOLUME range
-#define SOUND_FULLVOLUME        80
-
-#define SOUND_LOOPATTENUATE     0.003f
-
 typedef enum {
     SS_NOT,
 #if USE_SNDDMA
@@ -189,6 +184,8 @@ sfxcache_t *S_LoadSound(sfx_t *s);
 channel_t *S_PickChannel(int entnum, int entchannel);
 void S_IssuePlaysound(playsound_t *ps);
 void S_BuildSoundList(int *sounds);
+float S_GetEntityLoopVolume(const centity_state_t *ent);
+float S_GetEntityLoopDistMult(const centity_state_t *ent);
 
 #if USE_OGG
 bool OGG_Load(sizebuf_t *sz);
