@@ -3979,7 +3979,7 @@ static void CL_InitLocal(void)
     CL_GetExternalIP(); // Get external IP
     //rekkie -- external ip -- e
     
-    cl_discord = Cvar_Get("cl_discord", "1", 0);
+    cl_discord = Cvar_Get("cl_discord", "0", 0); // Setting to default 0 until we fix some bugs
     discord.discord_found = true; // Defaults to true, until we find out otherwise.
     if (cl_discord->value)
     {

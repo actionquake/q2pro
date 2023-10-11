@@ -2252,7 +2252,7 @@ void SV_Init(void)
     sv_reserved_password = Cvar_Get("sv_reserved_password", "", CVAR_PRIVATE);
     sv_locked = Cvar_Get("sv_locked", "0", 0);
     sv_novis = Cvar_Get("sv_novis", "0", 0);
-    sv_downloadserver = Cvar_Get("sv_downloadserver", "", 0);
+    sv_downloadserver = Cvar_Get("sv_downloadserver", "http://gameassets.aqtiongame.com/", 0);
     sv_redirect_address = Cvar_Get("sv_redirect_address", "", 0);
 
 #if USE_DEBUG

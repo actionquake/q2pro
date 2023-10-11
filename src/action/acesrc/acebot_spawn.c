@@ -669,7 +669,7 @@ void ACESP_RemoveBot(char *name)
 			if( bot->is_bot && (remove_all || !strlen(name) || Q_stricmp(bot->client->pers.netname,name)==0 || (find_team && bot->client->resp.team==find_team)) )
 			{
 				bot->health = 0;
-				player_die (bot, bot, bot, 100000, vec3_origin);
+				player_die (bot, bot, bot, 100000, bot->s.origin);
 				// don't even bother waiting for death frames
 //				bot->deadflag = DEAD_DEAD;
 //				bot->inuse = false;
@@ -767,11 +767,11 @@ void	LTKsetBotName( char	*bot_name )
 int GetBotCount(void)
 {
 	int count = 0;
-	edict_t pers;
-    // Count bots 
+	edict_t *pers = NULL;
+    // Count bots
     for (int i = 0; i < game.maxclients; i++)
     {
-        if (pers.is_bot)
+        if (pers->is_bot)
         {
             count++;
         }
