@@ -943,6 +943,9 @@ void    SCR_ClearChatHUD_f(void);
 void    SCR_AddToChatHUD(const char *text);
 
 void	CL_Clear3DGhudQueue(void);
+void    CL_AddNetgraph (void);
+void    SCR_DrawDebugGraph(void);
+
 
 //
 // cin.c
