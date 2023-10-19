@@ -1022,7 +1022,7 @@ void Sys_ListFiles_r(listfiles_t *list, const char *path, int depth)
     const char  *filter = list->filter;
 
     // optimize single extension search
-    if (!(list->flags & FS_SEARCH_BYFILTER) &&
+    if (!(list->flags & (FS_SEARCH_BYFILTER | FS_SEARCH_RECURSIVE)) &&
         filter && !strchr(filter, ';')) {
         if (*filter == '.') {
             filter++;
@@ -1103,12 +1103,8 @@ void Sys_ListFiles_r(listfiles_t *list, const char *path, int depth)
             }
         }
 
-        // strip path
-        if (list->flags & FS_SEARCH_SAVEPATH) {
-            name = fullpath + list->baselen;
-        } else {
-            name = data.name;
-        }
+        // skip path
+        name = fullpath + list->baselen;
 
         // reformat it back to quake filesystem style
         FS_ReplaceSeparators(name, '/');
@@ -1204,43 +1200,6 @@ static int Sys_Main(int argc, char **argv)
 
 #if USE_CLIENT
 
-#define MAX_LINE_TOKENS    128
-
-static char     *sys_argv[MAX_LINE_TOKENS];
-static int      sys_argc;
-
-/*
-===============
-Sys_ParseCommandLine
-
-===============
-*/
-static void Sys_ParseCommandLine(char *line)
-{
-    sys_argc = 1;
-    sys_argv[0] = APPLICATION;
-    while (*line) {
-        while (*line && *line <= 32) {
-            line++;
-        }
-        if (*line == 0) {
-            break;
-        }
-        sys_argv[sys_argc++] = line;
-        while (*line > 32) {
-            line++;
-        }
-        if (*line == 0) {
-            break;
-        }
-        *line = 0;
-        if (sys_argc == MAX_LINE_TOKENS) {
-            break;
-        }
-        line++;
-    }
-}
-
 /*
 ==================
 WinMain
@@ -1256,9 +1215,7 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
 
     hGlobalInstance = hInstance;
 
-    Sys_ParseCommandLine(lpCmdLine);
-
-    return Sys_Main(sys_argc, sys_argv);
+    return Sys_Main(__argc, __argv);
 }
 
 #else // USE_CLIENT

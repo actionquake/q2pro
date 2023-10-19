@@ -21,9 +21,9 @@ with this program; if not, write to the Free Software Foundation, Inc.,
 #include "common/cvar.h"
 #include "common/error.h"
 
-#define MAX_DLIGHTS     32
-#define MAX_ENTITIES    1024
-#define MAX_PARTICLES   4096
+#define MAX_DLIGHTS     64
+#define MAX_ENTITIES    2048
+#define MAX_PARTICLES   8192
 #define MAX_LIGHTSTYLES 256
 
 #define POWERSUIT_SCALE     4.0f
@@ -47,7 +47,7 @@ with this program; if not, write to the Free Software Foundation, Inc.,
 #define SHELL_WHITE_COLOR   0xD7
 
 #define RF_SHELL_MASK       (RF_SHELL_RED | RF_SHELL_GREEN | RF_SHELL_BLUE | \
-                             RF_SHELL_DOUBLE | RF_SHELL_HALF_DAM)
+                             RF_SHELL_DOUBLE | RF_SHELL_HALF_DAM | RF_SHELL_LITE_GREEN)
 
 #define DLIGHT_CUTOFF       64
 
@@ -79,6 +79,8 @@ typedef struct entity_s {
 
     qhandle_t   skin;           // NULL for inline skin
     int         flags;
+
+    float       scale;
 } entity_t;
 
 typedef struct dlight_s {
@@ -194,13 +196,14 @@ void    R_BeginRegistration(const char *map);
 qhandle_t R_RegisterModel(const char *name);
 qhandle_t R_RegisterImage(const char *name, imagetype_t type,
                           imageflags_t flags);
-void    R_SetSky(const char *name, float rotate, const vec3_t axis);
+void    R_SetSky(const char *name, float rotate, bool autorotate, const vec3_t axis);
 void    R_EndRegistration(void);
 
 #define R_RegisterPic(name)     R_RegisterImage(name, IT_PIC, IF_PERMANENT)
 #define R_RegisterPic2(name)    R_RegisterImage(name, IT_PIC, IF_NONE)
 #define R_RegisterFont(name)    R_RegisterImage(name, IT_FONT, IF_PERMANENT)
 #define R_RegisterSkin(name)    R_RegisterImage(name, IT_SKIN, IF_NONE)
+#define R_RegisterSprite(name)  R_RegisterImage(name, IT_SPRITE, IF_NONE)
 
 void    R_RenderFrame(refdef_t *fd);
 void    R_LightPoint(const vec3_t origin, vec3_t light);

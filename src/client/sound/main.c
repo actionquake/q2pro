@@ -82,12 +82,12 @@ static void S_SoundInfo_f(void)
 
 static void S_SoundList_f(void)
 {
-    int     i;
+    int     i, count;
     sfx_t   *sfx;
     sfxcache_t  *sc;
-    int     total;
+    size_t  total;
 
-    total = 0;
+    total = count = 0;
     for (sfx = known_sfx, i = 0; i < num_sfx; i++, sfx++) {
         if (!sfx->name[0])
             continue;
@@ -106,8 +106,10 @@ static void S_SoundList_f(void)
                 Com_Printf("  not loaded  : %s (%s)\n",
                            sfx->name, Q_ErrorString(sfx->error));
         }
+        count++;
     }
-    Com_Printf("Total resident: %i\n", total);
+    Com_Printf("Total sounds: %d (out of %d slots)\n", count, num_sfx);
+    Com_Printf("Total resident: %zu\n", total);
 }
 
 static const cmdreg_t c_sound[] = {
@@ -794,7 +796,7 @@ void S_BuildSoundList(int *sounds)
 {
     int         i;
     int         num;
-    entity_state_t  *ent;
+    centity_state_t *ent;
 
     for (i = 0; i < cl.frame.numEntities; i++) {
         num = (cl.frame.firstEntity + i) & PARSE_ENTITIES_MASK;
@@ -807,6 +809,26 @@ void S_BuildSoundList(int *sounds)
             sounds[i] = ent->sound;
         }
     }
+}
+
+float S_GetEntityLoopVolume(const centity_state_t *ent)
+{
+    if (ent->loop_volume)
+        return ent->loop_volume;
+
+    return 1.0f;
+}
+
+float S_GetEntityLoopDistMult(const centity_state_t *ent)
+{
+    if (ent->loop_attenuation) {
+        if (ent->loop_attenuation == ATTN_LOOP_NONE)
+            return 0;
+        if (ent->loop_attenuation != ATTN_STATIC)
+            return ent->loop_attenuation * SOUND_LOOPATTENUATE_MULT;
+    }
+
+    return SOUND_LOOPATTENUATE;
 }
 
 /*

@@ -91,7 +91,8 @@ with this program; if not, write to the Free Software Foundation, Inc.,
 #define SV_FEATURES (GMF_CLIENTNUM | GMF_PROPERINUSE | GMF_MVDSPEC | \
                      GMF_WANT_ALL_DISCONNECTS | GMF_ENHANCED_SAVEGAMES | \
                      SV_GMF_VARIABLE_FPS | GMF_EXTRA_USERINFO | \
-                     GMF_IPV6_ADDRESS_AWARE | GMF_ALLOW_INDEX_OVERFLOW)
+                     GMF_IPV6_ADDRESS_AWARE | GMF_ALLOW_INDEX_OVERFLOW | \
+                     GMF_PROTOCOL_EXTENSIONS)
 
 // ugly hack for SV_Shutdown
 #define MVD_SPAWN_DISABLED  0
@@ -175,20 +176,18 @@ typedef struct {
     server_entity_t entities[MAX_EDICTS];
 } server_t;
 
-#define EDICT_POOL(c, n) ((edict_t *)((byte *)(c)->pool->edicts + (c)->pool->edict_size*(n)))
-
-#define EDICT_NUM(n) ((edict_t *)((byte *)ge->edicts + ge->edict_size*(n)))
+#define EDICT_NUM2(ge, n) ((edict_t *)((byte *)(ge)->edicts + (ge)->edict_size*(n)))
+#define EDICT_NUM(n) EDICT_NUM2(ge, n)
 #define NUM_FOR_EDICT(e) ((int)(((byte *)(e) - (byte *)ge->edicts) / ge->edict_size))
 
 #define MAX_TOTAL_ENT_LEAFS        128
 
-// hack for smooth BSP model rotation
-#define Q2PRO_SHORTANGLES(c, e) \
-	((((c)->protocol == PROTOCOL_VERSION_Q2PRO && \
-	 (c)->version >= PROTOCOL_VERSION_Q2PRO_SHORT_ANGLES) || \
-	 (c)->protocol == PROTOCOL_VERSION_AQTION) && \
-     sv.state == ss_game && \
-     EDICT_POOL(c, e)->solid == SOLID_BSP)
+#define CLIENT_COMPATIBLE(csr, c) \
+    (!(csr)->extended || ((c)->protocol == PROTOCOL_VERSION_Q2PRO || \
+                          (c)->protocol == PROTOCOL_VERSION_AQTION && \
+                          (c)->version >= PROTOCOL_VERSION_Q2PRO_EXTENDED_LIMITS))
+
+#define ENT_EXTENSION(csr, ent)  ((csr)->extended ? &(ent)->x : NULL)
 
 typedef enum {
     cs_free,        // can be reused for a new connection
@@ -234,9 +233,9 @@ typedef struct {
     union {
         uint8_t         data[MSG_TRESHOLD];
         struct {
-            uint8_t     flags;
-            uint8_t     index;
+            uint16_t    index;
             uint16_t    sendchan;
+            uint8_t     flags;
             uint8_t     volume;
             uint8_t     attenuation;
             uint8_t     timeofs;
@@ -266,13 +265,6 @@ typedef struct {
     unsigned    credit_cap;
     unsigned    cost;
 } ratelimit_t;
-
-typedef struct {
-    struct edict_s  *edicts;
-    int         edict_size;
-    int         num_edicts;     // current number, <= max_edicts
-    int         max_edicts;
-} edict_pool_t;
 
 typedef struct client_s {
     list_t          entry;
@@ -360,16 +352,17 @@ typedef struct client_s {
     unsigned            msg_dynamic_bytes;      // total size of dynamic memory allocated
 
     // per-client baseline chunks
-    entity_packed_t *baselines[SV_BASELINES_CHUNKS];
+    entity_packed_t     *baselines[SV_BASELINES_CHUNKS];
 
     // server state pointers (hack for MVD channels implementation)
-    configstring_t  *configstrings;
-    char            *gamedir, *mapname;
-    edict_pool_t    *pool;
-    cm_t            *cm;
-    int             slot;
-    int             spawncount;
-    int             maxclients;
+    configstring_t      *configstrings;
+    const cs_remap_t    *csr;
+    char                *gamedir, *mapname;
+    const game_export_t *ge;
+    cm_t                *cm;
+    int                 slot;
+    int                 spawncount;
+    int                 maxclients;
 
     // netchan type dependent methods
     void            (*AddMessage)(struct client_s *, byte *, size_t, bool);
@@ -492,6 +485,8 @@ typedef struct server_static_s {
     byte            *z_buffer;
     size_t          z_buffer_size;
 #endif
+
+    cs_remap_t      csr;
 
     unsigned        last_heartbeat;
     unsigned        last_timescale_check;
@@ -619,7 +614,8 @@ void sv_min_timeout_changed(cvar_t *self);
 // sv_init.c
 //
 void SV_ClientReset(client_t *client);
-void SV_SpawnServer(mapcmd_t *cmd);
+void SV_SetState(server_state_t state);
+void SV_SpawnServer(const mapcmd_t *cmd);
 bool SV_ParseMapCmd(mapcmd_t *cmd);
 void SV_InitGame(unsigned mvd_spawn);
 
@@ -656,7 +652,8 @@ void SV_InitClientSend(client_t *newcl);
 //
 #if USE_MVD_SERVER
 void SV_MvdRegister(void);
-void SV_MvdInit(void);
+void SV_MvdPreInit(void);
+void SV_MvdPostInit(void);
 void SV_MvdShutdown(error_type_t type);
 void SV_MvdBeginFrame(void);
 void SV_MvdEndFrame(void);
@@ -677,7 +674,8 @@ void SV_MvdRecord_f(void);
 void SV_MvdStop_f(void);
 #else
 #define SV_MvdRegister()            (void)0
-#define SV_MvdInit()                (void)0
+#define SV_MvdPreInit()             (void)0
+#define SV_MvdPostInit()            (void)0
 #define SV_MvdShutdown(type)        (void)0
 #define SV_MvdBeginFrame()          (void)0
 #define SV_MvdEndFrame()            (void)0
@@ -764,8 +762,8 @@ void SV_PrintMiscInfo(void);
 // sv_ents.c
 //
 
-#define ES_INUSE(s) \
-    ((s)->modelindex || (s)->effects || (s)->sound || (s)->event)
+#define HAS_EFFECTS(ent) \
+    ((ent)->s.modelindex || (ent)->s.effects || (ent)->s.sound || (ent)->s.event)
 
 void SV_BuildClientFrame(client_t *client);
 void SV_WriteFrameToClient_Default(client_t *client);
@@ -792,9 +790,9 @@ void G_InitializeExtensions(void);
 // sv_save.c
 //
 #if USE_SAVEGAMES
-void SV_AutoSaveBegin(mapcmd_t *cmd);
+void SV_AutoSaveBegin(const mapcmd_t *cmd);
 void SV_AutoSaveEnd(void);
-void SV_CheckForSavegame(mapcmd_t *cmd);
+void SV_CheckForSavegame(const mapcmd_t *cmd);
 void SV_CheckForEnhancedSavegames(void);
 void SV_RegisterSavegames(void);
 #else
@@ -877,3 +875,7 @@ trace_t q_gameabi SV_Trace(const vec3_t start, const vec3_t mins,
 // to an open area
 
 // passedict is explicitly excluded from clipping checks (normally NULL)
+
+trace_t q_gameabi SV_Clip(const vec3_t start, const vec3_t mins,
+                          const vec3_t maxs, const vec3_t end,
+                          edict_t *clip, int contentmask);

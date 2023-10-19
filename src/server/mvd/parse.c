@@ -167,9 +167,8 @@ static void MVD_ParseMulticast(mvd_t *mvd, mvd_ops_t op, int extrabits)
     }
 
     // skip data payload
-    data = msg_read.data + msg_read.readcount;
-    msg_read.readcount += length;
-    if (msg_read.readcount > msg_read.cursize) {
+    data = MSG_ReadData(length);
+    if (!data) {
         MVD_Destroyf(mvd, "read past end of message");
     }
 
@@ -263,13 +262,13 @@ static void MVD_UnicastString(mvd_t *mvd, bool reliable, mvd_player_t *player)
     data = msg_read.data + msg_read.readcount - 1;
     readcount = msg_read.readcount - 1;
 
-    index = MSG_ReadShort();
+    index = MSG_ReadWord();
     length = MSG_ReadString(string, sizeof(string));
 
-    if (index < 0 || index >= MAX_CONFIGSTRINGS) {
+    if (index < 0 || index >= mvd->csr->end) {
         MVD_Destroyf(mvd, "%s: bad index: %d", __func__, index);
     }
-    if (index < CS_GENERAL) {
+    if (index < mvd->csr->general) {
         Com_DPrintf("%s: common configstring: %d\n", __func__, index);
         return;
     }
@@ -455,7 +454,10 @@ static void MVD_ParseSound(mvd_t *mvd, int extrabits)
     int         i;
 
     flags = MSG_ReadByte();
-    index = MSG_ReadByte();
+    if (mvd->csr->extended && flags & SND_INDEX16)
+        index = MSG_ReadWord();
+    else
+        index = MSG_ReadByte();
 
     volume = attenuation = offset = 0;
     if (flags & SND_VOLUME)
@@ -466,9 +468,9 @@ static void MVD_ParseSound(mvd_t *mvd, int extrabits)
         offset = MSG_ReadByte();
 
     // entity relative
-    sendchan = MSG_ReadShort();
+    sendchan = MSG_ReadWord();
     entnum = sendchan >> 3;
-    if (entnum < 0 || entnum >= MAX_EDICTS) {
+    if (entnum < 0 || entnum >= mvd->csr->max_edicts) {
         MVD_Destroyf(mvd, "%s: bad entnum: %d", __func__, entnum);
     }
 
@@ -492,7 +494,10 @@ static void MVD_ParseSound(mvd_t *mvd, int extrabits)
     // prepare multicast message
     MSG_WriteByte(svc_sound);
     MSG_WriteByte(flags | SND_POS);
-    MSG_WriteByte(index);
+    if (mvd->csr->extended && flags & SND_INDEX16)
+        MSG_WriteShort(index);
+    else
+        MSG_WriteByte(index);
 
     if (flags & SND_VOLUME)
         MSG_WriteByte(volume);
@@ -577,13 +582,13 @@ static void MVD_ParseConfigstring(mvd_t *mvd)
     size_t maxlen;
     char *s;
 
-    index = MSG_ReadShort();
-    if (index < 0 || index >= MAX_CONFIGSTRINGS) {
+    index = MSG_ReadWord();
+    if (index < 0 || index >= mvd->csr->end) {
         MVD_Destroyf(mvd, "%s: bad index: %d", __func__, index);
     }
 
     s = mvd->configstrings[index];
-    maxlen = CS_SIZE(index);
+    maxlen = CS_SIZE(mvd->csr, index);
     if (MSG_ReadString(s, maxlen) >= maxlen) {
         MVD_Destroyf(mvd, "%s: index %d overflowed", __func__, index);
     }
@@ -659,17 +664,17 @@ MVD_ParsePacketEntities
 */
 static void MVD_ParsePacketEntities(mvd_t *mvd)
 {
-    int     number;
-    int     bits;
-    edict_t *ent;
+    int         number;
+    uint64_t    bits;
+    edict_t     *ent;
 
     while (1) {
         if (msg_read.readcount > msg_read.cursize) {
             MVD_Destroyf(mvd, "%s: read past end of message", __func__);
         }
 
-        number = MSG_ParseEntityBits(&bits);
-        if (number < 0 || number >= MAX_EDICTS) {
+        number = MSG_ParseEntityBits(&bits, mvd->esFlags);
+        if (number < 0 || number >= mvd->csr->max_edicts) {
             MVD_Destroyf(mvd, "%s: bad number: %d", __func__, number);
         }
 
@@ -688,7 +693,7 @@ static void MVD_ParsePacketEntities(mvd_t *mvd)
         }
 #endif
 
-        MSG_ParseDeltaEntity(&ent->s, &ent->s, number, bits, 0);
+        MSG_ParseDeltaEntity(&ent->s, &ent->x, number, bits, mvd->esFlags);
 
         // lazily relink even if removed
         if ((bits & RELINK_MASK) && !mvd->demoseeking) {
@@ -709,8 +714,8 @@ static void MVD_ParsePacketEntities(mvd_t *mvd)
         }
 
         ent->inuse = true;
-        if (number >= mvd->pool.num_edicts) {
-            mvd->pool.num_edicts = number + 1;
+        if (number >= mvd->ge.num_edicts) {
+            mvd->ge.num_edicts = number + 1;
         }
     }
 }
@@ -753,7 +758,7 @@ static void MVD_ParsePacketPlayers(mvd_t *mvd)
         }
 #endif
 
-        MSG_ParseDeltaPlayerstate_Packet(&player->ps, &player->ps, bits);
+        MSG_ParseDeltaPlayerstate_Packet(&player->ps, &player->ps, bits, mvd->psFlags);
 
         if (bits & PPS_REMOVE) {
             SHOWNET(2, "   remove: %d\n", number);
@@ -777,19 +782,10 @@ static void MVD_ParseFrame(mvd_t *mvd)
 
     // read portalbits
     length = MSG_ReadByte();
-    if (length) {
-        if (length < 0 || msg_read.readcount + length > msg_read.cursize) {
-            MVD_Destroyf(mvd, "%s: read past end of message", __func__);
-        }
-        if (length > MAX_MAP_PORTAL_BYTES) {
-            MVD_Destroyf(mvd, "%s: bad portalbits length: %d", __func__, length);
-        }
-        data = msg_read.data + msg_read.readcount;
-        msg_read.readcount += length;
-    } else {
-        data = NULL;
+    data = MSG_ReadData(length);
+    if (!data) {
+        MVD_Destroyf(mvd, "%s: read past end of message", __func__);
     }
-
     if (!mvd->demoseeking)
         CM_SetPortalStates(&mvd->cm, data, length);
 
@@ -816,8 +812,8 @@ void MVD_ClearState(mvd_t *mvd, bool full)
 
     // clear all entities, don't trust num_edicts as it is possible
     // to miscount removed but seen entities
-    memset(mvd->edicts, 0, sizeof(mvd->edicts));
-    mvd->pool.num_edicts = 0;
+    memset(mvd->edicts, 0, sizeof(mvd->edicts[0]) * mvd->csr->max_edicts);
+    mvd->ge.num_edicts = 0;
 
     // clear all players
     for (i = 0; i < mvd->maxclients; i++) {
@@ -850,7 +846,7 @@ void MVD_ClearState(mvd_t *mvd, bool full)
         //Q_strlcpy(mvd->oldscores, mvd->layout, sizeof(mvd->oldscores));
     }
 
-    memset(mvd->configstrings, 0, sizeof(mvd->configstrings));
+    memset(mvd->configstrings, 0, sizeof(mvd->configstrings[0]) * mvd->csr->end);
     mvd->layout[0] = 0;
 
     mvd->framenum = 0;
@@ -911,10 +907,10 @@ static void MVD_ParseServerData(mvd_t *mvd, int extrabits)
     }
 
     // parse minor protocol version
-    protocol = MSG_ReadShort();
-    if (!MVD_SUPPORTED(protocol)) {
+    mvd->version = MSG_ReadWord();
+    if (!MVD_SUPPORTED(mvd->version)) {
         MVD_Destroyf(mvd, "Unsupported MVD protocol version: %d.\n"
-                     "Current version is %d.\n", protocol, PROTOCOL_VERSION_MVD_CURRENT);
+                     "Current version is %d.\n", mvd->version, PROTOCOL_VERSION_MVD_CURRENT);
     }
 
     mvd->servercount = MSG_ReadLong();
@@ -923,6 +919,15 @@ static void MVD_ParseServerData(mvd_t *mvd, int extrabits)
     }
     mvd->clientNum = MSG_ReadShort();
     mvd->flags = extrabits;
+    mvd->esFlags = MSG_ES_UMASK | MSG_ES_BEAMORIGIN;
+    mvd->psFlags = 0;
+    mvd->csr = &cs_remap_old;
+
+    if (mvd->version >= PROTOCOL_VERSION_MVD_EXTENDED_LIMITS && mvd->flags & MVF_EXTLIMITS) {
+        mvd->esFlags |= MSG_ES_LONGSOLID | MSG_ES_SHORTANGLES | MSG_ES_EXTENSIONS;
+        mvd->psFlags |= MSG_PS_EXTENSIONS;
+        mvd->csr = &cs_remap_new;
+    }
 
 #if 0
     // change gamedir unless playing a demo
@@ -931,17 +936,17 @@ static void MVD_ParseServerData(mvd_t *mvd, int extrabits)
 
     // parse configstrings
     while (1) {
-        index = MSG_ReadShort();
-        if (index == MAX_CONFIGSTRINGS) {
+        index = MSG_ReadWord();
+        if (index == mvd->csr->end) {
             break;
         }
 
-        if (index < 0 || index >= MAX_CONFIGSTRINGS) {
+        if (index < 0 || index >= mvd->csr->end) {
             MVD_Destroyf(mvd, "Bad configstring index: %d", index);
         }
 
         string = mvd->configstrings[index];
-        maxlen = CS_SIZE(index);
+        maxlen = CS_SIZE(mvd->csr, index);
         if (MSG_ReadString(string, maxlen) >= maxlen) {
             MVD_Destroyf(mvd, "Configstring %d overflowed", index);
         }
@@ -952,7 +957,7 @@ static void MVD_ParseServerData(mvd_t *mvd, int extrabits)
     }
 
     // parse maxclients
-    index = atoi(mvd->configstrings[CS_MAXCLIENTS]);
+    index = atoi(mvd->configstrings[mvd->csr->maxclients]);
     if (index < 1 || index > MAX_CLIENTS) {
         MVD_Destroyf(mvd, "Invalid maxclients");
     }
@@ -990,7 +995,7 @@ static void MVD_ParseServerData(mvd_t *mvd, int extrabits)
     }
 
     // parse world model
-    string = mvd->configstrings[CS_MODELS + 1];
+    string = mvd->configstrings[mvd->csr->models + 1];
     if (!Com_ParseMapName(mvd->mapname, string, sizeof(mvd->mapname))) {
         MVD_Destroyf(mvd, "Bad world model: %s", string);
     }
@@ -1000,9 +1005,8 @@ static void MVD_ParseServerData(mvd_t *mvd, int extrabits)
     ret = CM_LoadMap(&mvd->cm, string);
     if (ret) {
         Com_EPrintf("[%s] =!= Couldn't load %s: %s\n", mvd->name, string, BSP_ErrorString(ret));
-        // continue with null visibility
     } else if (mvd->cm.cache->checksum != atoi(mvd->configstrings[CS_MAPCHECKSUM])) {
-        Com_EPrintf("[%s] =!= Local map version differs from server!\n", mvd->name);
+        Com_EPrintf("[%s] =!= Local map version differs from server!\nRecommend removing that file and reconnecting", mvd->name);
         CM_FreeMap(&mvd->cm);
     }
 
@@ -1023,7 +1027,7 @@ static void MVD_ParseServerData(mvd_t *mvd, int extrabits)
     MVD_ParseFrame(mvd);
 
     // save base configstrings
-    memcpy(mvd->baseconfigstrings, mvd->configstrings, sizeof(mvd->baseconfigstrings));
+    memcpy(mvd->baseconfigstrings, mvd->configstrings, sizeof(mvd->baseconfigstrings[0]) * mvd->csr->end);
 
     // force inital snapshot
     mvd->last_snapshot = INT_MIN;

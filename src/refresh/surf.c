@@ -141,7 +141,7 @@ static void add_dynamic_lights(mface_t *surf)
     t_scale = surf->lm_scale[1];
 
     for (i = 0; i < glr.fd.num_dlights; i++) {
-        if (!(surf->dlightbits & BIT(i)))
+        if (!(surf->dlightbits & BIT_ULL(i)))
             continue;
 
         light = &glr.fd.dlights[i];
@@ -551,7 +551,7 @@ static void build_surface_poly(mface_t *surf, vec_t *vbo)
     }
 
     if (surf->drawflags & SURF_FLOWING) {
-        surf->statebits |= GLS_SCROLL_ENABLE | GLS_SCROLL_FLIP;
+        surf->statebits |= GLS_SCROLL_ENABLE;
         if (surf->drawflags & SURF_WARP) {
             surf->statebits |= GLS_SCROLL_SLOW;
         }

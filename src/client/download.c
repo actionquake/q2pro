@@ -628,7 +628,7 @@ static void check_player(const char *name)
     // sexed sounds
     for (i = 0; i < precache_sexed_total; i++) {
         j = precache_sexed_sounds[i];
-        p = cl.configstrings[CS_SOUNDS + j];
+        p = cl.configstrings[cl.csr.sounds + j];
 
         if (*p == '*') {
             len = Q_concat(fn, sizeof(fn), "players/", model, "/", p + 1);
@@ -691,16 +691,16 @@ void CL_RequestNextDownload(void)
     case PRECACHE_MODELS:
         // confirm map
         if (allow_download_maps->integer)
-            check_file(cl.configstrings[CS_MODELS + 1], DL_MAP);
+            check_file(cl.configstrings[cl.csr.models + 1], DL_MAP);
 
         // checking for models
         if (allow_download_models->integer) {
-            for (i = 2; i < MAX_MODELS; i++) {
-                name = cl.configstrings[CS_MODELS + i];
-                if (!name[0]) {
+            for (i = 2; i < cl.csr.max_models; i++) {
+                name = cl.configstrings[cl.csr.models + i];
+                if (!name[0] && i != MODELINDEX_PLAYER) {
                     break;
                 }
-                if (name[0] == '*' || name[0] == '#') {
+                if (name[0] == '*' || name[0] == '#' || name[0] == 0) {
                     continue;
                 }
                 check_file(name, DL_MODEL);
@@ -718,21 +718,38 @@ void CL_RequestNextDownload(void)
                 return;
             }
 
-            for (i = 2; i < MAX_MODELS; i++) {
-                name = cl.configstrings[CS_MODELS + i];
-                if (!name[0]) {
+            for (i = 2; i < cl.csr.max_models; i++) {
+                name = cl.configstrings[cl.csr.models + i];
+                if (!name[0] && i != MODELINDEX_PLAYER) {
                     break;
                 }
-                if (name[0] == '*' || name[0] == '#') {
+                if (name[0] == '*' || name[0] == '#' || name[0] == 0) {
                     continue;
                 }
                 check_skins(name);
             }
+
+            // check skins for RF_CUSTOMSKIN
+            if (cl.csr.extended) {
+                for (i = 1; i < cl.csr.max_images; i++) {
+                    name = cl.configstrings[cl.csr.images + i];
+                    if (!name[0]) {
+                        break;
+                    }
+                    if (name[0] == '/' || name[0] == '\\') {
+                        continue;
+                    }
+                    if (!*COM_FileExtension(name) || !strchr(name, '/')) {
+                        continue;
+                    }
+                    check_file(name, DL_OTHER);
+                }
+            }
         }
 
         if (allow_download_sounds->integer) {
-            for (i = 1; i < MAX_SOUNDS; i++) {
-                name = cl.configstrings[CS_SOUNDS + i];
+            for (i = 1; i < cl.csr.max_sounds; i++) {
+                name = cl.configstrings[cl.csr.sounds + i];
                 if (!name[0]) {
                     break;
                 }
@@ -749,13 +766,15 @@ void CL_RequestNextDownload(void)
         }
 
         if (allow_download_pics->integer) {
-            for (i = 1; i < MAX_IMAGES; i++) {
-                name = cl.configstrings[CS_IMAGES + i];
+            for (i = 1; i < cl.csr.max_images; i++) {
+                name = cl.configstrings[cl.csr.images + i];
                 if (!name[0]) {
                     break;
                 }
                 if (name[0] == '/' || name[0] == '\\') {
                     len = Q_strlcpy(fn, name + 1, sizeof(fn));
+                } else if (cl.csr.extended && *COM_FileExtension(name) && strchr(name, '/')) {
+                    continue;
                 } else {
                     len = Q_concat(fn, sizeof(fn), "pics/", name, ".pcx");
                 }
@@ -766,14 +785,14 @@ void CL_RequestNextDownload(void)
         if (allow_download_players->integer) {
             // find sexed sounds
             precache_sexed_total = 0;
-            for (i = 1; i < MAX_SOUNDS; i++) {
-                if (cl.configstrings[CS_SOUNDS + i][0] == '*') {
+            for (i = 1; i < cl.csr.max_sounds; i++) {
+                if (cl.configstrings[cl.csr.max_sounds + i][0] == '*') {
                     precache_sexed_sounds[precache_sexed_total++] = i;
                 }
             }
 
             for (i = 0; i < MAX_CLIENTS; i++) {
-                name = cl.configstrings[CS_PLAYERSKINS + i];
+                name = cl.configstrings[cl.csr.playerskins + i];
                 if (!name[0]) {
                     continue;
                 }

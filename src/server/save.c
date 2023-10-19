@@ -81,13 +81,21 @@ static int write_level_file(void)
     char        *s;
     size_t      len;
     byte        portalbits[MAX_MAP_PORTAL_BYTES];
+    qhandle_t   f;
+
+    if (Q_snprintf(name, MAX_QPATH, "save/" SAVE_CURRENT "/%s.sv2", sv.name) >= MAX_QPATH)
+        return -1;
+
+    FS_OpenFile(name, &f, FS_MODE_WRITE);
+    if (!f)
+        return -1;
 
     // write magic
     MSG_WriteLong(SAVE_MAGIC2);
     MSG_WriteLong(SAVE_VERSION);
 
     // write configstrings
-    for (i = 0; i < MAX_CONFIGSTRINGS; i++) {
+    for (i = 0; i < svs.csr.end; i++) {
         s = sv.configstrings[i];
         if (!s[0])
             continue;
@@ -96,20 +104,22 @@ static int write_level_file(void)
         MSG_WriteShort(i);
         MSG_WriteData(s, len);
         MSG_WriteByte(0);
+
+        if (msg_write.cursize > msg_write.maxsize / 2) {
+            FS_Write(msg_write.data, msg_write.cursize, f);
+            SZ_Clear(&msg_write);
+        }
     }
-    MSG_WriteShort(MAX_CONFIGSTRINGS);
+    MSG_WriteShort(i);
 
     len = CM_WritePortalBits(&sv.cm, portalbits);
     MSG_WriteByte(len);
     MSG_WriteData(portalbits, len);
 
-    if (Q_snprintf(name, MAX_QPATH, "save/" SAVE_CURRENT "/%s.sv2", sv.name) >= MAX_QPATH)
-        ret = -1;
-    else
-        ret = FS_WriteFile(name, msg_write.data, msg_write.cursize);
-
+    FS_Write(msg_write.data, msg_write.cursize, f);
     SZ_Clear(&msg_write);
 
+    ret = FS_CloseFile(f);
     if (ret < 0)
         return -1;
 
@@ -179,7 +189,7 @@ static int remove_file(const char *dir, const char *name)
 static void **list_save_dir(const char *dir, int *count)
 {
     return FS_ListFiles(va("save/%s", dir), ".ssv;.sav;.sv2",
-        FS_TYPE_REAL | FS_PATH_GAME, count);
+        FS_TYPE_REAL | FS_PATH_GAME | FS_SEARCH_RECURSIVE, count);
 }
 
 static int wipe_save_dir(const char *dir)
@@ -375,45 +385,55 @@ static int read_level_file(void)
     char    name[MAX_OSPATH];
     size_t  len, maxlen;
     int     index;
+    void    *data;
 
     if (Q_snprintf(name, MAX_QPATH, "save/" SAVE_CURRENT "/%s.sv2", sv.name) >= MAX_QPATH)
         return -1;
 
-    if (read_binary_file(name))
+    len = FS_LoadFileEx(name, &data, FS_TYPE_REAL | FS_PATH_GAME, TAG_SERVER);
+    if (!data)
         return -1;
 
-    if (MSG_ReadLong() != SAVE_MAGIC2)
-        return -1;
+    SZ_Init(&msg_read, data, len);
+    msg_read.cursize = len;
 
-    if (MSG_ReadLong() != SAVE_VERSION)
+    if (MSG_ReadLong() != SAVE_MAGIC2) {
+        FS_FreeFile(data);
         return -1;
+    }
+
+    if (MSG_ReadLong() != SAVE_VERSION) {
+        FS_FreeFile(data);
+        return -1;
+    }
 
     // any error will drop from this point
+    Com_AbortFunc(Z_Free, data);
 
     // the rest can't underflow
     msg_read.allowunderflow = false;
 
     // read all configstrings
     while (1) {
-        index = MSG_ReadShort();
-        if (index == MAX_CONFIGSTRINGS)
+        index = MSG_ReadWord();
+        if (index == svs.csr.end)
             break;
 
-        if (index < 0 || index > MAX_CONFIGSTRINGS)
+        if (index < 0 || index >= svs.csr.end)
             Com_Error(ERR_DROP, "Bad savegame configstring index");
 
-        maxlen = CS_SIZE(index);
+        maxlen = CS_SIZE(&svs.csr, index);
         if (MSG_ReadString(sv.configstrings[index], maxlen) >= maxlen)
             Com_Error(ERR_DROP, "Savegame configstring too long");
     }
 
-    len = MSG_ReadByte();
-    if (len > MAX_MAP_PORTAL_BYTES)
-        Com_Error(ERR_DROP, "Savegame portalbits too long");
-
     SV_ClearWorld();
 
+    len = MSG_ReadByte();
     CM_SetPortalStates(&sv.cm, MSG_ReadData(len), len);
+
+    Com_AbortFunc(NULL, NULL);
+    FS_FreeFile(data);
 
     // read game level
     if (Q_snprintf(name, MAX_OSPATH, "%s/save/" SAVE_CURRENT "/%s.sav", fs_gamedir, sv.name) >= MAX_OSPATH)
@@ -434,7 +454,7 @@ static bool no_save_games(void)
     return false;
 }
 
-void SV_AutoSaveBegin(mapcmd_t *cmd)
+void SV_AutoSaveBegin(const mapcmd_t *cmd)
 {
     byte        bitmap[MAX_CLIENTS / CHAR_BIT];
     edict_t     *ent;
@@ -503,7 +523,7 @@ void SV_AutoSaveEnd(void)
     }
 }
 
-void SV_CheckForSavegame(mapcmd_t *cmd)
+void SV_CheckForSavegame(const mapcmd_t *cmd)
 {
     if (no_save_games())
         return;
@@ -619,9 +639,14 @@ static void SV_Savegame_f(void)
         return;
     }
 
-    if (sv_maxclients->integer == 1 && svs.client_pool[0].edict->client->ps.stats[STAT_HEALTH] <= 0) {
-        Com_Printf("Can't savegame while dead!\n");
-        return;
+    if (gex && gex->CanSave) {
+        if (!gex->CanSave())
+            return;
+    } else {
+        if (sv_maxclients->integer == 1 && svs.client_pool[0].edict->client->ps.stats[STAT_HEALTH] <= 0) {
+            Com_Printf("Can't savegame while dead!\n");
+            return;
+        }
     }
 
     if (Cmd_Argc() != 2) {

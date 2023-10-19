@@ -22,7 +22,7 @@ with this program; if not, write to the Free Software Foundation, Inc.,
 
 // bitmasks communicated by server
 #define MAX_MAP_AREA_BYTES      (MAX_MAP_AREAS / 8)
-#define MAX_MAP_PORTAL_BYTES    MAX_MAP_AREA_BYTES
+#define MAX_MAP_PORTAL_BYTES    128
 
 typedef struct {
     bsp_t       *cache;
@@ -40,15 +40,13 @@ void        CM_FreeMap(cm_t *cm);
 int         CM_LoadMap(cm_t *cm, const char *name);
 void        CM_LoadOverrides(cm_t *cm, char *server, size_t server_size);
 
-int         CM_NumClusters(cm_t *cm);
-int         CM_NumInlineModels(cm_t *cm);
-char        *CM_EntityString(cm_t *cm);
 mnode_t     *CM_NodeNum(cm_t *cm, int number);
 mleaf_t     *CM_LeafNum(cm_t *cm, int number);
 
 #define CM_InlineModel(cm, name) BSP_InlineModel((cm)->cache, name)
 
 #define CM_NumNode(cm, node) ((node) ? ((node) - (cm)->cache->nodes) : -1)
+#define CM_NumLeaf(cm, leaf) ((cm)->cache ? ((leaf) - (cm)->cache->leafs) : 0)
 
 // creates a clipping hull for an arbitrary box
 mnode_t     *CM_HeadnodeForBox(const vec3_t mins, const vec3_t maxs);

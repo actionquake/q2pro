@@ -57,9 +57,22 @@ with this program; if not, write to the Free Software Foundation, Inc.,
 
 //=============================================================================
 
+// Hack to merge two structures AND still allow to address them separately.
+// Requires non-standard Microsoft extension to compile. FIXME: remove this?
+typedef union {
+    struct {
+        entity_state_t;
+        entity_state_extension_t;
+    };
+    struct {
+        entity_state_t s;
+        entity_state_extension_t x;
+    };
+} centity_state_t;
+
 typedef struct centity_s {
-    entity_state_t    current;
-    entity_state_t    prev;            // will always be valid, but might just be a copy of current
+    centity_state_t     current;
+    centity_state_t     prev;           // will always be valid, but might just be a copy of current
 
     vec3_t          mins, maxs;
 
@@ -76,11 +89,13 @@ typedef struct centity_s {
 #endif
 
     int             fly_stoptime;
+
+    float           flashlightfrac;
 } centity_t;
 
 extern centity_t    cl_entities[MAX_EDICTS];
 
-#define MAX_CLIENTWEAPONMODELS        20        // PGM -- upped from 16 to fit the chainfist vwep
+#define MAX_CLIENTWEAPONMODELS        256       // PGM -- upped from 16 to fit the chainfist vwep
 
 typedef struct clientinfo_s {
     char name[MAX_QPATH];
@@ -174,12 +189,13 @@ typedef struct client_state_s {
     centity_t       *solidEntities[MAX_PACKET_ENTITIES];
     int             numSolidEntities;
 
-    entity_state_t  baselines[MAX_EDICTS];
+    centity_state_t baselines[MAX_EDICTS];
 
-    entity_state_t  entityStates[MAX_PARSE_ENTITIES];
+    centity_state_t entityStates[MAX_PARSE_ENTITIES];
     int             numEntityStates;
 
     msgEsFlags_t    esFlags;
+    msgPsFlags_t    psFlags;
 
     server_frame_t  frames[UPDATE_BACKUP];
     unsigned        frameflags;
@@ -266,6 +282,8 @@ typedef struct client_state_s {
 	short		view_high;
     configstring_t  baseconfigstrings[MAX_CONFIGSTRINGS];
     configstring_t  configstrings[MAX_CONFIGSTRINGS];
+    cs_remap_t      csr;
+
     char        mapname[MAX_QPATH]; // short format - q2dm1, etc
 
 #if USE_AUTOREPLY
@@ -291,6 +309,7 @@ typedef struct client_state_s {
     int     numWeaponModels;
 
 	cvarsync_t cvarsync[CVARSYNC_MAX];
+    bool    need_powerscreen_scale;
 } client_state_t;
 
 extern client_state_t   cl;
@@ -460,6 +479,7 @@ typedef struct client_static_s {
         bool        paused;
         bool        seeking;
         bool        eof;
+        msgEsFlags_t    esFlags;        // for snapshots/recording
     } demo;
 
 #if USE_CLIENT_GTV
@@ -471,6 +491,7 @@ typedef struct client_static_s {
 
         player_packed_t     ps;
         entity_packed_t     entities[MAX_EDICTS];
+        msgEsFlags_t        esFlags;    // for writing
 
         sizebuf_t       message;
     } gtv;
@@ -512,6 +533,7 @@ extern cvar_t   *cl_noskins;
 extern cvar_t   *cl_kickangles;
 extern cvar_t   *cl_rollhack;
 extern cvar_t   *cl_noglow;
+extern cvar_t   *cl_nobob;
 extern cvar_t   *cl_nolerp;
 
 //STEPSOUND
@@ -551,6 +573,7 @@ extern cvar_t   *cl_changemapcmd;
 extern cvar_t   *cl_beginmapcmd;
 
 extern cvar_t   *cl_gibs;
+extern cvar_t   *cl_flares;
 
 extern cvar_t   *cl_thirdperson;
 extern cvar_t   *cl_thirdperson_angle;
@@ -586,6 +609,19 @@ extern cvar_t   *info_gender;
 extern cvar_t   *info_uf;
 
 //=============================================================================
+
+static inline void CL_AdvanceValue(float *restrict val, float target, float speed)
+{
+    if (*val < target) {
+        *val += speed * cls.frametime;
+        if (*val > target)
+            *val = target;
+    } else if (*val > target) {
+        *val -= speed * cls.frametime;
+        if (*val < target)
+            *val = target;
+    }
+}
 
 //
 // main.c
@@ -667,6 +703,9 @@ void CL_SendCmd(void);
 // parse.c
 //
 
+#define CL_ES_EXTENDED_MASK \
+    (MSG_ES_LONGSOLID | MSG_ES_UMASK | MSG_ES_BEAMORIGIN | MSG_ES_SHORTANGLES | MSG_ES_EXTENSIONS)
+
 typedef struct {
     int type;
     vec3_t pos1;
@@ -708,6 +747,12 @@ bool CL_SeekDemoMessage(void);
 //
 // entities.c
 //
+
+#define EF_TRAIL_MASK   (EF_ROCKET | EF_BLASTER | EF_HYPERBLASTER | EF_GIB | EF_GRENADE | \
+                         EF_FLIES | EF_BFG | EF_TRAP | EF_FLAG1 | EF_FLAG2 | EF_TAGTRAIL | \
+                         EF_TRACKERTRAIL | EF_TRACKER | EF_GREENGIB | EF_IONRIPPER | \
+                         EF_BLUEHYPERBLASTER | EF_PLASMA)
+
 void CL_DeltaFrame(void);
 void CL_AddEntities(void);
 void CL_CalcViewValues(void);
@@ -718,7 +763,7 @@ void CL_CheckEntityPresent(int entnum, const char *what);
 
 // the sound code makes callbacks to the client for entitiy position
 // information, so entities can be dynamically re-spatialized
-void CL_GetEntitySoundOrigin(int ent, vec3_t org);
+void CL_GetEntitySoundOrigin(unsigned entnum, vec3_t org);
 
 
 //
@@ -755,6 +800,7 @@ typedef struct cl_sustain_s {
 } cl_sustain_t;
 
 void CL_SmokeAndFlash(const vec3_t origin);
+void CL_DrawBeam(const vec3_t org, const vec3_t end, qhandle_t model);
 
 void CL_RegisterTEntSounds(void);
 void CL_RegisterTEntModels(void);
@@ -770,6 +816,7 @@ void CL_InitTEnts(void);
 void CL_PredictAngles(void);
 void CL_PredictMovement(void);
 void CL_CheckPredictionError(void);
+void CL_Trace(trace_t *tr, const vec3_t start, const vec3_t mins, const vec3_t maxs, const vec3_t end, int contentmask);
 
 
 //
@@ -856,6 +903,11 @@ void CL_IonripperTrail(const vec3_t start, const vec3_t end);
 void CL_TrapParticles(centity_t *ent, const vec3_t origin);
 void CL_ParticleEffect3(const vec3_t org, const vec3_t dir, int color, int count);
 void CL_ParticleSteamEffect2(cl_sustain_t *self);
+void CL_BerserkSlamParticles(const vec3_t org, const vec3_t dir);
+void CL_PowerSplash(void);
+void CL_TeleporterParticles2(const vec3_t org);
+void CL_HologramParticles(const vec3_t org);
+void CL_BarrelExplodingParticles(const vec3_t org);
 
 
 //
@@ -865,6 +917,7 @@ void CL_InitDemos(void);
 void CL_CleanupDemos(void);
 void CL_DemoFrame(int msec);
 bool CL_WriteDemoMessage(sizebuf_t *buf);
+void CL_PackEntity(entity_packed_t *out, const centity_state_t *in);
 void CL_EmitDemoFrame(void);
 void CL_EmitDemoSnapshot(void);
 void CL_FreeDemoSnapshots(void);

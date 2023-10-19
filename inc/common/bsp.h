@@ -25,7 +25,7 @@ with this program; if not, write to the Free Software Foundation, Inc.,
 #include "format/bsp.h"
 
 // maximum size of a PVS row, in bytes
-#define VIS_MAX_BYTES   (MAX_MAP_LEAFS >> 3)
+#define VIS_MAX_BYTES   (MAX_MAP_CLUSTERS >> 3)
 
 // take advantage of 64-bit systems
 #define VIS_FAST_LONGS(bsp) \
@@ -60,7 +60,7 @@ typedef struct {
 
 #define SURF_TRANS_MASK (SURF_TRANS33 | SURF_TRANS66)
 #define SURF_COLOR_MASK (SURF_TRANS_MASK | SURF_WARP)
-#define SURF_NOLM_MASK  (SURF_COLOR_MASK | SURF_FLOWING | SURF_SKY)
+#define SURF_NOLM_MASK  (SURF_COLOR_MASK | SURF_FLOWING | SURF_SKY | SURF_NODRAW)
 
 #define DSURF_PLANEBACK     1
 
@@ -90,7 +90,7 @@ typedef struct mface_s {
 
     unsigned        drawframe;
     unsigned        dlightframe;
-    unsigned        dlightbits;
+    uint64_t        dlightbits;
 
     struct entity_s     *entity;
     struct mface_s      *next;
@@ -225,7 +225,7 @@ typedef struct bsp_s {
     int             numareas;
     marea_t         *areas;
 
-    int             lastareaportal; // largest portal number used
+    int             numportals;     // largest portal number used plus one
     int             numareaportals; // size of the array below
     mareaportal_t   *areaportals;
 

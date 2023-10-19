@@ -234,6 +234,36 @@ void PF_UnlinkEdict(edict_t *ent)
     ent->area.prev = ent->area.next = NULL;
 }
 
+static uint32_t SV_PackSolid32(edict_t *ent)
+{
+    uint32_t solid32;
+
+    if (svs.csr.extended)
+        solid32 = MSG_PackSolid32_Ver2(ent->mins, ent->maxs);
+    else
+        solid32 = MSG_PackSolid32_Ver1(ent->mins, ent->maxs);
+
+    if (solid32 == PACKED_BSP)
+        solid32 = 0;  // can happen in pathological case if z mins > maxs
+
+#if USE_DEBUG
+    if (developer->integer) {
+        vec3_t mins, maxs;
+
+        if (svs.csr.extended)
+            MSG_UnpackSolid32_Ver2(solid32, mins, maxs);
+        else
+            MSG_UnpackSolid32_Ver1(solid32, mins, maxs);
+
+        if (!VectorCompare(ent->mins, mins) || !VectorCompare(ent->maxs, maxs))
+            Com_LPrintf(PRINT_DEVELOPER, "Bad mins/maxs on entity %d: %s %s\n",
+                        NUM_FOR_EDICT(ent), vtos(ent->mins), vtos(ent->maxs));
+    }
+#endif
+
+    return solid32;
+}
+
 void PF_LinkEdict(edict_t *ent)
 {
     areanode_t *node;
@@ -272,14 +302,7 @@ void PF_LinkEdict(edict_t *ent)
             sent->solid32 = 0;
         } else {
             ent->s.solid = MSG_PackSolid16(ent->mins, ent->maxs);
-            sent->solid32 = MSG_PackSolid32(ent->mins, ent->maxs);
-#if USE_DEBUG
-            if (developer->integer &&
-                (ent->mins[0] !=  ent->mins[1] ||
-                 ent->maxs[0] !=  ent->maxs[1] ||
-                 ent->mins[0] != -ent->maxs[0]))
-                Com_LPrintf(PRINT_DEVELOPER, "%s: bad mins/maxs on entity %d\n", __func__, entnum);
-#endif
+            sent->solid32 = SV_PackSolid32(ent);
         }
         break;
     case SOLID_BSP:
@@ -296,7 +319,8 @@ void PF_LinkEdict(edict_t *ent)
 
     // if first time, make sure old_origin is valid
     if (!ent->linkcount) {
-        VectorCopy(ent->s.origin, ent->s.old_origin);
+        if (!(ent->s.renderfx & RF_BEAM))
+            VectorCopy(ent->s.origin, ent->s.old_origin);
 #if USE_FPS
         VectorCopy(ent->s.origin, sent->create_origin);
         sent->create_framenum = sv.framenum;
@@ -431,6 +455,37 @@ static mnode_t *SV_HullForEntity(edict_t *ent)
 
 /*
 =============
+SV_HullForEntity2
+
+Can be used to clip to SOLID_TRIGGER by its BSP tree
+=============
+*/
+static mnode_t *SV_HullForEntity2(edict_t *ent)
+{
+    if (ent->solid == SOLID_BSP || ent->solid == SOLID_TRIGGER) {
+        int i = ent->s.modelindex - 1;
+
+        // explicit hulls in the BSP model
+        if (i > 0 && i < sv.cm.cache->nummodels)
+            return sv.cm.cache->models[i].headnode;
+    }
+
+    // create a temp hull from bounding box sizes
+    return CM_HeadnodeForBox(ent->mins, ent->maxs);
+}
+
+/*
+=============
+SV_WorldNodes
+=============
+*/
+static mnode_t *SV_WorldNodes(void)
+{
+    return sv.cm.cache ? sv.cm.cache->nodes : NULL;
+}
+
+/*
+=============
 SV_PointContents
 =============
 */
@@ -440,12 +495,8 @@ int SV_PointContents(const vec3_t p)
     int         i, num;
     int         contents;
 
-    if (!sv.cm.cache) {
-        Com_Error(ERR_DROP, "%s: no map loaded", __func__);
-    }
-
     // get base contents from world
-    contents = CM_PointContents(p, sv.cm.cache->nodes);
+    contents = CM_PointContents(p, SV_WorldNodes());
 
     // or in contents from all the other entities
     num = SV_AreaEdicts(p, p, touch, MAX_EDICTS, AREA_SOLID);
@@ -510,6 +561,15 @@ static void SV_ClipMoveToEntities(const vec3_t start, const vec3_t mins,
             && (touch->svflags & SVF_DEADMONSTER))
             continue;
 
+        if (svs.csr.extended) {
+            if (!(contentmask & CONTENTS_PROJECTILE)
+                && (touch->svflags & SVF_PROJECTILE))
+                continue;
+            if (!(contentmask & CONTENTS_PLAYER)
+                && (touch->svflags & SVF_PLAYER))
+                continue;
+        }
+
         // might intersect, so do an exact clip
         CM_TransformedBoxTrace(&trace, start, end, mins, maxs,
                                SV_HullForEntity(touch), contentmask,
@@ -533,23 +593,47 @@ trace_t q_gameabi SV_Trace(const vec3_t start, const vec3_t mins,
 {
     trace_t     trace;
 
-    if (!sv.cm.cache) {
-        Com_Error(ERR_DROP, "%s: no map loaded", __func__);
-    }
-
     if (!mins)
         mins = vec3_origin;
     if (!maxs)
         maxs = vec3_origin;
 
     // clip to world
-    CM_BoxTrace(&trace, start, end, mins, maxs, sv.cm.cache->nodes, contentmask);
+    CM_BoxTrace(&trace, start, end, mins, maxs, SV_WorldNodes(), contentmask);
     trace.ent = ge->edicts;
-    if (trace.fraction == 0) {
+    if (trace.fraction == 0)
         return trace;   // blocked by the world
-    }
 
     // clip to other solid entities
     SV_ClipMoveToEntities(start, mins, maxs, end, passedict, contentmask, &trace);
+    return trace;
+}
+
+/*
+==================
+SV_Clip
+
+Like SV_Trace(), but clip to specified entity only.
+Can be used to clip to SOLID_TRIGGER by its BSP tree.
+==================
+*/
+trace_t q_gameabi SV_Clip(const vec3_t start, const vec3_t mins,
+                          const vec3_t maxs, const vec3_t end,
+                          edict_t *clip, int contentmask)
+{
+    trace_t     trace;
+
+    if (!mins)
+        mins = vec3_origin;
+    if (!maxs)
+        maxs = vec3_origin;
+
+    if (clip == ge->edicts)
+        CM_BoxTrace(&trace, start, end, mins, maxs, SV_WorldNodes(), contentmask);
+    else
+        CM_TransformedBoxTrace(&trace, start, end, mins, maxs,
+                               SV_HullForEntity2(clip), contentmask,
+                               clip->s.origin, clip->s.angles);
+    trace.ent = clip;
     return trace;
 }

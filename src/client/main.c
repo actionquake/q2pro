@@ -43,6 +43,7 @@ cvar_t  *cl_enhanced_footsteps;
 cvar_t  *cl_kickangles;
 cvar_t  *cl_rollhack;
 cvar_t  *cl_noglow;
+cvar_t  *cl_nobob;
 cvar_t  *cl_nolerp;
 
 #if USE_DEBUG
@@ -71,6 +72,7 @@ cvar_t  *cl_ignore_stufftext;
 cvar_t  *cl_allow_vid_restart;
 
 cvar_t  *cl_gibs;
+cvar_t  *cl_flares;
 #if USE_FPS
 cvar_t  *cl_updaterate;
 #endif
@@ -1453,6 +1455,21 @@ void CL_UpdateRecordingSetting(void)
     MSG_FlushTo(&cls.netchan.message);
 }
 
+static void CL_UpdateFlaresSetting(void)
+{
+    if (cls.netchan.protocol != PROTOCOL_VERSION_Q2PRO) {
+        return;
+    }
+    if (!cl.csr.extended) {
+        return;
+    }
+
+    MSG_WriteByte(clc_setting);
+    MSG_WriteShort(CLS_NOFLARES);
+    MSG_WriteShort(!cl_flares->integer);
+    MSG_FlushTo(&cls.netchan.message);
+}
+
 /*
 ===================
 CL_ClientCommand
@@ -2334,7 +2351,7 @@ static void CL_Skins_f(void)
     CL_RegisterVWepModels();
 
     for (i = 0; i < MAX_CLIENTS; i++) {
-        s = cl.configstrings[CS_PLAYERSKINS + i];
+        s = cl.configstrings[cl.csr.playerskins + i];
         if (!s[0])
             continue;
         ci = &cl.clientinfo[i];
@@ -2358,7 +2375,7 @@ static void cl_noskins_changed(cvar_t *self)
     }
 
     for (i = 0; i < MAX_CLIENTS; i++) {
-        s = cl.configstrings[CS_PLAYERSKINS + i];
+        s = cl.configstrings[cl.csr.playerskins + i];
         if (!s[0])
             continue;
         ci = &cl.clientinfo[i];
@@ -2827,7 +2844,7 @@ Moved here from sound code so that command is always registered.
 */
 static void CL_PlaySound_c(genctx_t *ctx, int state)
 {
-    FS_File_g("sound", "*.wav", FS_SEARCH_SAVEPATH | FS_SEARCH_BYFILTER | FS_SEARCH_STRIPEXT, ctx);
+    FS_File_g("sound", ".wav", FS_SEARCH_RECURSIVE | FS_SEARCH_STRIPEXT, ctx);
 }
 
 static void CL_PlaySound_f(void)
@@ -2888,6 +2905,7 @@ void CL_Begin(void)
     CL_UpdateFootstepsSetting();
     CL_UpdatePredictSetting();
     CL_UpdateRecordingSetting();
+    CL_UpdateFlaresSetting();
 }
 
 /*
@@ -3468,7 +3486,13 @@ static size_t CL_Armor_m(char *buffer, size_t size)
 
 static size_t CL_WeaponModel_m(char *buffer, size_t size)
 {
-    return Q_strlcpy(buffer, cl.configstrings[CS_MODELS + cl.frame.ps.gunindex], size);
+    int i = cl.csr.models + (cl.frame.ps.gunindex & GUNINDEX_MASK);
+    return Q_strlcpy(buffer, cl.configstrings[i], size);
+}
+
+static size_t CL_NumEntities_m(char *buffer, size_t size)
+{
+    return Q_scnprintf(buffer, size, "%i", cl.frame.numEntities);
 }
 
 /*
@@ -3762,6 +3786,11 @@ static void cl_updaterate_changed(cvar_t *self)
 }
 #endif
 
+static void cl_flares_changed(cvar_t *self)
+{
+    CL_UpdateFlaresSetting();
+}
+
 static inline int fps_to_msec(int fps)
 {
 #if 0
@@ -3939,6 +3968,7 @@ static void CL_InitLocal(void)
     cl_autopause = Cvar_Get("cl_autopause", "1", 0);
     cl_rollhack = Cvar_Get("cl_rollhack", "1", 0);
     cl_noglow = Cvar_Get("cl_noglow", "0", 0);
+    cl_nobob = Cvar_Get("cl_nobob", "0", 0);
     cl_nolerp = Cvar_Get("cl_nolerp", "0", 0);
 
     cl_enhanced_footsteps= Cvar_Get("cl_enhanced_footsteps", "0", 0);
@@ -3949,7 +3979,7 @@ static void CL_InitLocal(void)
     CL_GetExternalIP(); // Get external IP
     //rekkie -- external ip -- e
     
-    cl_discord = Cvar_Get("cl_discord", "1", 0);
+    cl_discord = Cvar_Get("cl_discord", "0", 0); // Setting to default 0 until we fix some bugs
     discord.discord_found = true; // Defaults to true, until we find out otherwise.
     if (cl_discord->value)
     {
@@ -3992,6 +4022,9 @@ static void CL_InitLocal(void)
 
     cl_gibs = Cvar_Get("cl_gibs", "1", 0);
     cl_gibs->changed = cl_gibs_changed;
+
+    cl_flares = Cvar_Get("cl_flares", "1", 0);
+    cl_flares->changed = cl_flares_changed;
 
 #if USE_FPS
     cl_updaterate = Cvar_Get("cl_updaterate", "0", 0);
@@ -4073,6 +4106,7 @@ static void CL_InitLocal(void)
     Cmd_AddMacro("cl_ammo", CL_Ammo_m);
     Cmd_AddMacro("cl_armor", CL_Armor_m);
     Cmd_AddMacro("cl_weaponmodel", CL_WeaponModel_m);
+    Cmd_AddMacro("cl_numentities", CL_NumEntities_m);
 }
 
 /*
