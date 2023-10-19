@@ -24,6 +24,7 @@ extern qhandle_t cl_mod_laser;
 extern qhandle_t cl_mod_dmspot;
 extern qhandle_t cl_sfx_footsteps[12];
 extern qhandle_t cl_sfx_landing[8];
+extern qhandle_t cl_img_flare;
 extern qhandle_t cl_sfx_laddersteps[5];
 int cl_laststep;    // used to not let same step sound be used twice in a row
 
@@ -646,7 +647,7 @@ static void CL_AddPacketEntities(void)
                 if (renderfx & RF_CUSTOMSKIN && (unsigned)s1->frame < cl.csr.max_images)
                     ent.skin = cl.image_precache[s1->frame];
                 if (!ent.skin)
-                    goto skip;  // skip default flare for now, it looks bad
+                    ent.skin = cl_img_flare;
                 ent.scale = s1->scale ? s1->scale : 1;
                 ent.flags = renderfx | RF_TRANSLUCENT;
                 if (!s1->skinnum)

@@ -24,6 +24,7 @@ with this program; if not, write to the Free Software Foundation, Inc.,
 #include "common/common.h"
 #include "common/cvar.h"
 #include "common/files.h"
+#include "common/hash_map.h"
 #include "common/math.h"
 #include "client/video.h"
 #include "client/client.h"
@@ -45,12 +46,12 @@ with this program; if not, write to the Free Software Foundation, Inc.,
 #define QGL_INDEX_ENUM  GL_UNSIGNED_INT
 #endif
 
-#define MAX_TMUS        2
+#define MAX_TMUS        3
 
 #define TAB_SIN(x) gl_static.sintab[(x) & 255]
 #define TAB_COS(x) gl_static.sintab[((x) + 64) & 255]
 
-#define MAX_PROGRAMS    64
+#define MAX_PROGRAMS    128
 #define NUM_TEXNUMS     7
 
 typedef struct {
@@ -77,6 +78,12 @@ typedef struct {
 } glbackend_t;
 
 typedef struct {
+    GLuint query;
+    bool pending;
+    bool visible;
+} glquery_t;
+
+typedef struct {
     bool            registering;
     bool            use_shaders;
     glbackend_t     backend;
@@ -93,16 +100,17 @@ typedef struct {
     GLuint          u_bufnum;
     GLuint          programs[MAX_PROGRAMS];
     GLuint          texnums[NUM_TEXNUMS];
-    GLuint          queries[MAX_EDICTS];
     GLenum          samples_passed;
     GLbitfield      stencil_buffer_bit;
     float           entity_modulate;
     uint32_t        inverse_intensity_33;
     uint32_t        inverse_intensity_66;
     uint32_t        inverse_intensity_100;
+    int             nolm_mask;
     float           sintab[256];
     byte            latlngtab[NUMVERTEXNORMALS][2];
     byte            lightstylemap[MAX_LIGHTSTYLES];
+    hash_map_t      *queries;
 } glStatic_t;
 
 typedef struct {
@@ -126,7 +134,6 @@ typedef struct {
     int             framebuffer_width;
     int             framebuffer_height;
     bool            framebuffer_ok;
-    byte            queryflags[MAX_EDICTS];
 } glRefdef_t;
 
 enum {
@@ -197,8 +204,13 @@ extern cvar_t *gl_dynamic;
 extern cvar_t *gl_dlight_falloff;
 extern cvar_t *gl_modulate_entities;
 extern cvar_t *gl_doublelight_entities;
+extern cvar_t *gl_glowmap_intensity;
 extern cvar_t *gl_fontshadow;
 extern cvar_t *gl_shaders;
+#if USE_MD5
+extern cvar_t *gl_md5_load;
+extern cvar_t *gl_md5_use;
+#endif
 
 // development variables
 extern cvar_t *gl_znear;
@@ -216,6 +228,7 @@ extern cvar_t *gl_lockpvs;
 extern cvar_t *gl_lightmap;
 extern cvar_t *gl_fullbright;
 extern cvar_t *gl_vertexlight;
+extern cvar_t *gl_lightgrid;
 extern cvar_t *gl_showerrors;
 
 typedef enum {
@@ -261,6 +274,8 @@ typedef struct {
     vec_t   radius;
 } maliasframe_t;
 
+typedef char maliasskinname_t[MAX_QPATH];
+
 typedef struct {
     int             numverts;
     int             numtris;
@@ -269,6 +284,9 @@ typedef struct {
     QGL_INDEX_TYPE  *indices;
     maliasvert_t    *verts;
     maliastc_t      *tcoords;
+#if USE_MD5
+    maliasskinname_t *skinnames;
+#endif
     image_t         **skins;
 } maliasmesh_t;
 
@@ -279,6 +297,75 @@ typedef struct {
     int             origin_y;
     image_t         *image;
 } mspriteframe_t;
+
+#if USE_MD5
+
+// the total amount of joints the renderer will bother handling
+#define MD5_MAX_JOINTS      256
+#define MD5_MAX_JOINTNAME   32
+#define MD5_MAX_MESHES      32
+#define MD5_MAX_WEIGHTS     4096
+#define MD5_MAX_FRAMES      1024
+
+typedef char md5_jointname_t[MD5_MAX_JOINTNAME];
+
+/* Joint */
+typedef struct {
+    int parent;
+
+    vec3_t pos;
+    quat_t orient;
+    float scale;
+} md5_joint_t;
+
+/* Vertex */
+typedef struct {
+    vec2_t st;
+    vec3_t normal;
+
+    uint32_t start; /* start weight */
+    uint32_t count; /* weight count */
+} md5_vertex_t;
+
+/* Triangle */
+typedef struct {
+    int index[3];
+} md5_triangle_t;
+
+/* Weight */
+typedef struct {
+    int joint;
+    float bias;
+
+    vec3_t pos;
+} md5_weight_t;
+
+/* Mesh */
+typedef struct {
+    int num_verts;
+    int num_indices;
+    int num_weights;
+
+    md5_vertex_t *vertices;
+    QGL_INDEX_TYPE *indices;
+    md5_weight_t *weights;
+} md5_mesh_t;
+
+/* MD5 model + animation structure */
+typedef struct {
+    int num_meshes;
+    int num_joints;
+    int num_frames; // may not match model_t::numframes, but not fatal
+    int num_skins;
+
+    md5_mesh_t *meshes;
+    md5_joint_t *base_skeleton;
+    md5_joint_t *skeleton_frames; // [num_joints][num_frames]
+    md5_jointname_t *jointnames;
+    image_t **skins;
+} md5_model_t;
+
+#endif
 
 typedef struct {
     enum {
@@ -295,7 +382,11 @@ typedef struct {
     int nummeshes;
     int numframes;
 
-    maliasmesh_t *meshes;
+    maliasmesh_t *meshes; // md2 / md3
+#if USE_MD5
+    md5_model_t *skeleton; // md5
+    memhunk_t skeleton_hunk; // md5
+#endif
     union {
         maliasframe_t *frames;
         mspriteframe_t *spriteframes;
@@ -318,8 +409,8 @@ qhandle_t R_RegisterModel(const char *name);
  * gl_surf.c
  *
  */
-#define LIGHT_STYLE(surf, i) \
-    &glr.fd.lightstyles[gl_static.lightstylemap[(surf)->styles[i]]]
+#define LIGHT_STYLE(i) \
+    &glr.fd.lightstyles[gl_static.lightstylemap[(i)]]
 
 #define LM_MAX_LIGHTMAPS    32
 #define LM_BLOCK_WIDTH      512
@@ -362,16 +453,17 @@ typedef enum {
     GLS_LIGHTMAP_ENABLE     = BIT(9),
     GLS_WARP_ENABLE         = BIT(10),
     GLS_INTENSITY_ENABLE    = BIT(11),
-    GLS_SHADE_SMOOTH        = BIT(12),
-    GLS_SCROLL_X            = BIT(13),
-    GLS_SCROLL_Y            = BIT(14),
-    GLS_SCROLL_FLIP         = BIT(15),
-    GLS_SCROLL_SLOW         = BIT(16),
+    GLS_GLOWMAP_ENABLE      = BIT(12),
+    GLS_SHADE_SMOOTH        = BIT(13),
+    GLS_SCROLL_X            = BIT(14),
+    GLS_SCROLL_Y            = BIT(15),
+    GLS_SCROLL_FLIP         = BIT(16),
+    GLS_SCROLL_SLOW         = BIT(17),
 
     GLS_BLEND_MASK  = GLS_BLEND_BLEND | GLS_BLEND_ADD | GLS_BLEND_MODULATE,
     GLS_COMMON_MASK = GLS_DEPTHMASK_FALSE | GLS_DEPTHTEST_DISABLE | GLS_CULL_DISABLE | GLS_BLEND_MASK,
     GLS_SHADER_MASK = GLS_ALPHATEST_ENABLE | GLS_TEXTURE_REPLACE | GLS_SCROLL_ENABLE |
-        GLS_LIGHTMAP_ENABLE | GLS_WARP_ENABLE | GLS_INTENSITY_ENABLE,
+        GLS_LIGHTMAP_ENABLE | GLS_WARP_ENABLE | GLS_INTENSITY_ENABLE | GLS_GLOWMAP_ENABLE,
     GLS_SCROLL_MASK = GLS_SCROLL_ENABLE | GLS_SCROLL_X | GLS_SCROLL_Y | GLS_SCROLL_FLIP | GLS_SCROLL_SLOW,
 } glStateBits_t;
 
@@ -397,10 +489,11 @@ typedef struct {
         GLfloat     modulate;
         GLfloat     add;
         GLfloat     intensity;
+        GLfloat     intensity2;
+        GLfloat     pad;
         GLfloat     w_amp[2];
         GLfloat     w_phase[2];
         GLfloat     scroll[2];
-        GLfloat     pad[2];
     } u_block;
 } glState_t;
 

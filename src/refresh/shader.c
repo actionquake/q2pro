@@ -55,10 +55,11 @@ static void write_block(char *buf)
         float u_modulate;
         float u_add;
         float u_intensity;
+        float u_intensity2;
+        float pad;
         vec2 w_amp;
         vec2 w_phase;
         vec2 u_scroll;
-        vec2 pad;
     )
     GLSF("};\n");
 }
@@ -109,6 +110,9 @@ static void write_fragment_shader(char *buf, GLbitfield bits)
         GLSL(in vec2 v_lmtc;)
     }
 
+    if (bits & GLS_GLOWMAP_ENABLE)
+        GLSL(uniform sampler2D u_glowmap;)
+
     if (!(bits & GLS_TEXTURE_REPLACE))
         GLSL(in vec4 v_color;)
 
@@ -127,6 +131,12 @@ static void write_fragment_shader(char *buf, GLbitfield bits)
 
         if (bits & GLS_LIGHTMAP_ENABLE) {
             GLSL(vec4 lightmap = texture(u_lightmap, v_lmtc);)
+
+            if (bits & GLS_GLOWMAP_ENABLE) {
+                GLSL(vec4 glowmap = texture(u_glowmap, tc);)
+                GLSL(lightmap.rgb = mix(lightmap.rgb, vec3(1.0), glowmap.a);)
+            }
+
             GLSL(diffuse.rgb *= (lightmap.rgb + u_add) * u_modulate;)
         }
 
@@ -135,6 +145,14 @@ static void write_fragment_shader(char *buf, GLbitfield bits)
 
         if (!(bits & GLS_TEXTURE_REPLACE))
             GLSL(diffuse *= v_color;)
+
+        if (!(bits & GLS_LIGHTMAP_ENABLE) && (bits & GLS_GLOWMAP_ENABLE)) {
+            GLSL(vec4 glowmap = texture(u_glowmap, tc);)
+            if (bits & GLS_INTENSITY_ENABLE)
+                GLSL(diffuse.rgb += glowmap.rgb * u_intensity2;)
+            else
+                GLSL(diffuse.rgb += glowmap.rgb;)
+        }
 
         GLSL(o_color = diffuse;)
     GLSF("}\n");
@@ -239,6 +257,8 @@ static GLuint create_and_use_program(GLbitfield bits)
     qglUniform1i(qglGetUniformLocation(program, "u_texture"), 0);
     if (bits & GLS_LIGHTMAP_ENABLE)
         qglUniform1i(qglGetUniformLocation(program, "u_lightmap"), 1);
+    if (bits & GLS_GLOWMAP_ENABLE)
+        qglUniform1i(qglGetUniformLocation(program, "u_glowmap"), 2);
 
     return program;
 }
@@ -361,6 +381,7 @@ static void shader_setup_2d(void)
     gls.u_block.modulate = 1.0f;
     gls.u_block.add = 0.0f;
     gls.u_block.intensity = 1.0f;
+    gls.u_block.intensity2 = 1.0f;
 
     gls.u_block.w_amp[0] = 0.00666f;
     gls.u_block.w_amp[1] = 0.00666f;
@@ -374,6 +395,7 @@ static void shader_setup_3d(void)
     gls.u_block.modulate = gl_modulate->value * gl_modulate_world->value;
     gls.u_block.add = gl_brightness->value;
     gls.u_block.intensity = gl_intensity->value;
+    gls.u_block.intensity2 = gl_intensity->value * gl_glowmap_intensity->value;
 
     gls.u_block.w_amp[0] = 0.0625f;
     gls.u_block.w_amp[1] = 0.0625f;
@@ -383,6 +405,9 @@ static void shader_setup_3d(void)
 
 static void shader_clear_state(void)
 {
+    qglActiveTexture(GL_TEXTURE2);
+    qglBindTexture(GL_TEXTURE_2D, 0);
+
     qglActiveTexture(GL_TEXTURE1);
     qglBindTexture(GL_TEXTURE_2D, 0);
 

@@ -60,7 +60,9 @@ typedef struct {
 
 #define SURF_TRANS_MASK (SURF_TRANS33 | SURF_TRANS66)
 #define SURF_COLOR_MASK (SURF_TRANS_MASK | SURF_WARP)
-#define SURF_NOLM_MASK  (SURF_COLOR_MASK | SURF_FLOWING | SURF_SKY | SURF_NODRAW)
+
+#define SURF_NOLM_MASK_REMASTER     (SURF_SKY | SURF_NODRAW)
+#define SURF_NOLM_MASK_DEFAULT      (SURF_COLOR_MASK | SURF_FLOWING | SURF_NOLM_MASK_REMASTER)
 
 #define DSURF_PLANEBACK     1
 
@@ -82,7 +84,7 @@ typedef struct mface_s {
     int             lm_width;
     int             lm_height;
 
-    int             texnum[2];
+    int             texnum[3]; // FIXME MAX_TMUS
     int             statebits;
     int             firstvert;
     int             light_s, light_t;
@@ -183,6 +185,41 @@ typedef struct mmodel_s {
 #endif
 } mmodel_t;
 
+#if USE_REF
+
+typedef struct {
+    int32_t point[3];
+    uint32_t children[8];
+} lightgrid_node_t;
+
+typedef struct {
+    byte style;
+    byte rgb[3];
+} lightgrid_sample_t;
+
+typedef struct {
+    uint32_t mins[3];
+    uint32_t size[3];
+    uint32_t numsamples;
+    uint32_t firstsample;
+} lightgrid_leaf_t;
+
+typedef struct {
+    vec3_t scale;
+    vec3_t mins;
+    uint32_t size[3];
+    uint32_t numstyles;
+    uint32_t numnodes;
+    uint32_t numleafs;
+    uint32_t numsamples;
+    uint32_t rootnode;
+    lightgrid_node_t *nodes;
+    lightgrid_leaf_t *leafs;
+    lightgrid_sample_t *samples;
+} lightgrid_t;
+
+#endif
+
 typedef struct bsp_s {
     list_t      entry;
     int         refcount;
@@ -248,6 +285,8 @@ typedef struct bsp_s {
     int             numsurfedges;
     msurfedge_t     *surfedges;
 
+    lightgrid_t     lightgrid;
+
     bool            lm_decoupled;
 #endif
     bool            extended;
@@ -267,9 +306,11 @@ typedef struct {
     float       fraction;
 } lightpoint_t;
 
-void BSP_LightPoint(lightpoint_t *point, const vec3_t start, const vec3_t end, mnode_t *headnode);
+void BSP_LightPoint(lightpoint_t *point, const vec3_t start, const vec3_t end, mnode_t *headnode, int nolm_mask);
 void BSP_TransformedLightPoint(lightpoint_t *point, const vec3_t start, const vec3_t end,
-                               mnode_t *headnode, const vec3_t origin, const vec3_t angles);
+                               mnode_t *headnode, int nolm_mask, const vec3_t origin, const vec3_t angles);
+
+lightgrid_sample_t *BSP_LookupLightgrid(lightgrid_t *grid, int32_t point[3]);
 #endif
 
 byte *BSP_ClusterVis(bsp_t *bsp, byte *mask, int cluster, int vis);

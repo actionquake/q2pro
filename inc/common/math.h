@@ -64,8 +64,28 @@ static inline vec_t PlaneDiffFast(const vec3_t v, const cplane_t *p)
     return PlaneDiff(v, p);
 }
 
+// GHUD Stuff
 void Matrix4x4_CM_Transform4(const float *matrix, const float *vector, float *product);
 void Matrix4x4_CM_Projection2(float *proj, float fovx, float fovy, float neard);
 void Matrix4x4_CM_ModelViewMatrix(float *modelview, const vec3_t viewangles, const vec3_t vieworg);
 void Matrix4_Multiply(const float *a, const float *b, float *out);
+
+#if USE_REF
+
 void SetupRotationMatrix(vec3_t matrix[3], const vec3_t dir, float degrees);
+
+// quaternion routines, for MD5 skeletons
+#if USE_MD5
+typedef vec4_t quat_t;
+
+void Quat_ComputeW(quat_t q);
+void Quat_SLerp(const quat_t qa, const quat_t qb, float backlerp, float frontlerp, quat_t out);
+float Quat_Normalize(quat_t q);
+void Quat_MultiplyQuat(const quat_t qa, const quat_t qb, quat_t out);
+void Quat_MultiplyVector(const quat_t q, const vec3_t v, quat_t out);
+void Quat_RotatePoint(const quat_t q, const vec3_t in, vec3_t out);
+// Conjugate quaternion. Also, inverse, for unit quaternions (which MD5 quats are)
+void Quat_Conjugate(const quat_t in, quat_t out);
+#endif
+
+#endif  // USE_REF
