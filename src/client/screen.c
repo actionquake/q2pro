@@ -423,8 +423,8 @@ LAGOMETER
 ===============================================================================
 */
 
-#define LAG_WIDTH   48
-#define LAG_HEIGHT  48
+#define LAG_WIDTH   96
+#define LAG_HEIGHT  96
 
 #define LAG_CRIT_BIT    (1U << 31)
 #define LAG_WARN_BIT    (1U << 30)
