@@ -234,6 +234,43 @@ jobs:
             builddir/q2proded
             builddir/gamearm.so
 
+  linuxARM32:
+    runs-on: [self-hosted, ARM32]
+    strategy:
+      matrix:
+        cc: [gcc]
+    steps:
+      - uses: actions/checkout@v2
+
+      # - name: Install dependencies
+      #   run: |
+      #     sudo apt-get update
+      #     sudo apt-get install -y meson libsdl2-dev libopenal-dev \
+      #     libpng-dev libjpeg-dev zlib1g-dev mesa-common-dev \
+      #     libcurl4-gnutls-dev libx11-dev libxi-dev \
+      #     libwayland-dev wayland-protocols libdecor-0-dev patchelf \
+      #     libogg-dev libvorbis-dev
+
+      - name: Build
+        run: |
+          meson setup ${{ env.MESON_ARGS }} ${{ env.MESON_ARGS_LINUX }} builddir
+          meson compile -vC builddir
+        env:
+          CC: ${{ matrix.cc }}
+
+      - name: Set binaries as executable
+        run: |
+          chmod +x builddir/q2pro*
+
+      - name: Generate Linux ARM archives
+        uses: actions/upload-artifact@v3
+        with:
+          name: q2pro-lin-arm32
+          path: |
+            builddir/q2pro
+            builddir/q2proded
+            builddir/gamearm.so
+
   darwin:
     runs-on: macos-latest
     strategy:
