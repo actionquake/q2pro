@@ -187,11 +187,6 @@ void CL_MuzzleFlash(void)
     switch (mz.weapon) {
     case MZ_BLASTER:  // MK23
         #if USE_AQTION
-        // New muzzleflash items to test:
-        // example: CL_AddWeaponMuzzleFX(MFLASH_BLAST, (const vec3_t) { 27.0f, 7.4f, -6.6f }, 8.0f);
-        //mk23snd = atoi(cl_mk23_sound->string);
-        //CL_AddWeaponMuzzleFX(MFLASH_BLAST, (const vec3_t) { 27.0f, 7.4f, -6.6f }, 8.0f);
-
         if (cl_mk23_sound->integer > MAX_WEAPON_SOUND || cl_mk23_sound->integer <= MIN_WEAPON_SOUND) {
             cl_mk23_sound->integer = MIN_WEAPON_SOUND;
         }
@@ -206,6 +201,7 @@ void CL_MuzzleFlash(void)
         #else
         Q_snprintf(soundname, sizeof(soundname), "weapons/mk23fire.wav");
         #endif
+        CL_AddWeaponMuzzleFX(MFLASH_BLAST, (const vec3_t) { 27.0f, 7.4f, -6.6f }, 8.0f);
 
 	case MZ_MACHINEGUN: // MP5/10 Submachinegun
         #if USE_AQTION
@@ -223,6 +219,7 @@ void CL_MuzzleFlash(void)
         #else
         Q_snprintf(soundname, sizeof(soundname), "weapons/mp5fire.wav");
         #endif
+        CL_AddWeaponMuzzleFX(MFLASH_MACHN, (const vec3_t) { 29.0f, 9.7f, -8.0f }, 12.0f);
 
 	case MZ_ROCKET: // M4 Assault Rifle
         #if USE_AQTION
@@ -240,6 +237,7 @@ void CL_MuzzleFlash(void)
         #else
         Q_snprintf(soundname, sizeof(soundname), "weapons/m4a1fire.wav");
         #endif
+        CL_AddWeaponMuzzleFX(MFLASH_ROCKET, (const vec3_t) { 18.0f, 5.0f, -11.0f }, 10.0f);
 
 	case MZ_SHOTGUN: // M3 Shotgun
         #if USE_AQTION
@@ -257,6 +255,7 @@ void CL_MuzzleFlash(void)
         #else
         Q_snprintf(soundname, sizeof(soundname), "weapons/shotgf1b.wav");
         #endif
+        CL_AddWeaponMuzzleFX(MFLASH_SHOTG, (const vec3_t) { 26.5f, 8.6f, -9.5f }, 12.0f);
 
 	case MZ_SSHOTGUN: // Handcannon -- needs adjustment for single barrel vs double
         #if USE_AQTION
@@ -274,7 +273,8 @@ void CL_MuzzleFlash(void)
         #else
         Q_snprintf(soundname, sizeof(soundname), "weapons/cannon_fire.wav");
         #endif
-        
+        CL_AddWeaponMuzzleFX(MFLASH_SHOTG2, (const vec3_t) { 20.0f, 7.0f, -5.5f }, 12.0f);
+
 	case MZ_HYPERBLASTER: // SSG 3000 Sniper Rifle
         #if USE_AQTION
         if (cl_ssg_sound->integer > MAX_WEAPON_SOUND || cl_ssg_sound->integer <= MIN_WEAPON_SOUND) {
@@ -291,6 +291,7 @@ void CL_MuzzleFlash(void)
         #else
         Q_snprintf(soundname, sizeof(soundname), "weapons/ssgfire.wav");
         #endif
+        CL_AddWeaponMuzzleFX(MFLASH_BLAST, (const vec3_t) { 23.5f, 6.0f, -6.0f }, 9.0f);
 	}
 
     // Play the sound defined in the case statement above
