@@ -15,6 +15,7 @@
     - [cl\_gibs](#cl_gibs)
     - [cl\_gun](#cl_gun)
     - [cl\_footsteps](#cl_footsteps)
+    - [cl\_mk23_sound; cl\_mp5_sound; cl\_m4_sound; cl\_m3_sound; cl\_hc_sound; cl\_ssg_sound](#cl_mk23_sound-cl_mp5_sound-cl_m4_sound-cl_m3_sound-cl_hc_sound-cl_ssg_sound)
     - [cl\_updaterate](#cl_updaterate)
     - [cl\_warn\_on\_fps\_rounding](#cl_warn_on_fps_rounding)
   - [Network](#network)
@@ -301,13 +302,15 @@ Specifies preferred network protocol version to use when connecting to
 servers. If the server doesn’t support the specified protocol, client
 will fall back to the previous supported version. Default value is 0.
 
--   0 — automatically select the highest protocol version supported
+-   0 — automatically select the highest protocol version supported (suggested value)
 
 -   34 — use default Quake 2 protocol
 
 -   35 — use enhanced R1Q2 protocol
 
 -   36 — use enhanced Q2PRO protocol
+
+-   38 - use the enhanced AQtion protocol
 
 ### cl\_maxpackets  
 Number of packets client sends per second. 0 means no particular limit.
@@ -405,6 +408,9 @@ stops sending gun updates at all. Default value is 1.
 Controls footstep sounds. When using Q2PRO protocol, disabling this
 saves some bandwidth since the server stops sending footstep events at
 all. Default value is 1 (enabled).
+
+### cl\_mk23_sound; cl\_mp5_sound; cl\_m4_sound; cl\_m3_sound; cl\_hc_sound; cl\_ssg_sound
+Controls weapon sounds, values 0-7.  Each value corresponds to a different weapon sound within that weapon category.  Default value is 0.
 
 ### cl\_updaterate  
 Specifies the perferred update rate requested from Q2PRO servers. Only
