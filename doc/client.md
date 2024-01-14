@@ -414,6 +414,8 @@ Controls weapon sounds, values 0-7.  Each value corresponds to a different weapo
 - Example:  `cl_mk23_sound 4` will play `weapons/mk23fire4.wav`
 - If `llsound` is not enabled on the server, all weapon sounds used will be the default, example: `weapons/mk23fire.wav`
 
+Server suggested setting: `llsound 1` -- this lowers the bandwidth used by the server to send weapon sound commands to the client, and allows the client select the gun sound they want to use.
+
 ### cl\_updaterate  
 Specifies the perferred update rate requested from Q2PRO servers. Only
 used when server is running in variable FPS mode, otherwise default rate
