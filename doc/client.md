@@ -410,7 +410,8 @@ saves some bandwidth since the server stops sending footstep events at
 all. Default value is 1 (enabled).
 
 ### cl\_mk23_sound; cl\_mp5_sound; cl\_m4_sound; cl\_m3_sound; cl\_hc_sound; cl\_ssg_sound
-Controls weapon sounds, values 0-7.  Each value corresponds to a different weapon sound within that weapon category.  Default value is 0.
+Controls weapon sounds, values 0-7.  Each value corresponds to a different weapon sound within that weapon category.  Requires `llsound 1` on the server to enable.  Default value is `0`.  Review the files in `sound/weapons` to see their corresponding values.
+- Example:  `cl_mk23_sound 4` will play `weapons/mk23fire4.wav`
 
 ### cl\_updaterate  
 Specifies the perferred update rate requested from Q2PRO servers. Only
