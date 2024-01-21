@@ -1,4 +1,4 @@
-#include "extern/steam/sdk/public/steam/steam_api.h"
+#include "sdk/public/steam/steam_api.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
