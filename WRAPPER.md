@@ -28,7 +28,7 @@ g++ -Wl,-rpath='$ORIGIN' -o aqtion -Wall -O0 -ggdb3 steamshim_parent.cpp sdk/red
 ```
 
 ### Windows (x86_64)
-** Requires Visual Studio 2019 or better (v142)**
+**Requires Visual Studio 2019 or better (v142)**
 ```
 msbuild steamshim.vcxproj /p:IncludePath="sdk/public/steam" /p:configuration=release
 ```
