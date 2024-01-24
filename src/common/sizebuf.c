@@ -130,7 +130,7 @@ void *SZ_ReadData(sizebuf_t *buf, size_t len)
 
     if (buf->readcount > buf->cursize || len > buf->cursize - buf->readcount) {
         if (!buf->allowunderflow) {
-            Com_Error(ERR_DROP, "%s: read past end of message", __func__);
+            Com_Error(ERR_DROP, "%s: read past end of message\nbuf->readcount: %d, buf->cursize: %d, length: %ld", __func__, buf->readcount, buf->cursize, len);
         }
         buf->readcount = buf->cursize + 1;
         return NULL;

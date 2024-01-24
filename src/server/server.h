@@ -190,7 +190,7 @@ typedef struct {
      sv.state == ss_game && \
      EDICT_POOL(c, e)->solid == SOLID_BSP)
 #define CLIENT_COMPATIBLE(csr, c) \
-    (!(csr)->extended || ((c)->protocol == PROTOCOL_VERSION_Q2PRO && \
+    (!(csr)->extended || (((c)->protocol == PROTOCOL_VERSION_Q2PRO || (c)->protocol == PROTOCOL_VERSION_AQTION) && \
                           (c)->version >= PROTOCOL_VERSION_Q2PRO_EXTENDED_LIMITS))
 
 #define ENT_EXTENSION(csr, ent)  ((csr)->extended ? &(ent)->x : NULL)

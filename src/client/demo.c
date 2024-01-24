@@ -1181,7 +1181,7 @@ demoInfo_t *CL_GetDemoInfo(const char *path, demoInfo_t *info)
             goto fail;
         }
         c = MSG_ReadLong();
-        if (c == PROTOCOL_VERSION_EXTENDED) {
+        if (c == PROTOCOL_VERSION_EXTENDED || c == PROTOCOL_VERSION_AQTION_EXTENDED_LIMITS) {
             csr = &cs_remap_new;
         } else if (c < PROTOCOL_VERSION_OLD || c > PROTOCOL_VERSION_DEFAULT) {
             goto fail;

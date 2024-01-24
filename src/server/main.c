@@ -840,7 +840,8 @@ static bool parse_enhanced_params(conn_params_t *p)
     if (!CLIENT_COMPATIBLE(&svs.csr, p)) {
         return reject("This is a protocol limit removing enhanced server.\n"
                       "Your client version is not compatible. Make sure you are "
-                      "running latest Q2PRO client version.\n");
+                      "running latest Q2PRO client version.\n"
+                      "Client protocol version: %d\nClient minor version: %d\nExtended support: %d\n", p->protocol, p->version, svs.csr.extended);
     }
 
     return true;
