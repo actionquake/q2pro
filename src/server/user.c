@@ -414,7 +414,7 @@ void SV_New_f(void)
         if (sv_client->version >= PROTOCOL_VERSION_Q2PRO_EXTENDED_LIMITS ||
             sv_client->version >= PROTOCOL_VERSION_AQTION_EXTENDED_LIMITS) {
             MSG_WriteShort(q2pro_protocol_flags());
-        } else {
+        } else { // no extended limits (classic/legacy clients compatible)
             MSG_WriteByte(sv_client->pmp.strafehack);
             MSG_WriteByte(sv_client->pmp.qwmode);
             MSG_WriteByte(sv_client->pmp.waterhack);

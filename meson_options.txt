@@ -158,7 +158,7 @@ option('uuid',
 
 option('variable-fps',
   type: 'boolean',
-  value: false,
+  value: true,
   description: 'Support for variable server FPS in both client and server')
 
 option('vid-geometry',
