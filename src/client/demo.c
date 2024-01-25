@@ -417,9 +417,9 @@ static void CL_Record_f(void)
     // send the serverdata
     MSG_WriteByte(svc_serverdata);
     if (cl.csr.extended) {
-        if (cls.serverProtocol >= PROTOCOL_VERSION_EXTENDED)
+        if (cls.serverProtocol == PROTOCOL_VERSION_EXTENDED)
             MSG_WriteLong(PROTOCOL_VERSION_EXTENDED);
-        else
+        else if (cls.serverProtocol == PROTOCOL_VERSION_AQTION)
             MSG_WriteLong(PROTOCOL_VERSION_AQTION);
         Com_Printf("Extension enabled, using protocol %d.\n", cls.serverProtocol);
     }
