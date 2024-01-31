@@ -131,6 +131,11 @@ option('software-sound',
   value: 'auto',
   description: 'Software sound backend')
 
+option('steamshim',
+  type: 'boolean',
+  value: true,
+  description: 'Link with Steamshim')
+
 option('system-console',
   type: 'boolean',
   value: true,

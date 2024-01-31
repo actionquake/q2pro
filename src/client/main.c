@@ -98,9 +98,9 @@ cvar_t  *info_gender;
 cvar_t  *info_uf;
 #if USE_CLIENT
 #if USE_AQTION
-cvar_t  *info_steamid;
-cvar_t  *info_steamcloudappenabled;
-cvar_t  *info_steamclouduserenabled;
+cvar_t  *cl_steamid;
+cvar_t  *cl_steamcloudappenabled;
+cvar_t  *cl_steamclouduserenabled;
 cvar_t  *cl_mk23_sound;
 cvar_t  *cl_mp5_sound;
 cvar_t  *cl_m4_sound;
@@ -3931,6 +3931,9 @@ static void CL_InitLocal(void)
     CL_InitTEnts();
     CL_InitDownloads();
     CL_GTV_Init();
+    #if USE_STEAMSHIM
+    CL_Steam_Init();
+    #endif
 
     List_Init(&cl_ignore_text);
     List_Init(&cl_ignore_nick);
@@ -4072,9 +4075,9 @@ static void CL_InitLocal(void)
     info_gender->modified = false; // clear this so we know when user sets it manually
     info_uf = Cvar_Get("uf", "", CVAR_USERINFO);
     #if USE_CLIENT && USE_AQTION
-        info_steamid = Cvar_Get("steamid", "", CVAR_USERINFO);
-        info_steamcloudappenabled = Cvar_Get("steamcloudappenabled", "", CVAR_USERINFO);
-        info_steamclouduserenabled = Cvar_Get("steamclouduserenabled", "", CVAR_USERINFO);
+        cl_steamid = Cvar_Get("steamid", "", CVAR_USERINFO);
+        cl_steamcloudappenabled = Cvar_Get("steamcloudappenabled", "", CVAR_USERINFO);
+        cl_steamclouduserenabled = Cvar_Get("steamclouduserenabled", "", CVAR_USERINFO);
     #endif
     info_version = Cvar_Get("version", "", CVAR_USERINFO);
 

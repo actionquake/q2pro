@@ -483,6 +483,12 @@ if get_option('aqtion-build')
   config.set10('AQTION_HUD', true)
   action_src += ltk_src
 
+  if get_option('steamshim')
+    steamshim = include_directories('extern/steam/')
+    client_src += 'src/client/steam.c'
+    config.set10('USE_STEAMSHIM', true)
+  endif
+
   # Win32 winsock compat
   if win32
     dll_link_args += '-lws2_32'
@@ -524,7 +530,7 @@ endif
 
 executable('q2pro', common_src, client_src, refresh_src,
   dependencies:          common_deps + client_deps,
-  include_directories:   'inc',
+  include_directories:   ['inc', steamshim],
   gnu_symbol_visibility: 'hidden',
   win_subsystem:         'windows,6.0',
   link_args:             exe_link_args,
@@ -606,6 +612,7 @@ summary({
   'save-games'         : config.get('USE_SAVEGAMES', 0) != 0,
   'sdl2'               : config.get('USE_SDL', '') != '',
   'software-sound'     : config.get('USE_SNDDMA', 0) != 0,
+  'steamshim'          : config.get('USE_STEAMSHIM', 0) != 0,
   'system-console'     : config.get('USE_SYSCON', 0) != 0,
   'tests'              : config.get('USE_TESTS', 0) != 0,
   'tga'                : config.get('USE_TGA', 0) != 0,

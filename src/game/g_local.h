@@ -846,6 +846,10 @@ typedef struct {
     int         helpchanged;
 
     bool        spectator;      // client is a spectator
+
+    #if USE_STEAMSHIM
+    uint64_t    steamid;
+    #endif
 } client_persistant_t;
 
 // client data that stays across deathmatch respawns
