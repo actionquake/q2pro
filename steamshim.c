@@ -6,7 +6,7 @@
 #endif
 #include "extern/steam/sdk/public/steam/steam_api.h"
 
-int main() {
+int main(int argc, char* argv[]) {
     // Initialize the Steamworks SDK
     if (!SteamAPI_Init()) {
         fprintf(stderr, "Failed to initialize Steamworks SDK\n");
@@ -31,11 +31,20 @@ int main() {
     dup2(pipefd[0], STDIN_FILENO);
     close(pipefd[0]); // Close the original file descriptor
 
+    // Prepare the arguments for the child process
+    char* args[argc + 1];
+    char q2pro[] = "./q2pro";
+    args[0] = q2pro;
+    for (int i = 1; i < argc; ++i) {
+        args[i] = argv[i];
+    }
+    args[argc] = NULL; // The argument list must be NULL-terminated
+
     // Launch the child process
     #ifdef _WIN32
-        _spawnl(_P_NOWAIT, ".\\q2pro.exe", NULL);
+        _spawnv(_P_NOWAIT, ".\\q2pro.exe", args);
     #else
-        execl("./q2pro", "q2pro", NULL);
+        execv("./q2pro", args);
     #endif
 
     return 0;
