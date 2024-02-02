@@ -3,8 +3,18 @@ name: build
 on:
   push:
     branches: [master, aqtion, aqtion-alpha, ci]
+    paths:
+      - src/**
+      - inc/**
+      - meson.build
+      - meson_options.txt
   pull_request:
     branches: [master, aqtion, aqtion-alpha]
+    paths:
+      - src/**
+      - inc/**
+      - meson.build
+      - meson_options.txt
 
 env:
   MESON_ARGS: >-
