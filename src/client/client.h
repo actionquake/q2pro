@@ -1103,10 +1103,3 @@ void CL_GTV_Shutdown(void);
 // crc.c
 //
 byte COM_BlockSequenceCRCByte(byte *base, size_t length, int sequence);
-
-//
-// steamshim
-//
-#if USE_STEAMSHIM
-void CL_Steam_Init(void);
-#endif

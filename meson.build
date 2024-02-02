@@ -484,7 +484,6 @@ if get_option('aqtion-build')
   action_src += ltk_src
 
   if get_option('steamshim')
-    client_src += 'src/client/steam.c'
     config.set10('USE_STEAMSHIM', true)
   endif
 

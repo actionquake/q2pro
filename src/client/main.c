@@ -98,7 +98,6 @@ cvar_t  *info_gender;
 cvar_t  *info_uf;
 #if USE_CLIENT
 #if USE_AQTION
-cvar_t  *cl_steamid;
 cvar_t  *cl_steamcloudappenabled;
 cvar_t  *cl_steamclouduserenabled;
 cvar_t  *cl_mk23_sound;
@@ -1356,6 +1355,30 @@ void CL_ShutdownDiscord(void)
 //=====================================================================================================
 #endif //rekkie -- discord -- e
 //=====================================================================================================
+
+#if USE_STEAMSHIM && USE_AQTION
+static void CL_Steam_Init(void) {
+    // Read the Steam ID from the pipe
+    uint64_t steamId = 0;
+    ssize_t result = read(STDIN_FILENO, &steamId, sizeof(steamId));
+
+    // Check if read returned an error
+    if (result == -1) {
+        Com_Printf("Failed to read Steam ID from pipe: %s\n", strerror(errno));
+        return;
+    }
+
+    // Check if the correct number of bytes were read
+    if (result != sizeof(steamId)) {
+        Com_Printf("Failed to read the correct number of bytes from the pipe\n");
+        return;
+    }
+
+    // Now you can use steamId
+    steamid = Cvar_Set("steamid", va("%lu", steamId));
+    cl_steamid = Cvar_Set("cl_steamid", va("%lu", steamId));
+}
+#endif
 
 static void CL_UpdateGunSetting(void)
 {
@@ -3978,6 +4001,10 @@ static void CL_InitLocal(void)
 
     cl_enhanced_footsteps= Cvar_Get("cl_enhanced_footsteps", "0", 0);
 
+#if USE_STEAMSHIM && USE_AQTION
+    cl_steamid = Cvar_Get("cl_steamid", "", CVAR_ROM | CVAR_USERINFO);
+#endif
+
 #if USE_DISCORD && USE_CURL && USE_AQTION //rekkie -- discord -- s
     //rekkie -- external ip -- s
     cl_extern_ip = Cvar_Get("cl_extern_ip", "", CVAR_ROM);
@@ -4075,7 +4102,6 @@ static void CL_InitLocal(void)
     info_gender->modified = false; // clear this so we know when user sets it manually
     info_uf = Cvar_Get("uf", "", CVAR_USERINFO);
     #if USE_CLIENT && USE_AQTION
-        cl_steamid = Cvar_Get("steamid", "", CVAR_USERINFO);
         cl_steamcloudappenabled = Cvar_Get("steamcloudappenabled", "", CVAR_USERINFO);
         cl_steamclouduserenabled = Cvar_Get("steamclouduserenabled", "", CVAR_USERINFO);
     #endif

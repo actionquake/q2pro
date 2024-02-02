@@ -349,6 +349,7 @@ cvar_t *maxentities;
 cvar_t *g_select_empty;
 cvar_t *dedicated;
 cvar_t *steamid;
+cvar_t *cl_steamid;
 cvar_t *filterban;
 cvar_t *silenceban; //rekkie -- silence ban
 cvar_t *sv_maxvelocity;

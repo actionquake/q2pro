@@ -85,6 +85,7 @@ cvar_t  *fixedtime;
 cvar_t  *dedicated;
 #if USE_CLIENT
 cvar_t  *steamid;
+cvar_t  *cl_steamid;
 cvar_t  *steamcloudappenabled;
 cvar_t  *steamclouduserenabled;
 #endif
@@ -892,6 +893,7 @@ void Qcommon_Init(int argc, char **argv)
 #if USE_CLIENT
     dedicated = Cvar_Get("dedicated", "0", CVAR_NOSET);
     steamid = Cvar_Get("steamid", "0", CVAR_NOSET);
+    cl_steamid = Cvar_Get("cl_steamid", "0", CVAR_NOSET);
     steamcloudappenabled = Cvar_Get("steamcloudappenabled", "0", CVAR_NOSET);
     steamclouduserenabled = Cvar_Get("steamclouduserenabled", "0", CVAR_NOSET);
     cl_running = Cvar_Get("cl_running", "0", CVAR_ROM);

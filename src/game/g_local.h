@@ -849,7 +849,6 @@ typedef struct {
 
     #if USE_STEAMSHIM
     uint64_t    steamid;
-    #endif
 } client_persistant_t;
 
 // client data that stays across deathmatch respawns

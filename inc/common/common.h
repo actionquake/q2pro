@@ -147,6 +147,7 @@ extern cvar_t   *developer;
 extern cvar_t   *dedicated;
 #if USE_CLIENT
 extern cvar_t   *steamid;
+extern cvar_t   *cl_steamid;
 extern cvar_t   *steamcloudappenabled;
 extern cvar_t   *steamclouduserenabled;
 #endif
