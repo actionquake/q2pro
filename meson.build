@@ -484,7 +484,6 @@ if get_option('aqtion-build')
   action_src += ltk_src
 
   if get_option('steamshim')
-    steamshim = include_directories('extern/steam/')
     client_src += 'src/client/steam.c'
     config.set10('USE_STEAMSHIM', true)
   endif
@@ -530,7 +529,7 @@ endif
 
 executable('q2pro', common_src, client_src, refresh_src,
   dependencies:          common_deps + client_deps,
-  include_directories:   ['inc', steamshim],
+  include_directories:   ['inc'],
   gnu_symbol_visibility: 'hidden',
   win_subsystem:         'windows,6.0',
   link_args:             exe_link_args,
