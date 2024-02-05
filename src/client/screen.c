@@ -120,6 +120,7 @@ static cvar_t   *ch_alpha;
 static cvar_t   *ch_scale;
 static cvar_t   *ch_x;
 static cvar_t   *ch_y;
+static cvar_t   *ch_zoom_hide;
 
 vrect_t     scr_vrect;      // position of render window on screen
 
@@ -159,6 +160,13 @@ UTILS
 #define SCR_DrawString(x, y, flags, string) \
     SCR_DrawStringEx(x, y, flags, MAX_STRING_CHARS, string, scr.font_pic)
 
+static qboolean SCR_IsZoomed(void)
+{
+    // Covers all AQ2 zoom levels
+    if (cl.fov_x < 90.0f)
+        return true;
+    return false;
+}
 /*
 ==============
 SCR_DrawStringEx
@@ -1207,7 +1215,7 @@ static void SCR_TimeRefresh_f(void)
 static void scr_crosshair_changed(cvar_t *self)
 {
     char buffer[16];
-    int w, h;
+    int w, h, i;
     float scale;
     qhandle_t scope_pic;
 
@@ -1225,16 +1233,21 @@ static void scr_crosshair_changed(cvar_t *self)
         if (scr.crosshair_height < 1)
             scr.crosshair_height = 1;
 
+        const char* scopes[] = {"scope2x", "scope4x", "scope6x"};
+        int num_scopes = sizeof(scopes) / sizeof(scopes[0]);
         // action mod scope scaling
-        scope_pic = R_RegisterPic("scope2x");;
-        if (scope_pic) {
-            R_GetPicSize(&w, &h, scope_pic);
-            scr.scope_width = w * scale;
-            scr.scope_height = h * scale;
-            if (scr.scope_width < 1)
-                scr.scope_width = 1;
-            if (scr.scope_height < 1)
-                scr.scope_height = 1;
+        for (i = 0; i < num_scopes; ++i) {
+            scope_pic = R_RegisterPic(scopes[i]);
+            if (scope_pic && SCR_IsZoomed()) {
+                // Register and draw sniper scope
+                R_GetPicSize(&w, &h, scope_pic);
+                scr.scope_width = w * scale;
+                scr.scope_height = h * scale;
+                if (scr.scope_width < 1)
+                    scr.scope_width = 1;
+                if (scr.scope_height < 1)
+                    scr.scope_height = 1;
+            }
         }
 
         if (ch_health->integer) {
@@ -1418,6 +1431,7 @@ void SCR_Init(void)
     ch_scale->changed = scr_crosshair_changed;
     ch_x = Cvar_Get("ch_x", "0", 0);
     ch_y = Cvar_Get("ch_y", "0", 0);
+    ch_zoom_hide = Cvar_Get("ch_zoom_hide", "0", 0);
 
     scr_draw2d = Cvar_Get("scr_draw2d", "2", 0);
     scr_showturtle = Cvar_Get("scr_showturtle", "1", 0);
@@ -2291,6 +2305,8 @@ static void SCR_DrawClassicCrosshair(void) {
     R_SetColor(scr.crosshair_color.u32);
     int x, y;
 
+    if (ch_zoom_hide->integer && SCR_IsZoomed())
+        return;
     if (!scr_crosshair->integer)
         return;
     if (cl.frame.ps.stats[STAT_LAYOUTS] & (LAYOUTS_HIDE_HUD | LAYOUTS_HIDE_CROSSHAIR))
