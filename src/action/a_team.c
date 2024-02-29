@@ -338,7 +338,7 @@ edict_t *NS_potential_spawns[MAX_TEAMS][MAX_SPAWNS];
 edict_t *NS_used_farteamplay_spawns[MAX_TEAMS][MAX_SPAWNS];
 int NS_randteam;
 // </TNG:Freud>
-hl_weapon_status_t weapon_status[WEAPON_MAX][MAX_TEAMS];
+hl_weapon_status_t weapon_status[WEAPON_MAX][TEAM_TOP];
 
 void CreditsMenu (edict_t * ent, pmenu_t * p);
 static transparent_list_t transparentList[MAX_CLIENTS];
@@ -4279,8 +4279,6 @@ qboolean Highlander_Check(edict_t *ent, int weaponNum)
 		weaponChange = true;
 	}
 
-	gi.dprintf("Owner team: %d\n", weapon_status[weaponNum][ent->client->resp.team].owner->client->resp.team);
-	gi.dprintf("Ent team: %d\n",  ent->client->resp.team);
 	// The expectation is that the weapon is available always, unless it's owned by another player on your team
 	if (weapon_status[weaponNum][ent->client->resp.team].owner != ent &&
 	weapon_status[weaponNum][ent->client->resp.team].owner->client->resp.team == ent->client->resp.team &&
@@ -4289,7 +4287,6 @@ qboolean Highlander_Check(edict_t *ent, int weaponNum)
 		gi.cprintf(weapon_status[weaponNum][ent->client->resp.team].owner, PRINT_HIGH, "%s wants your weapon!\n", playername);
 		return false;
 	}
-	gi.dprintf("4 Highlander Mode: Weapon %d is available: %d\n", weaponNum, available);
 
 
 	// If the player already selected this weapon, unequip it
@@ -4298,8 +4295,6 @@ qboolean Highlander_Check(edict_t *ent, int weaponNum)
 		weapon_status[ent->client->pers.chosenWeapon->typeNum][ent->client->resp.team].owner = NULL;
 		UnequipWeapon(ent);
     }
-	gi.dprintf("5 Highlander Mode: Weapon %d is available: %d\n", weaponNum, available);
-
 
 	if (weaponChange){
 

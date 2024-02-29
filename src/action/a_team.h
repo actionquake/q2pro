@@ -125,7 +125,7 @@ transparent_list_t;
 typedef struct {
     edict_t* owner;
 } hl_weapon_status_t;
-extern hl_weapon_status_t weapon_status[10][MAX_TEAMS];
+extern hl_weapon_status_t weapon_status[10][TEAM_TOP];
 
 extern qboolean team_game_going;
 extern qboolean team_round_going;
