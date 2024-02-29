@@ -1778,19 +1778,11 @@ void OpenWeaponMenu (edict_t * ent)
 			if (!WPF_ALLOWED(menuEntry->itemNum))
 				continue;
 
-			char *weaponName = menu_itemnames[menu_items[i].itemNum];
-			if (ent->client->pers.chosenWeapon && ent->client->pers.chosenWeapon->typeNum == menu_items[i].itemNum) {
-				char *modifiedWeaponName = (char *)malloc(sizeof(char) * 32); // Dynamically allocate memory
-				snprintf(modifiedWeaponName, 32, "@%s", weaponName);
-				weaponName = modifiedWeaponName;
-			}
-
-			weapmenu[pos].text = weaponName;
-			weapmenu[pos].SelectFunc = menu_items[i].SelectFunc;
-			pos++;
-			// If weaponName was modified, free the allocated memory
-			if (ent->client->pers.chosenWeapon && ent->client->pers.chosenWeapon->typeNum == menu_items[i].itemNum) {
-				free(weaponName);
+			if (weapon_status[menu_items[i].itemNum][ent->client->resp.team].owner == NULL ||
+			weapon_status[menu_items[i].itemNum][weapon_status[menu_items[i].itemNum][ent->client->resp.team].owner->client->resp.team].owner->client->resp.team != ent->client->resp.team) {
+				weapmenu[pos].text = menu_itemnames[menu_items[i].itemNum];
+				weapmenu[pos].SelectFunc = menu_items[i].SelectFunc;
+				pos++;
 			}
 		}
 
