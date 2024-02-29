@@ -1778,6 +1778,7 @@ void OpenWeaponMenu (edict_t * ent)
 			if (!WPF_ALLOWED(menuEntry->itemNum))
 				continue;
 
+			// If highlander mode is enabled, this is where the weapons are removed from the menu
 			if (weapon_status[menu_items[i].itemNum][ent->client->resp.team].owner == NULL ||
 			weapon_status[menu_items[i].itemNum][weapon_status[menu_items[i].itemNum][ent->client->resp.team].owner->client->resp.team].owner->client->resp.team != ent->client->resp.team) {
 				weapmenu[pos].text = menu_itemnames[menu_items[i].itemNum];
@@ -4236,17 +4237,11 @@ qboolean Highlander_Check(edict_t *ent, int weaponNum)
 	qboolean weaponChange = false;
 	int i, j = 0;
 
-	// gi.dprintf("Is weapon available: %d\n", weapon_status[weaponNum].available);
-	// gi.dprintf("Which team owns it: %d\n", weapon_status[weaponNum].team);
-	// if (owner != NULL && owner->client->pers.netname != NULL)
-    // 	gi.dprintf("Which player owns it: %s\n", owner->client->pers.netname);
-	// gi.dprintf("Which team wants it: %d\n", ent->client->resp.team);
-	// gi.dprintf("Which player wants it: %s\n", playername);
-
 	// Run a check for availability
 	for (i = 0; i < WEAPON_MAX; i++) {
 		for (j = 0; j < TEAM_TOP; j++) {
 			// If the weapon has an owner in the current team, update its availability
+			gi.dprintf("Checking weapon %d, team %d, owner %s\n", i, j, weapon_status[i][j].owner == NULL ? "NULL" : weapon_status[i][j].owner->client->pers.netname);
 			if (weapon_status[i][j].owner != NULL) {
 				available = false;
 			} else {
@@ -4254,6 +4249,10 @@ qboolean Highlander_Check(edict_t *ent, int weaponNum)
 			}
 		}
 	}
+
+	gi.dprintf("Is weapon available: %d\n", available);
+	gi.dprintf("Which team wants it: %d\n", ent->client->resp.team);
+	gi.dprintf("Which player wants it: %s\n", playername);
 
 	// If the player had a different weapon and is selecting this one, and it's available, return true,
     // and release the previous weapon so that it made be selectable by another member of this team
@@ -4292,18 +4291,18 @@ qboolean Highlander_Check(edict_t *ent, int weaponNum)
 
 		// Attempt to auto-refresh the menu:
 
-		for (int i = 0; i < maxclients->value; i++) {
-		edict_t *ent = g_edicts + 1 + i;
+		// for (int i = 0; i < maxclients->value; i++) {
+		// edict_t *ent = g_edicts + 1 + i;
 
-		if (!ent->inuse || !ent->client || ent->is_bot)
-			continue;
+		// if (!ent->inuse || !ent->client || ent->is_bot)
+		// 	continue;
 
-		if (ent->client->curr_menu == MENU_WEAPONS) {
-			gi.dprintf("Refreshing menu for %s, they were in menu %d\n", ent->client->pers.netname, ent->client->curr_menu);
-			PMenu_Close(ent);
-			PMenu_Open(ent, weapmenu, 4, sizeof(weapmenu) / sizeof(pmenu_t));
-			}
-		}
+		// if (ent->client->curr_menu == MENU_WEAPONS) {
+		// 	gi.dprintf("Refreshing menu for %s, they were in menu %d\n", ent->client->pers.netname, ent->client->curr_menu);
+		// 	PMenu_Close(ent);
+		// 	PMenu_Open(ent, weapmenu, 4, sizeof(weapmenu) / sizeof(pmenu_t));
+		// 	}
+		// }
 		return true;
 	}
 
