@@ -41,7 +41,7 @@
 
 #define MAX_TEAMS       3
 #define TEAM_TOP        (MAX_TEAMS+1)
-
+#define HIGHLANDER_MAX_PLAYERS 7
 #define WINNER_NONE     NOTEAM
 #define WINNER_TIE      TEAM_TOP
 
@@ -103,7 +103,7 @@ int OtherTeam(int teamNum);
 
 //PaTMaN - Menu support
 void OpenPMItemMenu (edict_t * ent);
-
+qboolean Highlander_Check(edict_t *ent, int weaponNum);
 //Expose auto-join functionality
 void JoinTeamAutobalance (edict_t * ent);
 
@@ -121,6 +121,11 @@ typedef struct transparent_list_s
 }
 transparent_list_t;
 
+// Highlander mode weapon tracking
+typedef struct {
+    edict_t* owner;
+} hl_weapon_status_t;
+extern hl_weapon_status_t weapon_status[10][MAX_TEAMS];
 
 extern qboolean team_game_going;
 extern qboolean team_round_going;
@@ -152,3 +157,17 @@ typedef struct menu_list_item
   char name[40];
 }
 menu_list_item;
+
+
+typedef enum {
+    MENU_NONE,
+    MENU_TEAM,
+    MENU_WEAPONS,
+    MENU_ITEMS,
+    MENU_ITEMKITS,
+    MENU_PMITEM,
+    MENU_CREDITS,
+    MENU_RANDOM,
+    MENU_VOTING,
+    MENU_MAX
+} menu_type_t;

@@ -64,6 +64,7 @@ void PMenu_Close (edict_t * ent)
 
 	memset(&ent->client->menu, 0, sizeof(ent->client->menu));
 	ent->client->layout = LAYOUT_NONE;
+	ent->client->curr_menu = MENU_NONE;
 }
 
 void PMenu_Update (edict_t * ent)

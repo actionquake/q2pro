@@ -863,28 +863,20 @@ int Gamemode(void)
 	int gamemode = 0;
 	if (teamdm->value) {
 		gamemode = GM_TEAMDM;
-		strcpy(game.mode, "teamdm");
 	} else if (ctf->value) {
 		gamemode = GM_CTF;
-		strcpy(game.mode, "ctf");
 	} else if (use_tourney->value) {
 		gamemode = GM_TOURNEY;
-		strcpy(game.mode, "tourney");
 	} else if (teamplay->value) {
 		gamemode = GM_TEAMPLAY;
-		strcpy(game.mode, "teamplay");
 	} else if (dom->value) {
 		gamemode = GM_DOMINATION;
-		strcpy(game.mode, "dom");
 	} else if (deathmatch->value) {
 		gamemode = GM_DEATHMATCH;
-		strcpy(game.mode, "deathmatch");
 	} else if (esp->value && atl->value) {
 		gamemode = GM_ASSASSINATE_THE_LEADER;
-		strcpy(game.mode, "atl");
 	} else if (esp->value && etv->value) {
 		gamemode = GM_ESCORT_THE_VIP;
-		strcpy(game.mode, "etv");
 	}
 	return gamemode;
 }
@@ -1169,6 +1161,35 @@ void SpawnEntities (const char *mapname, const char *entities, const char *spawn
 			gi.cvar_forceset(use_tourney->name, "0");
 		}
 	}
+	else if (highlander)
+	{
+		gi.cvar_forceset(gm->name, "tp");
+		gameSettings |= (GS_ROUNDBASED | GS_WEAPONCHOOSE);
+
+		if (!teamplay->value)
+		{
+			gi.dprintf ("Highlander Enabled - Forcing teamplay on\n");
+			gi.cvar_forceset(teamplay->name, "1");
+		}
+		if (use_tourney->value)
+		{
+			gi.dprintf ("Highlander Enabled - Forcing Tourney off\n");
+			gi.cvar_forceset(use_tourney->name, "0");
+		}
+		// We can't play Highlander mode with more than 7 players per team
+		if (teamCount == TEAM2 && maxclients->value > 14){
+			gi.dprintf ("Highlander Enabled - Maxclient setting too high: Forcing maxclients to %d\n", 14);
+			gi.cvar_forceset(maxclients->name, va("%d", 14));
+		} else if (teamCount == TEAM3 && maxclients->value > 21){
+			gi.dprintf ("Highlander Enabled - Maxclient setting too high: Forcing maxclients to %d\n", 21);
+			gi.cvar_forceset(maxclients->name, va("%d", 21));
+		}
+		if (ltk_loadbots->value || am->value){
+			gi.dprintf ("Highlander Enabled - Forcing bots off\n");
+			gi.cvar_forceset(ltk_loadbots->name, "0");
+			gi.cvar_forceset(am->name, "0");
+		}
+	}
 	else if (matchmode->value)
 	{
 		gameSettings |= (GS_ROUNDBASED | GS_WEAPONCHOOSE);
@@ -1243,9 +1264,8 @@ void SpawnEntities (const char *mapname, const char *entities, const char *spawn
 
 	gi.FreeTags(TAG_LEVEL);
 
-	// Set serverinfo correctly for gamemodeflags and game.mode
+	// Set serverinfo correctly for gamemodeflags
 	Gamemodeflag();
-	Gamemode();
 
 	#if USE_AQTION
 	generate_uuid();  // Run this once every time a map loads to generate a unique id for stats (game.matchid)
@@ -1663,7 +1683,7 @@ Only used for the world.
 
 void SP_worldspawn (edict_t * ent)
 {
-	int i, bullets, shells;
+	int i, j, bullets, shells;
 	char *picname;
 
 	ent->movetype = MOVETYPE_PUSH;
@@ -1942,6 +1962,14 @@ void SP_worldspawn (edict_t * ent)
 	for (int i = 0; i < q_countof(lightstyles); i++)
         gi.configstring(game.csr.lights + i, lightstyles[i]);
 	gi.configstring(game.csr.lights + 63, "a");
+
+	if (highlander->value){
+		for (i = 0; i < WEAPON_MAX; i++) {
+			for (j = 0; j < TEAM_TOP; j++) {
+				weapon_status[i][j].owner = NULL;
+			}
+		}
+	}
 }
 
 int LoadFlagsFromFile (const char *mapname)

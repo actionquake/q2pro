@@ -2985,7 +2985,7 @@ void ClientBeginDeathmatch(edict_t * ent)
 
 	if (!dm_choose->value && !warmup->value) {
 		if (!ent->client->pers.chosenWeapon) {
-			if (WPF_ALLOWED(MP5_NUM))
+			if (WPF_ALLOWED(MP5_NUM) && !highlander->value) // No default MP5 if highlander is enabled
 				ent->client->pers.chosenWeapon = GET_ITEM(MP5_NUM);
 			else if (WPF_ALLOWED(MK23_NUM))
 				ent->client->pers.chosenWeapon = GET_ITEM(MK23_NUM);

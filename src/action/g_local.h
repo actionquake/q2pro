@@ -776,7 +776,6 @@ typedef struct
 
   // High Scores support from OpenFFA
   char        dir[MAX_OSPATH]; // where variable data is stored
-  char		  mode[MAX_QPATH]; // current game mode
 }
 game_locals_t;
 
@@ -860,6 +859,7 @@ typedef struct
   float matchTime;
   float emptyTime;
   int weapon_sound_framenum;
+  int teamcount[TEAM_TOP];  // Count of members of a team
   int pic_teamplay_timer_icon;
 
   int pic_leaderskin[TEAM_TOP];  
@@ -1290,6 +1290,7 @@ extern cvar_t *sv_killgib; // Enable or disable gibbing on kill command
 extern cvar_t *warmup_unready;
 extern cvar_t *training_mode; // Sets training mode vars
 extern cvar_t *g_highscores_dir; // Sets the highscores directory
+extern cvar_t *highlander; // Enable or disable highlander mode
 
 #if AQTION_EXTENSION
 extern int (*engine_Client_GetVersion)(edict_t *ent);
@@ -2101,6 +2102,8 @@ struct gclient_s
 
 	// visiblity mask
 	unsigned int dimension_observe;
+
+	int 		curr_menu;  // Used to determine which menu a player is currently in
 };
 
 

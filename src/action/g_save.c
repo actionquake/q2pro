@@ -652,6 +652,7 @@ void InitGame( void )
 		gi.cvar_forceset("bholelimit", "30");
 	}
 	g_highscores_dir = gi.cvar("g_highscores_dir", "highscores", 0);
+	highlander = gi.cvar("highlander", "0", CVAR_LATCH);
 
 	// new AQtion Extension cvars
 #if AQTION_EXTENSION

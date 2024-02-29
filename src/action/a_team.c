@@ -338,6 +338,7 @@ edict_t *NS_potential_spawns[MAX_TEAMS][MAX_SPAWNS];
 edict_t *NS_used_farteamplay_spawns[MAX_TEAMS][MAX_SPAWNS];
 int NS_randteam;
 // </TNG:Freud>
+hl_weapon_status_t weapon_status[WEAPON_MAX][MAX_TEAMS];
 
 void CreditsMenu (edict_t * ent, pmenu_t * p);
 static transparent_list_t transparentList[MAX_CLIENTS];
@@ -588,6 +589,9 @@ void LeaveTeams (edict_t * ent, pmenu_t * p)
 
 void SelectWeapon2(edict_t *ent, pmenu_t *p)
 {
+	if (highlander->value && !Highlander_Check(ent, MP5_NUM))
+		return;
+
 	ent->client->pers.chosenWeapon = GET_ITEM(MP5_NUM);
 	PMenu_Close(ent);
 	if(!item_kit_mode->value){
@@ -600,6 +604,9 @@ void SelectWeapon2(edict_t *ent, pmenu_t *p)
 
 void SelectWeapon3(edict_t *ent, pmenu_t *p)
 {
+	if (highlander->value && !Highlander_Check(ent, M3_NUM))
+		return;
+
 	ent->client->pers.chosenWeapon = GET_ITEM(M3_NUM);
 	PMenu_Close(ent);
 	if(!item_kit_mode->value){
@@ -612,6 +619,9 @@ void SelectWeapon3(edict_t *ent, pmenu_t *p)
 
 void SelectWeapon4(edict_t *ent, pmenu_t *p)
 {
+	if (highlander->value && !Highlander_Check(ent, HC_NUM))
+		return;
+
 	ent->client->pers.chosenWeapon = GET_ITEM(HC_NUM);
 	PMenu_Close(ent);
 	if(!item_kit_mode->value){
@@ -624,6 +634,9 @@ void SelectWeapon4(edict_t *ent, pmenu_t *p)
 
 void SelectWeapon5(edict_t *ent, pmenu_t *p)
 {
+	if (highlander->value && !Highlander_Check(ent, SNIPER_NUM))
+		return;
+
 	ent->client->pers.chosenWeapon = GET_ITEM(SNIPER_NUM);
 	PMenu_Close(ent);
 	if(!item_kit_mode->value){
@@ -636,6 +649,9 @@ void SelectWeapon5(edict_t *ent, pmenu_t *p)
 
 void SelectWeapon6(edict_t *ent, pmenu_t *p)
 {
+	if (highlander->value && !Highlander_Check(ent, M4_NUM))
+		return;
+
 	ent->client->pers.chosenWeapon = GET_ITEM(M4_NUM);
 	PMenu_Close(ent);
 	if(!item_kit_mode->value){
@@ -648,6 +664,9 @@ void SelectWeapon6(edict_t *ent, pmenu_t *p)
 
 void SelectWeapon0(edict_t *ent, pmenu_t *p)
 {
+	if (highlander->value && !Highlander_Check(ent, KNIFE_NUM))
+		return;
+
 	ent->client->pers.chosenWeapon = GET_ITEM(KNIFE_NUM);
 	PMenu_Close(ent);
 	if(!item_kit_mode->value){
@@ -660,6 +679,9 @@ void SelectWeapon0(edict_t *ent, pmenu_t *p)
 
 void SelectWeapon9(edict_t *ent, pmenu_t *p)
 {
+	if (highlander->value && !Highlander_Check(ent, DUAL_NUM))
+		return;
+
 	ent->client->pers.chosenWeapon = GET_ITEM(DUAL_NUM);
 	PMenu_Close(ent);
 	if(!item_kit_mode->value){
@@ -668,6 +690,13 @@ void SelectWeapon9(edict_t *ent, pmenu_t *p)
 		OpenItemKitMenu(ent);
 	}
 	unicastSound(ent, gi.soundindex("weapons/mk23slide.wav"), 1.0);
+}
+
+void UnequipWeapon(edict_t *ent)
+{
+	ent->client->pers.chosenWeapon = NULL;
+	PMenu_Close(ent);
+	unicastSound(ent, gi.soundindex("weapons/swish.wav"), 1.0);
 }
 
 void SelectItem1(edict_t *ent, pmenu_t *p)
@@ -1120,6 +1149,7 @@ pmenu_t pmitemmenu[] = {
 void OpenPMItemMenu(edict_t *ent)
 {
 	PMenu_Open(ent, pmitemmenu, 2, sizeof(pmitemmenu) / sizeof(pmenu_t));
+	ent->client->curr_menu = MENU_PMITEM;
 }
 
 //End PaTMaN's jmod add
@@ -1129,6 +1159,7 @@ void VotingMenu (edict_t * ent, pmenu_t * p)
 {
 	PMenu_Close (ent);
 	vShowMenu (ent, "");
+	ent->client->curr_menu = MENU_VOTING;
 }
 //AQ2:TNG END
 
@@ -1164,6 +1195,7 @@ void CreditsMenu (edict_t * ent, pmenu_t * p)
 {
 	PMenu_Close (ent);
 	PMenu_Open (ent, creditsmenu, 4, sizeof (creditsmenu) / sizeof (pmenu_t));
+	ent->client->curr_menu = MENU_CREDITS;
 	unicastSound(ent, gi.soundindex("world/elv.wav"), 1.0);
 }
 
@@ -1364,6 +1396,20 @@ int TP_GetTeamFromArg(const char *name)
 	return -1;
 }
 
+qboolean TeamSizeLimiter(edict_t *ent, int teamNum, int teamSize)
+{
+	// Check if the desired team size exceeds the maximum allowed size
+	if (highlander->value) {
+		if ((teamNum == TEAM1 && level.teamcount[TEAM1] >= teamSize) ||
+			(teamNum == TEAM2 && level.teamcount[TEAM2] >= teamSize) ||
+			(teamNum == TEAM3 && level.teamcount[TEAM3] >= teamSize)) {
+			gi.cprintf(ent, PRINT_HIGH, "Highlander Mode: Cannot join team %s: Max players per team is %i\n", TeamName(teamNum), teamSize);
+			return false;
+		}
+	}
+	return true;
+}
+
 void Team_f (edict_t * ent)
 {
 	char *t;
@@ -1467,9 +1513,22 @@ void JoinTeam (edict_t * ent, int desired_team, int skip_menuclose)
 		}
 	}
 
+	if (highlander->value){
+		int i;
+		for (i = TEAM1; i < TEAM_TOP; i++) {
+			if (!TeamSizeLimiter(ent, i, HIGHLANDER_MAX_PLAYERS)) {
+				return;
+			}
+		}
+	}
+
 	MM_LeftTeam( ent );
 
 	a = (oldTeam == NOTEAM) ? "joined" : "changed to";
+
+	// Team count update
+	level.teamcount[ent->client->resp.team]--;
+	level.teamcount[desired_team]++;
 
 	ent->client->resp.team = desired_team;
 	s = Info_ValueForKey (ent->client->pers.userinfo, "skin");
@@ -1554,6 +1613,8 @@ void LeaveTeam (edict_t * ent)
 	IRC_printf (IRC_T_GAME, "%n left %n team.", ent->client->pers.netname, genderstr);
 
 	MM_LeftTeam( ent );
+
+	level.teamcount[ent->client->resp.team]--;
 
 	if (esp->value)
 		EspLeaderLeftTeam ( ent );
@@ -1647,6 +1708,7 @@ void OpenItemMenu (edict_t * ent)
 			}
 
 			PMenu_Open(ent, itemmenu, 4, sizeof(itemmenu) / sizeof(pmenu_t));
+			ent->client->curr_menu = MENU_ITEMS;
 			return;
 		}
 	}
@@ -1681,6 +1743,7 @@ void OpenItemKitMenu (edict_t * ent)
 		}
 
 		PMenu_Open(ent, itemkitmenu, 4, sizeof(itemkitmenu) / sizeof(pmenu_t));
+		ent->client->curr_menu = MENU_ITEMKITS;
 		return;
 	}
 
@@ -1692,6 +1755,7 @@ void OpenWeaponMenu (edict_t * ent)
 	if (use_randoms->value)
 	{
 		PMenu_Open(ent, randmenu, 4, sizeof(randmenu) / sizeof(pmenu_t));
+		ent->client->curr_menu = MENU_RANDOM;
 		return;
 	}
 
@@ -1714,9 +1778,20 @@ void OpenWeaponMenu (edict_t * ent)
 			if (!WPF_ALLOWED(menuEntry->itemNum))
 				continue;
 
-			weapmenu[pos].text = menu_itemnames[menuEntry->itemNum];
-			weapmenu[pos].SelectFunc = menuEntry->SelectFunc;
+			char *weaponName = menu_itemnames[menu_items[i].itemNum];
+			if (ent->client->pers.chosenWeapon && ent->client->pers.chosenWeapon->typeNum == menu_items[i].itemNum) {
+				char *modifiedWeaponName = (char *)malloc(sizeof(char) * 32); // Dynamically allocate memory
+				snprintf(modifiedWeaponName, 32, "@%s", weaponName);
+				weaponName = modifiedWeaponName;
+			}
+
+			weapmenu[pos].text = weaponName;
+			weapmenu[pos].SelectFunc = menu_items[i].SelectFunc;
 			pos++;
+			// If weaponName was modified, free the allocated memory
+			if (ent->client->pers.chosenWeapon && ent->client->pers.chosenWeapon->typeNum == menu_items[i].itemNum) {
+				free(weaponName);
+			}
 		}
 
 		if (pos > 4)
@@ -1728,6 +1803,7 @@ void OpenWeaponMenu (edict_t * ent)
 			}
 
 			PMenu_Open(ent, weapmenu, 4, sizeof(weapmenu) / sizeof(pmenu_t));
+			ent->client->curr_menu = MENU_WEAPONS;
 			return;
 		}
 	}
@@ -1842,6 +1918,7 @@ void OpenJoinMenu (edict_t * ent)
 	UpdateJoinMenu();
 
 	PMenu_Open (ent, joinmenu, 11 /* magic for Auto-join menu item */, sizeof (joinmenu) / sizeof (pmenu_t));
+	ent->client->curr_menu = MENU_TEAM;
 }
 
 void gib_die( edict_t *self, edict_t *inflictor, edict_t *attacker, int damage, vec3_t point );  // g_misc
@@ -2235,9 +2312,13 @@ static void SpawnPlayers(void)
 
 		// make sure teamplay spawners always have some weapon, warmup starts only after weapon selected
 		if (!ent->client->pers.chosenWeapon) {
-			if (WPF_ALLOWED(MP5_NUM)) {
+			if (!highlander->value){
+				ent->client->pers.chosenWeapon = GET_ITEM(MP5_NUM);  // Highlander mode removes default MP5
+			} else if (WPF_ALLOWED(MP5_NUM) && !highlander->value) {
 				ent->client->pers.chosenWeapon = GET_ITEM(MP5_NUM);
-			} else if (WPF_ALLOWED(MK23_NUM)) {
+			}
+
+			if (WPF_ALLOWED(MK23_NUM)) {
 				ent->client->pers.chosenWeapon = GET_ITEM(MK23_NUM);
 			} else if (WPF_ALLOWED(KNIFE_NUM)) {
 				ent->client->pers.chosenWeapon = GET_ITEM(KNIFE_NUM);
@@ -4153,6 +4234,93 @@ void NS_SetupTeamSpawnPoints (void)
 		if (l != NS_randteam && NS_SelectFarTeamplaySpawnPoint(l, teams_assigned) == false)
 			return;
 	}
+}
+
+qboolean Highlander_Check(edict_t *ent, int weaponNum)
+{
+	char *playername = ent->client->pers.netname;
+	gitem_t *chosenWeapon = ent->client->pers.chosenWeapon;
+	qboolean available = false;
+	qboolean weaponChange = false;
+	int i, j = 0;
+
+	// gi.dprintf("Is weapon available: %d\n", weapon_status[weaponNum].available);
+	// gi.dprintf("Which team owns it: %d\n", weapon_status[weaponNum].team);
+	// if (owner != NULL && owner->client->pers.netname != NULL)
+    // 	gi.dprintf("Which player owns it: %s\n", owner->client->pers.netname);
+	// gi.dprintf("Which team wants it: %d\n", ent->client->resp.team);
+	// gi.dprintf("Which player wants it: %s\n", playername);
+
+	// Run a check for availability
+	for (i = 0; i < WEAPON_MAX; i++) {
+		for (j = 0; j < TEAM_TOP; j++) {
+			// If the weapon has an owner in the current team, update its availability
+			if (weapon_status[i][j].owner != NULL) {
+				available = false;
+			} else {
+				available = true;
+			}
+		}
+	}
+
+	// If the player had a different weapon and is selecting this one, and it's available, return true,
+    // and release the previous weapon so that it made be selectable by another member of this team
+    if (ent->client->pers.chosenWeapon != NULL && available) {
+        weapon_status[ent->client->pers.chosenWeapon->typeNum][ent->client->resp.team].owner = NULL;
+        //gi.cprintf(ent, PRINT_HIGH, "Highlander Mode: %s selected %d, releasing %d\n", ent->client->pers.netname, weaponNum, ent->client->pers.chosenWeapon->typeNum);
+        weapon_status[weaponNum][ent->client->resp.team].owner = ent;
+		weaponChange = true;
+    }
+
+	if (available){
+		gi.cprintf(ent, PRINT_HIGH, "Highlander Mode: That weapon is available, selecting it\n");
+		gi.dprintf("Highlander Mode: That weapon is available, selecting it\n");
+		weapon_status[weaponNum][ent->client->resp.team].owner = ent;
+		weaponChange = true;
+	}
+
+	gi.dprintf("Owner team: %d\n", weapon_status[weaponNum][ent->client->resp.team].owner->client->resp.team);
+	gi.dprintf("Ent team: %d\n",  ent->client->resp.team);
+	// The expectation is that the weapon is available always, unless it's owned by another player on your team
+	if (weapon_status[weaponNum][ent->client->resp.team].owner != ent &&
+	weapon_status[weaponNum][ent->client->resp.team].owner->client->resp.team == ent->client->resp.team &&
+	!available) {
+		gi.cprintf(ent, PRINT_HIGH, "Highlander Mode: That weapon is not available, %s owns it, select another\n", weapon_status[weaponNum][ent->client->resp.team].owner->client->pers.netname);
+		gi.cprintf(weapon_status[weaponNum][ent->client->resp.team].owner, PRINT_HIGH, "%s wants your weapon!\n", playername);
+		return false;
+	}
+	gi.dprintf("4 Highlander Mode: Weapon %d is available: %d\n", weaponNum, available);
+
+
+	// If the player already selected this weapon, unequip it
+    if (ent->client->pers.chosenWeapon != NULL && ent->client->pers.chosenWeapon->typeNum == weaponNum) {
+		gi.cprintf(ent, PRINT_HIGH, "Highlander Mode: Unequipping weapon to make it available to others\n");
+		weapon_status[ent->client->pers.chosenWeapon->typeNum][ent->client->resp.team].owner = NULL;
+		UnequipWeapon(ent);
+    }
+	gi.dprintf("5 Highlander Mode: Weapon %d is available: %d\n", weaponNum, available);
+
+
+	if (weaponChange){
+
+		// Attempt to auto-refresh the menu:
+
+		for (int i = 0; i < maxclients->value; i++) {
+		edict_t *ent = g_edicts + 1 + i;
+
+		if (!ent->inuse || !ent->client || ent->is_bot)
+			continue;
+
+		if (ent->client->curr_menu == MENU_WEAPONS) {
+			gi.dprintf("Refreshing menu for %s, they were in menu %d\n", ent->client->pers.netname, ent->client->curr_menu);
+			PMenu_Close(ent);
+			PMenu_Open(ent, weapmenu, 4, sizeof(weapmenu) / sizeof(pmenu_t));
+			}
+		}
+		return true;
+	}
+
+    return false;
 }
 
 /* 
