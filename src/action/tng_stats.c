@@ -650,7 +650,7 @@ static void G_SaveScores(void)
     size_t len;
 
     len = Q_snprintf(path, sizeof(path), "%s%s%s/%s/%s.txt",
-                     GAMEVERSION, SD(g_highscores_dir->string), gm->name, level.mapname);
+                     GAMEVERSION, SD(g_highscores_dir->string), gm->string, level.mapname);
     if (len >= sizeof(path)) {
         return;
     }
@@ -785,7 +785,7 @@ void G_LoadScores(void)
     load_file_t *f;
     int i;
 
-    f = G_LoadFile("%s%s%s/%s/%s.txt", GAMEVERSION, SD(g_highscores_dir->string), gm->name, level.mapname);
+    f = G_LoadFile("%s%s%s/%s/%s.txt", GAMEVERSION, SD(g_highscores_dir->string), gm->string, level.mapname);
     if (!f) {
 		gi.dprintf("No high scores file loaded for %s\n", level.mapname);
         return;

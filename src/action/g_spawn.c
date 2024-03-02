@@ -1161,7 +1161,7 @@ void SpawnEntities (const char *mapname, const char *entities, const char *spawn
 			gi.cvar_forceset(use_tourney->name, "0");
 		}
 	}
-	else if (highlander)
+	else if (highlander->value)
 	{
 		gi.cvar_forceset(gm->name, "tp");
 		gameSettings |= (GS_ROUNDBASED | GS_WEAPONCHOOSE);
