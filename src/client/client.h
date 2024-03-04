@@ -600,6 +600,8 @@ extern cvar_t    *cl_m4_sound;
 extern cvar_t    *cl_m3_sound;
 extern cvar_t    *cl_hc_sound;
 extern cvar_t    *cl_ssg_sound;
+
+extern cvar_t    *cl_hitsounds;
 #endif
 
 // enable/disable drawing of team indicators (assuming they are present)
