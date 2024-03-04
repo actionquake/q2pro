@@ -2,9 +2,9 @@ name: build
 
 on:
   push:
-    branches: [master, aqtion, aqtion-alpha, ci]
+    branches: [master, aqtion, aqtion-alpha, sync/*]
   pull_request:
-    branches: [master, aqtion, aqtion-alpha]
+    branches: [master, aqtion, aqtion-alpha, sync/*]
 
 env:
   MESON_ARGS: >-
