@@ -1551,7 +1551,7 @@ extern const cs_remap_t     cs_remap_new;
 //==============================================
 
 // entity_state_t->event values
-// ertity events are for effects that take place reletive
+// entity events are for effects that take place reletive
 // to an existing entities origin.  Very network efficient.
 // All muzzle flashes really should be converted to events...
 typedef enum {
@@ -1567,6 +1567,16 @@ typedef enum {
     EV_OTHER_FOOTSTEP,
     EV_LADDER_STEP,
 // KEX
+// ACTION
+    EV_HIT_NONE,
+    EV_HIT_HEAD,
+    EV_HIT_HELM,
+    EV_HIT_CHEST,
+    EV_HIT_VEST,
+    EV_HIT_STOMACH,
+    EV_HIT_LEGS,
+    EV_HIT_FRAG,
+// ACTION
 } entity_event_t;
 
 // entity_state_t is the information conveyed from the server

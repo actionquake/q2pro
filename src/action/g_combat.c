@@ -575,8 +575,10 @@ void T_Damage (edict_t * targ, edict_t * inflictor, edict_t * attacker, const ve
 
 					if (mod == MOD_GRENADE_IMPACT)
 						gi.sound(targ, CHAN_VOICE, level.snd_grenhead, 1, ATTN_NORM, 0);
-					else if (mod != MOD_KNIFE && mod != MOD_KNIFE_THROWN)
+					else if (mod != MOD_KNIFE && mod != MOD_KNIFE_THROWN) {
 						gi.sound(targ, CHAN_VOICE, level.snd_headshot, 1, ATTN_NORM, 0);
+						targ->s.event = EV_HIT_HEAD;
+					}
 
 				}
 				else if (mod == MOD_SNIPER)
@@ -592,6 +594,7 @@ void T_Damage (edict_t * targ, edict_t * inflictor, edict_t * attacker, const ve
 					}
 					damage = (int) (damage * 0.325);
 					gi.sound(targ, CHAN_VOICE, level.snd_headshot, 1, ATTN_NORM, 0);
+					targ->s.event = EV_HIT_HELM;
 				}
 				else
 				{
@@ -609,8 +612,10 @@ void T_Damage (edict_t * targ, edict_t * inflictor, edict_t * attacker, const ve
 					}
 					if (mod == MOD_GRENADE_IMPACT)
 						gi.sound(targ, CHAN_ITEM, level.snd_grenhelm, 1, ATTN_NORM, 0);
-					else
+					else {
 						gi.sound(targ, CHAN_ITEM, level.snd_vesthit, 1, ATTN_NORM, 0);
+						targ->s.event = EV_HIT_HELM;
+					}
 					damage = (int)(damage / 2);
 					bleeding = 0;
 					instant_dam = 1;
@@ -628,6 +633,7 @@ void T_Damage (edict_t * targ, edict_t * inflictor, edict_t * attacker, const ve
 					Stats_AddHit( attacker, mod, LOC_LDAM );
 					gi.cprintf(attacker, PRINT_HIGH, "You hit %s in the legs\n",
 						client->pers.netname);
+					targ->s.event = EV_HIT_LEGS;
 				}
 
 				gi.cprintf(targ, PRINT_HIGH, "Leg damage\n");
@@ -644,6 +650,7 @@ void T_Damage (edict_t * targ, edict_t * inflictor, edict_t * attacker, const ve
 					Stats_AddHit(attacker, mod, LOC_SDAM);
 					gi.cprintf(attacker, PRINT_HIGH, "You hit %s in the stomach\n",
 						client->pers.netname);
+					targ->s.event = EV_HIT_STOMACH;
 				}
 					
 				//TempFile bloody gibbing
@@ -668,6 +675,7 @@ void T_Damage (edict_t * targ, edict_t * inflictor, edict_t * attacker, const ve
 					if (attacker->client)
 						gi.cprintf(attacker, PRINT_HIGH, "You hit %s in the chest\n",
 							client->pers.netname);
+					targ->s.event = EV_HIT_CHEST;
 
 					//TempFile bloody gibbing
 					if (mod == MOD_SNIPER && sv_gib->value)
@@ -682,6 +690,7 @@ void T_Damage (edict_t * targ, edict_t * inflictor, edict_t * attacker, const ve
 						gi.cprintf (targ, PRINT_HIGH, "Kevlar Vest absorbed some of %s's AP sniper round\n",
 							attacker->client->pers.netname);
 					}
+					targ->s.event = EV_HIT_VEST;
 					damage = damage * .325;
 				}
 				else
@@ -695,8 +704,10 @@ void T_Damage (edict_t * targ, edict_t * inflictor, edict_t * attacker, const ve
 					}
 					if (mod == MOD_GRENADE_IMPACT)
 						gi.sound(targ, CHAN_ITEM, level.snd_grenbody, 1, ATTN_NORM, 0);
-					else
+					else {
 						gi.sound(targ, CHAN_ITEM, level.snd_vesthit, 1, ATTN_NORM, 0);
+						targ->s.event = EV_HIT_VEST;
+					}
 					damage = (int)(damage / 10);
 					bleeding = 0;
 					instant_dam = 1;

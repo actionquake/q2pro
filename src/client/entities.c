@@ -264,6 +264,30 @@ static void parse_entity_event(int number)
     case EV_FALLFAR:
         S_StartSound(NULL, number, CHAN_AUTO, S_RegisterSound("*fall1.wav"), 1, ATTN_NORM, 0);
         break;
+    case EV_HIT_NONE:
+        S_StartSound(NULL, number, CHAN_AUTO, S_RegisterSound("hitsounds/body.wav"), 1, ATTN_NORM, 0);
+        break;
+    case EV_HIT_HEAD:
+        S_StartSound(NULL, number, CHAN_AUTO, S_RegisterSound("hitsounds/head.wav"), 1, ATTN_NORM, 0);
+        break;
+    case EV_HIT_HELM:
+        S_StartSound(NULL, number, CHAN_AUTO, S_RegisterSound("hitsounds/helm.wav"), 1, ATTN_NORM, 0);
+        break;
+    case EV_HIT_CHEST:
+        S_StartSound(NULL, number, CHAN_AUTO, S_RegisterSound("hitsounds/chest.wav"), 1, ATTN_NORM, 0);
+        break;
+    case EV_HIT_VEST:
+        S_StartSound(NULL, number, CHAN_AUTO, S_RegisterSound("hitsounds/vest.wav"), 1, ATTN_NORM, 0);
+        break;
+    case EV_HIT_STOMACH:
+        S_StartSound(NULL, number, CHAN_AUTO, S_RegisterSound("hitsounds/stomach.wav"), 1, ATTN_NORM, 0);
+        break;
+    case EV_HIT_LEGS:
+        S_StartSound(NULL, number, CHAN_AUTO, S_RegisterSound("hitsounds/legs.wav"), 1, ATTN_NORM, 0);
+        break;
+    case EV_HIT_FRAG:
+        S_StartSound(NULL, number, CHAN_AUTO, S_RegisterSound("hitsounds/frag.wav"), 1, ATTN_NORM, 0);
+        break;
     }
 }
 
