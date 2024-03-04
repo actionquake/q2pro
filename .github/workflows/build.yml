@@ -2,7 +2,7 @@ name: build
 
 on:
   push:
-    branches: [master, aqtion, aqtion-alpha, sync/*]
+    branches: [master, aqtion, aqtion-alpha]
   pull_request:
     branches: [master, aqtion, aqtion-alpha, sync/*]
 
