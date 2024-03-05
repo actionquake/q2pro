@@ -532,7 +532,9 @@ void ProduceShotgunDamageReport (edict_t *self)
 			break;
 	}
 	gi.cprintf(self, PRINT_HIGH, "You hit %s in the body\n", textbuf);
-	PlayHitSound(self, EV_HIT_NONE);
+	#if USE_AQTION
+		PlayHitSound(self, EV_HIT_NONE);
+	#endif
 
 	// TNG Stats
 	if (self->client->curr_weap == M3_NUM)

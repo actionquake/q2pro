@@ -442,6 +442,12 @@ qboolean check_head_success(const vec3_t point, const vec3_t dir, vec3_t targ_or
     return false;
 }
 
+/*
+HitSounds
+
+Requires AQtion client to support
+*/
+
 void PlayHitSound(edict_t *attacker, entity_event_t hitsound)
 {
 	if (attacker->is_bot)
@@ -613,7 +619,9 @@ void T_Damage (edict_t * targ, edict_t * inflictor, edict_t * attacker, const ve
 						gi.cprintf(attacker, PRINT_HIGH, "You hit %s in the head\n", client->pers.netname);
 
 					PlayDamageSound(targ, attacker, mod, LOC_HDAM);
-					PlayHitSound(attacker, EV_HIT_HEAD);
+					#if USE_AQTION
+						PlayHitSound(attacker, EV_HIT_HEAD);
+					#endif
 				}
 				else if (mod == MOD_SNIPER)
 				{
@@ -629,7 +637,9 @@ void T_Damage (edict_t * targ, edict_t * inflictor, edict_t * attacker, const ve
 					damage = (int) (damage * 0.325);
 
 					PlayDamageSound(targ, attacker, mod, LOC_HDAM);
-					PlayHitSound(attacker, EV_HIT_HELM);
+					#if USE_AQTION
+						PlayHitSound(attacker, EV_HIT_HELM);
+					#endif
 				}
 				else
 				{
@@ -647,7 +657,9 @@ void T_Damage (edict_t * targ, edict_t * inflictor, edict_t * attacker, const ve
 					}
 
 					PlayDamageSound(targ, attacker, mod, LOC_KVLR_HELMET);
-					PlayHitSound(attacker, EV_HIT_HELM);
+					#if USE_AQTION
+						PlayHitSound(attacker, EV_HIT_HELM);
+					#endif
 
 					damage = (int)(damage / 2);
 					bleeding = 0;
@@ -667,7 +679,9 @@ void T_Damage (edict_t * targ, edict_t * inflictor, edict_t * attacker, const ve
 					gi.cprintf(attacker, PRINT_HIGH, "You hit %s in the legs\n",
 						client->pers.netname);
 
-					PlayHitSound(attacker, EV_HIT_LEGS);
+					#if USE_AQTION
+						PlayHitSound(attacker, EV_HIT_LEGS);
+					#endif
 				}
 
 				gi.cprintf(targ, PRINT_HIGH, "Leg damage\n");
@@ -685,7 +699,9 @@ void T_Damage (edict_t * targ, edict_t * inflictor, edict_t * attacker, const ve
 					gi.cprintf(attacker, PRINT_HIGH, "You hit %s in the stomach\n",
 						client->pers.netname);
 
-					PlayHitSound(attacker, EV_HIT_STOMACH);
+					#if USE_AQTION
+						PlayHitSound(attacker, EV_HIT_STOMACH);
+					#endif
 				}
 					
 				//TempFile bloody gibbing
@@ -711,7 +727,9 @@ void T_Damage (edict_t * targ, edict_t * inflictor, edict_t * attacker, const ve
 						gi.cprintf(attacker, PRINT_HIGH, "You hit %s in the chest\n",
 							client->pers.netname);
 
-					PlayHitSound(attacker, EV_HIT_CHEST);
+					#if USE_AQTION
+						PlayHitSound(attacker, EV_HIT_CHEST);
+					#endif
 
 					//TempFile bloody gibbing
 					if (mod == MOD_SNIPER && sv_gib->value)
@@ -727,7 +745,9 @@ void T_Damage (edict_t * targ, edict_t * inflictor, edict_t * attacker, const ve
 							attacker->client->pers.netname);
 					}
 
-					PlayHitSound(attacker, EV_HIT_VEST);
+					#if USE_AQTION
+						PlayHitSound(attacker, EV_HIT_VEST);
+					#endif
 					damage = damage * .325;
 				}
 				else
@@ -741,7 +761,9 @@ void T_Damage (edict_t * targ, edict_t * inflictor, edict_t * attacker, const ve
 					}
 
 					PlayDamageSound(targ, attacker, mod, LOC_KVLR_VEST);
-					PlayHitSound(attacker, EV_HIT_VEST);
+					#if USE_AQTION
+						PlayHitSound(attacker, EV_HIT_VEST);
+					#endif
 
 					damage = (int)(damage / 10);
 					bleeding = 0;
