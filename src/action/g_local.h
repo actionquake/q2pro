@@ -1483,6 +1483,7 @@ void T_Damage (edict_t * targ, edict_t * inflictor, edict_t * attacker,
 	       int knockback, int dflags, int mod);
 void T_RadiusDamage (edict_t * inflictor, edict_t * attacker, float damage,
 		     edict_t * ignore, float radius, int mod);
+void PlayHitSound(edict_t *attacker, entity_event_t hitsound);
 
 // damage flags
 #define DAMAGE_RADIUS                   BIT(0)	// damage was indirect

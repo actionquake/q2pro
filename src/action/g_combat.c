@@ -442,7 +442,7 @@ qboolean check_head_success(const vec3_t point, const vec3_t dir, vec3_t targ_or
     return false;
 }
 
-static void PlayHitSound(edict_t *attacker, entity_event_t hitsound)
+void PlayHitSound(edict_t *attacker, entity_event_t hitsound)
 {
 	if (attacker->is_bot)
 		return;
@@ -471,8 +471,12 @@ static void PlayDamageSound(edict_t *targ, edict_t *attacker, ModTable mod, ModL
 			}
 		case LOC_CDAM:
 		case LOC_KVLR_VEST:
+			if (mod == MOD_GRENADE_IMPACT)
+				gi.sound(targ, CHAN_ITEM, level.snd_grenbody, 1, ATTN_NORM, 0);
+		case LOC_NO:
 		case LOC_SDAM:
 		case LOC_LDAM:
+		case LOC_MAX:
 			break;
 	}
 }
