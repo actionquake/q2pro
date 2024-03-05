@@ -442,6 +442,41 @@ qboolean check_head_success(const vec3_t point, const vec3_t dir, vec3_t targ_or
     return false;
 }
 
+static void PlayHitSound(edict_t *attacker, entity_event_t hitsound)
+{
+	if (attacker->is_bot)
+		return;
+	attacker->s.event = hitsound;
+}
+
+static void PlayDamageSound(edict_t *targ, edict_t *attacker, ModTable mod, ModLocation damage_type)
+{
+	// Don't play sounds for bots
+	if (targ->is_bot || attacker->is_bot)
+		return;
+
+	switch (damage_type) {
+		case LOC_HDAM:
+			if (mod == MOD_GRENADE_IMPACT)
+				gi.sound(targ, CHAN_VOICE, level.snd_grenhead, 1, ATTN_NORM, 0);
+			else if (mod != MOD_KNIFE && mod != MOD_KNIFE_THROWN) {
+				gi.sound(targ, CHAN_VOICE, level.snd_headshot, 1, ATTN_NORM, 0);
+			}
+			break;
+		case LOC_KVLR_HELMET:
+			if (mod == MOD_GRENADE_IMPACT)
+				gi.sound(targ, CHAN_ITEM, level.snd_grenhelm, 1, ATTN_NORM, 0);
+			else {
+				gi.sound(targ, CHAN_ITEM, level.snd_vesthit, 1, ATTN_NORM, 0);
+			}
+		case LOC_CDAM:
+		case LOC_KVLR_VEST:
+		case LOC_SDAM:
+		case LOC_LDAM:
+			break;
+	}
+}
+
 void T_Damage (edict_t * targ, edict_t * inflictor, edict_t * attacker, const vec3_t dir,
 	  const vec3_t point, const vec3_t normal, int damage, int knockback, int dflags,
 	  int mod)
@@ -573,13 +608,8 @@ void T_Damage (edict_t * targ, edict_t * inflictor, edict_t * attacker, const ve
 					if (attacker->client)
 						gi.cprintf(attacker, PRINT_HIGH, "You hit %s in the head\n", client->pers.netname);
 
-					if (mod == MOD_GRENADE_IMPACT)
-						gi.sound(targ, CHAN_VOICE, level.snd_grenhead, 1, ATTN_NORM, 0);
-					else if (mod != MOD_KNIFE && mod != MOD_KNIFE_THROWN) {
-						gi.sound(targ, CHAN_VOICE, level.snd_headshot, 1, ATTN_NORM, 0);
-						targ->s.event = EV_HIT_HEAD;
-					}
-
+					PlayDamageSound(targ, attacker, mod, LOC_HDAM);
+					PlayHitSound(attacker, EV_HIT_HEAD);
 				}
 				else if (mod == MOD_SNIPER)
 				{
@@ -593,8 +623,9 @@ void T_Damage (edict_t * targ, edict_t * inflictor, edict_t * attacker, const ve
 							attacker->client->pers.netname);
 					}
 					damage = (int) (damage * 0.325);
-					gi.sound(targ, CHAN_VOICE, level.snd_headshot, 1, ATTN_NORM, 0);
-					targ->s.event = EV_HIT_HELM;
+
+					PlayDamageSound(targ, attacker, mod, LOC_HDAM);
+					PlayHitSound(attacker, EV_HIT_HELM);
 				}
 				else
 				{
@@ -610,12 +641,10 @@ void T_Damage (edict_t * targ, edict_t * inflictor, edict_t * attacker, const ve
 								attacker->client->pers.netname );
 						}
 					}
-					if (mod == MOD_GRENADE_IMPACT)
-						gi.sound(targ, CHAN_ITEM, level.snd_grenhelm, 1, ATTN_NORM, 0);
-					else {
-						gi.sound(targ, CHAN_ITEM, level.snd_vesthit, 1, ATTN_NORM, 0);
-						targ->s.event = EV_HIT_HELM;
-					}
+
+					PlayDamageSound(targ, attacker, mod, LOC_KVLR_HELMET);
+					PlayHitSound(attacker, EV_HIT_HELM);
+
 					damage = (int)(damage / 2);
 					bleeding = 0;
 					instant_dam = 1;
@@ -633,7 +662,8 @@ void T_Damage (edict_t * targ, edict_t * inflictor, edict_t * attacker, const ve
 					Stats_AddHit( attacker, mod, LOC_LDAM );
 					gi.cprintf(attacker, PRINT_HIGH, "You hit %s in the legs\n",
 						client->pers.netname);
-					targ->s.event = EV_HIT_LEGS;
+
+					PlayHitSound(attacker, EV_HIT_LEGS);
 				}
 
 				gi.cprintf(targ, PRINT_HIGH, "Leg damage\n");
@@ -650,7 +680,8 @@ void T_Damage (edict_t * targ, edict_t * inflictor, edict_t * attacker, const ve
 					Stats_AddHit(attacker, mod, LOC_SDAM);
 					gi.cprintf(attacker, PRINT_HIGH, "You hit %s in the stomach\n",
 						client->pers.netname);
-					targ->s.event = EV_HIT_STOMACH;
+
+					PlayHitSound(attacker, EV_HIT_STOMACH);
 				}
 					
 				//TempFile bloody gibbing
@@ -675,7 +706,8 @@ void T_Damage (edict_t * targ, edict_t * inflictor, edict_t * attacker, const ve
 					if (attacker->client)
 						gi.cprintf(attacker, PRINT_HIGH, "You hit %s in the chest\n",
 							client->pers.netname);
-					targ->s.event = EV_HIT_CHEST;
+
+					PlayHitSound(attacker, EV_HIT_CHEST);
 
 					//TempFile bloody gibbing
 					if (mod == MOD_SNIPER && sv_gib->value)
@@ -690,7 +722,8 @@ void T_Damage (edict_t * targ, edict_t * inflictor, edict_t * attacker, const ve
 						gi.cprintf (targ, PRINT_HIGH, "Kevlar Vest absorbed some of %s's AP sniper round\n",
 							attacker->client->pers.netname);
 					}
-					targ->s.event = EV_HIT_VEST;
+
+					PlayHitSound(attacker, EV_HIT_VEST);
 					damage = damage * .325;
 				}
 				else
@@ -702,12 +735,10 @@ void T_Damage (edict_t * targ, edict_t * inflictor, edict_t * attacker, const ve
 						gi.cprintf(targ, PRINT_HIGH, "Kevlar Vest absorbed most of %s's shot\n",
 							attacker->client->pers.netname);
 					}
-					if (mod == MOD_GRENADE_IMPACT)
-						gi.sound(targ, CHAN_ITEM, level.snd_grenbody, 1, ATTN_NORM, 0);
-					else {
-						gi.sound(targ, CHAN_ITEM, level.snd_vesthit, 1, ATTN_NORM, 0);
-						targ->s.event = EV_HIT_VEST;
-					}
+
+					PlayDamageSound(targ, attacker, mod, LOC_KVLR_VEST);
+					PlayHitSound(attacker, EV_HIT_VEST);
+
 					damage = (int)(damage / 10);
 					bleeding = 0;
 					instant_dam = 1;

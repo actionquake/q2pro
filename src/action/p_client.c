@@ -925,7 +925,8 @@ void ClientObituary(edict_t * self, edict_t * inflictor, edict_t * attacker)
 	self->enemy = attacker;
 	if (attacker && attacker->client)
 	{
-		attacker->s.event = EV_HIT_FRAG; // Hitsound
+		if (!attacker->is_bot)
+			attacker->s.event = EV_HIT_FRAG; // Hitsound
 		switch (mod) {
 		case MOD_MK23:	// zucc
 			switch (loc) {
