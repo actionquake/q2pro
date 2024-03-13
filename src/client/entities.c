@@ -266,35 +266,35 @@ static void parse_entity_event(int number)
         break;
     case EV_HIT_NONE:
         if (cl_hitsounds->integer)
-            S_StartSound(NULL, number, CHAN_AUTO, S_RegisterSound("hitsounds/body.wav"), 1, ATTN_NORM, 0);
+            S_StartSound(cent->current.origin, number, CHAN_AUTO, S_RegisterSound("hitsounds/body.wav"), cl_hitsounds->value, ATTN_STATIC, 0);
         break;
     case EV_HIT_HEAD:
         if (cl_hitsounds->integer)
-            S_StartSound(NULL, number, CHAN_AUTO, S_RegisterSound("hitsounds/head.wav"), 1, ATTN_NORM, 0);
+            S_StartSound(cent->current.origin, number, CHAN_AUTO, S_RegisterSound("hitsounds/head.wav"), cl_hitsounds->value, ATTN_STATIC, 0);
         break;
     case EV_HIT_HELM:
         if (cl_hitsounds->integer)
-            S_StartSound(NULL, number, CHAN_AUTO, S_RegisterSound("hitsounds/helm.wav"), 1, ATTN_NORM, 0);
+            S_StartSound(cent->current.origin, number, CHAN_AUTO, S_RegisterSound("hitsounds/helm.wav"), cl_hitsounds->value, ATTN_STATIC, 0);
         break;
     case EV_HIT_CHEST:
         if (cl_hitsounds->integer)
-            S_StartSound(NULL, number, CHAN_AUTO, S_RegisterSound("hitsounds/chest.wav"), 1, ATTN_NORM, 0);
+            S_StartSound(cent->current.origin, number, CHAN_AUTO, S_RegisterSound("hitsounds/chest.wav"), cl_hitsounds->value, ATTN_STATIC, 0);
         break;
     case EV_HIT_VEST:
         if (cl_hitsounds->integer)
-            S_StartSound(NULL, number, CHAN_AUTO, S_RegisterSound("hitsounds/vest.wav"), 1, ATTN_NORM, 0);
+            S_StartSound(cent->current.origin, number, CHAN_AUTO, S_RegisterSound("hitsounds/vest.wav"), cl_hitsounds->value, ATTN_STATIC, 0);
         break;
     case EV_HIT_STOMACH:
         if (cl_hitsounds->integer)
-            S_StartSound(NULL, number, CHAN_AUTO, S_RegisterSound("hitsounds/stomach.wav"), 1, ATTN_NORM, 0);
+            S_StartSound(cent->current.origin, number, CHAN_AUTO, S_RegisterSound("hitsounds/stomach.wav"), cl_hitsounds->value, ATTN_STATIC, 0);
         break;
     case EV_HIT_LEGS:
         if (cl_hitsounds->integer)
-            S_StartSound(NULL, number, CHAN_AUTO, S_RegisterSound("hitsounds/legs.wav"), 1, ATTN_NORM, 0);
+            S_StartSound(cent->current.origin, number, CHAN_AUTO, S_RegisterSound("hitsounds/legs.wav"), cl_hitsounds->value, ATTN_STATIC, 0);
         break;
     case EV_HIT_FRAG:
         if (cl_hitsounds->integer)
-            S_StartSound(NULL, number, CHAN_AUTO, S_RegisterSound("hitsounds/frag.wav"), 1, ATTN_NORM, 0);
+            S_StartSound(cent->current.origin, number, CHAN_AUTO, S_RegisterSound("hitsounds/frag.wav"), cl_hitsounds->value, ATTN_STATIC, 0);
         break;
     }
 }
