@@ -109,6 +109,7 @@ cvar_t  *cl_hc_sound;
 cvar_t  *cl_ssg_sound;
 cvar_t	*cl_indicators;
 cvar_t  *cl_hitsounds;
+cvar_t  *cl_fragsounds;
 #endif
 #endif
 cvar_t  *info_version;
@@ -2936,6 +2937,7 @@ static void CL_InitLocal(void)
 
         cl_indicators = Cvar_Get("cl_indicators", "1", 0);
         cl_hitsounds = Cvar_Get("cl_hitsounds", "0", 0);
+        cl_fragsounds = Cvar_Get("cl_fragsounds", "0", 0);
     #endif
 
 
