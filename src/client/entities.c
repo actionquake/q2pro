@@ -270,31 +270,31 @@ static void parse_entity_event(int number)
         break;
     case EV_HIT_HEAD:
         if (cl_hitsounds->integer)
-            S_StartLocalSoundOnce("hitsounds/head.wav");
+            S_StartSound(cent->current.origin, number, CHAN_AUTO, S_RegisterSound("hitsounds/head.wav"), cl_hitsounds->value, 8192, 0);
         break;
     case EV_HIT_HELM:
         if (cl_hitsounds->integer)
-            S_StartLocalSoundOnce("hitsounds/helm.wav");
+            S_StartSound(cent->current.origin, number, CHAN_AUTO, S_RegisterSound("hitsounds/helm.wav"), cl_hitsounds->value, 8192, 0);
         break;
     case EV_HIT_CHEST:
         if (cl_hitsounds->integer)
-            S_StartLocalSoundOnce("hitsounds/chest.wav");
+            S_StartSound(cent->current.origin, number, CHAN_AUTO, S_RegisterSound("hitsounds/chest.wav"), cl_hitsounds->value, 8192, 0);
         break;
     case EV_HIT_VEST:
         if (cl_hitsounds->integer)
-            S_StartLocalSoundOnce("hitsounds/vest.wav");
+            S_StartSound(cent->current.origin, number, CHAN_AUTO, S_RegisterSound("hitsounds/vest.wav"), cl_hitsounds->value, 8192, 0);
         break;
     case EV_HIT_STOMACH:
         if (cl_hitsounds->integer)
-            S_StartLocalSoundOnce("hitsounds/stomach.wav");
+            S_StartSound(cent->current.origin, number, CHAN_AUTO, S_RegisterSound("hitsounds/stomach.wav"), cl_hitsounds->value, 8192, 0);
         break;
     case EV_HIT_LEGS:
         if (cl_hitsounds->integer)
-            S_StartLocalSoundOnce("hitsounds/legs.wav");
+            S_StartSound(cent->current.origin, number, CHAN_AUTO, S_RegisterSound("hitsounds/legs.wav"), cl_hitsounds->value, 8192, 0);
         break;
     case EV_HIT_FRAG:
         if (cl_fragsounds->integer)
-            S_StartLocalSoundOnce("hitsounds/frag.wav");
+            S_StartSound(cent->current.origin, number, CHAN_AUTO, S_RegisterSound("hitsounds/frag.wav"), cl_fragsounds->value, 8192, 0);
         break;
     }
 }
