@@ -270,31 +270,31 @@ static void parse_entity_event(int number)
         break;
     case EV_HIT_HEAD:
         if (cl_hitsounds->integer)
-            S_StartSound(cent->current.origin, number, CHAN_WEAPON, S_RegisterSound("hitsounds/head.wav"), cl_hitsounds->value, ATTN_DIST_ZERO, 0);
+            S_StartSound(cent->current.origin, number, CHAN_ITEM, S_RegisterSound("hitsounds/head.wav"), cl_hitsounds->value, ATTN_DIST_ZERO, 0);
         break;
     case EV_HIT_HELM:
         if (cl_hitsounds->integer)
-            S_StartSound(cent->current.origin, number, CHAN_WEAPON, S_RegisterSound("hitsounds/helm.wav"), cl_hitsounds->value, ATTN_DIST_ZERO, 0);
+            S_StartSound(cent->current.origin, number, CHAN_ITEM, S_RegisterSound("hitsounds/helm.wav"), cl_hitsounds->value, ATTN_DIST_ZERO, 0);
         break;
     case EV_HIT_CHEST:
         if (cl_hitsounds->integer)
-            S_StartSound(cent->current.origin, number, CHAN_WEAPON, S_RegisterSound("hitsounds/chest.wav"), cl_hitsounds->value, ATTN_DIST_ZERO, 0);
+            S_StartSound(cent->current.origin, number, CHAN_ITEM, S_RegisterSound("hitsounds/chest.wav"), cl_hitsounds->value, ATTN_DIST_ZERO, 0);
         break;
     case EV_HIT_VEST:
         if (cl_hitsounds->integer)
-            S_StartSound(cent->current.origin, number, CHAN_WEAPON, S_RegisterSound("hitsounds/vest.wav"), cl_hitsounds->value, ATTN_DIST_ZERO, 0);
+            S_StartSound(cent->current.origin, number, CHAN_ITEM, S_RegisterSound("hitsounds/vest.wav"), cl_hitsounds->value, ATTN_DIST_ZERO, 0);
         break;
     case EV_HIT_STOMACH:
         if (cl_hitsounds->integer)
-            S_StartSound(cent->current.origin, number, CHAN_WEAPON, S_RegisterSound("hitsounds/stomach.wav"), cl_hitsounds->value, ATTN_DIST_ZERO, 0);
+            S_StartSound(cent->current.origin, number, CHAN_ITEM, S_RegisterSound("hitsounds/stomach.wav"), cl_hitsounds->value, ATTN_DIST_ZERO, 0);
         break;
     case EV_HIT_LEGS:
         if (cl_hitsounds->integer)
-            S_StartSound(cent->current.origin, number, CHAN_WEAPON, S_RegisterSound("hitsounds/legs.wav"), cl_hitsounds->value, ATTN_DIST_ZERO, 0);
+            S_StartSound(cent->current.origin, number, CHAN_ITEM, S_RegisterSound("hitsounds/legs.wav"), cl_hitsounds->value, ATTN_DIST_ZERO, 0);
         break;
     case EV_HIT_FRAG:
         if (cl_fragsounds->integer)
-            S_StartSound(cent->current.origin, number, CHAN_WEAPON, S_RegisterSound("hitsounds/frag.wav"), cl_fragsounds->value, ATTN_DIST_ZERO, 0);
+            S_StartSound(cent->current.origin, number, CHAN_ITEM, S_RegisterSound("hitsounds/frag.wav"), cl_fragsounds->value, ATTN_DIST_ZERO, 0);
         break;
     }
 }
