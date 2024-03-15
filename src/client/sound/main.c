@@ -636,6 +636,8 @@ void S_IssuePlaysound(playsound_t *ps)
     // spatialize
     if (ps->attenuation == ATTN_STATIC)
         ch->dist_mult = ps->attenuation * 0.001f;
+    else if (ps->attenuation == ATTN_DIST_ZERO)
+        ch->dist_mult = 0; // Zero attenuation
     else
         ch->dist_mult = ps->attenuation * 0.0005f;
     ch->master_vol = ps->volume;

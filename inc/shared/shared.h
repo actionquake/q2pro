@@ -1338,6 +1338,7 @@ enum {
 #define ATTN_NORM               1
 #define ATTN_IDLE               2
 #define ATTN_STATIC             3	// diminish very rapidly with distance
+#define ATTN_DIST_ZERO          4   // zero sound distance
 
 // adjustable weapon sounds
 #define MIN_WEAPON_SOUND        0
