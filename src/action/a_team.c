@@ -1103,6 +1103,16 @@ void ToggleSlippers(edict_t *ent, pmenu_t *p)
 	Cmd_Toggle_f(ent, "slippers");
 }
 
+void Cmd_GotoPC_f_M(edict_t *ent, pmenu_t *p)
+{
+	Cmd_GotoPC_f(ent);
+}
+
+void Cmd_GotoP_f_M(edict_t *ent, pmenu_t *p)
+{
+	Cmd_GotoP_f(ent);
+}
+
 
 //PaTMaN - Item Menu
 pmenu_t pmitemmenu[] = {
@@ -1111,8 +1121,8 @@ pmenu_t pmitemmenu[] = {
   { "Laser Sight                (jmod laser)",			PMENU_ALIGN_LEFT,	NULL, ToggleLaser			},
   { "Slippers                   (jmod slippers)",		PMENU_ALIGN_LEFT,	NULL, ToggleSlippers		},
   { NULL,												PMENU_ALIGN_LEFT,	NULL, NULL					},
-  { "Respawn to Closest Spawn   (jmod spawnc)",			PMENU_ALIGN_LEFT,	NULL, Cmd_GotoPC_f   		},
-  { "Respawn to Random Spawn    (jmod spawnp)",			PMENU_ALIGN_LEFT,	NULL, Cmd_GotoP_f   		},
+  { "Respawn to Closest Spawn   (jmod spawnc)",			PMENU_ALIGN_LEFT,	NULL, Cmd_GotoPC_f_M   		},
+  { "Respawn to Random Spawn    (jmod spawnp)",			PMENU_ALIGN_LEFT,	NULL, Cmd_GotoP_f_M   		},
 
 };
 
