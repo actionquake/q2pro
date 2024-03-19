@@ -533,6 +533,7 @@ cvar_t *sv_killgib; // Gibs on 'kill' command
 cvar_t *warmup_unready; // Toggles warmup if captains unready
 cvar_t *training_mode; // Sets training mode vars
 cvar_t *g_highscores_dir; // Sets the highscores directory
+cvar_t *lca_grenade; // Allows grenade pin pulling during LCA
 
 #if AQTION_EXTENSION
 cvar_t *use_newirvision;

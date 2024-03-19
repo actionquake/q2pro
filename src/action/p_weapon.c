@@ -3782,10 +3782,8 @@ void Weapon_Gas(edict_t* ent)
 	{
 		if (((ent->client->latched_buttons | ent->client->buttons) & BUTTON_ATTACK)
 			&& (ent->solid != SOLID_NOT || ent->deadflag == DEAD_DEAD) &&
-			!lights_camera_action && !ent->client->uvTime)
+			!ent->client->uvTime && (lca_grenade->value || !lights_camera_action))
 		{
-
-
 			if (ent->client->ps.gunframe <= GRENADE_PINIDLE_LAST &&
 				ent->client->ps.gunframe >= GRENADE_PINIDLE_FIRST)
 			{
@@ -3808,14 +3806,18 @@ void Weapon_Gas(edict_t* ent)
 		if (ent->client->ps.gunframe >= GRENADE_IDLE_FIRST &&
 			ent->client->ps.gunframe <= GRENADE_IDLE_LAST)
 		{
-			ent->client->ps.gunframe = GRENADE_THROW_FIRST;
-			if (ent->client->ps.pmove.pm_flags & PMF_DUCKED)
-				SetAnimation( ent, FRAME_crattak1 - 1, FRAME_crattak9, ANIM_ATTACK );
-			else
-				SetAnimation( ent, FRAME_attack1 - 1, FRAME_attack8, ANIM_ATTACK );
-			ent->client->weaponstate = WEAPON_FIRING;
+			// Only allow the player to throw the grenade if lights_camera_action is 0
+			// This is so we can enable lca_grenade
+			if (!lights_camera_action)
+			{
+				ent->client->ps.gunframe = GRENADE_THROW_FIRST;
+				if (ent->client->ps.pmove.pm_flags & PMF_DUCKED)
+					SetAnimation( ent, FRAME_crattak1 - 1, FRAME_crattak9, ANIM_ATTACK );
+				else
+					SetAnimation( ent, FRAME_attack1 - 1, FRAME_attack8, ANIM_ATTACK );
+				ent->client->weaponstate = WEAPON_FIRING;
+			}
 			return;
-
 		}
 
 		if (ent->client->ps.gunframe == GRENADE_PINIDLE_LAST)

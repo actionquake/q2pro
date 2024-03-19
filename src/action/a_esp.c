@@ -1776,6 +1776,37 @@ void EspLeaderLeftTeam( edict_t *ent )
 }
 
 /*
+Called from EspReportLeaderDeath in ATL mode
+*/
+static int EspReportATLWinner(int dead_leader_team)
+{
+	int winner = 0;
+
+	switch (dead_leader_team) {
+		case TEAM1:
+			if (IS_ALIVE(teams[TEAM2].leader) && !IS_ALIVE(teams[TEAM3].leader))
+				winner = TEAM2;
+			else if (!IS_ALIVE(teams[TEAM2].leader) && IS_ALIVE(teams[TEAM3].leader))
+				winner = TEAM3;
+			break;
+		case TEAM2:
+			if (IS_ALIVE(teams[TEAM1].leader) && !IS_ALIVE(teams[TEAM3].leader))
+				winner = TEAM1;
+			else if (!IS_ALIVE(teams[TEAM1].leader) && IS_ALIVE(teams[TEAM3].leader))
+				winner = TEAM3;
+			break;
+		case TEAM3:
+			if (IS_ALIVE(teams[TEAM1].leader) && !IS_ALIVE(teams[TEAM2].leader))
+				winner = TEAM1;
+			else if (!IS_ALIVE(teams[TEAM1].leader) && IS_ALIVE(teams[TEAM2].leader))
+				winner = TEAM2;
+			break;
+	}
+
+	return winner;
+}
+
+/*
 This is called from player_die, and only called
 if the player was a leader
 */
@@ -1804,24 +1835,7 @@ int EspReportLeaderDeath(edict_t *ent)
 				winner = TEAM1;
 		// 3 team winner checks
 		} else {
-			if (dead_leader_team == TEAM1) {
-				if (IS_ALIVE(teams[TEAM2].leader) && !IS_ALIVE(teams[TEAM3].leader))
-					winner = TEAM2;
-				else if (!IS_ALIVE(teams[TEAM2].leader) && IS_ALIVE(teams[TEAM3].leader))
-					winner = TEAM3;
-			}
-			else if (dead_leader_team == TEAM2) {
-				if (IS_ALIVE(teams[TEAM1].leader) && !IS_ALIVE(teams[TEAM3].leader))
-					winner = TEAM1;
-				else if (!IS_ALIVE(teams[TEAM1].leader) && IS_ALIVE(teams[TEAM3].leader))
-					winner = TEAM3;
-			}
-			else if (dead_leader_team == TEAM3) {
-				if (IS_ALIVE(teams[TEAM1].leader) && !IS_ALIVE(teams[TEAM2].leader))
-					winner = TEAM1;
-				else if (!IS_ALIVE(teams[TEAM1].leader) && IS_ALIVE(teams[TEAM2].leader))
-					winner = TEAM2;
-			}
+			winner = EspReportATLWinner(dead_leader_team);
 		}
 	}
 

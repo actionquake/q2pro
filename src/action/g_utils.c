@@ -733,7 +733,9 @@ void disablecvar(cvar_t *cvar, char *msg)
 		return;
 
 	if (msg)
-		gi.dprintf("%s: disabling %s\n", msg, cvar->name);
+		gi.dprintf("DISABLING %s: %s\n", cvar->name, msg);
+	else
+		gi.dprintf("DISABLING %s\n", cvar->name);
 
 	gi.cvar_forceset(cvar->name, "0");
 }
@@ -745,7 +747,9 @@ void enablecvar(cvar_t *cvar, char *msg)
 		return;
 
 	if (msg)
-		gi.dprintf("%s: enabling %s\n", msg, cvar->name);
+		gi.dprintf("ENABLING %s: %s\n", cvar->name, msg);
+	else
+		gi.dprintf("ENABLING %s\n", cvar->name);
 
 	gi.cvar_forceset(cvar->name, "1");
 }

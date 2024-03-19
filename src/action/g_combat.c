@@ -993,8 +993,12 @@ void T_Damage (edict_t * targ, edict_t * inflictor, edict_t * attacker, const ve
 				if (mod > 0 && mod < MAX_GUNSTAT) {
 					attacker->client->resp.gunstats[mod].damage += damage;
 				}
-				// Grenade splash, kicks and punch damage
-				if (mod > 0 && ((mod == MOD_HG_SPLASH) || (mod == MOD_KICK) || (mod == MOD_PUNCH))) {
+				// Grenade splash, grenade impact, kicks and punch damage
+				if (mod > 0 &&
+				((mod == MOD_HG_SPLASH) ||
+				(mod == MOD_KICK) ||
+				(mod == MOD_PUNCH) ||
+				(mod == MOD_GRENADE_IMPACT))) {
 					attacker->client->resp.gunstats[mod].damage += damage;
 				}
 			}
@@ -1022,6 +1026,10 @@ T_RadiusDamage (edict_t * inflictor, edict_t * attacker, float damage,
 	edict_t *ent = NULL;
 	vec3_t v;
 	vec3_t dir;
+	char ent_name_list[1024] = ""; // Buffer to hold the names
+	int ent_count = 0; // Counter for the number of entities
+	qboolean selfharm = false;
+
 
 	while ((ent = findradius (ent, inflictor->s.origin, radius)) != NULL)
 	{
@@ -1029,6 +1037,29 @@ T_RadiusDamage (edict_t * inflictor, edict_t * attacker, float damage,
 			continue;
 		if (!ent->takedamage)
 			continue;
+		if (ent == attacker)
+			selfharm = true;
+
+		// Messaging addition
+		if ((ent->client || ent->is_bot) && IS_ALIVE(ent) && ent != attacker){
+			// Only add the name to the list if there are less than 4 names
+			if (ent_count < 4)
+			{
+				// Calculate the length of the new string
+				int new_length = strlen(ent_name_list) + strlen(" and ") + strlen(ent->client->pers.netname);
+
+				// Check if the new string would fit in ent_name_list
+				if (new_length < sizeof(ent_name_list))
+				{
+					if (ent_count > 0)
+						strncat(ent_name_list, " and ", sizeof(ent_name_list) - strlen(ent_name_list) - 1);
+					strncat(ent_name_list, ent->client->pers.netname, sizeof(ent_name_list) - strlen(ent_name_list) - 1);
+				}
+			}
+			ent_count++;
+		}
+
+		// End messaging addition
 
 		VectorAdd (ent->mins, ent->maxs, v);
 		VectorMA (ent->s.origin, 0.5, v, v);
@@ -1060,4 +1091,18 @@ T_RadiusDamage (edict_t * inflictor, edict_t * attacker, float damage,
 			}
 		}
 	}
+
+	// Messaging addition
+	if (ent_count > 3)
+		gi.cprintf(attacker, PRINT_HIGH, "You nailed several players with that grenade, nicely done!\n");
+	else if (selfharm && ent_count > 0)
+		gi.cprintf(attacker, PRINT_HIGH, "You were blasted by your own grenade, along with %s\n", ent_name_list);
+	else if (selfharm)
+		gi.cprintf(attacker, PRINT_HIGH, "You were blasted by your own grenade, throw farther next time?\n");
+	else if (ent_count > 0)
+		gi.cprintf(attacker, PRINT_HIGH, "%s were blasted by your grenade.\n", ent_name_list);
+
+	// Stats for fun, tracks the highest amount of players hit by a single grenade
+	if (ent_count > attacker->client->resp.grenSplash)
+		attacker->client->resp.grenSplash = ent_count;
 }

@@ -1289,6 +1289,7 @@ extern cvar_t *sv_killgib; // Enable or disable gibbing on kill command
 extern cvar_t *warmup_unready;
 extern cvar_t *training_mode; // Sets training mode vars
 extern cvar_t *g_highscores_dir; // Sets the highscores directory
+extern cvar_t *lca_grenade; // Allows grenade pin pulling during LCA
 
 #if AQTION_EXTENSION
 extern int (*engine_Client_GetVersion)(edict_t *ent);
@@ -1836,6 +1837,7 @@ typedef struct
   int streakHS;						//Headshots in a Row
   int streakKillsHighest;			//Highest kills in a row
   int streakHSHighest;				//Highest headshots in a Row
+  int grenSplash;					//Tracks latest amount of players harmed by a single grenade
 
   int hitsLocations[LOC_MAX];		//Number of hits for different locations
   gunStats_t gunstats[MOD_TOTAL]; //Number of shots/hits for different guns, adjusted to MOD_TOTAL to allow grenade, kick and punch stats

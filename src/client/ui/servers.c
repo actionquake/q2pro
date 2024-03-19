@@ -192,6 +192,8 @@ static serverslot_t *FindSlot(const netadr_t *search, int *index_p)
 
 static uint32_t ColorForStatus(const serverStatus_t *status, unsigned ping)
 {
+    ui_colorpingmax = Cvar_Get("ui_colorpingmax", "50", 0);
+
     if (Q_atoi(Info_ValueForKey(status->infostring, "needpass")) >= 1)
         return uis.color.disabled.u32;
 

@@ -1335,6 +1335,11 @@ loop if rendering is disabled but sound is running.
 void CL_CalcViewValues(void)
 {
     player_state_t *ps, *ops;
+#if USE_FPS
+    player_state_t *keyps, *keyops;
+    keyps = &cl.keyframe.ps;
+    keyops = &cl.oldkeyframe.ps;
+#endif
     vec3_t viewoffset;
     float lerp;
 
@@ -1378,14 +1383,16 @@ void CL_CalcViewValues(void)
 
     } else {
         int i;
-
         // just use interpolated values
         for (i = 0; i < 3; i++) {
             cl.refdef.vieworg[i] = SHORT2COORD(ops->pmove.origin[i] +
                 lerp * (ps->pmove.origin[i] - ops->pmove.origin[i]));
         }
-
-		LerpVector(ops->viewoffset, ps->viewoffset, lerp, viewoffset);
+#if USE_FPS
+		LerpVector(keyops->viewoffset, keyps->viewoffset, cl.keylerpfrac, viewoffset);
+#else
+        LerpVector(ops->viewoffset, ps->viewoffset, lerp, viewoffset);
+#endif
     }
 
     // if not running a demo or on a locked frame, add the local angle movement
@@ -1399,10 +1406,19 @@ void CL_CalcViewValues(void)
     } else if (ps->pmove.pm_type < PM_DEAD) {
         // use predicted values
         VectorCopy(cl.predicted_angles, cl.refdef.viewangles);
-    } else if (ops->pmove.pm_type < PM_DEAD && cls.serverProtocol > PROTOCOL_VERSION_DEFAULT) {
+    }
+#if USE_FPS
+    else if (keyops->pmove.pm_type < PM_DEAD && cls.serverProtocol > PROTOCOL_VERSION_DEFAULT) {
+#else
+    else if (ops->pmove.pm_type < PM_DEAD && cls.serverProtocol > PROTOCOL_VERSION_DEFAULT) {
+#endif
         // lerp from predicted angles, since enhanced servers
         // do not send viewangles each frame
+#if USE_FPS
+        LerpAngles(cl.predicted_angles, keyps->viewangles, cl.keylerpfrac, cl.refdef.viewangles);
+#else
         LerpAngles(cl.predicted_angles, ps->viewangles, lerp, cl.refdef.viewangles);
+#endif
     } else {
         // just use interpolated values
         LerpAngles(ops->viewangles, ps->viewangles, lerp, cl.refdef.viewangles);
@@ -1440,6 +1456,7 @@ void CL_CalcViewValues(void)
     VectorCopy(cl.v_right, listener_right);
     VectorCopy(cl.v_up, listener_up);
 }
+
 
 /*
 ===============

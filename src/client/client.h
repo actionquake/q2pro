@@ -321,6 +321,7 @@ typedef struct client_state_s {
             vec3_t      offset;
         } muzzle;
     } weapon;
+
 } client_state_t;
 
 extern client_state_t   cl;
