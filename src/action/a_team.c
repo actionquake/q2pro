@@ -746,10 +746,21 @@ void SelectKit3(edict_t *ent, pmenu_t *p)
 	unicastSound(ent, gi.soundindex("misc/lasersight.wav"), 1.0);
 }
 
-// newrand returns n, where 0 >= n < top
-int newrand (int top)
-{
-	return (int) (random () * top);
+int newrand(int top) {
+    if (top <= 0) {
+        // Return an error or a special value
+        return -1;
+    }
+
+    double random_value = (double)random() / RAND_MAX;
+    double result = random_value * top;
+
+    if (result > INT_MAX) {
+        // Return an error or a special value
+        return -1;
+    }
+
+    return (int)result;
 }
 
 void SelectRandomWeapon(edict_t *ent, pmenu_t *p)
@@ -3976,6 +3987,11 @@ void SelectFarTeamplaySpawnPoint (int team, qboolean teams_assigned[])
 //
 void SetupTeamSpawnPoints (void)
 {
+	if (teamCount <= 0) {
+        gi.dprintf("%s: called when teamCount is 0, this is an error.  Setting teamCount to 2 so we don't crash.\n", __FUNCTION__);
+        teamCount = 2;
+    }
+
 	qboolean teams_assigned[MAX_TEAMS];
 	int i, l;
 
@@ -3999,6 +4015,11 @@ void SetupTeamSpawnPoints (void)
 // Put the potential spawns into arrays for each team.
 void NS_GetSpawnPoints (void)
 {
+	if (teamCount <= 0) {
+        gi.dprintf("%s: called when teamCount is 0, this is an error.  Setting teamCount to 2 so we don't crash.\n", __FUNCTION__);
+        teamCount = 2;
+    }
+
 	int x, i;
 
 	NS_randteam = newrand(teamCount);
