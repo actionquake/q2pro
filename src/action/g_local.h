@@ -1665,12 +1665,7 @@ void EspionageChaseCam(edict_t *self, edict_t *attacker);
 void ChangePlayerSpawns(void);
 void ED_CallSpawn( edict_t *ent );
 //rekkie -- ENGINE_DLL -- s
-#ifdef ACTION_DLL
-//static char* ED_NewString(const char* string);
 char* ED_NewString(const char* string);
-#else
-char* ED_NewString(char* string);
-#endif
 //rekkie -- ENGINE_DLL -- e
 void G_UpdateSpectatorStatusbar( void );
 void G_UpdatePlayerStatusbar( edict_t *ent, int force );

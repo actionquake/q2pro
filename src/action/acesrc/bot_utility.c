@@ -90,6 +90,7 @@ void BOTUT_ShowNodes (edict_t *ent)
     for (i=0; i < numnodes; i++)
     {
         pThisNode = &nodes[i];
+		//pThisNode = nodes[i];
         if (pThisNode->nodenum < 0)
                 continue;
         VectorCopy (pThisNode->origin, vNodePos);
@@ -138,7 +139,7 @@ void BOTUT_Cmd_Say_f (edict_t *ent, char *pMsg)
 	if (ent->client->resp.team == NOTEAM)
 		return;
 
-	Q_snprintf (text, sizeof(text), "%s%s: ", 
+	Com_sprintf (text, sizeof(text), "%s%s: ", 
 		(teamplay->value && (ent->solid == SOLID_NOT || ent->deadflag == DEAD_DEAD)) ? "[DEAD] " : "",
 		ent->client->pers.netname);
 

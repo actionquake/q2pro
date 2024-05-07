@@ -30,7 +30,7 @@
  * 2     25/09/99 8:24 Riever
  * 
  */
-
+/*
 #define ANT_FREQ	0.5	// Time gap between calls to the processor intensive search
 
 	  // ----------- new Pathing Algorithm stuff -----
@@ -50,13 +50,16 @@ enum{
 		AISnipe,
 		AIAmbush
 };
+*/
 
+/*
 // ** Single Linked List (SLL) implementation **
 
 // ** slint_t is a list member ie: one item on the list
 typedef struct slint{
 	struct slint	*next;	// pointer to the next list member
-	int				nodedata;	// The node number we're storing
+	int				node;	// The node number we're storing -=- nodedata
+	float cost;
 } slint_t;
 
 // ** ltklist_t is the actual list and contains a number of slint_t members
@@ -66,7 +69,9 @@ typedef struct{
 	slint_t		*head;	// Front of the list
 	slint_t		*tail;	// Back of the list
 }	ltklist_t;
+*/
 
+/*
 // Now we have to define the operations that can happen on the list
 // All will be prefixed with "SLL" so we know what they are working on when we read the code
 
@@ -77,5 +82,5 @@ int			SLLfront( ltklist_t *thelist );		// Get the integer value from the front o
 void		SLLpush_back( ltklist_t *thelist, int nodedata );	// Add to the back of the list
 qboolean	SLLempty( ltklist_t *thelist );		// See if the list is empty (false if not empty)
 void		SLLdelete( ltklist_t *thelist );	// Free all memory from a list
-
+*/
 #endif

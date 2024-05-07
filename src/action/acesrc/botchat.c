@@ -32,11 +32,11 @@ char *ltk_welcomes[DBC_WELCOMES] =
 		"Give your arse a rest, %s. try talking through your mouth",
 		"Damn! I hoped Thresh would be here...",
 		"Hey Mom, they gave me a gun!",
+		"I gotta find a better server...",
 		"Hey, any of you guys played before?",
 		"Hi %s, I wondered if you'd show your face around here again.",
 		"Nice :-) :-) :-)",
 		"OK %s, let's get this over with"
-		"SUG BALLE SUG BALLE SUG BALLE"
 };
 
 #define DBC_KILLEDS 13
@@ -44,7 +44,7 @@ char *ltk_killeds[DBC_KILLEDS] =
 {
         "B*stard! %s messed up my hair.",
         "All right, %s. Now I'm feeling put out!",
-		"Why you little!",
+        "Hey! Go easy on me! I'm a newbie!",
 		"Ooooh, %s, that smarts!",
 		"%s's mother cooks socks in hell!",
 		"Hey, %s, how about a match - your face and my arse!",
@@ -79,69 +79,26 @@ char *ltk_insults[DBC_INSULTS] =
 };
 
 
-
-#define AQTION_KILLDS 8
-char *aqtion_killeds[AQTION_KILLDS] =
-{
-		"SUG BALLE SUG BALLE"
-        "hahahaha",
-		"lol",
-		"Try using a real gun, %s!",
-		"rofl",
-		"you are getting better, I think",
-		"nice shot",
-		"scared me half to death, %s"
-};
-
-#define AQTION_INSULTS 8
-char *aqtion_insults[AQTION_INSULTS] =
-{
-		"Check out the Discord server!  -->  https://discord.aq2world.com   <--",
-        "Have you visited the forums recently?  -->  https://forums.aq2world.com  <--",
-        "no achievement for u!",
-		"%s is probably still using a ball mouse lol",
-		"well that was unforunate",
-		"gottem",
-		"peek a boooo!",
-		"meh!"
-};
-
-
 void LTK_Chat (edict_t *bot, edict_t *object, int speech)
 {
         char final[150];
         char *text = NULL;
 
-        if ((!object) || (!object->client)) {
-			return;
-		}
+        if ((!object) || (!object->client))
+                return;
 
-		if(!ltk_classic->value){
-			if (speech == DBC_WELCOME) {
-					text = ltk_welcomes[rand()%DBC_WELCOMES];
-			} else if (speech == DBC_KILLED) {
-					text = ltk_killeds[rand()%DBC_KILLEDS];
-			} else if (speech == DBC_INSULT) {
-					text = ltk_insults[rand()%DBC_INSULTS];
-			} else {
-					if( debug_mode )
-							gi.bprintf (PRINT_HIGH, "LTK_Chat: Unknown speech type attempted!(out of range)");
-					return;
-			}
-		} else {
-			if (speech == DBC_WELCOME)
-				return;
-			else if (speech == DBC_KILLED)
-					text = aqtion_killeds[rand()%AQTION_KILLDS];
-			else if (speech == DBC_INSULT)
-					text = aqtion_insults[rand()%AQTION_INSULTS];
-			else
-			{
-					if( debug_mode )
-							gi.bprintf (PRINT_HIGH, "LTK_Chat: Unknown speech type attempted!(out of range)");
-					return;
-			}
-		}
+        if (speech == DBC_WELCOME)
+                text = ltk_welcomes[rand()%DBC_WELCOMES];
+        else if (speech == DBC_KILLED)
+                text = ltk_killeds[rand()%DBC_KILLEDS];
+        else if (speech == DBC_INSULT)
+                text = ltk_insults[rand()%DBC_INSULTS];
+        else
+        {
+                if( debug_mode )
+                        gi.bprintf (PRINT_HIGH, "LTK_Chat: Unknown speech type attempted!(out of range)");
+                return;
+        }
 
         sprintf (final, text, object->client->pers.netname);
 
@@ -160,7 +117,7 @@ void LTK_Say (edict_t *ent, char *what)
 	edict_t	*other;
 	char	text[2048];
 
-        Q_snprintf (text, sizeof(text), "%s: ", ent->client->pers.netname);
+        Com_sprintf (text, sizeof(text), "%s: ", ent->client->pers.netname);
 
         if (*what == '"')
         {

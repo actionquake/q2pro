@@ -284,7 +284,7 @@ placedata_t locationbase[MAX_LOCATIONS_IN_BASE];
 #ifdef ACTION_DLL
 
 //AQ2:M
-static const spawn_t spawns[] = {
+static const spawn_t spawn_funcs[] = {
   {"item_health", SP_item_health},
   {"item_health_small", SP_item_health_small},
   {"item_health_large", SP_item_health_large},
@@ -1791,8 +1791,6 @@ void SpawnEntities (const char *mapname, const char *entities, const char *spawn
 	//rekkie -- Fake Bot Client -- e
 #endif
 //rekkie -- e
-
-#endif
 }
 
 
