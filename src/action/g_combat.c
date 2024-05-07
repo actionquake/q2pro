@@ -461,6 +461,8 @@ void T_Damage (edict_t * targ, edict_t * inflictor, edict_t * attacker, const ve
 	vec_t dist;
 	float targ_maxs2;		//FB 6/1/99
 
+	if ((targ->flags & FL_GODMODE) || targ->solid == SOLID_NOT) return; //rekkie -- specators don't take damage
+
 	// do this before teamplay check
 	if (!targ->takedamage)
 		return;

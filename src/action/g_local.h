@@ -261,6 +261,31 @@
 //
 //-----------------------------------------------------------------------------
 
+//rekkie -- ENGINE_DLL -- s
+#define		ENGINE_DLL
+
+#ifdef	ENGINE_DLL
+#define		ACTION_DLL // Tells shared.h and game.h to use action specific code
+#include	"shared/shared.h"
+#include	"shared/list.h"
+#include	"q_ghud.h"
+
+// define GAME_INCLUDE so that game.h does not define the
+// short, server-visible gclient_t and edict_t structures,
+// because we define the full size ones in this file
+#define		GAME_INCLUDE
+#include	"shared/game.h"
+
+// Redefines
+#define link_t list_t
+#define Com_sprintf Q_snprintf
+#define Q_strncpyz Q_strlcpy
+#define Q_strncatz Q_strlcat
+#define Q_strnicmp Q_strncasecmp
+
+#else 
+//rekkie -- ENGINE_DLL -- e
+
 #include <ctype.h>
 
 #include "shared/shared.h"
@@ -272,6 +297,7 @@
 // because we define the full size ones in this file
 #define		GAME_INCLUDE
 #include	"shared/game.h"
+#endif //rekkie -- ENGINE_DLL
 
 #include	"a_team.h"
 #include	"a_game.h"
@@ -293,7 +319,8 @@
 #include	"p_antilag.h"
 
 #ifndef NO_BOTS
-#include	"acesrc/botnav.h"
+//#include	"acesrc/botnav.h"
+#include	"botlib/botlib.h" //rekkie -- DEV_1
 #endif
 
 #define		getEnt(entnum)	(edict_t *)((char *)globals.edicts + (globals.edict_size * entnum))	//AQ:TNG Slicer - This was missing
@@ -1170,6 +1197,9 @@ extern cvar_t *radio_repeat;
 extern cvar_t *radio_repeat_time;
 
 extern cvar_t *hc_single;  // Enable or disable the single shot handcannon
+extern cvar_t *hc_boost; //rekkie -- allow HC to 'boost' the player
+extern cvar_t *hc_boost_percent; //rekkie -- allow HC to 'boost' the player
+extern cvar_t *hc_silencer; //rekkie -- allow HC to 'boost' the player
 extern cvar_t *wp_flags;   // Weapon flags (bans)
 extern cvar_t *itm_flags;  // Item flags (bans)
 extern cvar_t *use_classic;	// Use_classic resets weapon balance to 1.52
@@ -1501,6 +1531,13 @@ void T_RadiusDamage (edict_t * inflictor, edict_t * attacker, float damage,
 #define DEFAULT_SHOTGUN_COUNT                   12
 #define DEFAULT_SSHOTGUN_COUNT                  20
 
+//rekkie -- DEV_1 -- s
+//
+// g_func.c
+//
+void door_use(edict_t* self, edict_t* other, edict_t* activator);
+//rekkie -- DEV_1 -- e
+
 //
 // g_misc.c
 //
@@ -1509,6 +1546,11 @@ void ThrowClientHead (edict_t * self, int damage);
 void ThrowGib (edict_t * self, char *gibname, int damage, int type);
 void BecomeExplosion1 (edict_t * self);
 void SP_misc_teleporter_dest(edict_t* ent);
+//rekkie -- DEV_1 -- Gib Players -- s
+void QPong_Ball(edict_t* self, int damage);
+void ThrowGibbedHead(edict_t* self, int damage);
+void SpawnBodyToGib(edict_t* self);
+//rekkie -- DEV_1 -- Gib Players -- e
 
 //
 // g_weapon.c
@@ -1622,6 +1664,14 @@ void EspionageChaseCam(edict_t *self, edict_t *attacker);
 //
 void ChangePlayerSpawns(void);
 void ED_CallSpawn( edict_t *ent );
+//rekkie -- ENGINE_DLL -- s
+#ifdef ACTION_DLL
+//static char* ED_NewString(const char* string);
+char* ED_NewString(const char* string);
+#else
+char* ED_NewString(char* string);
+#endif
+//rekkie -- ENGINE_DLL -- e
 char* ED_NewString(char* string);
 void G_UpdateSpectatorStatusbar( void );
 void G_UpdatePlayerStatusbar( edict_t *ent, int force );
@@ -1724,6 +1774,12 @@ typedef struct
 
 	qboolean connected;		// a loadgame will leave valid entities that
 	// just don't have a connection yet
+
+		//rekkie -- surface data -- s
+#if DEBUG_DRAWING
+	debug_draw_t* draw; // debug drawing functions
+#endif
+	//rekkie -- surface data -- e
 
 	qboolean silence_banned; //rekkie -- silence ban
 
@@ -2104,6 +2160,185 @@ struct gclient_s
 	unsigned int dimension_observe;
 };
 
+//rekkie -- s
+#ifndef NO_BOTS
+
+typedef enum {
+	HIGHLIGHTED_NODE_NONE,		// No interaction
+	HIGHLIGHTED_NODE_SELECT,	// Node selection
+	HIGHLIGHTED_NODE_SELECT_SMART,	// Smart node selection
+	HIGHLIGHTED_NODE_ADD,		// Add nodes (either by walking around or mouse1 '+attack' on the ground)
+	HIGHLIGHTED_NODE_FLOODFILL,	// Flood fills the area with nodes (mouse1 '+attack')
+	HIGHLIGHTED_NODE_LINK,		// Add/del link between prev and curr highlighted nodes
+	HIGHLIGHTED_NODE_MOVE,		// Move nodes
+	HIGHLIGHTED_NODE_TYPE,		// Edit node types: NODE_MOVE, ladder, jump, etc (mouse1 '+attack' to change type)
+	HIGHLIGHTED_NODE_LINKTYPE,	// Edit node-to-node link type: crouch, jumppad, boxjump, etc
+	HIGHLIGHTED_NODE_DEL		// Delete nodes
+} highlighted_type_t;
+typedef struct walknodes_s
+{
+	int last_type;		// Previous node type
+	int touched_node; // Last nodes touched
+	vec3_t last_ground_loc; // Location the player last touched the ground
+	vec3_t last_ground_normal; // Normal the player last touched
+	int last_ground_touch;
+
+	qboolean enabled; // If we're editing nodes or not
+	highlighted_type_t highlighted_node_type; // Link, move, ...  highlighted_type_t
+	int highlighted_node;	// The node currently being highlighted
+	int prev_highlighted_node;	// The node previously highlighted
+	int highlighted_time; // Highlight timer
+	int highlighted_counter;
+
+	
+	vec3_t selection_start; // Starting point of the selection square
+	vec3_t selection_end; // Ending point of the selection square
+	float selection_max; // Sets the highest selection point
+	float selection_min; // Sets the lowest selection point
+	int selection_node_first; // First selected node (used to get first area selected)
+	int selection_node_count; // Selected nodes count
+	int selected_node_count_prev; // Prevous selected nodes count
+	int selection_nodes[MAX_NAV_AREAS_NODES]; // Selected nodes are stored here
+	int selection_area; // Sets the area num
+	unsigned int selection_area_color; // Sets the area color
+	qboolean selection_area_used; // Checks if area num was used
+
+} walknodes_t;
+// Hold all the bot information in a single struct
+#define MAX_NODELIST 512
+
+typedef enum {
+	BOT_TYPE_NONE,		// No bot type
+	BOT_TYPE_LTK,		// LTK - OG bots
+	BOT_TYPE_BOTLIB,	// BOTLIB -- New bots
+} bot_type_t;
+
+typedef struct bot_s
+{
+	int bot_type;
+
+	int state; // Bot states: STATE_MOVE, STATE_WANDER, etc
+
+	int pause_time; // Pause bot logic, this is a countdown timer (useful for debugging)
+
+	// Nodes
+	int goal_node; // The node the bot should try to reach
+	int current_node; // The current node the bot (or player) is at
+	int next_node; // The next node (if any) the bot needs to reach
+	int prev_node; // The previous node (if any) the bot came from
+
+	// Area NAV
+	int start_area; // Starting area
+	int current_area; // Current area we're in
+	int goal_area; // Goal area to reach
+	int next_area; // Next area to reach
+	int next_area_nodes[MAX_NAV_AREAS_EDGES]; // Edge-to-edge nodes
+	int next_area_nodes_counter; // Keep track of next node array num
+	int next_area_node; // Next node to reach
+	int next_area_counter; // Keep track of next area array num
+	int path_taken; // If there are multiple paths, select one and save it here
+	int area_heatmap[MAX_NAV_AREAS]; // Track how often an area gets used
+	
+	vec3_t tmp_position; // 
+	vec3_t last_position; // Remember last position
+
+	int bot_baseline_ping;		// Set the baseline ping for this bot  //rekkie -- Fake Bot Client
+	int bot_ping;				// Set the fake ping using its baseline  //rekkie -- Fake Bot Client
+
+	// Bot inputs
+	bot_input_t bi;
+	qboolean jumppad; // Jump was conducted
+	int node_jump_from; // Node bot jumped from
+	int node_jump_to; // Node bot jumped to
+	float jumppad_last_time; // Time until jump can be used again
+	float jumppad_land_time; // Time until landing measures can take place
+	trace_t touch_ground; // If touching the ground. (touch_ground.fraction < 1.0) is true, (touch_ground.fraction == 1.0) is false
+	qboolean touching_ladder; // If bot is touching a ladder
+
+	// Stuck prevention
+	qboolean stuck; // If the bot is stuck true/false
+	int stuck_tries; // How many times the bot tried to unstick
+	int stuck_wander_time; // Wander until counter is zero
+	vec3_t stuck_random_dir;
+	int stuck_last_negate; // Last time we negated the bot's velocity to stop it from sliding off a steep slope
+	qboolean stuck_rnd_dir; // If the bot is trying a random direction to get unstuck
+	int stuck_node; // The node the bot trying to head to if stuck
+	vec3_t stuck_pos; // Current pos we're stuck at
+	vec3_t stuck_old_pos; // Previous pos we were stuck at
+
+	// Nodes
+	int node_list[MAX_NODELIST]; // A copy of the pathList each time it's created - useful to see any nodes the list contained
+	int node_list_count; // Total nodes added to the current node_list
+	int node_list_current; // The current node
+	qboolean node_random_path; // If the bot is taking a direct or random path to goal
+	//
+	int node_prev; // The previous node
+	int node_travel_time; // The time taken to reach the next node
+	int highlighted_node;
+	vec3_t bot_walk_dir; // The current direction from the bot to the next node
+	//
+	qboolean node_poi_holding; // If the bot is currently holding
+	float node_poi_time; // How long the bot should stay at a point of interest node
+	int node_poi_lookat_node; // Which node the bot is looking at
+	float node_poi_look_time; // How long to look at a lookat node
+
+	// Weapons
+	int last_sniper_zoom_time; // Delay time between sniper zoom attempts
+	int last_weapon_change_time; // Delay time between changing weapons
+	int last_weapon_reload_time; // Delay time between reloading weapons
+
+	// Skill
+	float skill; // Variable bot skill. Allow the bot to increase or decrease its own skill based on its score (kills) and bot_skill
+
+	// Items
+	edict_t *get_item; // The current item the bot wants and is located next or or inside of a node
+
+	// CTF
+	bot_ctf_state_t bot_ctf_state; // Get flag, retrieve flag, intercept flag carrier, etc.
+	float ctf_support_time; // Time between ally support checks
+
+	// Adding walk nodes
+	walknodes_t walknode; // Holds all the walk node data
+
+	// Enemy & Damage
+	edict_t *old_enemy;				// Previous enemy, if any
+	qboolean see_enemies;			// If the bot has line of sight to an enemy
+	float reaction_time;			// How quickly the bot reacts to an enemy in sight
+	qboolean enemy_in_xhair;		// If bot's crosshair is lined up with enemy
+	float enemy_dist;				// Distance to enemy
+	float enemy_height_diff;		// Difference in height between bot and enemy
+	int enemies_num;				// Number of enemies in sight
+	int enemies[MAX_CLIENTS];		// Store the enemies in sight
+	int enemies_weight[MAX_CLIENTS];// Store the enemies by weight
+	float enemy_seen_time;			// Last time bot sighted the enemy
+	vec3_t enemy_seen_loc;			// Last seen location
+	float bot_bandage_delay_time;	// Delay before bandaging
+	int enemy_chase_time;			// Delay before chasing enemy attempts
+
+	// Allies
+	int allies_num;					// Number of allies in sight
+	int allies[MAX_CLIENTS];		// Store the allies in sight
+	qboolean ff_allies_after_rnd;	// If the bot is allowed to kill friendlies after a TP round ends
+
+
+	// Radio
+	qboolean radioTeamReportedIn;	// Request team report in
+	int radioLastSawAllyTime;		// Last time since bot saw an ally
+	int radioTeamReportedInDelay;	// Add a delay before triggering the call to request a "team report in" call
+	//
+	qboolean radioReportIn;			// Flag if bot needs to respond to a "team report in" request
+	int radioReportInTime;			// Time a "team report in" request
+	int radioReportInDelay;			// Delay when responding to a "team report in" request
+	//
+	qboolean radioBandaging;		// Flag true to get the bot to radio report
+	//
+	char radioLastHumanMsg[48];		// Get the lastest radio call from a real player on our team
+	//
+	qboolean radioReportKills;		// Flag if the bot reports its kills in radio and chat
+} bot_t;
+#endif
+//rekkie -- e
+
 
 struct edict_s
 {
@@ -2266,8 +2501,58 @@ struct edict_s
 	qboolean	splatted;
 	int			classnum;
 	int			typeNum;
+	float		friction; // If the ent has friction, default 1.0  //rekkie -- DEV_1 -- s
 
+//rekkie - Quake3 -- s
 #ifndef NO_BOTS
+	bot_t bot;
+
+
+
+	//rekkie -- surface data -- s
+	nav_t* nav;
+	//rekkie -- surface data -- e
+
+	//rekkie -- DEV_1 -- s
+	botlib_sll_t pathList;	// Single linked list of node numbers
+	//rekkie -- DEV_1 -- e
+
+	int current_link; // current link -- //rekkie
+
+	vec3_t nearest_path_point; // between curr -> next node, this is the origin the bot is closest to along that path
+
+	float just_spawned_timeout;	// Delay before first moving after spawning
+	qboolean just_spawned;		// If the bot has just spawned
+	qboolean just_spawned_go;	// When the bot should move after spawning
+	//
+	int last_touched_ground;	// Last time player/bot touched ground
+	int last_jumppad_node;		// Last node we conducted a jumppad from
+	float next_node_distance;	// Keep trace of distance
+	int prev_next_node;
+	byte strafe_jumps;			// Keep track of how many strafe jumps were made
+	//
+	//int num_nextnodes;			// How many nodes in the nodepath
+	//int *nextnode;				// Node node list
+	//
+	//int tmp_curr_node;
+	//int tmp_prev_node;
+	//int prev_node;
+	vec3_t prev_velocity;
+	char node_name[32];			// Node name consisting of node num + node type
+	int node_num;				// Node number is here so it can be linked back to nodes[nodenum].nodenum
+	//
+	float highest_velocity;
+	//
+	int show_node_links;		// Display node links from the node we're looking at
+	int show_node_links_time;	// Time to display links
+
+#endif
+	//rekkie - Quake3 -- e
+#ifndef NO_BOTS
+	qboolean velocity_clear;
+	vec3_t velocity_peak; // record the player peak velocity
+	float speed_peak;
+
 	int old_health;
 
 	int recheck_timeout;
@@ -2290,7 +2575,7 @@ struct edict_s
 	qboolean	teamReportedIn;	// Have we reported in yet? 
 	float	lastRadioTime;	// Don't use the radio too often 
 	// Path to follow 
-	ltklist_t	pathList;	// Single linked list of node numbers 
+	//ltklist_t	pathList;	// Single linked list of node numbers 
 	float	antLastCallTime;	// Check for calling complex pathsearcher 
 	// Who killed me? 
 	edict_t	*lastkilledby;	// Set in ClientObituary... 

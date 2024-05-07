@@ -397,6 +397,9 @@ cvar_t *video_force_restart;
 cvar_t *video_check_lockpvs;
 cvar_t *video_check_glclear;
 cvar_t *hc_single;
+cvar_t *hc_boost; //rekkie -- allow HC to 'boost' the player
+cvar_t *hc_boost_percent; //rekkie -- allow HC to 'boost' the player
+cvar_t *hc_silencer;
 cvar_t *wp_flags;		// Weapon Banning
 cvar_t *itm_flags;		// Item Banning
 cvar_t *matchmode;
@@ -471,6 +474,11 @@ cvar_t *medkit_instant;
 cvar_t *medkit_max;
 cvar_t *medkit_value;
 
+//rekkie -- DEV_1 -- Gib Players -- s
+cvar_t* gib_bodies;		// Allow bodies to be gibbed
+cvar_t* gib_heads;		// Allow heads to be interactive
+//rekkie -- DEV_1 -- Gib Players -- e
+
 #ifndef NO_BOTS
 cvar_t *ltk_jumpy;
 cvar_t *ltk_skill;
@@ -480,6 +488,19 @@ cvar_t *ltk_routing;
 cvar_t *ltk_botfile;
 cvar_t *ltk_loadbots;
 cvar_t *ltk_classic;
+//rekkie -- DEV_1 -- s
+cvar_t* bot_showpath;
+cvar_t* bot_skill;		// Skill setting for bots, range 0-10. 0 = easy, 10 = aimbot!
+cvar_t* bot_skill_threshold; // Dynamic skill adjustment kicks in if a threshold has been hit
+cvar_t* bot_remember;	// How long (in seconds) the bot remembers an enemy after visibility has been lost
+cvar_t* bot_reaction;	// How long (in seconds) until the bot reacts to an enemy in sight
+cvar_t* bot_maxteam;	// Max bots allowed in autoteam
+cvar_t* bot_rush;		// Bots rush players by going directly for them
+cvar_t* bot_randvoice;	// Bots use random user voice wavs - percentage [min: 0 max: 100]
+cvar_t* bot_randskill;	// When random bot join a game, they pick a random skill [min: 1, max: 10]. Using 0 will turn this off.
+cvar_t* bot_randname;	// Allow bots to pick a random name
+//cvar_t* bot_randteamskin; // Bots can randomize team skins each map
+//rekkie -- DEV_1 -- e
 #endif
 
 cvar_t *jump;			// jumping mod
@@ -548,6 +569,14 @@ cvar_t *cl_discord_discriminator;
 cvar_t *cl_discord_username;
 cvar_t *cl_discord_avatar;
 
+//rekkie -- ENGINE_DLL -- s
+#ifdef ACTION_DLL
+void SpawnEntities(const char* mapname, const char* entities, const char* spawnpoint);
+#else
+void SpawnEntities(char* mapname, char* entities, char* spawnpoint);
+#endif
+//rekkie -- ENGINE_DLL -- e
+
 void SpawnEntities (const char *mapname, const char *entities, const char *spawnpoint);
 void ClientThink (edict_t * ent, usercmd_t * cmd);
 qboolean ClientConnect (edict_t * ent, char *userinfo);
@@ -557,6 +586,19 @@ void ClientBegin (edict_t * ent);
 void ClientCommand (edict_t * ent);
 void CheckNeedPass (void);
 void RunEntity (edict_t * ent);
+//rekkie -- ENGINE_DLL -- s
+#ifdef ACTION_DLL
+void WriteGame(const char* filename, qboolean autosave);
+void ReadGame(const char* filename);
+void WriteLevel(const char* filename);
+void ReadLevel(const char* filename);
+#else
+void WriteGame(char* filename, qboolean autosave);
+void ReadGame(char* filename);
+void WriteLevel(char* filename);
+void ReadLevel(char* filename);
+#endif
+//rekkie -- ENGINE_DLL -- e
 void WriteGame (const char *filename, qboolean autosave);
 void ReadGame (const char *filename);
 void WriteLevel (const char *filename);
@@ -583,6 +625,10 @@ void ShutdownGame (void)
 	IRC_exit ();
 #ifndef NO_BOTS
 	ACECM_Store();
+	BOTLIB_FreeNodes(); //rekkie -- DEV_1 -- Hard map change. Free any existing node memory used
+	BOTLIB_FreeAreaNodes(); //rekkie -- DEV_1 -- Soft map change. Free all area node memory used
+	DC_Free_Spawnpoints();  //rekkie -- DEV_1 -- Hard map change. Free any existing spawnpoint memory used
+	BOTLIB_SaveBotsFromPreviousMap(); //rekkie -- Hard map change.
 #endif
 	//PG BUND
 	vExitGame ();
@@ -601,7 +647,13 @@ void ShutdownGame (void)
   and global variables
   =================
 */
-q_exported game_export_t *GetGameAPI(game_import_t *import)
+//rekkie -- ENGINE_DLL -- s
+#ifdef	ENGINE_DLL
+q_exported game_export_t* GetGameAPI(game_import_t* import)		//rekkie -- Q2Pro Compatbility
+#else
+game_export_t* GetGameAPI(game_import_t* import)
+#endif
+//rekkie -- ENGINE_DLL -- e
 {
 	gi = *import;
 #ifndef NO_BOTS
@@ -662,33 +714,68 @@ q_exported game_export_t *GetGameAPI(game_import_t *import)
 
 #ifndef GAME_HARD_LINKED
 // this is only here so the functions in q_shared.c can link
-void Com_LPrintf(print_type_t type, const char *fmt, ...)
+//rekkie -- ENGINE_DLL -- s
+#ifdef ENGINE_DLL
+
+// this is only here so the functions in q_shared.c can link
+void Com_LPrintf(print_type_t type, const char* fmt, ...)
 {
-    va_list     argptr;
-    char        text[MAX_STRING_CHARS];
+	va_list     argptr;
+	char        text[MAX_STRING_CHARS];
 
-    if (type == PRINT_DEVELOPER) {
-        return;
-    }
+	if (type == PRINT_DEVELOPER) {
+		return;
+	}
 
-    va_start(argptr, fmt);
-    Q_vsnprintf(text, sizeof(text), fmt, argptr);
-    va_end(argptr);
+	va_start(argptr, fmt);
+	Q_vsnprintf(text, sizeof(text), fmt, argptr);
+	va_end(argptr);
 
-    gi.dprintf("%s", text);
+	gi.dprintf("%s", text);
 }
 
-void Com_Error(error_type_t type, const char *fmt, ...)
+void Com_Error(error_type_t type, const char* fmt, ...)
 {
-    va_list     argptr;
-    char        text[MAX_STRING_CHARS];
+	va_list     argptr;
+	char        text[MAX_STRING_CHARS];
 
-    va_start(argptr, fmt);
-    Q_vsnprintf(text, sizeof(text), fmt, argptr);
-    va_end(argptr);
+	va_start(argptr, fmt);
+	Q_vsnprintf(text, sizeof(text), fmt, argptr);
+	va_end(argptr);
 
-    gi.error("%s", text);
+	gi.error("%s", text);
 }
+
+#else
+
+void Sys_Error (const char *error, ...)
+{
+  va_list argptr;
+  char text[1024];
+
+  va_start (argptr, error);
+  vsnprintf (text, sizeof(text),error, argptr);
+  va_end (argptr);
+
+  gi.error("%s", text);
+}
+
+void Com_Printf (const char *msg, ...)
+{
+  va_list argptr;
+  char text[1024];
+
+  va_start (argptr, msg);
+  vsnprintf (text, sizeof(text), msg, argptr);
+  va_end (argptr);
+
+  gi.dprintf("%s", text);
+}
+
+#endif // End of ENGINE DLL
+//rekkie -- ENGINE_DLL -- e
+
+#endif // End GAME_HARD_LINKED
 
 // // this is only here so the functions in q_shared.c and q_shwin.c can link
 // void Sys_Error (const char *error, ...)
@@ -1009,6 +1096,31 @@ void CheckDMRules (void)
 	if (level.intermission_framenum)
 		return;
 
+	//rekkie -- DEV_1 -- s
+#ifndef NO_BOTS
+	if (FRAMESYNC)
+	{
+		BOTLIB_CheckBotRules();
+
+		// Reduce noise timers
+		for (int i = 0; i < MAX_CLIENTS; i++)
+		{
+			if (botlib_noises.self_time[i] > 0)
+				botlib_noises.self_time[i]--;
+
+			if (botlib_noises.weapon_time[i] > 0)
+			{
+				botlib_noises.weapon_time[i]--;
+				//Com_Printf("%s %s counting PNOISE_WEAPON %d\n", __func__, botlib_noises.owner[i]->client->pers.netname, botlib_noises.weapon_time[i]);
+			}
+
+			if (botlib_noises.impact_time[i] > 0)
+				botlib_noises.impact_time[i]--;
+		}
+	}
+#endif
+	//rekkie -- DEV_1 -- e
+
 	//FIREBLADE
 	if (teamplay->value)
 	{
@@ -1091,6 +1203,8 @@ void ExitLevel (void)
 	int i;
 	edict_t *ent;
 	char command[256];
+
+	BOTLIB_SaveBotsFromPreviousMap(); //rekkie -- Soft map change (timelimit, fraglimit)
 
 	if(softquit) {
 		gi.bprintf(PRINT_HIGH, "Soft quit was requested by admin. The server will now exit.\n");

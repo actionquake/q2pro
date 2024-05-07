@@ -2257,13 +2257,31 @@ static void SpawnPlayers(void)
 			SelectRandomWeaponAndItem(ent, weapmenu);
 		}
 
+//rekkie -- s
 #ifndef NO_BOTS
-		if( !Q_stricmp( ent->classname, "bot" ) )
-			ACESP_PutClientInServer( ent, true, ent->client->resp.team );
-		else
+		if (ent->bot.bot_type == BOT_TYPE_BOTLIB)
+		{
+			BOTLIB_PutClientInServer(ent, true, ent->client->resp.team);
+		}
 #endif
-		PutClientInServer(ent);
+		else
+		//rekkie -- e
+		{
+			PutClientInServer(ent);
+		}
 		AddToTransparentList(ent);
+
+		//rekkie -- DEV_1 -- s
+#ifndef NO_BOTS
+		if (ent->is_bot)
+		{
+			ent->just_spawned = true; // Flag that we've just spawned
+			ent->just_spawned_go = false; // Flag that the bot shouldn't move until ready
+			BOTLIB_PickLongRangeGoal(ent); // Lets pick a long range goal
+			//ACEAI_PickLongRangeGoal(ent); // Lets pick a long range goal
+		}
+#endif
+		//rekkie -- DEV_1 -- e
 	}
 
 	if(matchmode->value	&& limchasecam->value)
@@ -3767,8 +3785,13 @@ void A_ScoreboardMessage (edict_t * ent, edict_t * killer)
 				else if( field == 'P' )
 				{
 #ifndef NO_BOTS
-					if( cl_ent->is_bot )
-						strcpy( buf, " BOT" );
+					//rekkie -- Fake Bot Client -- s
+					if (cl_ent->is_bot)
+						Com_sprintf(buf, sizeof(buf), "%4i", min(9999, cl_ent->bot.bot_ping));
+					//if (0)
+					//rekkie -- Fake Bot Client -- e
+					//if( cl_ent->is_bot )
+					//	strcpy( buf, " BOT" );
 					else
 #endif
 						Q_snprintf( buf, sizeof(buf), "%4i", min( 9999, cl->ping ) );

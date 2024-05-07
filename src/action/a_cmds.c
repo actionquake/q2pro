@@ -287,6 +287,13 @@ void LaserSightThink(edict_t * self)
 
 void Cmd_New_Reload_f(edict_t * ent)
 {
+	//rekkie -- walknodes -- s
+	if (ent->is_bot == false && dedicated->value == 0 && players[0] == ent && ent->bot.walknode.enabled)
+	{
+		BOTLIB_ChangeNodeFunction(ent); // Change the node function using reload key
+	}
+	//rekkie -- walknodes -- e
+	
 //FB 6/1/99 - refuse to reload during LCA
 	if (lights_camera_action)
 		return;

@@ -498,6 +498,51 @@ void ProduceShotgunDamageReport (edict_t *self)
 			total++;
 	}
 
+	//rekkie -- allow HC to 'boost' the player -- s
+	if (hc_boost->value && !total && self->groundentity == NULL && self->client->curr_weap == HC_NUM)
+	{
+		//vec3_t start;
+		vec3_t forward;
+		//vec3_t offset;
+		AngleVectors(self->client->v_angle, forward, NULL, NULL);
+		//VectorSet(offset, 0, 8, self->viewheight);
+		//P_ProjectSource(self->client, self->s.origin, offset, forward, right, start);
+		//trace_t tr = gi.trace(self->s.origin, NULL, NULL, start, self, MASK_SOLID);
+		//if ()
+		VectorInverse(forward);
+
+		// Sanity check
+		if (hc_boost_percent->value <= 0)
+			gi.cvar_set("hc_boost_multiplier", va("%d", 100));
+		if (hc_boost_percent->value > 1000)
+			gi.cvar_set("hc_boost_multiplier", va("%d", 1000));
+
+		float knockback = 300; // Double barrel
+		if (self->client->pers.hc_mode) knockback = 150; // Single barrel
+		float mass = max(self->mass, 50);
+		vec3_t flydir = { 0.f,0.f,0.f }, kvel = { 0.f,0.f,0.f };
+		float accel_scale = hc_boost_percent->value; //100.f; // the rocket jump hack...
+		VectorNormalize2(forward, flydir);
+		flydir[2] += 0.4f;
+		VectorScale(flydir, accel_scale * knockback / mass, kvel);
+		VectorAdd(self->velocity, kvel, self->velocity);
+		VectorAdd(self->client->oldvelocity, kvel, self->client->oldvelocity);
+
+		//if (self->is_bot == false) Com_Printf("%s %f %f %f\n", __func__, self->client->v_angle[0], self->client->v_angle[1], self->client->v_angle[2]);
+
+		/*
+		if (hc_boost_multiplier->value < 0)
+			gi.cvar_set("hc_boost_multiplier", va("%d", 0));
+		if (hc_boost_multiplier->value > 10)
+			gi.cvar_set("hc_boost_multiplier", va("%d", 10));
+		if (self->client->pers.hc_mode == 0) // Double barrel
+			self->velocity[2] += (300 * hc_boost_multiplier->value);
+		else // self->client->pers.hc_mode == 1 // Single barrel
+			self->velocity[2] += (150 * hc_boost_multiplier->value);
+		*/
+	}
+	//rekkie -- allow HC to 'boost' the player -- e
+
 	if (!total)
 		return;
 

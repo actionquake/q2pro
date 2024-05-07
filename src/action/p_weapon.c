@@ -2608,6 +2608,28 @@ void M3_Fire(edict_t* ent)
 
 
 	ent->client->weapon_sound = MZ_SHOTGUN;
+
+	//rekkie -- allow HC to 'boost' the player -- s
+	if (hc_silencer->value && hc_boost->value)
+	{
+		// Check if player hit any players
+		int i, hit_player = 0;
+		gclient_t* cl = NULL;
+		for (i = 0, cl = game.clients; i < game.maxclients; i++, cl++) 
+		{
+			if (cl->took_damage)
+			{
+				hit_player = 1;
+				break;
+			}
+		}
+		// Silence if HC didn't hit any players when boosting
+		if (hit_player == 0) ent->client->weapon_sound |= MZ_SILENCED;
+	}
+	if (hc_silencer->value && INV_AMMO(ent, SIL_NUM)) // Silence if have silencer
+		ent->client->weapon_sound |= MZ_SILENCED;
+	//rekkie -- allow HC to 'boost' the player -- e
+	
 	PlayWeaponSound(ent);
 }
 

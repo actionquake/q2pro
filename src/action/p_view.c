@@ -713,6 +713,23 @@ void P_FallingDamage (edict_t * ent)
 		return;
 	}
 
+	//rekkie -- DEV_1 -- s
+	// CHEATING BOTS: Increased fall height and reduced damage
+	if (ent->is_bot)
+	{
+		if (delta <= 40) // no damage
+		{
+			if (!INV_AMMO(ent, SLIP_NUM))
+				ent->s.event = EV_FALLSHORT;
+			return;
+		}
+		if (delta <= 50) // reduced damage
+		{
+			delta = 30;
+		}
+	}
+	//rekkie -- DEV_1 -- e
+
 	/* when fall damage is disabled, play the normal fall sound */
 	if(DMFLAGS(DF_NO_FALLING))
 	{
@@ -971,6 +988,19 @@ void G_SetClientEffects (edict_t * ent)
 
 	if (ctf->value)
 		CTFEffects (ent);
+
+	//rekkie -- Attach model to player -- s
+	//if (INV_AMMO(ent, SNIPER_NUM) && ent->client->curr_weap != SNIPER_NUM) // If have weapon in inventory, and not currently equipped
+	{
+		//ent->s.renderfx |= RF_ATTACHMENT;
+		//ent->s.modelindex3 = gi.modelindex("models/weapons/a_helm/tris.md2");
+
+		//ent->s.modelindex3 = gi.modelindex("models/weapons/b_sniper/tris.md2");
+		//ent->s.modelindex3 = gi.modelindex("models/weapons/b_gren/tris.md2");
+	}
+	//else
+	//	ent->s.modelindex3 = 0;
+	//rekkie -- Attach model to player -- e
 
 	if (ent->client->quad_framenum > level.framenum)
 	{
