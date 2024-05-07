@@ -1672,7 +1672,6 @@ char* ED_NewString(const char* string);
 char* ED_NewString(char* string);
 #endif
 //rekkie -- ENGINE_DLL -- e
-char* ED_NewString(char* string);
 void G_UpdateSpectatorStatusbar( void );
 void G_UpdatePlayerStatusbar( edict_t *ent, int force );
 int Gamemodeflag(void);
