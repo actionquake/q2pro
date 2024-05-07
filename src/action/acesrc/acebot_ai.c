@@ -631,6 +631,18 @@ void ACEAI_PickSafeGoal(edict_t *self)
 
 	self->current_node = current_node;
 
+	//rekkie -- DEV_1 -- s
+	// Wander if no valid node
+	if (current_node == INVALID)
+	{
+		//debug_printf("%s current_node %i is invalid\n", self->client->pers.netname, current_node);
+		self->state = STATE_WANDER;
+		self->wander_timeout = level.framenum + 1.0 * HZ;
+		self->bot.goal_node = INVALID;
+		return;
+	}
+	//rekkie -- DEV_1 -- e
+
 	i = INVALID;
 	i = ACEND_FindClosestReachableSafeNode(self,NODE_DENSITY,NODE_ALL);
 	if( i != INVALID )
@@ -665,7 +677,7 @@ void ACEAI_PickSafeGoal(edict_t *self)
 //	if(goal_ent != NULL && debug_mode)
 //		debug_printf("%s selected a %s at node %d for LR goal.\n",self->client->pers.netname, goal_ent->classname, goal_node);
 
-	ACEND_SetGoal(self,goal_node);
+	BOTLIB_SetGoal(self,goal_node);
 
 }
 //-----------------------------------------------------------
