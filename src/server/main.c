@@ -457,6 +457,24 @@ static size_t SV_StatusString(char *status)
             memcpy(status + total, entry, len);
             total += len;
         }
+        //rekkie -- Fake Bot Client -- s	
+        for (int i = 0; i < MAX_CLIENTS; i++)
+        {
+            if (bot_clients[i].in_use)
+            {
+                len = Q_snprintf(entry, sizeof(entry), "%i %i \"%s\"\n", bot_clients[i].score, bot_clients[i].ping, bot_clients[i].name);  //entry	example = "0 1 \"[AIR]-Mech\"\n"	char[1024]
+
+                if (len >= sizeof(entry))
+                    continue;
+
+                if (total + len >= SV_OUTPUTBUF_LENGTH)
+                    break; // can't hold any more
+
+                memcpy(status + total, entry, len);
+                total += len;
+            }
+        }
+        //rekkie -- Fake Bot Client -- e
     }
 
     status[total] = 0;
@@ -600,6 +618,11 @@ static void SVC_GetChallenge(void)
         svs.challenges[i].challenge = challenge;
         svs.challenges[i].time = com_eventTime;
     }
+
+    //rekkie -- force max protocol PROTOCOL_VERSION_Q2PRO until PROTOCOL_VERSION_AQTION is compatible again -- s
+    Netchan_OutOfBand(NS_SERVER, &net_from, "challenge %u p=%i,%i,%i", challenge, PROTOCOL_VERSION_DEFAULT, PROTOCOL_VERSION_R1Q2, PROTOCOL_VERSION_Q2PRO);
+    return;
+    //rekkie -- force max protocol PROTOCOL_VERSION_Q2PRO until PROTOCOL_VERSION_AQTION is compatible again -- e
 
     // send it back
     Netchan_OutOfBand(NS_SERVER, &net_from,
@@ -1111,6 +1134,79 @@ static void append_extra_userinfo(conn_params_t *params, char *userinfo)
                params->protocol, params->version, params->nctype,
                params->maxlength, params->qport, params->has_zlib);
 }
+
+//rekkie -- Fake Bot Client -- s
+// Init Fake Bot Client
+void SV_BotInit()
+{
+    for (int i = 0; i < MAX_CLIENTS; i++)
+    {
+        bot_clients[i].in_use = false;
+        bot_clients[i].name[0] = 0;
+        bot_clients[i].ping = 0;
+        bot_clients[i].score = 0;
+    }
+}
+// Game DLL updates Server of bot info
+void SV_BotUpdateInfo(char* name, int ping, int score)
+{
+    for (int i = 0; i < MAX_CLIENTS; i++)
+    {
+        if (bot_clients[i].in_use)
+        {
+            if (strcmp(bot_clients[i].name, name) == 0)
+            {
+                bot_clients[i].ping = ping;
+                bot_clients[i].score = score;
+                return;
+            }
+        }
+    }
+}
+// Game DLL requests Server to add fake bot client
+void SV_BotConnect(char* name)
+{
+    for (int i = 0; i < MAX_CLIENTS; i++)
+    {
+        if (bot_clients[i].in_use == false) // Found a free slot
+        {
+            bot_clients[i].in_use = true;
+            Q_snprintf(bot_clients[i].name, sizeof(bot_clients[i].name), "%s", name);
+            bot_clients[i].ping = 0;
+            bot_clients[i].score = 0;
+            Com_Printf("%s Server added %s as a fake client\n", __func__, bot_clients[i].name);
+            break;
+        }
+    }
+}
+// Game DLL requests Server to remove fake bot client
+void SV_BotDisconnect(char* name)
+{
+    for (int i = 0; i < MAX_CLIENTS; i++)
+    {
+        if (bot_clients[i].in_use && strcmp(bot_clients[i].name, name) == 0)
+        {
+            bot_clients[i].in_use = false;
+            bot_clients[i].name[0] = 0;
+            bot_clients[i].ping = 0;
+            bot_clients[i].score = 0;
+            Com_Printf("%s Server removed %s as a fake client\n", __func__, name);
+            break;
+        }
+    }
+}
+// Game DLL requests Server to clear bot clients (init / map change)
+void SV_BotClearClients(void)
+{
+    for (int i = 0; i < MAX_CLIENTS; i++)
+    {
+        bot_clients[i].in_use = false;
+        bot_clients[i].name[0] = 0;
+        bot_clients[i].ping = 0;
+        bot_clients[i].score = 0;
+    }
+}
+//rekkie -- Fake Bot Client -- e
 
 static void SVC_DirectConnect(void)
 {
@@ -2208,6 +2304,8 @@ void SV_Init(void)
 #endif
 
     AC_Register();
+
+    SV_BotInit(); //rekkie -- Fake Bot Client
 
     SV_RegisterSavegames();
 

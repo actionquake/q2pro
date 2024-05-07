@@ -22,6 +22,30 @@ with this program; if not, write to the Free Software Foundation, Inc.,
 // shared.h -- included first by ALL program modules
 //
 
+//rekkie -- CMAKE -- s
+#if _MSC_VER >= 1920 && !__INTEL_COMPILER
+    //#define NDEBUG 1
+#define VERSION "ReKTeK"
+//#define BUILDSTRING "1"
+//#define CPUSTRING "1"
+//#define BASEGAME "baseq2"
+//#define DEFGAME "baseq2"
+#define PLATFORM "Win64"
+//#define USE_MVD_SERVER 1
+//#define USE_SERVER 1
+//#define USE_CLIENT 1
+//#define USE_DBGHELP 1
+#pragma warning(disable:4305) // warning C4305: 'initializing': truncation from 'double' to 'const vec_t'
+#pragma warning(disable:4244) // warning C4244: '=': conversion from 'int64_t' to 'unsigned int', possible loss of data
+#pragma warning(disable:4267) // warning C4267: 'return': conversion from 'size_t' to 'int', possible loss of data
+#pragma warning(disable:4018) // warning C4018: '>': signed/unsigned mismatch
+#pragma warning(disable:4013) // warning C4013: 'MSG_ShowSVC' undefined; assuming extern returning int
+#pragma warning(disable:4047) // warning C4047: 'function': 'HDC' differs in levels of indirection from 'int'
+#pragma warning(disable:4133) // warning C4133: 'function': incompatible types - from 'HGLRC' to 'HDC'
+#pragma warning(disable:4146) // warning C4146: unary minus operator applied to unsigned type, result still unsigned
+#endif
+//rekkie -- CMAKE -- e
+
 #if HAVE_CONFIG_H
 #include "config.h"
 #endif
@@ -40,6 +64,12 @@ with this program; if not, write to the Free Software Foundation, Inc.,
 //FIREBLADE
 #include <stddef.h>
 //FIREBLADE
+
+//rekkie -- ENGINE_DLL -- s
+#ifdef ACTION_DLL
+#include <stddef.h>
+#endif
+//rekkie -- ENGINE_DLL -- e
 
 #include "shared/platform.h"
 
@@ -1006,6 +1036,7 @@ typedef enum {
 #if AQTION_EXTENSION
 // pmove->pm_aq2_flags
 #define PMF_AQ2_LIMP		0x01 // used to predict limping
+#define PMF_AQ2_FRICTION    0x02 //rekkie -- Increase friction for bots
 #endif
 
 // this structure needs to be communicated bit-accurate
@@ -1160,6 +1191,7 @@ typedef struct {
 #define RF_LOW_PRIORITY     BIT(24)
 #define RF_NO_LOD           BIT(25)
 #define RF_STAIR_STEP       BIT(26)
+#define RF_ATTACHMENT       BIT(27)
 
 #define RF_NO_STEREO        RF_WEAPONMODEL
 #define RF_FLARE_LOCK_ANGLE RF_MINLIGHT

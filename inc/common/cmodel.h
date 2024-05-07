@@ -32,6 +32,15 @@ typedef struct {
     int         override_bits;
     int         checksum;
     char        *entitystring;
+    //rekkie -- surface data -- s
+    nav_t       *nav;   // Navigation the game lib can access
+    //rekkie -- surface data -- e
+
+    //rekkie -- debug drawing -- s
+#if DEBUG_DRAWING
+    debug_draw_t* draw;  // Rendering functions the game lib can access
+#endif
+    //rekkie -- debug drawing -- e
 } cm_t;
 
 void        CM_Init(void);

@@ -87,6 +87,26 @@ link_t;
 typedef struct edict_s edict_t;
 typedef struct gclient_s gclient_t;
 
+//rekkie -- BSP -- s
+//#ifdef ACTION_DLL
+//D:/Quake2/Aqtion-Q2PRO-Local/src/action/game.def
+#define USE_REF 1
+#define REF_GL 1
+#define REF_VKPT 1
+#define USE_REF 1
+#define REF_SOFT 1
+#define USE_DLIGHTS 1
+#include "common/bsp.h"
+
+#ifndef NO_BOTS
+// making real copies for bot compatibility
+extern void (*real_cprintf) (edict_t* ent, int printlevel, const char* fmt, ...);
+extern void (*real_centerprintf) (edict_t* ent, const char* fmt, ...);
+#endif // End of BOTS
+
+//#endif // End of ACTION DLL
+//rekkie -- BSP -- e
+
 #ifndef GAME_INCLUDE
 
 struct gclient_s {
@@ -227,6 +247,29 @@ typedef struct {
 #if AQTION_EXTENSION
 	void *(*CheckForExtension)(char *text);
 #endif
+//rekkie -- BSP -- s
+    //#ifdef ACTION_DLL
+    bsp_t* (*Bsp)(void);
+    //#endif
+    //rekkie -- BSP -- e
+    //rekkie -- surface data -- s
+    nav_t* (*Nav)(void);
+    //rekkie -- debug drawing -- s
+#if DEBUG_DRAWING
+    debug_draw_t* (*Draw)(void);
+//#if USE_REF
+//    void (*GL_DrawArrow)(vec3_t start, vec3_t end, const uint32_t color, float line_width);
+//#endif
+#endif
+    surface_data_t* (*SurfaceData)(void);
+    //rekkie -- surface data -- e
+
+    //rekkie -- Fake Bot Client -- s
+    void (*SV_BotUpdateInfo)(char* name, int ping, int score);
+    void (*SV_BotConnect)(char* name);
+    void (*SV_BotDisconnect)(char* name);
+    void (*SV_BotClearClients)(void);
+    //rekkie -- Fake Bot Client -- e
 } game_import_t;
 
 //

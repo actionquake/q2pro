@@ -64,6 +64,7 @@ cvar_t *gl_drawworld;
 cvar_t *gl_drawentities;
 cvar_t *gl_drawsky;
 cvar_t *gl_showtris;
+cvar_t* gl_showedges; //rekkie -- gl_showedges
 cvar_t *gl_showorigins;
 cvar_t *gl_showtearing;
 #if USE_DEBUG
@@ -84,7 +85,9 @@ cvar_t *gl_vertexlight;
 cvar_t *gl_lightgrid;
 cvar_t *gl_polyblend;
 cvar_t *gl_showerrors;
-
+//rekkie -- Attach model to player -- s
+cvar_t* gl_vert_diff;
+//rekkie -- Attach model to player -- e
 // ==============================================================================
 
 static const vec_t quad_tc[8] = { 0, 1, 0, 0, 1, 1, 1, 0 };
@@ -391,13 +394,33 @@ static void GL_DrawNullModel(void)
     VectorMA(e->origin, 16, glr.entaxis[1], points[3]);
     VectorMA(e->origin, 16, glr.entaxis[2], points[5]);
 
+    //rekkie -- allow gl_showtris to show nodes points as a cross configuration -- s
+    //if (gl_showtris->integer && gl_showtris->integer < 0) // gl_showtris -1, etc.
+    //{
+        // Extend NullModel points in opposite direction
+        VectorMA(e->origin, -16, glr.entaxis[0], points[0]);
+        VectorMA(e->origin, -16, glr.entaxis[1], points[2]);
+        VectorMA(e->origin, -16, glr.entaxis[2], points[4]);
+    //}
+    //rekkie -- allow gl_showtris to show nodes points as a cross configuration -- e
+
     GL_LoadMatrix(glr.viewmatrix);
     GL_BindTexture(0, TEXNUM_WHITE);
     GL_StateBits(GLS_DEFAULT);
     GL_ArrayBits(GLA_VERTEX | GLA_COLOR);
     GL_ColorBytePointer(4, 0, (GLubyte *)colors);
     GL_VertexPointer(3, 0, &points[0][0]);
+    //rekkie -- allow NullModels to be seen behind walls -- s
+    //if (gl_showtris->integer && gl_showtris->integer < 0)
+        GL_DepthRange(0, 0); // Set the far clipping plane to 0 (NullModels can now be seen behind walls)
+    //rekkie -- allow NullModels to be seen behind walls -- e
+
     qglDrawArrays(GL_LINES, 0, 6);
+
+    //rekkie -- allow NullModels to be seen behind walls -- s
+    //if (gl_showtris->integer && gl_showtris->integer < 0)
+        GL_DepthRange(0, 1); // Set the depth buffer back to normal (NullModels are now obscured)
+    //rekkie -- allow NullModels to be seen behind walls -- e
 }
 
 static void make_flare_quad(const entity_t *e, float scale, vec3_t points[4])

@@ -594,6 +594,53 @@ trace_t q_gameabi SV_Trace(const vec3_t start, const vec3_t mins,
     return trace;
 }
 
+//rekkie -- BSP -- s
+//#ifdef ACTION_DLL
+//=============
+// SV_BSP
+//=============
+bsp_t* SV_BSP(void)
+{
+    bsp_t* bsp = sv.cm.cache;
+    if (!bsp) {
+        Com_Error(ERR_DROP, "%s: no map loaded", __func__);
+        return NULL;
+    }
+
+    return bsp;
+}
+//#endif
+//rekkie -- BSP -- e
+
+//rekkie -- surface data -- s
+// Share surface data with game library
+nav_t* CS_NAV(void)
+{
+    nav_t* nav = sv.cm.nav;
+    if (!nav) {
+        //Com_Error(ERR_DROP, "%s: no nav data loaded", __func__);
+        return NULL;
+    }
+
+    return nav;
+}
+
+//rekkie -- debug drawing -- s
+#if DEBUG_DRAWING
+debug_draw_t* CS_DebugDraw(void)
+{
+    debug_draw_t* draw = sv.cm.draw;
+    if (!sv.cm.draw)
+    {
+        //Com_Error(ERR_DROP, "%s: no draw func loaded", __func__);
+        return NULL;
+    }
+    return draw;
+}
+#endif
+//rekkie -- debug drawing -- e
+//rekkie -- surface data -- e
+
 /*
 ==================
 SV_Clip

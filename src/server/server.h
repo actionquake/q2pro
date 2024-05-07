@@ -883,6 +883,51 @@ trace_t q_gameabi SV_Trace(const vec3_t start, const vec3_t mins,
 
 // passedict is explicitly excluded from clipping checks (normally NULL)
 
+//rekkie -- BSP -- s
+//#ifdef ACTION_DLL
+bsp_t* SV_BSP(void);
+//#endif
+//rekkie -- BSP -- e
+
+
+//rekkie -- surface data -- s
+//#if USE_REF
+
+//void GL_DrawArrow(vec3_t start, vec3_t end, const uint32_t color, float line_width);
+//#endif
+//surface_data_t* SV_SURFACE_DATA(void);
+//rekkie -- surface data -- e
+/*
+//rekkie -- surface data -- s
+// Share surface data with game library
+surface_data_t* surface_data_faces;
+surface_data_t* SV_SURFACE_DATA(void)
+{
+    if (!surface_data_faces) {
+        Com_Error(ERR_DROP, "%s: no surface_data_faces loaded", __func__);
+        return NULL;
+    }
+
+    return surface_data_faces;
+}
+//rekkie -- surface data -- e
+*/
+
+//rekkie -- Fake Bot Client -- s
+void SV_BotInit();
+void SV_BotUpdateInfo(char* name, int ping, int score);
+void SV_BotConnect(char* name);
+void SV_BotDisconnect(char* name);
+void SV_BotClearClients(void);
+typedef struct bot_client_s {
+    qboolean in_use;
+    char name[16];
+    int ping;
+    short score;
+} bot_client_t;
+bot_client_t bot_clients[MAX_CLIENTS];
+//rekkie -- Fake Bot Client -- e
+
 trace_t q_gameabi SV_Clip(const vec3_t start, const vec3_t mins,
                           const vec3_t maxs, const vec3_t end,
                           edict_t *clip, int contentmask);
