@@ -80,7 +80,7 @@ node_t *unsorted_nodes; // Used to generate all links, so they can be sorted, th
 //node_t nodes[MAX_PNODES];
 //#define MAX_PNODES 65536 // Absolute max nodes 64k
 
-short int **path_table = NULL;
+//short int **path_table = NULL;
 ////short int path_table[MAX_PNODES][MAX_PNODES];
 
 //rekkie -- DEV_1 -- e

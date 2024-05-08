@@ -1463,7 +1463,7 @@ void BOTLIB_RandomizeAreaColors()
 // Create local area nodes memory alloc
 int total_local_area_nodes;
 qboolean* local_area_nodes;
-qboolean BOTLIB_MallocLocalAreaNodes()
+static qboolean BOTLIB_MallocLocalAreaNodes(void)
 {
 	total_local_area_nodes = 0;
 	local_area_nodes = NULL;
@@ -1485,7 +1485,7 @@ qboolean BOTLIB_MallocLocalAreaNodes()
 	return true; // Success
 }
 // Free local area nodes memory alloc
-void BOTLIB_FreeLocalAreaNodes()
+static void BOTLIB_FreeLocalAreaNodes(void)
 {
 	if (local_area_nodes)
 	{
@@ -3112,6 +3112,7 @@ void BOTLIB_THREAD_LOADAAS(qboolean force)
 	RunThreadsOn(1, true, BOTLIB_THREADING_LOADAAS, &loadaas);
 }
 
+
 // Threaded version
 void BOTLIB_THREADING_LOADAAS(void *param)
 {
@@ -3142,7 +3143,7 @@ void BOTLIB_THREADED_DijkstraPath(edict_t* ent, int from, int to)
 
 	numthreads = 1;
 	GetThreadWork();
-	//RunThreadsOn(1, true, BOTLIB_THREADING_DijkstraPath, &dpath);
+	RunThreadsOn(1, true, BOTLIB_THREADING_DijkstraPath, &dpath);
 
 	HANDLE thdHandle = CreateThread(NULL, 0, BOTLIB_THREADING_DijkstraPath, &dpath, 0, NULL);
 	if (thdHandle != NULL)
@@ -3222,9 +3223,9 @@ void RunThreadsOn(int workcnt, qboolean showpacifier, void (*func), void *param)
 		Com_Printf("%s  (%i)\n", __func__, end - start);
 	}
 }
+#endif // _WIN32
 
-
-#elif GDEF_OS_OSF1
+#ifdef GDEF_OS_OSF1
 
 /*
    ===================================================================
@@ -3257,7 +3258,6 @@ void ThreadUnlock(void) {
 		pthread_mutex_unlock(my_mutex);
 	}
 }
-
 
 /*
    =============
@@ -3326,8 +3326,9 @@ void RunThreadsOn(int workcnt, qboolean showpacifier, void (*func)(int)) {
 	}
 }
 
+#endif // GDEF_OS_OSF1
 
-#elif GDEF_OS_IRIX
+#ifdef GDEF_OS_IRIX
 
 /*
    ===================================================================
@@ -3423,6 +3424,7 @@ void RunThreadsOn(int workcnt, qboolean showpacifier, void (*func)(int)) {
  */
 
 #include <unistd.h>
+#include "system/system.h"
 
 int numthreads = -1;
 
@@ -3440,7 +3442,7 @@ void ThreadSetDefault(void) {
 	}
 
 	if (numthreads > 1) {
-		Sys_Printf("threads: %d\n", numthreads);
+		Com_Printf("threads: %d\n", numthreads);
 	}
 }
 
@@ -3512,13 +3514,83 @@ void recursive_mutex_init(pthread_mutexattr_t attribs) {
 
 	pt_mutex->owner = NULL;
 	if (pthread_mutex_init(&pt_mutex->a_mutex, &attribs) != 0) {
-		Error("pthread_mutex_init failed\n");
+		Com_EPrintf("pthread_mutex_init failed\n");
 	}
 	if (pthread_cond_init(&pt_mutex->cond, NULL) != 0) {
-		Error("pthread_cond_init failed\n");
+		Com_EPrintf("pthread_cond_init failed\n");
 	}
 
 	pt_mutex->lock = 0;
+}
+
+// Threaded version
+void* BOTLIB_THREADING_LOADAAS(void* param)
+{
+    // Sleep while map fully loads and is ready, otherwise we'll get a crash
+    while (level.framenum < 50)
+    {
+        usleep(100000); // usleep takes microseconds, so 100000 microseconds = 100 milliseconds
+    }
+
+    loadaas_t* params = (loadaas_t*)param;
+    if (params != NULL)
+    {
+        ACEND_LoadAAS(params->force);
+    }
+}
+
+// Init and and run the threaded version
+void* BOTLIB_THREAD_LOADAAS(qboolean force)
+{
+    loadaas_t loadaas;
+    loadaas.force = force;
+
+    numthreads = 1;
+    GetThreadWork();
+	RunThreadsOn(1, true, BOTLIB_THREADING_LOADAAS, &loadaas);
+
+    pthread_t thread;
+    if (pthread_create(&thread, NULL, BOTLIB_THREADING_LOADAAS, &loadaas) != 0) {
+        // handle error
+    }
+
+    if (pthread_join(thread, NULL) != 0) {
+        // handle error
+    }
+}
+
+// Threaded version
+void* BOTLIB_THREADING_DijkstraPath(void* param)
+{
+    dijkstra_path_t* dpath = (dijkstra_path_t*)param;
+    if (dpath != NULL)
+    {
+        BOTLIB_DijkstraPath(dpath->ent, dpath->from, dpath->to, true);
+    }
+    return NULL;
+}
+
+// Init and and run the threaded version
+void* BOTLIB_THREADED_DijkstraPath(edict_t* ent, int from, int to)
+{
+    dijkstra_path_t dpath;
+    dpath.ent = ent;
+    dpath.from = from;
+    dpath.to = to;
+
+    numthreads = 1;
+    GetThreadWork();
+	RunThreadsOn(1, true, BOTLIB_THREADING_DijkstraPath, &dpath);
+
+    pthread_t thread;
+    if (pthread_create(&thread, NULL, BOTLIB_THREADING_DijkstraPath, &dpath) != 0) {
+        // handle error
+    }
+
+    if (pthread_join(thread, NULL) != 0) {
+        // handle error
+    }
+	return NULL;
 }
 
 /*
@@ -3526,7 +3598,7 @@ void recursive_mutex_init(pthread_mutexattr_t attribs) {
    RunThreadsOn
    =============
  */
-void RunThreadsOn(int workcnt, qboolean showpacifier, void (*func)(int)) {
+void RunThreadsOn(int workcnt, qboolean showpacifier, void (*func), void *param) {
 	pthread_mutexattr_t mattrib;
 	pthread_attr_t attr;
 	pthread_t work_threads[MAX_THREADS];
@@ -3546,13 +3618,15 @@ void RunThreadsOn(int workcnt, qboolean showpacifier, void (*func)(int)) {
 	if (pthread_attr_setstacksize(&attr, 8388608) != 0) {
 		stacksize = 0;
 		pthread_attr_getstacksize(&attr, &stacksize);
-		Sys_Printf("Could not set a per-thread stack size of 8 MB, using only %.2f MB\n", stacksize / 1048576.0);
+		Com_Printf("Could not set a per-thread stack size of 8 MB, using only %.2f MB\n", stacksize / 1048576.0);
 	}
 
-	if (numthreads == 1) {
-		func(0);
-	}
-	else
+	// Assuming threads > 1 for testing
+	// if (numthreads == 1) {
+	// 	func(0);
+	// }
+	// else
+	if (numthreads > 0)
 	{
 		threaded = qtrue;
 
@@ -3561,10 +3635,10 @@ void RunThreadsOn(int workcnt, qboolean showpacifier, void (*func)(int)) {
 		}
 
 		if (pthread_mutexattr_init(&mattrib) != 0) {
-			Error("pthread_mutexattr_init failed");
+			Com_EPrintf("pthread_mutexattr_init failed");
 		}
 		if (pthread_mutexattr_settype(&mattrib, PTHREAD_MUTEX_ERRORCHECK) != 0) {
-			Error("pthread_mutexattr_settype failed");
+			Com_EPrintf("pthread_mutexattr_settype failed");
 		}
 		recursive_mutex_init(mattrib);
 
@@ -3572,13 +3646,13 @@ void RunThreadsOn(int workcnt, qboolean showpacifier, void (*func)(int)) {
 		{
 			/* Default pthread attributes: joinable & non-realtime scheduling */
 			if (pthread_create(&work_threads[i], &attr, (void* (*)(void*)) func, (void*)(uintptr_t)i) != 0) {
-				Error("pthread_create failed");
+				Com_EPrintf("pthread_create failed");
 			}
 		}
 		for (i = 0; i < numthreads; i++)
 		{
 			if (pthread_join(work_threads[i], NULL) != 0) {
-				Error("pthread_join failed");
+				Com_EPrintf("pthread_join failed");
 			}
 		}
 		pthread_mutexattr_destroy(&mattrib);
@@ -3587,7 +3661,7 @@ void RunThreadsOn(int workcnt, qboolean showpacifier, void (*func)(int)) {
 
 	end = I_FloatTime();
 	if (pacifier) {
-		Sys_Printf(" (%i)\n", end - start);
+		Com_Printf(" (%i)\n", end - start);
 	}
 }
 

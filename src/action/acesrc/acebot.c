@@ -17,5 +17,5 @@ int node_vis[10][10]; // Cached node visibily. node_vis[X][Y] <-- can X see Y? I
 int node_vis_list[10][10];
 nmesh_t nmesh;
 edict_t* node_ents[MAX_EDICTS]; // If the node is attached to an entity (such as a NODE_DOOR being attached to a func_door_rotating or func_door entity)
-short int** path_table;
+short int **path_table = NULL;
 node_t *nodes;
