@@ -686,7 +686,6 @@ void InitGame( void )
 	ltk_routing = gi.cvar( "ltk_routing", "0", 0 );
 	ltk_botfile = gi.cvar( "ltk_botfile", "botdata", 0);
 	ltk_loadbots = gi.cvar( "ltk_loadbots", "1", 0);
-	ltk_classic = gi.cvar( "ltk_classic", "1", 0);
 	//rekkie -- DEV_1 -- s
 	bot_skill = gi.cvar("bot_skill", "7", 0); // Skill setting for bots, range 0-10. 0 = easy, 10 = aimbot!
 	bot_skill_threshold = gi.cvar("bot_skill_threshold", "0", 0); // Dynamic skill adjustment kicks in if a threshold has been hit

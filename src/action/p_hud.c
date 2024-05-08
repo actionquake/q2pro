@@ -186,10 +186,6 @@ void BeginIntermission(edict_t *targ)
 	}
 
 	InitTransparentList();
-	#ifndef NO_BOTS
-	// Clear LTK bot names
-	LTKClearBotNames();
-	#endif
 }
 
 /*

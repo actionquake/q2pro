@@ -19,6 +19,9 @@ with this program; if not, write to the Free Software Foundation, Inc.,
 
 #pragma once
 
+#ifndef BSP_H
+#define BSP_H
+
 #include "shared/list.h"
 #include "common/error.h"
 #include "system/hunk.h"
@@ -621,3 +624,5 @@ mleaf_t *BSP_PointLeaf(mnode_t *node, const vec3_t p);
 mmodel_t *BSP_InlineModel(bsp_t *bsp, const char *name);
 
 void BSP_Init(void);
+
+#endif // BSP_H

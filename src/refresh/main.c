@@ -5052,7 +5052,7 @@ int drawbox_total = 0; // Box point total
 int drawbox_count = 0; // Box point counter
 vec3_t *box_points;
 uint32_t* box_colors;
-qboolean ALLOC_BoxPoints(int num_boxes)
+static qboolean ALLOC_BoxPoints(int num_boxes)
 {
     void* if_null_1 = NULL;
     void* if_null_2 = NULL;
@@ -5198,7 +5198,7 @@ void GL_DrawBox(vec3_t origin, uint32_t color, vec3_t mins, vec3_t maxs, qboolea
 }
 
 // Batch draw call: render min/max box
-void GL_AddDrawBox(vec3_t origin, uint32_t color, vec3_t mins, vec3_t maxs, qboolean occluded)
+static void GL_AddDrawBox(vec3_t origin, uint32_t color, vec3_t mins, vec3_t maxs, qboolean occluded)
 {
     const vec3_t axis[3] = { 1,0,0, 0,1,0, 0,0,1 };
 
@@ -5264,7 +5264,7 @@ void GL_AddDrawBox(vec3_t origin, uint32_t color, vec3_t mins, vec3_t maxs, qboo
 
     }
 }
-void GL_BatchDrawBoxes(int num_boxes, qboolean occluded)
+static void GL_BatchDrawBoxes(int num_boxes, qboolean occluded)
 {
     if (drawbox_total)
     {
@@ -5415,7 +5415,7 @@ int drawarrow_total = 0; // Draw arrows total
 int drawarrow_count = 0; // Draw arrows counter
 vec3_t* arrow_points = NULL;
 uint32_t* arrow_colors = NULL;
-qboolean ALLOC_Arrows(int num_arrows)
+static qboolean ALLOC_Arrows(int num_arrows)
 {
     void* if_null_1 = NULL;
     void* if_null_2 = NULL;
@@ -5463,7 +5463,7 @@ qboolean ALLOC_Arrows(int num_arrows)
 
     return true;
 }
-void FREE_Arrows(void)
+static void FREE_Arrows(void)
 {
     if (arrow_points != NULL)
     {
@@ -5482,7 +5482,7 @@ void FREE_Arrows(void)
 //===========================================================================
 // 
 //===========================================================================
-void GL_DrawArrow(vec3_t start, vec3_t end, uint32_t color, float line_width, qboolean occluded)
+static void GL_DrawArrow(vec3_t start, vec3_t end, uint32_t color, float line_width, qboolean occluded)
 {
     const uint32_t colors[2] = { color, color };
     vec3_t points[2];
@@ -5591,7 +5591,7 @@ void GL_AddDrawArrow(vec3_t start, vec3_t end, uint32_t color, float line_width,
         }
     }
 } //end of the function GL_DrawArrow
-void GL_BatchDrawArrows(qboolean occluded)
+static void GL_BatchDrawArrows(qboolean occluded)
 {
     if (drawarrow_total)
     {
@@ -5824,7 +5824,7 @@ static void GL_DrawSelection(void)
     }
 }
 
-static void GL_InitDebugDraw()
+static void GL_InitDebugDraw(void)
 {
     // Malloc nav
     if (sv.cm.draw == NULL)

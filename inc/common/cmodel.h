@@ -18,13 +18,16 @@ with this program; if not, write to the Free Software Foundation, Inc.,
 
 #pragma once
 
+#ifndef CMODEL_H
+#define CMODEL_H
+
 #include "common/bsp.h"
 
 // bitmasks communicated by server
 #define MAX_MAP_AREA_BYTES      (MAX_MAP_AREAS / 8)
 #define MAX_MAP_PORTAL_BYTES    128
 
-typedef struct {
+typedef struct cm_s {
     bsp_t       *cache;
     int         *floodnums;     // if two areas have equal floodnums,
                                 // they are connected
@@ -94,3 +97,5 @@ bool        CM_HeadnodeVisible(mnode_t *headnode, byte *visbits);
 
 void        CM_WritePortalState(cm_t *cm, qhandle_t f);
 void        CM_ReadPortalState(cm_t *cm, qhandle_t f);
+
+#endif // CMODEL_H

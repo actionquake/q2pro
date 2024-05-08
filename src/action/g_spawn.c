@@ -258,6 +258,10 @@ void SP_point_combat (edict_t * self);
 void SP_misc_explobox (edict_t * self);
 void SP_misc_banner (edict_t * self);
 void SP_misc_satellite_dish (edict_t * self);
+void SP_misc_gib_arm (edict_t * self);
+void SP_misc_gib_leg (edict_t * self);
+void SP_misc_gib_head (edict_t * self);
+
 void SP_misc_deadsoldier (edict_t * self);
 void SP_misc_viper (edict_t * self);
 void SP_misc_viper_bomb (edict_t * self);
@@ -653,40 +657,6 @@ void CheckItem (edict_t * ent)
 			return;
 		}
 	}
-}
-
-
-/*
-=============
-ED_NewString
-=============
-*/
-char *ED_NewString (char *string)
-{
-	char *newb, *new_p;
-	int i, l;
-
-	l = strlen (string) + 1;
-
-	newb = gi.TagMalloc (l, TAG_LEVEL);
-
-	new_p = newb;
-
-	for (i = 0; i < l; i++)
-	{
-		if (string[i] == '\\' && i < l - 1)
-		{
-			i++;
-			if (string[i] == 'n')
-				*new_p++ = '\n';
-			else
-				*new_p++ = '\\';
-		}
-		else
-			*new_p++ = string[i];
-	}
-
-	return newb;
 }
 
 //rekkie -- ENGINE_DLL -- s

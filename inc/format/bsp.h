@@ -18,6 +18,9 @@ with this program; if not, write to the Free Software Foundation, Inc.,
 
 #pragma once
 
+#ifndef FORMAT_BSP_H
+#define FORMAT_BSP_H
+
 /*
 ==============================================================================
 
@@ -83,3 +86,5 @@ typedef struct {
     uint32_t    fileofs;
     uint32_t    filelen;
 } xlump_t;
+
+#endif // FORMAT_BSP_H

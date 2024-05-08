@@ -95,11 +95,6 @@ void SendScores(void)
 	// Stats: Reset roundNum
 	game.roundNum = 0;
 	// Stats end
-
-	#ifndef NO_BOTS
-	// Clear LTK bot names
-	LTKClearBotNames();
-	#endif
 }
 
 void Cmd_Sub_f(edict_t * ent)

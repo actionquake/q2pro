@@ -55,7 +55,7 @@ int last_client_model3[MAX_CLIENTS];
 extern cvar_t* gl_vert_diff;
 qboolean model_diff_changed = false; // If a difference was found
 static mod_vert_t* model_difference = NULL; // Cache the model's vertex data
-void MOD_GetModelDiff(short numverts, maliasvert_t* verts)
+static void MOD_GetModelDiff(short numverts, maliasvert_t* verts)
 {
 	Cvar_Set("gl_vert_diff", "0");
 
@@ -111,7 +111,7 @@ void MOD_GetModelDiff(short numverts, maliasvert_t* verts)
     }
 }
 
-void MatrixMultiply(double* A, double* B, double* C)
+static void MatrixMultiply(double* A, double* B, double* C)
 {
     // A matrix multiplication (dot product) of two 4x4 matrices.
     // Actually, we are only using matrices with 3 rows and 4 columns.

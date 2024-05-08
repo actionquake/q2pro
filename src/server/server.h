@@ -914,7 +914,7 @@ surface_data_t* SV_SURFACE_DATA(void)
 */
 
 //rekkie -- Fake Bot Client -- s
-void SV_BotInit();
+void SV_BotInit(void);
 void SV_BotUpdateInfo(char* name, int ping, int score);
 void SV_BotConnect(char* name);
 void SV_BotDisconnect(char* name);
