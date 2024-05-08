@@ -399,7 +399,7 @@ qboolean BOTLIB_DijkstraPath(edict_t* ent, int from, int to, qboolean path_rando
 
 // Node data for our linked list
 typedef struct {
-	struct slint* next;	// Next node
+	struct botlib_sll_nodes_t* next;	// Next node
 	int	node;			// Node number
 	float cost;			// Cost from previous node to this node
 	int parent_node;	//rekkie -- the node we came from

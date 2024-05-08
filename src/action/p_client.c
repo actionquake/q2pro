@@ -4839,13 +4839,15 @@ void ClientThink(edict_t * ent, usercmd_t * ucmd)
 		int nodes_touched = 0;
 		int node = INVALID;
 		int node_type = INVALID;
-		float node_to_node_dist = 99999;
+		//float node_to_node_dist = 99999;  //Unused?
 		int from, to;
 
 		trace_t tr = gi.trace(ent->s.origin, NULL, NULL, tv(ent->s.origin[0], ent->s.origin[1], ent->s.origin[2] - 25), ent, MASK_PLAYERSOLID);
-		float height_diff = ent->s.origin[2] - tr.endpos[2]; // Height difference between player and ground
-		float distance = VectorDistance(ent->bot.walknode.last_ground_loc, tr.endpos); // Distance between ground touches
-		float speed = VectorLength(ent->velocity); // Player speed
+		
+		//unused
+		//float height_diff = ent->s.origin[2] - tr.endpos[2]; // Height difference between player and ground
+		//float distance = VectorDistance(ent->bot.walknode.last_ground_loc, tr.endpos); // Distance between ground touches
+		//float speed = VectorLength(ent->velocity); // Player speed
 
 		//Com_Printf("%s height_diff %f\n", __func__, height_diff);
 
@@ -4978,8 +4980,7 @@ void ClientThink(edict_t * ent, usercmd_t * ucmd)
 				if (tr.startsolid == false) // Make sure we're not inside a wall
 				{
 					int node_added;
-					if (node_added = BOTLIB_AddNode(ent->s.origin, tr.plane.normal, NODE_MOVE) != INVALID)
-					{
+					if ((node_added = (BOTLIB_AddNode(ent->s.origin, tr.plane.normal, NODE_MOVE) != INVALID)) != 0){
 						char typename[32] = { '\0' }; // Length of the longest node type name
 						NodeTypeToString(ent, nodes[node_added].type, typename, sizeof(typename));
 						Com_Printf("%s %s added node [%d] type [%s]\n", __func__, ent->client->pers.netname, node_added, typename);
@@ -5830,12 +5831,11 @@ void ClientThink(edict_t * ent, usercmd_t * ucmd)
 								dist = VectorLength(v);
 
 								if (higher > 0)  // Node is higher than origin
-									Com_Printf("%s n[%i to %i] - t[%i to %i] - dist %f z_up: %d\n", __func__, ent->show_node_links, targetNode, nodes[ent->show_node_links].type, nodes[targetNode].type, dist, higher);
+									Com_Printf("%s n[%i to %i] - t[%i to %i] - dist %f z_up: %f\n", __func__, ent->show_node_links, targetNode, nodes[ent->show_node_links].type, nodes[targetNode].type, dist, higher);
 								else if (lower != 99999) // Node is lower than origin
-									Com_Printf("%s n[%i to %i] - t[%i to %i] - dist %f z_dn: %i\n", __func__, ent->show_node_links, targetNode, nodes[ent->show_node_links].type, nodes[targetNode].type, dist, lower);
+									Com_Printf("%s n[%i to %i] - t[%i to %i] - dist %f z_dn: %f\n", __func__, ent->show_node_links, targetNode, nodes[ent->show_node_links].type, nodes[targetNode].type, dist, lower);
 								else // Node at equal dist to origin
-									Com_Printf("%s n[%i to %i] - t[%i to %i] - dist %f z_eq: %d\n", __func__, ent->show_node_links, targetNode, nodes[ent->show_node_links].type, nodes[targetNode].type, dist, 0);
-							}
+									Com_Printf("%s n[%i to %i] - t[%i to %i] - dist %f z_eq: %i\n", __func__, ent->show_node_links, targetNode, nodes[ent->show_node_links].type, nodes[targetNode].type, dist, 0);							}
 						}
 					}
 			}

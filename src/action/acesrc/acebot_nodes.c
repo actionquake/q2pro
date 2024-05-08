@@ -3153,7 +3153,7 @@ void ACEND_BuildSpawnPointNodes(void)
 	// Exit if no DM SPs found
 	if (!sp_counter)
 	{
-		Com_Printf("%s Failed build spawn point nodes. No deathmatch spawn points found.\n", __func__, MAX_SP_NODES);
+		Com_Printf("%s Failed build spawn point nodes. No deathmatch spawn points found.\n", __func__);
 		return;
 	}
 
@@ -3591,9 +3591,8 @@ void ACEND_BuildVisibilityNodes(void)
 	{
 		num_vis_nodes = 0; // Reset global vis node counter
 		nvl_counter = 0;
-		for (dn = 0; dn < MAX_VIS_NODES; dn++)
+		for (dn = 0; dn < MAX_VIS_NODES && dn < 10; dn++)
 		{
-			//node_vis_list[sn][nvl_counter++] = INVALID;
 			node_vis_list[sn][dn] = INVALID;
 		}
 

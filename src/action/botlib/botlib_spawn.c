@@ -1444,7 +1444,9 @@ void BOTLIB_RemoveBot(char* name)
 					//rekkie -- Fake Bot Client -- e
 
 					bot->health = 0;
-					player_die(bot, bot, bot, 100000, vec3_origin);
+					vec3_t non_const_origin; // Convert to non-const
+					VectorCopy(vec3_origin, non_const_origin);
+					player_die (bot, bot, bot, 100000, non_const_origin);
 					// don't even bother waiting for death frames
 					//bot->deadflag = DEAD_DEAD;
 					//bot->inuse = false;
@@ -1495,7 +1497,9 @@ void BOTLIB_RemoveBot(char* name)
 				//rekkie -- Fake Bot Client -- e
 
 				bot->health = 0;
-				player_die(bot, bot, bot, 100000, vec3_origin);
+				vec3_t non_const_origin; // Convert to non-const
+				VectorCopy(vec3_origin, non_const_origin);
+				player_die (bot, bot, bot, 100000, non_const_origin);
 				// don't even bother waiting for death frames
 				//bot->deadflag = DEAD_DEAD;
 				//bot->inuse = false;

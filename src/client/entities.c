@@ -2375,24 +2375,32 @@ f[1] newvert[154 129 255] fpos[2.353810 -2.608329 7.616862]
                             vec3_t old_origin, new_origin;
 
 						    /*
-                            old_origin[0] = ((normal[0] * scale) + attachment_verts[s1->number - 1][amv_count].pos[0] + src_oldvert->pos[0]); //* (oldscale[0] / player_model->frames[0].scale[0]);
-                            old_origin[1] = ((normal[1] * scale) + attachment_verts[s1->number - 1][amv_count].pos[1] + src_oldvert->pos[1]); //* (oldscale[1] / player_model->frames[0].scale[1]);
+                            old_origin[0] = ((normal[0] * scale) + attachment_verts[s1->number - 1][amv_count].pos[0] + src_oldvert->pos[0]); 
+                            //* (oldscale[0] / player_model->frames[0].scale[0]);
+                            old_origin[1] = ((normal[1] * scale) + attachment_verts[s1->number - 1][amv_count].pos[1] + src_oldvert->pos[1]); 
+                            //* (oldscale[1] / player_model->frames[0].scale[1]);
                             if (cent->prev.frame >= FRAME_crstnd01 && cent->prev.frame <= FRAME_crstnd19)
                                 old_origin[2] = ((normal[2] * scale) + attachment_verts[s1->number - 1][amv_count].pos[2] + src_oldvert->pos[2]); // * (oldscale[2] / player_model->frames[0].scale[2]) - 32;
                             else if (cent->prev.frame >= FRAME_jump1 && cent->prev.frame <= FRAME_jump6)
                                 old_origin[2] = ((normal[2] * scale) + attachment_verts[s1->number - 1][amv_count].pos[2] + src_oldvert->pos[2]); // * (oldscale[2] / player_model->frames[0].scale[2]) + 56;
                             else
-                                old_origin[2] = ((normal[2] * scale) + attachment_verts[s1->number - 1][amv_count].pos[2] + src_oldvert->pos[2]); //* (oldscale[2] / player_model->frames[0].scale[2]);
+                                old_origin[2] = ((normal[2] * scale) + attachment_verts[s1->number - 1][amv_count].pos[2] + src_oldvert->pos[2]); 
+                                //* (oldscale[2] / player_model->frames[0].scale[2]);
 							
 							
-                            new_origin[0] = ((normal[0] * scale) + attachment_verts[s1->number - 1][amv_count].pos[0] + src_newvert->pos[0]); //* (newscale[0] / player_model->frames[0].scale[0]);
-                            new_origin[1] = ((normal[1] * scale) + attachment_verts[s1->number - 1][amv_count].pos[1] + src_newvert->pos[1]); //* (newscale[1] / player_model->frames[0].scale[1]);
+                            new_origin[0] = ((normal[0] * scale) + attachment_verts[s1->number - 1][amv_count].pos[0] + src_newvert->pos[0]); 
+                            //* (newscale[0] / player_model->frames[0].scale[0]);
+                            new_origin[1] = ((normal[1] * scale) + attachment_verts[s1->number - 1][amv_count].pos[1] + src_newvert->pos[1]); 
+                            //* (newscale[1] / player_model->frames[0].scale[1]);
                             if (cent->current.frame >= FRAME_crstnd01 && cent->current.frame <= FRAME_crstnd19)
-                                new_origin[2] = ((normal[2] * scale) + attachment_verts[s1->number - 1][amv_count].pos[2] + src_newvert->pos[2]); //* (newscale[2] / player_model->frames[0].scale[2]) - 32;
+                                new_origin[2] = ((normal[2] * scale) + attachment_verts[s1->number - 1][amv_count].pos[2] + src_newvert->pos[2]); 
+                                //* (newscale[2] / player_model->frames[0].scale[2]) - 32;
                             else if (cent->current.frame >= FRAME_jump1 && cent->current.frame <= FRAME_jump6)
-                                new_origin[2] = ((normal[2] * scale) + attachment_verts[s1->number - 1][amv_count].pos[2] + src_newvert->pos[2]); //* (newscale[2] / player_model->frames[0].scale[2]) + 56;
+                                new_origin[2] = ((normal[2] * scale) + attachment_verts[s1->number - 1][amv_count].pos[2] + src_newvert->pos[2]); 
+                                //* (newscale[2] / player_model->frames[0].scale[2]) + 56;
                             else
-                                new_origin[2] = ((normal[2] * scale) + attachment_verts[s1->number - 1][amv_count].pos[2] + src_newvert->pos[2]); //* (newscale[2] / player_model->frames[0].scale[2]);
+                                new_origin[2] = ((normal[2] * scale) + attachment_verts[s1->number - 1][amv_count].pos[2] + src_newvert->pos[2]); 
+                                //* (newscale[2] / player_model->frames[0].scale[2]);
                             */
 								
                             /*
@@ -2480,6 +2488,7 @@ f[1] newvert[154 129 255] fpos[2.353810 -2.608329 7.616862]
                             LerpVector2(attach_model->meshes[0].verts[amv_count].pos, new_origin, backlerp, frontlerp, attach_model->meshes[0].verts[amv_count].pos);
                             */
 							
+                            
                             //*
                             vert_diff[0] = new_vert[0] - org_vert[s1->number - 1][0];
                             vert_diff[1] = new_vert[1] - org_vert[s1->number - 1][1];

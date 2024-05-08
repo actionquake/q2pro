@@ -123,7 +123,7 @@ qboolean ACECM_Commands(edict_t *ent)
 			if( ent->inuse && ent->is_bot && IS_ALIVE(ent) )
 			{
 				AntInitSearch( ent );
-				BOTLIB_SetGoal( ent, node );
+				//BOTLIB_SetGoal( ent, node );  // Does this exist?
 				ent->state = STATE_MOVE;
 				ent->node_timeout = 0;
 			}

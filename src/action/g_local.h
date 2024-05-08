@@ -1435,6 +1435,12 @@ extern field_t fields[];
 extern gitem_t itemlist[];
 
 //
+// a_cmds.c
+//
+
+void _SetSniper(edict_t * ent, int zoom);
+
+//
 // g_cmds.c
 //
 qboolean FloodCheck(edict_t *ent);

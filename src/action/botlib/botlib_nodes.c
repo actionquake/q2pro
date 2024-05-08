@@ -4492,7 +4492,7 @@ void BOTLIB_RestoreEntsSolidState(solid_t* trigger_solid)
 }
 
 // Add nodes at item locations
-void BOTLIB_AddItemNodes()
+static void BOTLIB_AddItemNodes(void)
 {
 	// ===========================
 	// Add nodes at item locations
@@ -4629,7 +4629,7 @@ void BOTLIB_AddItemNodes()
 }
 
 // Find the reachability for each node
-void BOTLIB_ProcesssReachabilities()
+static void BOTLIB_ProcesssReachabilities(void)
 {
 	vec3_t zero = { 0 };
 	node_t* from_node;	// From node

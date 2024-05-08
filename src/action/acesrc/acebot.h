@@ -340,6 +340,7 @@ int      ACEIT_ClassnameToIndex( char *classname );
 void     ACEIT_BuildItemNodeTable (qboolean rebuild);
 
 // acebot_movement.c protos
+qboolean ACEMV_CanMove(edict_t *self, int direction);
 qboolean ACEMV_SpecialMove(edict_t *self,usercmd_t *ucmd);
 //void     ACEMV_Move(edict_t *self, usercmd_t *ucmd);
 void     ACEMV_Attack (edict_t *self, usercmd_t *ucmd);
@@ -411,6 +412,7 @@ void		BOTAI_PickShortRangeGoal(edict_t *bot);
 void		BOTAI_SetGoal(edict_t *self, int goal_node);
 void		BOTAI_Think(edict_t *bot);
 qboolean	BOTAI_VisibleEnemy( edict_t *self );
+void        ACEND_SetGoal(edict_t *self, int goal_node);
 
 // bot_collision.c protos
 qboolean	BOTCOL_CanJumpForward(edict_t	*self, vec3_t angles);
@@ -694,6 +696,7 @@ extern int node_vis_list[10][10]; // Cached node visibility list. node_vis_list[
 qboolean ACEAI_IsEnemy(edict_t* self, edict_t* other);
 short BOTLIB_EnemiesAlive(edict_t* self);
 short BOTLIB_AlliesAlive(edict_t* self);
+qboolean ACEAI_CheckShot(edict_t *self);
 
 // DC Movement
 void BOTLIB_MOV_Move(edict_t* self, usercmd_t* ucmd);

@@ -71,7 +71,7 @@ void	ACEAI_Cmd_Choose( edict_t *ent, char *s);
 //==============================
 // Get the number of the next team a bot should join
 //==============================
-int GetNextTeamNumber()
+static int GetNextTeamNumber(void)
 {
         int i, onteam1 = 0, onteam2 = 0, onteam3 = 0;
         edict_t *e;
@@ -698,7 +698,9 @@ void ACESP_RemoveBot(char *name)
 				//rekkie -- Fake Bot Client -- e
 				
 				bot->health = 0;
-				player_die (bot, bot, bot, 100000, vec3_origin);
+				vec3_t non_const_origin; // Convert to non-const
+				VectorCopy(vec3_origin, non_const_origin);
+				player_die (bot, bot, bot, 100000, non_const_origin);
 				// don't even bother waiting for death frames
 //				bot->deadflag = DEAD_DEAD;
 //				bot->inuse = false;
@@ -762,7 +764,7 @@ void ACESP_RemoveTeamplayBot(int team)
 						//rekkie -- Fake Bot Client -- e
 
 						if (bot->health)
-							player_die(bot, bot, bot, 100000, vec3_origin);
+							player_die (bot, bot, bot, 100000, vec3_origin);
 						ClientDisconnect(bot);
 						break;
 					}
@@ -882,7 +884,7 @@ void DC_GetRandomBotName(byte gender, char* bot_name)
 // Gets a random clan tag char symbol: ie --> [ ], ( ), { }, < >, etc
 // Returns char
 //======================================
-int DC_GetRandomClanSymbol()
+static int DC_GetRandomClanSymbol(void)
 {	
 	int sym = rand() % 27;
 	switch (sym)
@@ -959,7 +961,7 @@ int DC_GetOpposingClanSymbol(char symbol)
 // Gets a random clan letter
 // Returns char
 //======================================
-int DC_GetRandomClanLetter()
+static int DC_GetRandomClanLetter(void)
 {
 	// Gets a random ASCII letter between 65 and 90, or 97 and 122
 	int letter = rand() % 52;

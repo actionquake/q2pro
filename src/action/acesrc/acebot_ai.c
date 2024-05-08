@@ -912,7 +912,7 @@ void ACEAI_PickSafeGoal(edict_t *self)
 	{
 		self->state = STATE_FLEE;
 		self->tries = 0; // Reset the count of how many times we tried this goal
-		BOTLIB_SetGoal(self,i);
+		//BOTLIB_SetGoal(self,i); // Does this exist?
 		self->wander_timeout = level.framenum + 2.0 * HZ;
 //		LTK_Say (self, "Under fire, extracting!");
 
@@ -939,7 +939,7 @@ void ACEAI_PickSafeGoal(edict_t *self)
 //	if(goal_ent != NULL && debug_mode)
 //		debug_printf("%s selected a %s at node %d for LR goal.\n",self->client->pers.netname, goal_ent->classname, goal_node);
 
-	BOTLIB_SetGoal(self,goal_node);
+	//BOTLIB_SetGoal(self,goal_node); Does this exist?
 
 }
 //-----------------------------------------------------------

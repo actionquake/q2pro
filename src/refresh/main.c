@@ -5107,7 +5107,7 @@ static qboolean ALLOC_BoxPoints(int num_boxes)
 
     return true;
 }
-void FREE_BoxPoint(void)
+static void FREE_BoxPoint(void)
 {
 	if (box_points != NULL)
 	{

@@ -661,18 +661,16 @@ void BOTLIB_InitAreaConnections()
 	}
 
 	// Print connections
-	/*
-	for (int i = 0; i < MAX_NAV_AREAS; i++)
-	{
-		for (int a = 0; a < MAX_NAV_AREAS; a++)
-		{
-			if (nav_area.adjacency_matrix[i][a] != INVALID)
-			{
-				Com_Printf("Nav area [%d] connects to [%d]\n", i, a);
-			}
-		}
-	}
-	*/
+	// for (int i = 0; i < MAX_NAV_AREAS; i++)
+	// {
+	// 	for (int a = 0; a < MAX_NAV_AREAS; a++)
+	// 	{
+	// 		if (nav_area.adjacency_matrix[i][a] != INVALID)
+	// 		{
+	// 			Com_Printf("Nav area [%d] connects to [%d]\n", i, a);
+	// 		}
+	// 	}
+	// }
 
 
 	// Cache all the nodes in each area
@@ -3537,6 +3535,7 @@ void* BOTLIB_THREADING_LOADAAS(void* param)
     {
         ACEND_LoadAAS(params->force);
     }
+	return NULL;
 }
 
 // Init and and run the threaded version
@@ -3551,12 +3550,13 @@ void* BOTLIB_THREAD_LOADAAS(qboolean force)
 
     pthread_t thread;
     if (pthread_create(&thread, NULL, BOTLIB_THREADING_LOADAAS, &loadaas) != 0) {
-        // handle error
+        gi.dprintf("Error creating thread in %s\n", __func__);
     }
 
     if (pthread_join(thread, NULL) != 0) {
-        // handle error
+        gi.dprintf("Error creating thread in %s\n", __func__);
     }
+	return NULL;
 }
 
 // Threaded version

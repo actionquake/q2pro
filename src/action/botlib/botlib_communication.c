@@ -342,7 +342,7 @@ static void BOTLIB_GetNearbyTeamList(edict_t* self, char* buf)
 // Radio commands
 void BOTLIB_Radio(edict_t* self, usercmd_t* ucmd)
 {
-	char buffer[256]; // Chat buffer
+	char buffer[1024]; // Chat buffer
 
 	if (teamplay->value == 0) return; // Only radio in TP games
 	if (team_round_going == false || lights_camera_action) return; // Only allow radio during a real match (after LCA and before win/loss announcement)
