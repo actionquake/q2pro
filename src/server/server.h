@@ -925,7 +925,6 @@ typedef struct bot_client_s {
     int ping;
     short score;
 } bot_client_t;
-bot_client_t bot_clients[MAX_CLIENTS];
 //rekkie -- Fake Bot Client -- e
 
 trace_t q_gameabi SV_Clip(const vec3_t start, const vec3_t mins,

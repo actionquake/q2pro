@@ -1504,6 +1504,9 @@ char *vtos (const vec3_t v);
 float vectoyaw (vec3_t vec);
 void vectoangles (vec3_t vec, vec3_t angles);
 
+// g_trigger.c
+void hurt_touch(edict_t* self, edict_t* other, cplane_t* plane, csurface_t* surf);
+
 //
 // g_combat.c
 //
@@ -1648,6 +1651,7 @@ edict_t *ChooseRandomPlayer(int teamNum, qboolean allowBot);
 //
 // g_chase.c
 //
+void DisableChaseCam (edict_t *ent);
 void UpdateChaseCam (edict_t * ent);
 int ChaseTargetGone (edict_t * ent);
 void NextChaseMode( edict_t *ent );

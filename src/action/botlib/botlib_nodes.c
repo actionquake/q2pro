@@ -2736,7 +2736,7 @@ void BOTLIB_SetAllNodeNormals()
 
 // Compression -- s
 #if USE_ZLIB
-#include "..\..\extern\zlib\zlib.h"
+#include <zlib.h>
 //#include <stdio.h>
 //#include <stdlib.h>
 //#include <string.h>
@@ -4750,9 +4750,8 @@ void BOTLIB_BSP_SURFACES(bsp_t* bsp)
 		for (e = 0, src_surfedge = surf->firstsurfedge; e < surf->numsurfedges; e++, src_surfedge++)
 		{
 			// Copy edge verts
-			VectorCopy(src_surfedge->edge->v[0]->point, nmesh.face[f].edge[e].v[0]);
-			VectorCopy(src_surfedge->edge->v[1]->point, nmesh.face[f].edge[e].v[1]);
-
+			VectorCopy(bsp->vertices[bsp->edges[src_surfedge->edge].v[0]].point, nmesh.face[f].edge[e].v[0]);
+			VectorCopy(bsp->vertices[bsp->edges[src_surfedge->edge].v[1]].point, nmesh.face[f].edge[e].v[1]);
 
 			// Copy face verts
 			nv = nmesh.face[f].num_verts;

@@ -61,7 +61,7 @@ typedef struct mtexinfo_s {  // used internally due to name len probs //ZOID
 #endif
 } mtexinfo_t;
 
-#if USE_REF
+//#if USE_REF
 typedef struct {
     vec3_t      point;
 } mvertex_t;
@@ -117,7 +117,7 @@ typedef struct mface_s {
     struct entity_s     *entity;
     struct mface_s      *next;
 } mface_t;
-#endif
+//#endif
 
 typedef struct mnode_s {
     /* ======> */
@@ -206,7 +206,7 @@ typedef struct mmodel_s {
 } mmodel_t;
 
 //rekkie -- surface data -- s
-#if USE_REF
+//#if USE_REF
 // Surface data structure to store information about surfaces: their faces, normals, edge verts, etc.
 #define MAX_FACE_VERTS 64
 #define MAX_FACE_CONNECTIONS 1024 //(MAX_SAVED_VERTS / 2)
@@ -377,11 +377,10 @@ typedef struct nav_s
     short int faces_total; // Current number of faces in the array
     short int ignored_faces_total; // Ignored faces: FACETYPE_IGNORED, FACETYPE_NONE
 } nav_t;
-nav_t* nav_;
 nav_t* CS_NAV(void);
 void MoveAwayFromNormal(const int drawflags, const vec3_t normal, vec3_t out, const float distance);
 //extern nav_t nav;
-#endif
+//#endif
 //rekkie -- surface data -- e
 
 
@@ -420,7 +419,7 @@ typedef struct draw_string_s
     qboolean occluded;
 } draw_string_t;
 #define MAX_DRAW_STRINGS 4096
-draw_string_t draw_strings[MAX_DRAW_STRINGS];
+
 void DrawString(int number, vec3_t origin, const char* string, const uint32_t color, const int time, qboolean occluded);
 
 
@@ -434,7 +433,6 @@ typedef struct draw_crosses_s
     qboolean occluded;
 } draw_crosses_t;
 #define MAX_DRAW_CROSSES 4096
-draw_crosses_t draw_crosses[MAX_DRAW_CROSSES];
 void DrawCross(int number, vec3_t origin, int time, qboolean occluded);
 
 void GL_DrawBox(vec3_t origin, uint32_t color, vec3_t mins, vec3_t maxs, qboolean occluded);
@@ -449,7 +447,6 @@ typedef struct draw_boxes_s
     qboolean occluded;
 } draw_boxes_t;
 #define MAX_DRAW_BOXES 6144
-draw_boxes_t draw_boxes[MAX_DRAW_BOXES];
 void DrawBox(int number, vec3_t origin, uint32_t color, vec3_t mins, vec3_t maxs, int time, qboolean occluded);
 
 void GL_AddDrawArrow(vec3_t start, vec3_t end, uint32_t color, float line_width, qboolean occluded);
@@ -464,7 +461,6 @@ typedef struct draw_arrows_s
     qboolean occluded;
 } draw_arrows_t;
 #define MAX_DRAW_ARROWS 8192
-draw_arrows_t draw_arrows[MAX_DRAW_ARROWS];
 void DrawArrow(int number, vec3_t start, vec3_t end, uint32_t color, float line_width, int time, qboolean occluded);
 
 // OpenGL selection square
@@ -481,7 +477,7 @@ typedef struct draw_selection_s
     float line_width;
     qboolean occluded;
 } draw_selection_t;
-draw_selection_t draw_selection;
+
 void DrawSelection(vec3_t start, vec3_t end, float min, float max, uint32_t color, float line_width, int time, qboolean occluded);
 
 #endif

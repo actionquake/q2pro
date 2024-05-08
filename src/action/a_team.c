@@ -2345,7 +2345,7 @@ void RunWarmup (void)
 	if (warmup_bots->value){
 		gi.cvar_forceset("am", "1");
 		gi.cvar_forceset("am_botcount", warmup_bots->string);
-		attract_mode_bot_check();
+		//attract_mode_bot_check();
 	}
 	#endif
 }
@@ -3787,7 +3787,7 @@ void A_ScoreboardMessage (edict_t * ent, edict_t * killer)
 #ifndef NO_BOTS
 					//rekkie -- Fake Bot Client -- s
 					if (cl_ent->is_bot)
-						Com_sprintf(buf, sizeof(buf), "%4i", min(9999, cl_ent->bot.bot_ping));
+						Q_snprintf(buf, sizeof(buf), "%4i", min(9999, cl_ent->bot.bot_ping));
 					//if (0)
 					//rekkie -- Fake Bot Client -- e
 					//if( cl_ent->is_bot )

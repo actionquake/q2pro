@@ -5830,11 +5830,11 @@ void ClientThink(edict_t * ent, usercmd_t * ucmd)
 								dist = VectorLength(v);
 
 								if (higher > 0)  // Node is higher than origin
-									Com_Printf("%s n[%i to %i] - t[%i to %i] - dist %f z_up: %f\n", __func__, ent->show_node_links, targetNode, nodes[ent->show_node_links].type, nodes[targetNode].type, dist, higher);
+									Com_Printf("%s n[%i to %i] - t[%i to %i] - dist %f z_up: %d\n", __func__, ent->show_node_links, targetNode, nodes[ent->show_node_links].type, nodes[targetNode].type, dist, higher);
 								else if (lower != 99999) // Node is lower than origin
-									Com_Printf("%s n[%i to %i] - t[%i to %i] - dist %f z_dn: %f\n", __func__, ent->show_node_links, targetNode, nodes[ent->show_node_links].type, nodes[targetNode].type, dist, lower);
+									Com_Printf("%s n[%i to %i] - t[%i to %i] - dist %f z_dn: %i\n", __func__, ent->show_node_links, targetNode, nodes[ent->show_node_links].type, nodes[targetNode].type, dist, lower);
 								else // Node at equal dist to origin
-									Com_Printf("%s n[%i to %i] - t[%i to %i] - dist %f z_eq: %f\n", __func__, ent->show_node_links, targetNode, nodes[ent->show_node_links].type, nodes[targetNode].type, dist, 0);
+									Com_Printf("%s n[%i to %i] - t[%i to %i] - dist %f z_eq: %d\n", __func__, ent->show_node_links, targetNode, nodes[ent->show_node_links].type, nodes[targetNode].type, dist, 0);
 							}
 						}
 					}

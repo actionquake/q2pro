@@ -843,7 +843,11 @@ int GetThreadWork(void);
 //void RunThreadsOnIndividual(int workcnt, qboolean showpacifier, void (*func)(int));
 void RunThreadsOnIndividual(int workcnt, qboolean showpacifier, void (*func), void *param);
 //void RunThreadsOn(int workcnt, qboolean showpacifier, void (*func)(int));
+#ifdef _WIN32
 void RunThreadsOn(int workcnt, qboolean showpacifier, void(*func), void* param);
+#else
+void RunThreadsOn(int workcnt, qboolean showpacifier, void (*func)(int));
+#endif
 void ThreadLock(void);
 void ThreadUnlock(void);
 //rekkie -- Quake3 -- e

@@ -88,6 +88,12 @@ cvar_t *gl_showerrors;
 //rekkie -- Attach model to player -- s
 cvar_t* gl_vert_diff;
 //rekkie -- Attach model to player -- e
+
+draw_arrows_t draw_arrows[MAX_DRAW_ARROWS];
+draw_boxes_t draw_boxes[MAX_DRAW_BOXES];
+draw_crosses_t draw_crosses[MAX_DRAW_CROSSES];
+nav_t* nav_;
+
 // ==============================================================================
 
 static const vec_t quad_tc[8] = { 0, 1, 0, 0, 1, 1, 1, 0 };
@@ -4975,7 +4981,7 @@ void GL_DrawString(vec3_t origin, const char* string, const uint32_t color, qboo
     VectorSubtract(origin, glr.fd.vieworg, org);
     float distance = VectorLength(org);
     float mult = 300 / distance; // 300
-    clamp(mult, 0.25, 5);
+    Q_clip(mult, 0.25, 5);
 
     int sizex = 8 * mult;
     int sizey = 8 * mult;
@@ -5009,6 +5015,7 @@ void GL_DrawString(vec3_t origin, const char* string, const uint32_t color, qboo
 int drawstring_total = 0; // Draw string total
 int drawstring_count = 0; // Draw string counter
 // GL_DrawString() is called to render the text
+draw_string_t draw_strings[MAX_DRAW_STRINGS];
 void DrawString(int number, vec3_t origin, const char* string, const uint32_t color, const int time, qboolean occluded)
 {
     if (number + 1 > MAX_DRAW_STRINGS) return;
@@ -5618,6 +5625,7 @@ static void GL_BatchDrawArrows(qboolean occluded)
 int drawcross_total = 0; // Draw cross total
 int drawcross_count = 0; // Draw cross counter
 // GL_DrawCross() is called to render the array
+
 void DrawCross(int number, vec3_t origin, int time, qboolean occluded)
 {
     if (number + 1 > MAX_DRAW_CROSSES) return;
@@ -5794,6 +5802,7 @@ static void GL_DrawArrows(void)
 }
 
 //GL_DrawSelectionSquare
+draw_selection_t draw_selection;
 void DrawSelection(vec3_t start, vec3_t end, float min, float max, uint32_t color, float line_width, int time, qboolean occluded)
 {
     if (draw_selection.time < 100) // Give the gamelib some time to renew the draw request

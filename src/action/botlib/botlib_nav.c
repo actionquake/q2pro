@@ -3040,11 +3040,13 @@ void RunThreadsOnIndividual(int workcnt, qboolean showpacifier, void(*func), voi
 		ThreadSetDefault();
 	}
 	workfunction = func;
+	#ifdef _WIN32
 	RunThreadsOn(workcnt, showpacifier, ThreadWorkerFunction, param);
+	#endif
 }
 
 
-#if GDEF_OS_WINDOWS
+#ifdef _WIN32
 
 /*
    ===================================================================
@@ -3411,7 +3413,7 @@ void RunThreadsOn(int workcnt, qboolean showpacifier, void (*func)(int)) {
 }
 
 
-#elif GDEF_OS_LINUX || GDEF_OS_BSD || GDEF_OS_MACOS
+#else
 
 /*
    =======================================================================
@@ -3591,48 +3593,48 @@ void RunThreadsOn(int workcnt, qboolean showpacifier, void (*func)(int)) {
 }
 
 
-#else // UNKNOWN OS
+// #else // UNKNOWN OS
 
-/*
-   =======================================================================
+// /*
+//    =======================================================================
 
-   SINGLE THREAD
+//    SINGLE THREAD
 
-   =======================================================================
- */
+//    =======================================================================
+//  */
 
-int numthreads = 1;
+// int numthreads = 1;
 
-void ThreadSetDefault(void) {
-	numthreads = 1;
-}
+// void ThreadSetDefault(void) {
+// 	numthreads = 1;
+// }
 
-void ThreadLock(void) {
-}
+// void ThreadLock(void) {
+// }
 
-void ThreadUnlock(void) {
-}
+// void ThreadUnlock(void) {
+// }
 
-/*
-   =============
-   RunThreadsOn
-   =============
- */
-void RunThreadsOn(int workcnt, qboolean showpacifier, void (*func)(int)) {
-	int start, end;
+// /*
+//    =============
+//    RunThreadsOn
+//    =============
+//  */
+// void RunThreadsOn(int workcnt, qboolean showpacifier, void (*func)(int)) {
+// 	int start, end;
 
-	dispatch = 0;
-	workcount = workcnt;
-	oldf = -1;
-	pacifier = showpacifier;
-	start = I_FloatTime();
-	func(0);
+// 	dispatch = 0;
+// 	workcount = workcnt;
+// 	oldf = -1;
+// 	pacifier = showpacifier;
+// 	start = I_FloatTime();
+// 	func(0);
 
-	end = I_FloatTime();
-	if (pacifier) {
-		Com_Printf("%s  (%i)\n", __func__, end - start);
-	}
-}
+// 	end = I_FloatTime();
+// 	if (pacifier) {
+// 		Com_Printf("%s  (%i)\n", __func__, end - start);
+// 	}
+// }
 
 #endif // UNKNOWN OS
 
