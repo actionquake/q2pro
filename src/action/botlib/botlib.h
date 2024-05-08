@@ -50,7 +50,7 @@ typedef struct bot_connections_s
 	int desire_team2;
 	int desire_team3;
 } bot_connections_t;
-bot_connections_t bot_connections;
+extern bot_connections_t bot_connections;
 
 //the bot input, will be converted to a usercmd_t
 typedef struct bot_input_s
@@ -105,7 +105,7 @@ typedef struct botlib_noises_s
 	vec3_t impact_origin[MAX_CLIENTS];
 
 } botlib_noises_t;
-botlib_noises_t botlib_noises;
+extern botlib_noises_t botlib_noises;
 
 // Actionable flags
 #define ACTION_NONE				0x00000000	// No action taken
@@ -167,7 +167,7 @@ typedef struct ctf_status_s
 	float team1_carrier_dist_to_home; // How close the red team carrier is to the home red flag node
 	float team2_carrier_dist_to_home; // How close the blue team carrier is to the home blue flag node
 } ctf_status_t;
-ctf_status_t bot_ctf_status;
+extern ctf_status_t bot_ctf_status;
 
 // Get flag, retrieve flag, intercept flag carrier, etc.
 typedef enum
@@ -328,8 +328,8 @@ void BOTLIB_Look(edict_t* self, usercmd_t* ucmd);
 #define MAX_NAV_AREAS_EDGES 64
 #define MAX_NAV_AREAS_PATHS 512 //512
 #define MAX_NAV_AREAS_NODES 4096
-int DFS_area_nodes[MAX_NAV_AREAS][MAX_NAV_AREAS_NODES]; // Area nodes - [(32 * 1024) * 4 bytes = 132k]
-int DFS_area_edges[MAX_NAV_AREAS][MAX_NAV_AREAS_EDGES]; // Area edge nodes (area edges that connect to other areas) - [(32 * 64) * 4 bytes = 8k]
+extern int DFS_area_nodes[MAX_NAV_AREAS][MAX_NAV_AREAS_NODES]; // Area nodes - [(32 * 1024) * 4 bytes = 132k]
+extern int DFS_area_edges[MAX_NAV_AREAS][MAX_NAV_AREAS_EDGES]; // Area edge nodes (area edges that connect to other areas) - [(32 * 64) * 4 bytes = 8k]
 
 
 
@@ -352,7 +352,28 @@ typedef struct {
 
 
 } nav_area_t;
-nav_area_t nav_area;
+extern nav_area_t nav_area;
+
+//===============================
+// Quake 3 Multithreading Code
+//===============================
+// qthreads.h -- https://github.com/DaemonEngine/daemonmap/blob/d91a0d828e27f75c74e5c3398b2778036e8544f6/tools/quake3/common/qthreads.h
+void BOTLIB_THREAD_LOADAAS(qboolean force);		// Init and run this function threaded
+void BOTLIB_THREADING_LOADAAS(void* param);		// Running in a thread
+typedef struct loadaas_s // Struct used to send parameters to the threaded function
+{
+	qboolean force;
+} loadaas_t;
+
+void BOTLIB_THREADED_DijkstraPath(edict_t* ent, int from, int to);
+void BOTLIB_THREADING_DijkstraPath(void* param);
+typedef struct dijkstra_path_s // Struct used to send parameters to the threaded function
+{
+	edict_t *ent;
+	int from;
+	int to;
+} dijkstra_path_t;
+//===============================
 
 void BOTLIB_MallocAreaNodes(void);
 void BOTLIB_FreeAreaNodes(void);
@@ -422,9 +443,9 @@ typedef struct {
 	vec3_t origin;		// Spawn point location
 	vec3_t angles;		// Spawn point direction
 } dc_sp_t;
-dc_sp_t* dc_sp;
-int dc_sp_count; // Total spawn points
-qboolean dc_sp_edit; // If the spawn points have been made visible for editing
+extern dc_sp_t* dc_sp;
+extern int dc_sp_count; // Total spawn points
+extern qboolean dc_sp_edit; // If the spawn points have been made visible for editing
 #define DC_SP_LIMIT 255 // Maximum spawn points
 #define DC_SP_VERSION 1 // Version of spawn point file
 void DC_Init_Spawnpoints(void); // Initialise spawn points

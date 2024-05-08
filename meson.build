@@ -211,6 +211,7 @@ action_src = [
 ]
 
 ltk_src = [
+  'src/action/acesrc/acebot.c',
   'src/action/acesrc/acebot_ai.c',
   'src/action/acesrc/acebot_cmds.c',
   'src/action/acesrc/acebot_compress.c',
@@ -232,11 +233,11 @@ ltk_src = [
 ]
 
 botlib_src = [
+  'src/action/botlib/botlib.c',
   'src/action/botlib/botlib_ai.c',
   'src/action/botlib/botlib_cmd.c',
   'src/action/botlib/botlib_communication.c',
   'src/action/botlib/botlib_ctf.c',
-  'src/action/botlib/botlib.h',
   'src/action/botlib/botlib_items.c',
   'src/action/botlib/botlib_math.c',
   'src/action/botlib/botlib_movement.c',
@@ -301,7 +302,7 @@ dll_link_args = []
 
 if cc.get_argument_syntax() == 'gcc'
   if x86
-    add_global_arguments('-msse2', '-mfpmath=sse', language: 'c')
+    add_global_arguments('-msse2', '-mfpmath=sse', '-mmodel=medium', language: 'c')
   endif
 
   test_args = [
@@ -334,6 +335,8 @@ if cc.get_argument_syntax() == 'gcc'
   endif
 elif cc.get_id() == 'msvc'
   common_args += ['/wd4146', '/wd4244', '/wd4305']
+else
+  dll_link_args += '--no-relax'
 endif
 
 add_project_arguments(common_args, language: 'c')

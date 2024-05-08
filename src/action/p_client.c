@@ -3251,11 +3251,11 @@ void ClientBeginDeathmatch(edict_t * ent)
     	ACEIT_RebuildPlayerList();
 #if USE_AQTION
 		StatBotCheck();
-		#if USE_AQTION
-			if(am->value){
-				attract_mode_bot_check();
-		}
-	#endif
+		// #if USE_AQTION
+		// 	if(am->value){
+		// 		attract_mode_bot_check();
+		// }
+		// #endif
 #endif
 #endif
 
@@ -3671,11 +3671,11 @@ void ClientDisconnect(edict_t * ent)
 #if USE_AQTION
 	StatBotCheck();
 
-	#if USE_AQTION
-		if(am->value){
-			attract_mode_bot_check();
-		}
-	#endif
+	// #if USE_AQTION
+	// 	if(am->value){
+	// 		attract_mode_bot_check();
+	// 	}
+	// #endif
 #endif
 #endif
 }

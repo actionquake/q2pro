@@ -2,7 +2,6 @@
 #include "../acesrc/acebot.h"
 #include "botlib.h"
 
-
  //== GLOBAL SEMAPHORE ==
 int	antSearch;
 

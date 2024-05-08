@@ -279,13 +279,13 @@ extern node_t *unsorted_nodes; // Used to generate all links, so they can be sor
 #define MAX_PNODES 8096 //8096
 //32768 Absolute max nodes
 //extern node_t *nodes;
-node_t *nodes;
+extern node_t *nodes;
 //node_t *nodes[MAX_PNODES];
 //node_t nodes[MAX_PNODES];
 //extern node_t nodes[MAX_PNODES];
 //rekkie -- DEV_1 -- e
 
-short int** path_table;
+extern short int** path_table;
 ////short int path_table[MAX_PNODES][MAX_PNODES];
  
 //extern node_t nodes[MAX_NODES];
@@ -568,10 +568,10 @@ extern cvar_t* bot_randname;
 typedef struct {
 	char name[16];			// Name
 }bot_names_t;
-int	dc_total_male_names;		// Total male names
-int	dc_total_female_names;		// Total female names
-bot_names_t bot_male[MAX_BOT_NAMES];	// Cached copy
-bot_names_t bot_female[MAX_BOT_NAMES];	// Cached copy
+extern int dc_total_male_names;		// Total male names
+extern int dc_total_female_names;		// Total female names
+extern bot_names_t bot_male[MAX_BOT_NAMES];	// Cached copy
+extern bot_names_t bot_female[MAX_BOT_NAMES];	// Cached copy
 
 
 
@@ -673,15 +673,15 @@ typedef struct nmesh_s {
 	unsigned bsp_checksum; // Map checksum
 
 } nmesh_t;
-nmesh_t nmesh;
+extern nmesh_t nmesh;
 
 
-int num_poi_nodes;
-int poi_nodes[MAX_POI_NODES];
-edict_t* node_ents[MAX_EDICTS]; // If the node is attached to an entity (such as a NODE_DOOR being attached to a func_door_rotating or func_door entity)
-int num_vis_nodes;
-int node_vis[10][10]; // Cached node visibily. node_vis[X][Y] <-- can X see Y? If Y == INVALID, then false. Otherwise Y == NODE NUM
-int node_vis_list[10][10]; // Cached node visibility list. node_vis_list[X][list-of-nodes-x-can-see]  <-- All the nodes that X can see.
+extern int num_poi_nodes;
+extern int poi_nodes[MAX_POI_NODES];
+extern edict_t* node_ents[MAX_EDICTS]; // If the node is attached to an entity (such as a NODE_DOOR being attached to a func_door_rotating or func_door entity)
+extern int num_vis_nodes;
+extern int node_vis[10][10]; // Cached node visibily. node_vis[X][Y] <-- can X see Y? If Y == INVALID, then false. Otherwise Y == NODE NUM
+extern int node_vis_list[10][10]; // Cached node visibility list. node_vis_list[X][list-of-nodes-x-can-see]  <-- All the nodes that X can see.
 //int node_vis[MAX_PNODES][MAX_PNODES]; // Cached node visibily. node_vis[X][Y] <-- can X see Y? If Y == INVALID, then false. Otherwise Y == NODE NUM
 //int node_vis_list[MAX_PNODES][MAX_VIS_NODES]; // Cached node visibility list. node_vis_list[X][list-of-nodes-x-can-see]  <-- All the nodes that X can see.
 
@@ -817,26 +817,6 @@ void	 DC_LoadRandomBotName(char* userinfo);
 */
 
 
-//===============================
-// Quake 3 Multithreading Code
-//===============================
-// qthreads.h -- https://github.com/DaemonEngine/daemonmap/blob/d91a0d828e27f75c74e5c3398b2778036e8544f6/tools/quake3/common/qthreads.h
-void BOTLIB_THREAD_LOADAAS(qboolean force);		// Init and run this function threaded
-void BOTLIB_THREADING_LOADAAS(void* param);		// Running in a thread
-typedef struct loadaas_s // Struct used to send parameters to the threaded function
-{
-	qboolean force;
-} loadaas_t;
-
-void BOTLIB_THREADED_DijkstraPath(edict_t* ent, int from, int to);
-void BOTLIB_THREADING_DijkstraPath(void* param);
-typedef struct dijkstra_path_s // Struct used to send parameters to the threaded function
-{
-	edict_t *ent;
-	int from;
-	int to;
-} dijkstra_path_t;
-//
 extern int numthreads;
 void ThreadSetDefault(void);
 int GetThreadWork(void);

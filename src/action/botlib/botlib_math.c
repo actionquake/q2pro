@@ -1,4 +1,5 @@
 #include "../g_local.h"
+#include "botlib.h"
 
 // Math helper functions, utilities and other useful math based tools
 

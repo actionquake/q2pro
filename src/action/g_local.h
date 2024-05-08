@@ -278,7 +278,7 @@
 
 // Redefines
 #define link_t list_t
-// #define Com_sprintf Q_snprintf
+#define Com_sprintf Q_snprintf
 // #define Q_strncpyz Q_strlcpy
 // #define Q_strncatz Q_strlcat
 // #define Q_strnicmp Q_strncasecmp
