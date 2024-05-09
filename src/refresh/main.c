@@ -5072,7 +5072,7 @@ static qboolean ALLOC_BoxPoints(int num_boxes)
 	}
 	else if (num_boxes != drawbox_total)
 	{
-        if (box_points[0] == NULL || box_colors[0] == NULL)
+        if (box_points == NULL || box_colors == NULL)
             return false;
 
         if_null_1 = box_points;
@@ -5208,7 +5208,7 @@ void GL_DrawBox(vec3_t origin, uint32_t color, vec3_t mins, vec3_t maxs, qboolea
 static void GL_AddDrawBox(vec3_t origin, uint32_t color, vec3_t mins, vec3_t maxs, qboolean occluded)
 {
     const vec3_t axis[3] = { {1,0,0}, {0,1,0}, {0,0,1} };
-    
+
     if (drawbox_total && drawbox_count < drawbox_total)
     {
         int nbp = drawbox_count; // Box point
