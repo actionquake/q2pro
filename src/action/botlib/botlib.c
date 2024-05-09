@@ -15,4 +15,4 @@ int dc_sp_count; // Total spawn points
 qboolean dc_sp_edit; // If the spawn points have been made visible for editing
 botlib_noises_t botlib_noises;
 bot_connections_t bot_connections;
-nav_area_t nav_area;
+

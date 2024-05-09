@@ -5126,7 +5126,7 @@ static void FREE_BoxPoint(void)
 // Single draw call: render min/max box
 void GL_DrawBox(vec3_t origin, uint32_t color, vec3_t mins, vec3_t maxs, qboolean occluded)
 {
-    const vec3_t axis[3] = { 1,0,0, 0,1,0, 0,0,1 };
+    const vec3_t axis[3] = { {1,0,0}, {0,1,0}, {0,0,1} };
 
     uint32_t colors[24];
     for (int i = 0; i < 24; i++)
@@ -5207,8 +5207,8 @@ void GL_DrawBox(vec3_t origin, uint32_t color, vec3_t mins, vec3_t maxs, qboolea
 // Batch draw call: render min/max box
 static void GL_AddDrawBox(vec3_t origin, uint32_t color, vec3_t mins, vec3_t maxs, qboolean occluded)
 {
-    const vec3_t axis[3] = { 1,0,0, 0,1,0, 0,0,1 };
-
+    const vec3_t axis[3] = { {1,0,0}, {0,1,0}, {0,0,1} };
+    
     if (drawbox_total && drawbox_count < drawbox_total)
     {
         int nbp = drawbox_count; // Box point

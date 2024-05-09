@@ -606,6 +606,8 @@ void BOTLIB_InitAreaNodes(void)
 	}
 }
 
+nav_area_t nav_area;
+
 void BOTLIB_InitAreaConnections()
 {
 	// For all areas, find all their connecting neighbors.

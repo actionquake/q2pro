@@ -2998,7 +2998,7 @@ void BOTLIB_SaveNavCompressed(void)
 	}
 
 	// Compress the buffer
-	int compressed_buff_len = 0;
+	long compressed_buff_len = 0;
 	char* compressed_buff = (char*)malloc(uncompressed_buff_len); // Make the compressed buffer as large as the uncompressed buffer
 	if (compressed_buff != NULL)
 	{
@@ -3115,7 +3115,7 @@ void BOTLIB_LoadNavCompressed(void)
 	Com_Printf("%s Reading NAV file... detected version [%d]\n", __func__, version);
 
 	// Read Compressed and uncompressed buffer sizes
-	int uncompressed_buff_len = 0;
+	long uncompressed_buff_len = 0;
 	fileSize += sizeof(int) * fread(&uncompressed_buff_len, sizeof(int), 1, fIn); // Uncompressed buffer size
 	int compressed_buff_len = 0;
 	fileSize += sizeof(int) * fread(&compressed_buff_len, sizeof(int), 1, fIn); // Compressed buffer size

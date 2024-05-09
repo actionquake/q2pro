@@ -397,20 +397,26 @@ qboolean BOTLIB_DijkstraAreaPath(edict_t* ent, int from, int to, qboolean path_r
 qboolean BOTLIB_DijkstraPath(edict_t* ent, int from, int to, qboolean path_randomization);
 // Find all possible paths -- e
 
+typedef struct slint{
+	struct slint	*next;	// pointer to the next list member
+	int				node;	// The node number we're storing -=- nodedata
+	float cost;
+} slint_t;
+
 // Node data for our linked list
-typedef struct {
-	struct botlib_sll_nodes_t* next;	// Next node
-	int	node;			// Node number
-	float cost;			// Cost from previous node to this node
-	int parent_node;	//rekkie -- the node we came from
+typedef struct botlib_sll_nodes_s {
+	struct botlib_sll_nodes_s* next;  // Next node
+	int node;                        // Node number
+	float cost;                      // Cost from previous node to this node
+	int parent_node;                 //rekkie -- the node we came from
 } botlib_sll_nodes_t;
 
 // A double-ended singly linked list
 // This allows data to be added to the front or back of the list.
-typedef struct {
+typedef struct botlib_sll_s {
 	botlib_sll_nodes_t* head; // Front
 	botlib_sll_nodes_t* tail; // Back
-}	botlib_sll_t;
+} botlib_sll_t;
 //}	ltklist_t;
 
 // ===========================================================================

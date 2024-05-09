@@ -2051,8 +2051,8 @@ void ClientCommand (edict_t * ent)
 		return;			// not fully in game yet
 
 #ifndef NO_BOTS
-	if( ACECM_Commands(ent) )
-		return;
+	if (ACECM_Commands(ent)) return; // LTK commands
+	if (BOTLIB_Commands(ent)) return; // Botlib commands
 #endif
 
 	// if (level.intermission_framenum)

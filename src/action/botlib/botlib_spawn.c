@@ -534,7 +534,7 @@ void DC_GetRandomBotName(byte gender, char* bot_name)
 // Gets a random clan tag char symbol: ie --> [ ], ( ), { }, < >, etc
 // Returns char
 //======================================
-int BOTLIB_GetRandomClanSymbol()
+static int BOTLIB_GetRandomClanSymbol(void)
 {
 	int sym = rand() % 25;
 	switch (sym)
@@ -611,7 +611,7 @@ int BOTLIB_GetOpposingClanSymbol(char symbol)
 // Gets a random clan letter
 // Returns char
 //======================================
-int BOTLIB_GetRandomClanLetter()
+static int BOTLIB_GetRandomClanLetter(void)
 {
 	// Gets a random ASCII letter between 65 and 90, or 97 and 122
 	int letter = rand() % 52;
@@ -1514,7 +1514,7 @@ void BOTLIB_RemoveBot(char* name)
 	}
 
 	if (!freed)
-		gi.bprintf(PRINT_MEDIUM, "No bot removed\n", name);
+		gi.bprintf(PRINT_MEDIUM, "No bot removed\n");
 }
 
 // Remove a bot by team
