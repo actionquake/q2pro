@@ -988,7 +988,7 @@ bool CM_AreasConnected(cm_t *cm, int area1, int area2)
         return false;
     }
     if (area1 >= cache->numareas || area2 >= cache->numareas) {
-        Com_EPrintf("%s: area > numareas\n", __func__);
+        Com_EPrintf("%s: area (%i) > numareas (%i)\n", __func__, max(area1, area2), cache->numareas);
         return false;
     }
     if (cm->floodnums[area1] == cm->floodnums[area2]) {

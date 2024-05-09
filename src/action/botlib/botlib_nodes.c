@@ -2115,7 +2115,7 @@ int DC_Reachability(int from, int to, vec3_t origin, vec3_t target, vec3_t norma
 //qboolean TrianglesAreCoplanar(vec3_t t1_p1, vec3_t t1_p2, vec3_t t1_p3, vec3_t t2_p1, vec3_t t2_p2, vec3_t t2_p3)
 
 // Explodes all breakable glass :D
-void Remove_All_Breakableglass()
+static void Remove_All_Breakableglass(void)
 {
 	edict_t* glass;
 	for (glass = g_edicts; glass < &g_edicts[globals.num_edicts]; glass++)
@@ -2158,7 +2158,7 @@ void kill_door(edict_t* self, edict_t* inflictor, edict_t* attacker, int damage,
 	G_FreeEdict(self);
 }
 // Removes all door types
-void Remove_All_Doors()
+static void Remove_All_Doors(void)
 {
 	edict_t* door;
 	for (door = g_edicts; door < &g_edicts[globals.num_edicts]; door++)
@@ -2860,7 +2860,7 @@ void QsortLinks(QSLink* links, size_t length) {
 }
 
 // Sorts node links by height. Highest to lowest.
-void QSNodeLinksByHeight()
+static void QSNodeLinksByHeight(void)
 {
 	QSLink qslinks[MAXLINKS]; // Temp links
 

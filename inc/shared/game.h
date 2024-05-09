@@ -93,7 +93,6 @@ typedef struct gclient_s gclient_t;
 #define USE_REF 1
 #define REF_GL 1
 #define REF_VKPT 1
-#define USE_REF 1
 #define REF_SOFT 1
 #define USE_DLIGHTS 1
 #include "common/bsp.h"
