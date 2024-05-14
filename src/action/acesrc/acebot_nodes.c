@@ -3677,17 +3677,19 @@ short ACEND_GetRandomVisibleNode(short x)
 	short dn; // Destination node
 	short vis_size = 0;
 
-	if (x + 1 < numnodes) // Bounce check
-	{
-		// Work out the size of the vis list
-		for (i = 0; i < MAX_VIS_NODES; i++)
-		{
-			if (node_vis_list[x][i] != INVALID)
+	for (x = 0; x < numnodes && x < 10; x++) {
+		vis_size = 0;
+		for (i = 0; i < MAX_VIS_NODES && i < 10; i++) {
+			if (node_vis_list[x][i] != INVALID) {
+				// ...
 				vis_size++;
+			}
 		}
 
-		dn = (int)(random() * vis_size); // Pick a random destination node
-		return node_vis_list[x][dn];
+		if (vis_size > 0) {
+			dn = (int)(random() * vis_size); // Pick a random destination node
+			return node_vis_list[x][dn];
+		}
 	}
 
 	return INVALID;

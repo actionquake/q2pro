@@ -106,10 +106,6 @@ typedef struct clientinfo_s {
     char skin_name[MAX_QPATH];
     qhandle_t model;
     qhandle_t weaponmodel[MAX_CLIENTWEAPONMODELS];
-    //rekkie -- Attach model to player -- s
-    char attach_name[MAX_CLIENTWEAPONMODELS][MAX_QPATH];
-    qhandle_t attach_model[MAX_CLIENTWEAPONMODELS];
-    //rekkie -- Attach model to player -- e
 } clientinfo_t;
 
 typedef struct {
@@ -906,7 +902,6 @@ void CL_BubbleTrail(const vec3_t start, const vec3_t end);
 void CL_FlagTrail(const vec3_t start, const vec3_t end, int color);
 void CL_MuzzleFlash(void);
 void CL_MuzzleFlash2(void);
-//void CL_SnowParticles(vec3_t org); //rekkie -- SNOW
 void CL_TeleporterParticles(const vec3_t org);
 void CL_TeleportParticles(const vec3_t org);
 void CL_ParticleEffect(const vec3_t org, const vec3_t dir, int color, int count);

@@ -883,68 +883,6 @@ void CL_ParticleEffect(const vec3_t org, const vec3_t dir, int color, int count)
     }
 }
 
-//rekkie -- SNOW -- s
-/*
-//================
-//CL_SnowParticles
-//================
-static int snow_counter = 0;
-void CL_SnowParticles(vec3_t org)
-{
-    int i, j;
-    cparticle_t* p;
-
-    //Com_Printf("%s snowing... [%d]\n", __func__, snow_counter++);
-
-    snow_counter++;
-    if (snow_counter < 1000)
-        return;
-    else
-        snow_counter = 0;
-	
-    if ((Q_rand() & 1) == 0)
-		return;
-
-    for (i = 0; i < 1; i++)
-    {
-        p = CL_AllocParticle();
-        if (!p)
-            return;
-
-
-
-        p->time = cl.time;
-        p->color = 0x2FD;
-
-        for (j = 0; j < 2; j++)
-        {
-			if ((Q_rand() & 1) == 0)
-                p->org[j] = org[j] - (Q_rand() & 500);
-            else
-                p->org[j] = org[j] + (Q_rand() & 500);
-			
-            p->vel[j] = crand() * 7; // 14;
-        }
-
-        //if ((Q_rand() & 1) == 0)
-        //    p->org[2] = org[2] - (20 + (Q_rand() & 80));
-        //else
-            p->org[2] = org[2] + (256 + (Q_rand() & 768));
-		
-        p->vel[2] -= 2; // (2 + (Q_rand() & 2)); // Float downward
-
-        p->accel[0] = p->accel[1] = 0;
-        p->accel[2] -= 2; // (2 + (Q_rand() & 2)); // PARTICLE_GRAVITY;
-
-		// Decrease alpha over time
-        p->alpha = 1;
-        p->alphavel = -0.07;
-    }
-}
-*/
-//rekkie -- SNOW -- e
-
-
 /*
 ===============
 CL_ParticleEffect2

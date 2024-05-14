@@ -672,11 +672,6 @@ void InitGame( void )
 	cl_discord_username = gi.cvar("cl_discord_username", "", 0);
 	cl_discord_avatar = gi.cvar("cl_discord_avatar", "0", 0);
 
-	//rekkie -- DEV_1 -- Gib Players -- s
-	gib_bodies = gi.cvar("gib_bodies", "0", 0);
-	gib_heads = gi.cvar("gib_heads", "0", 0);
-	//rekkie -- DEV_1 -- Gib Players -- e
-
 #ifndef NO_BOTS
 	// bots
 	ltk_skill = gi.cvar( "ltk_skill", "5", 0 );

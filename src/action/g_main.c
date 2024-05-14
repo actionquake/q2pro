@@ -474,11 +474,6 @@ cvar_t *medkit_instant;
 cvar_t *medkit_max;
 cvar_t *medkit_value;
 
-//rekkie -- DEV_1 -- Gib Players -- s
-cvar_t* gib_bodies;		// Allow bodies to be gibbed
-cvar_t* gib_heads;		// Allow heads to be interactive
-//rekkie -- DEV_1 -- Gib Players -- e
-
 #ifndef NO_BOTS
 cvar_t *ltk_jumpy;
 cvar_t *ltk_skill;

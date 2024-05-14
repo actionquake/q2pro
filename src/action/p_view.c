@@ -989,19 +989,6 @@ void G_SetClientEffects (edict_t * ent)
 	if (ctf->value)
 		CTFEffects (ent);
 
-	//rekkie -- Attach model to player -- s
-	//if (INV_AMMO(ent, SNIPER_NUM) && ent->client->curr_weap != SNIPER_NUM) // If have weapon in inventory, and not currently equipped
-	{
-		//ent->s.renderfx |= RF_ATTACHMENT;
-		//ent->s.modelindex3 = gi.modelindex("models/weapons/a_helm/tris.md2");
-
-		//ent->s.modelindex3 = gi.modelindex("models/weapons/b_sniper/tris.md2");
-		//ent->s.modelindex3 = gi.modelindex("models/weapons/b_gren/tris.md2");
-	}
-	//else
-	//	ent->s.modelindex3 = 0;
-	//rekkie -- Attach model to player -- e
-
 	if (ent->client->quad_framenum > level.framenum)
 	{
 		remaining = ent->client->quad_framenum - level.framenum;

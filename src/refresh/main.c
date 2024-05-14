@@ -85,9 +85,6 @@ cvar_t *gl_vertexlight;
 cvar_t *gl_lightgrid;
 cvar_t *gl_polyblend;
 cvar_t *gl_showerrors;
-//rekkie -- Attach model to player -- s
-cvar_t* gl_vert_diff;
-//rekkie -- Attach model to player -- e
 
 draw_arrows_t draw_arrows[MAX_DRAW_ARROWS];
 draw_boxes_t draw_boxes[MAX_DRAW_BOXES];
@@ -6435,10 +6432,6 @@ static void GL_Register(void)
     gl_lightgrid = Cvar_Get("gl_lightgrid", "1", 0);
     gl_polyblend = Cvar_Get("gl_polyblend", "1", 0);
     gl_showerrors = Cvar_Get("gl_showerrors", "1", 0);
-
-    //rekkie -- Attach model to player -- s
-    gl_vert_diff = Cvar_Get("gl_vert_diff", "0", 0);
-    //rekkie -- Attach model to player -- e
 
     gl_lightmap_changed(NULL);
     gl_modulate_entities_changed(NULL);

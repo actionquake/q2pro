@@ -1555,11 +1555,6 @@ void ThrowClientHead (edict_t * self, int damage);
 void ThrowGib (edict_t * self, char *gibname, int damage, int type);
 void BecomeExplosion1 (edict_t * self);
 void SP_misc_teleporter_dest(edict_t* ent);
-//rekkie -- DEV_1 -- Gib Players -- s
-void QPong_Ball(edict_t* self, int damage);
-void ThrowGibbedHead(edict_t* self, int damage);
-void SpawnBodyToGib(edict_t* self);
-//rekkie -- DEV_1 -- Gib Players -- e
 
 //
 // g_weapon.c

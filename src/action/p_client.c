@@ -3976,11 +3976,6 @@ void ClientThink(edict_t * ent, usercmd_t * ucmd)
 		//rekkie -- DEV_1 -- e
 
 		if (ent->deadflag) {
-			//rekkie -- DEV_1 -- Gib Players -- s
-			// If dead player has a model, in final death frame, and can gib body	//ent->groundentity
-			if (ent->s.modelindex && client->anim_end == ent->s.frame && gib_bodies->value)
-				SpawnBodyToGib(ent); // Replace the body with a version that can be gibbed
-			//rekkie -- DEV_1 -- Gib Players -- e
 			client->ps.viewangles[ROLL] = 40;
 			client->ps.viewangles[PITCH] = -15;
 			client->ps.viewangles[YAW] = client->killer_yaw;

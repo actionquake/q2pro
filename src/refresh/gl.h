@@ -275,12 +275,6 @@ typedef struct {
     vec_t   radius;
 } maliasframe_t;
 
-//rekkie -- Attach model to player -- s
-typedef struct masliasvec3vert_s {
-    vec3_t   pos;
-} masliasvec3vert_t;
-//rekkie -- Attach model to player -- e
-
 typedef char maliasskinname_t[MAX_QPATH];
 
 typedef struct {
@@ -290,11 +284,6 @@ typedef struct {
     int             numskins;
     QGL_INDEX_TYPE  *indices;
     maliasvert_t    *verts;
-    //rekkie -- Attach model to player -- s
-    maliasvert_t    *copy_verts;
-    int             num_vec3_verts;
-    masliasvec3vert_t *vec3_verts;
-    //rekkie -- Attach model to player -- e
     maliastc_t      *tcoords;
 #if USE_MD5
     maliasskinname_t *skinnames;
@@ -411,10 +400,6 @@ void MOD_Shutdown(void);
 
 model_t *MOD_ForHandle(qhandle_t h);
 qhandle_t R_RegisterModel(const char *name);
-//rekkie -- Attach model to player -- s
-model_t* MOD_AttachmentForHandle(qhandle_t h);
-qhandle_t R_AttachmentRegisterModel(const char* name);
-//rekkie -- Attach model to player - e
 
 /*
  * gl_surf.c
