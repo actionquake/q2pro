@@ -2298,7 +2298,7 @@ qboolean BOTLIB_FollowPath(edict_t *self)
 	//if (self->groundentity && (self->bot.current_node == INVALID || self->bot.next_node == INVALID || self->bot.goal_node == INVALID)) // Invalid pathing
 	if (self->bot.current_node == INVALID || self->bot.next_node == INVALID || self->bot.goal_node == INVALID) // Invalid pathing
 	{
-		//Com_Printf("%s [%s] invalid pathing current_node[%d] next_node[%d] goal[%d]\n", __func__, self->client->pers.netname, self->bot.current_node, self->bot.next_node, self->bot.goal_node);
+		Com_Printf("%s [%s] invalid pathing current_node[%d] next_node[%d] goal[%d]\n", __func__, self->client->pers.netname, self->bot.current_node, self->bot.next_node, self->bot.goal_node);
 		self->bot.node_travel_time++;
 		return false;
 	}

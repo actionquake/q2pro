@@ -665,10 +665,10 @@ qboolean BOTLIB_CanVisitNode(edict_t* self, int goal_node, qboolean path_randomi
 			break;
 		}
 	}
-
+	
+	//Com_Printf("All if statement parameters: current_node[%d] goal_node[%d] inuse[%d]\n", self->bot.current_node, self->bot.goal_node, nodes[goal_node].inuse);
 	if (self->bot.current_node == INVALID || goal_node == self->bot.current_node || goal_node == INVALID || nodes[goal_node].inuse == false)
 	{
-		//Com_Printf("%s %s invalid goal set: current_node[%d] goal_node[%d]\n", __func__, self->client->pers.netname, self->bot.current_node, self->bot.goal_node);
 		self->bot.goal_node = INVALID;
 		self->bot.state = BOT_MOVE_STATE_NAV; // BOT_MOVE_STATE_WANDER
 		return false;
