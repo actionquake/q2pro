@@ -677,7 +677,7 @@ qboolean BOTLIB_CanVisitNode(edict_t* self, int goal_node, qboolean path_randomi
 	self->bot.next_node = self->bot.current_node; // make sure we get to the nearest node first
 	self->node_timeout = 0;
 
-	self->bot.state = BOT_MOVE_STATE_MOVE;
+	self->bot.state = BOT_MOVE_STATE_NAV;
 
 	//Com_Printf("%s curr[%d] goal[%d] state[%d]\n", __func__, self->bot.current_node, self->bot.goal_node, self->state);
 	// ================================================================
