@@ -5237,72 +5237,20 @@ void BOTLIB_Look(edict_t* self, usercmd_t* ucmd)
 	}
 }
 
-void BOTLIB_Wander(edict_t* self, usercmd_t* ucmd)
+/////////////////
+// darksaint: Breaking up BOTLIB_Wander into discrete functionality
+// This thing was huge
+// Refer to older versions for the original function
+/////////////////
+
+
+void _Wander_PickupNearbyItem(edict_t* self, vec3_t walkdir, float move_speed, usercmd_t* ucmd)
 {
-	//if (teamplay->value && lights_camera_action > 0)
-	//	return;
-
-	int next_node = INVALID; // Next node to walk towards
-	//vec3_t lookdir = { 0 }; // Direction to look
-	vec3_t walkdir; // Direction to walk
-	vec3_t lastdir;
-	float move_speed = SPEED_RUN; // Movement speed, default to running
-	self->bot.bi.speed = 0; // Zero speed
-	trace_t tr; // Trace
-
-	// Remove flags
-	//self->bot.bi.actionflags = 0;
-	//self->enemy = NULL;
-
-	// Prevent stuck suicide if holding position
-	if ((self->bot.bi.actionflags & ACTION_HOLDPOS))
-		self->suicide_timeout = level.framenum + 10;
-
-	// Check how far we've moved
-	qboolean moved = true;
-	VectorSubtract(self->s.origin, self->lastPosition, lastdir);
-	float move_dist = VectorLength(lastdir);
-	if (move_dist < FRAMETIME)
-		moved = false; // We've not moved
-
-
-	// If the bot is near the get_item they're after, and the item is inuse
-	// inuse == false if the item was picked up and waiting to respawn
-	// inuse == true if the item has spawned in and is ready to be picked up
 	if (self->bot.get_item != NULL && self->bot.get_item->inuse)
 	{
 		float item_dist = VectorDistance(self->bot.get_item->s.origin, self->s.origin);
 		//Com_Printf("%s %s is looking for item %s [%f]\n", __func__, self->client->pers.netname, self->bot.get_item->classname, item_dist);
 
-		// item spawnflags
-		//#define ITEM_TRIGGER_SPAWN              0x00000001
-		//#define ITEM_NO_TOUCH                   0x00000002
-		// 6 bits reserved for editor flags
-		// 8 bits used as power cube id bits for coop games
-		//#define DROPPED_ITEM                    0x00010000
-		//#define DROPPED_PLAYER_ITEM             0x00020000
-		//#define ITEM_TARGETS_USED               0x00040000
-		// 
-		// Edict Flags
-		// #define FL_RESPAWN                      0x80000000	// used for item respawning
-		// 
-		// 
-		// TP item not picked up
-		// spawnflags = 0
-		// flags = 0
-		// 
-		// TP item picked up and in bot inventory
-		// spawnflags = ITEM_TARGETS_USED 0x00040000
-		// flags = FL_RESPAWN 0x80000000
-		//
-		// TP item picked up then dropped by bot
-		// spawnflags = DROPPED_ITEM
-		// flags = 0
-		// 
-		// TP item picked up, bot killed, dropping all items to ground
-		// spawnflags = DROPPED_PLAYER_ITEM
-		// flags = 0
-		
 		trace_t tr = gi.trace(self->s.origin, NULL, NULL, self->bot.get_item->s.origin, NULL, MASK_PLAYERSOLID);
 		if (tr.fraction == 1.0 && item_dist <= 128) // Might want to do a trace line to see if bot can actually see item
 		{
@@ -5350,29 +5298,576 @@ void BOTLIB_Wander(edict_t* self, usercmd_t* ucmd)
 			return;
 
 		}
-		//else if (item_dist <= 64)
+	}
+}
+
+void _Wander_Teamplay(edict_t* self)
+{
+	// If the bot has just spawned, then we need to wait a bit before we start moving.
+	if (self->just_spawned) // set by SpawnPlayers() in a_team.c
+	{
+		self->just_spawned = false;
+		self->just_spawned_go = true; // Bot is ready, when wander_timeout is reached.
+
+		// If enemy is in sight, don't wait too long
+		if (self->enemy)
+			self->just_spawned_timeout = level.framenum + random() * HZ;			// Short wait
+		else
 		{
-			//Com_Printf("%s %s grabbed item %s [%f]\n", __func__, self->client->pers.netname, self->bot.get_item->classname, item_dist);
-			//self->bot.get_item = NULL;
+			// Otherwise pick from various wait times before moving out
+			int rnd_rng = rand() % 4;
+			if (rnd_rng == 0)
+				self->just_spawned_timeout = level.framenum + (random() * 3) * HZ;	// Long wait
+			else if (rnd_rng == 1)
+				self->just_spawned_timeout = level.framenum + (random() * 2) * HZ;	// Medium wait
+			else if (rnd_rng == 2)
+				self->just_spawned_timeout = level.framenum + (random() * HZ);  // Short wait
+			else
+				self->just_spawned_timeout = 0;										// No wait
+		}
+
+		self->bot.bi.actionflags |= ACTION_HOLDPOS;
+		return;
+	}
+	// Wait
+	if (self->just_spawned_go && self->just_spawned_timeout > level.framenum && self->bot.see_enemies == false)
+	{
+		self->bot.bi.actionflags |= ACTION_HOLDPOS;
+		return; // It's not time to move yet, wait!
+	}
+	// Go!
+	if (self->just_spawned_go || self->bot.see_enemies)
+	{
+		BOTLIB_PickLongRangeGoal(self);
+		self->just_spawned_go = false; // Now we can move!
+	}
+}
+
+qboolean _Wandering(edict_t* self, vec3_t walkdir, float move_speed, trace_t tr, usercmd_t* ucmd)
+{
+	self->bot.stuck_wander_time--;
+	self->bot.node_travel_time = 0;
+	self->bot.state = BOT_MOVE_STATE_NAV;
+	self->bot.goal_node = INVALID;		
+
+	VectorCopy(self->bot.stuck_random_dir, walkdir);
+
+	if (self->groundentity)
+	{
+		self->bot.stuck_last_negate = 0; // Reset if we touched ground
+	}
+
+	float fwd_distance = 32;
+	tr = gi.trace(self->s.origin, NULL, NULL, tv(self->s.origin[0], self->s.origin[1], self->s.origin[2] - 128), self, (MASK_PLAYERSOLID | MASK_OPAQUE));
+	if (tr.plane.normal[2] < 0.99) // If on a slope that makes the player 'bounce' when moving down the slope
+		fwd_distance = 128; // Extend the distance we check for a safe direction to move toward
+	//Com_Printf("%s %s tr.plane.normal[%f] \n", __func__, self->client->pers.netname, tr.plane.normal[2]);
+
+	qboolean can_move = BOTLIB_CanMoveInDirection(self, walkdir, fwd_distance, NODE_MAX_CROUCH_FALL_HEIGHT, false);
+	if (can_move == false || VectorEmpty(self->bot.stuck_random_dir))
+	{
+		// Try to aquire a safe random direction to move toward
+		qboolean success = false;
+		for (int i = 0; i < 8; i++)
+		{
+			if (BOTLIB_CanMoveInDirection(self, walkdir, fwd_distance, NODE_MAX_CROUCH_FALL_HEIGHT, true) == false)
+				continue;
+			else
+			{
+				success = true;
+				break;
+			}
+		}
+		if (success)
+		{
+			VectorCopy(walkdir, self->bot.stuck_random_dir);
+			// vect to angles
+			vec3_t angles;
+			vectoangles(walkdir, angles);
+			return true;
+			//Com_Printf("%s %s found random direction [%f %f %f]\n", __func__, self->client->pers.netname, angles[0], angles[1], angles[2]);
+		}
+		else
+		{
+			//Com_Printf("%s %s ACTION_HOLDPOS N[%d] L[%d] \n", __func__, self->client->pers.netname, self->bot.stuck_last_negate, level.framenum);
+
+			// Prevent bot from falling off a ledge by reversing its velocity, pulling it away from the ledge
+			if (level.framenum > self->bot.stuck_last_negate)
+			{
+				// Only allow this to happen once every 60 seconds
+				// It's reset after 60 seconds, death, or touching ground again
+				self->bot.stuck_last_negate = level.framenum + 60 * HZ;
+
+				//Com_Printf("%s %s stuck_last_negate N[%d] L[%d] \n", __func__, self->client->pers.netname, self->bot.stuck_last_negate, level.framenum);
+
+				// Reverse the direction
+				VectorNegate(self->velocity, self->velocity);
+			}
+			//self->bot.bi.actionflags |= ACTION_HOLDPOS; // Stop moving
+			//BOTLIB_Crouch_Or_Jump(self, ucmd, walkdir); // Crouch or jump if needed
+			return false;
+		}
+	}
+	else
+	{
+		//Com_Printf("%s %s heading for random dir\n", __func__, self->client->pers.netname);
+		//VectorCopy(walkdir, self->bot.stuck_random_dir);
+		//VectorCopy(self->bot.stuck_random_dir, walkdir);
+	}
+
+	vec3_t hordir;
+	VectorNormalize(walkdir);
+	hordir[0] = walkdir[0];
+	hordir[1] = walkdir[1];
+	hordir[2] = 0;
+	VectorNormalize(hordir);
+	VectorCopy(hordir, self->bot.bi.dir);
+	self->bot.bi.speed = move_speed; // Set our suggested speed
+
+	int perform_action = BOTLIB_Crouch_Or_Jump(self, ucmd, walkdir); // Crouch or jump if needed
+	if (perform_action == ACTION_NONE)
+	{
+		//self->bot.bi.actionflags &= ~ACTION_CROUCH; // Remove crouching
+		//self->bot.bi.actionflags &= ~ACTION_JUMP; // Remove jumping
+	}
+	else if (perform_action == ACTION_JUMP)
+	{
+		self->bot.bi.actionflags |= ACTION_JUMP; // Add jumping
+		self->bot.bi.actionflags &= ~ACTION_CROUCH; // Remove crouching
+	}
+	else if (perform_action == ACTION_CROUCH)
+	{
+		self->bot.bi.actionflags |= ACTION_CROUCH; // Add crouching
+		self->bot.bi.actionflags &= ~ACTION_JUMP; // Remove jumping
+	}
+	
+	return false;
+}
+
+void _Wander_Node_Water(edict_t* self, int current_node_type, int next_node_type, vec3_t walkdir, float move_speed)
+{
+	// Water!
+	/// Borrowed from P_WorldEffects
+	int waterlevel = self->waterlevel;
+
+	if (current_node_type == NODE_WATER || waterlevel == 3){
+		gi.dprintf("I'm in the water %s and my air is %d\n", self->client->pers.netname, self->air_finished_framenum - level.framenum);
+		// Get out before you start drowning!
+		if (self->air_finished_framenum < level.framenum + 10) {
+			self->bot.bi.actionflags |= ACTION_MOVEUP;
+			self->bot.node_travel_time = 0;
 		}
 	}
 
-	/*
-	// Get current and next node back from nav code.
-	if (!BOTLIB_FollowPath(self))
+	// move, crouch, or jump
+	if (next_node_type == NODE_WATER)
 	{
-		//Com_Printf("%s %s BOTLIB_FollowPath == false\n", __func__, self->client->pers.netname);
-		//Com_Printf("%s %s next_node:%d current_node:%d goal_node:%d\n", __func__, self->client->pers.netname, self->bot.next_node, self->bot.current_node, self->bot.goal_node);
+		self->bot.bi.actionflags &= ~ACTION_MOVEUP;
+		self->bot.bi.actionflags &= ~ACTION_MOVEDOWN;
+		self->bot.bi.actionflags &= ~ACTION_CROUCH;
 
-		self->bot.bi.speed = 0;
-		self->bot.bi.actionflags = 0;
+		//VectorClear(self->bot.bi.dir);
+		//self->bot.bi.speed = 0;
 
-		self->bot.state = STATE_WANDER;
-		//self->wander_timeout = level.framenum + 1.0 * HZ;
-		self->bot.goal_node = INVALID;
-		return;
+		VectorNormalize(walkdir);
+		VectorCopy(walkdir, self->bot.bi.dir);
+		self->bot.bi.speed = move_speed; // Set our suggested speed
+
+		// Check that we're in the water
+		vec3_t temp = { 0,0,0 };
+		VectorCopy(self->s.origin, temp);
+		temp[2] = self->s.origin[2] - 8;
+		int contents_feet = gi.pointcontents(temp);
+
+		// Almost out of air, start heading up to the surface
+		//if ((contents_feet & MASK_WATER) && self->air_finished_framenum < level.framenum + 5) // Move up to get air
+		if (self->air_finished_framenum < level.framenum + 5) // Move up to get air
+		{
+			self->bot.bi.actionflags |= ACTION_MOVEUP;
+			self->bot.node_travel_time = 0; // Ignore node travel time while we get some air
+			//Com_Printf("%s %s [%d] water: get air\n", __func__, self->client->pers.netname, level.framenum);
+		}
+		else if ((contents_feet & MASK_WATER) && fabs(nodes[self->bot.next_node].origin[2] - self->s.origin[2]) <= 33) // Roughly leveled out
+		{
+			//Com_Printf("%s %s [%d] water: level\n", __func__, self->client->pers.netname, level.framenum);
+		}
+		else if ((contents_feet & MASK_WATER) && nodes[self->bot.next_node].origin[2] > self->s.origin[2]) // Move up
+		{
+			//self->bot.bi.actionflags |= ACTION_MOVEUP;
+			// darksaint: changed this to MOVEUP and MOVEFORWARD simultanously to get out of water?
+			self->bot.bi.actionflags |= (ACTION_MOVEUP | ACTION_MOVEFORWARD);
+			//Com_Printf("%s %s [%d] water: move up\n", __func__, self->client->pers.netname, level.framenum);
+		}
+		else if (nodes[self->bot.next_node].origin[2] < self->s.origin[2]) // Move down
+		{
+			if (contents_feet & MASK_WATER)
+				self->bot.bi.actionflags |= ACTION_MOVEDOWN; // In water moving down
+			else
+				self->bot.bi.actionflags |= ACTION_CROUCH; // Crouch drop down into water below
+
+			//Com_Printf("%s %s [%d] water: move down\n", __func__, self->client->pers.netname, level.framenum);
+		}
+		
 	}
-	*/
+}
+
+void _Wander_Node_Boxjump(edict_t* self)
+{
+	if (nodes[self->bot.next_node].origin[2] > nodes[self->bot.current_node].origin[2]) // Going up
+	{
+		self->bot.bi.actionflags |= ACTION_BOXJUMP;
+		self->bot.bi.actionflags &= ~ACTION_JUMP;
+		self->bot.bi.actionflags &= ~ACTION_CROUCH;
+	} else {
+		// Remove flags
+		self->bot.bi.actionflags &= ~ACTION_CROUCH;
+		self->bot.bi.actionflags &= ~ACTION_BOXJUMP;
+		self->bot.bi.actionflags &= ~ACTION_JUMP;
+	}
+}
+
+void _Wander_Node_Jump(edict_t* self)
+{
+	self->bot.bi.actionflags |= ACTION_JUMP;
+	// Remove flags
+	self->bot.bi.actionflags &= ~ACTION_CROUCH;
+}
+
+void _Wander_Node_Jumppad(edict_t* self, vec3_t walkdir, float move_speed)
+{
+	//Com_Printf("%s %s jump takeoff\n", __func__, self->client->pers.netname);
+
+	// Remove flags
+	self->bot.bi.actionflags &= ~ACTION_CROUCH;
+	self->bot.bi.actionflags &= ~ACTION_JUMP;
+
+	//self->bot.bi.actionflags = 0;
+	//VectorClear(self->bot.bi.dir);
+
+	// Bot only applies direction when it's in a falling state
+	if (self->groundentity || self->velocity[2] > 0)
+		self->bot.bi.speed = 0;
+	else
+	{
+		//horizontal direction
+		vec3_t hordir;
+		hordir[0] = walkdir[0];
+		hordir[1] = walkdir[1];
+		hordir[2] = 0;
+		VectorNormalize(hordir);
+		VectorCopy(hordir, self->bot.bi.dir);
+
+		self->bot.bi.speed = move_speed; // Set our suggested speed
+	}
+	self->bot.bi.actionflags |= ACTION_JUMPPAD;
+}
+
+void _Wander_Node_Move(edict_t* self)
+{
+	if (self->groundentity == NULL)
+		self->bot.bi.speed = SPEED_ROAM; // Set our speed directly
+}
+
+void _Wander_Node_Crouch(edict_t* self)
+{
+	self->bot.bi.actionflags |= ACTION_CROUCH;
+	self->bot.bi.actionflags &= ~ACTION_JUMP;
+}
+
+void _Wander_Node_Ladder(edict_t* self, vec3_t walkdir)
+{
+	VectorCopy(walkdir, self->bot.bi.dir);
+	self->bot.bi.speed = 100; // Set speed slower for ladders
+
+	if (self->bot.touching_ladder)
+	{
+		// Remove flags
+		self->bot.bi.actionflags &= ~ACTION_ATTACK; // Don't attack when on ladder
+
+		if (nodes[self->bot.next_node].origin[2] > nodes[self->bot.current_node].origin[2]) // Going up
+		{
+			self->bot.bi.actionflags |= ACTION_MOVEUP;
+			self->bot.bi.actionflags &= ~ACTION_MOVEDOWN;
+		}
+		else if (nodes[self->bot.next_node].origin[2] < nodes[self->bot.current_node].origin[2]) // Going down
+		{
+			self->bot.bi.actionflags |= ACTION_MOVEDOWN;
+			self->bot.bi.actionflags &= ~ACTION_MOVEUP;
+		}
+	}
+	else if (nodes[self->bot.next_node].origin[2] > nodes[self->bot.current_node].origin[2]) // Jump to ladder
+	{
+		self->bot.bi.actionflags |= ACTION_JUMP;
+	}
+
+	if (self->bot.prev_node != INVALID && nodes[self->bot.prev_node].type == NODE_LADDER && nodes[self->bot.current_node].type == NODE_LADDER && nodes[self->bot.next_node].type != NODE_LADDER && self->s.origin[2] < nodes[self->bot.current_node].origin[2] + 4 && self->groundentity == NULL) // 
+	{
+		if (nodes[self->bot.prev_node].origin[2] < nodes[self->bot.current_node].origin[2] && self->s.origin[2] < nodes[self->bot.current_node].origin[2] + 2) // Getting off ladder at the top
+		{
+			self->bot.bi.actionflags |= ACTION_MOVEUP;
+		}
+	}
+}
+
+void _Wander_CTF(edict_t* self)
+{
+	// Slow down if near flag
+	if (bot_ctf_status.flag1_curr_node != INVALID && VectorDistance(nodes[bot_ctf_status.flag1_curr_node].origin, self->s.origin) < 128)
+	{
+		self->bot.bi.speed = 200;
+	}
+	if (bot_ctf_status.flag2_curr_node != INVALID && VectorDistance(nodes[bot_ctf_status.flag2_curr_node].origin, self->s.origin) < 128)
+	{
+		self->bot.bi.speed = 200;
+	}
+}
+
+void _Wander_SeeEnemies(edict_t* self)
+{
+	qboolean dodging = ((rand() % 10) < 7);
+
+	// Don't dodge if < x links on node - low link count might indicate a tight walk or narrow way
+	if (nodes[self->bot.current_node].num_links < 4 || nodes[self->bot.next_node].num_links < 4)
+		dodging = false;
+
+	// Don't dodge if bot is taking a direct path
+	if (self->bot.node_random_path == false)
+		dodging = false;
+
+	if (ctf->value) // Reduce dodging in CTF
+	{
+		//float f1 = BOTLIB_DistanceToFlag(self, FLAG_T1_NUM);
+		//float f2 = BOTLIB_DistanceToFlag(self, FLAG_T2_NUM);
+
+		float f1 = 99999999;
+		float f2 = 99999999;
+		if (bot_ctf_status.flag1_curr_node != INVALID)
+			f1 = VectorDistance(nodes[bot_ctf_status.flag1_curr_node].origin, self->s.origin);
+		if (bot_ctf_status.flag2_curr_node != INVALID)
+			f2 = VectorDistance(nodes[bot_ctf_status.flag2_curr_node].origin, self->s.origin);
+
+		if (f1 < 1500 || f2 < 1500 || BOTLIB_Carrying_Flag(self)) // || self->bot.goal_node == bot_ctf_status.flag1_curr_node || self->bot.goal_node == bot_ctf_status.flag2_curr_node)
+		{
+			dodging = false;
+			//Com_Printf("%s %s dodging is OFF ------ \n", __func__, self->client->pers.netname);
+		}
+
+		//dodging = false;
+	}
+
+	// Try strafing around enemy
+	trace_t tr = gi.trace(self->s.origin, NULL, NULL, tv(self->s.origin[0], self->s.origin[1], self->s.origin[2] - 32), self, MASK_SHOT);
+	if (dodging && tr.plane.normal[2] > 0.85) // Not too steep
+	{
+		// Try strafing continually in a general direction, if possible
+		static int max_strafe_left = -10;
+		static int max_strafe_right = 10;
+		if (self->bot_strafe == 0) // Pick new direction
+		{
+			float strafe_choice = random() < 0.333;
+			if (strafe_choice < 0.33) // Left
+				self->bot_strafe = -1;
+			else if (strafe_choice < 0.66) // Right
+				self->bot_strafe = 1;
+			else
+				self->bot_strafe = 0; // Neither - skip strafing this turn
+		}
+
+		if (self->client->weapon == FindItem(HC_NAME))
+			self->bot_strafe = 0; // Don't strafe with HC, just go straight for them
+
+		if (self->bot_strafe < 0 && random() > 0.15) // Going left 85% of the time
+		{
+			if (BOTLIB_CanMove(self, MOVE_LEFT) && self->bot_strafe >= max_strafe_left) // Can go left with a limit
+			{
+				//Com_Printf("%s %s strafe [LEFT] %d\n", __func__, self->client->pers.netname, self->bot_strafe);
+				self->bot_strafe--;
+				self->bot.bi.actionflags |= ACTION_MOVELEFT;
+			}
+			else if (BOTLIB_CanMove(self, MOVE_RIGHT)) // Cannot go left anymore, so try going right
+			{
+				self->bot_strafe = 1; // Go right
+				self->bot.bi.actionflags |= ACTION_MOVERIGHT;
+				//Com_Printf("%s %s strafe [RIGHT] %d\n", __func__, self->client->pers.netname, self->bot_strafe);
+			}
+			else
+				self->bot_strafe = 0; // Could not go either direction, so skip strafing this turn and reset back to random choice
+		}
+		else if (self->bot_strafe > 0 && random() > 0.15) // Going right 85% of the time
+		{
+			if (BOTLIB_CanMove(self, MOVE_RIGHT) && self->bot_strafe <= max_strafe_right) // Can go right with a limit
+			{
+				//Com_Printf("%s %s strafe [RIGHT] %d\n", __func__, self->client->pers.netname, self->bot_strafe);
+				self->bot_strafe++;
+				self->bot.bi.actionflags |= ACTION_MOVERIGHT;
+			}
+			else if (BOTLIB_CanMove(self, MOVE_LEFT)) // Cannot go right anymore, so try going left
+			{
+				self->bot_strafe = -1; // Go left
+				self->bot.bi.actionflags |= ACTION_MOVELEFT;
+				//Com_Printf("%s %s strafe [LEFT] %d\n", __func__, self->client->pers.netname, self->bot_strafe);
+			}
+			else
+				self->bot_strafe = 0; // Could not go either direction, so skip strafing this turn and reset back to random choice
+		}
+		else
+			self->bot_strafe = 0; // Skip strafing this turn
+
+		// Back off if getting too close (unless we have a HC or knife)
+		if (self->bot.enemy_dist < 256)
+		{
+			if (self->client->weapon == FindItem(HC_NAME) && self->client->cannon_rds)
+			{
+				// Come in close for the kill
+				if (ACEMV_CanMove(self, MOVE_FORWARD))
+					self->bot.bi.actionflags |= ACTION_MOVEFORWARD;
+			}
+			else if (self->client->weapon == FindItem(KNIFE_NAME))
+			{
+				// Come in close for the kill
+				if (ACEMV_CanMove(self, MOVE_FORWARD))
+					self->bot.bi.actionflags |= ACTION_MOVEFORWARD;
+			}
+			// Try move backwards
+			else if (BOTLIB_CanMove(self, MOVE_BACK))
+			{
+				self->bot.bi.actionflags |= ACTION_MOVEBACK;
+			}
+		}
+		// If distance is far, consider crouching to increase accuracy
+		else if (self->bot.enemy_dist > 1024)
+		{
+			// Check if bot should be crouching based on weapon and if strafing
+			if (INV_AMMO(self, LASER_NUM) == false && 
+				self->client->weapon != FindItem(SNIPER_NAME) && 
+				self->client->weapon != FindItem(HC_NAME) && 
+				self->client->weapon != FindItem(M3_NAME) && 
+				(self->bot.bi.actionflags & ACTION_MOVELEFT) == 0 && 
+				(self->bot.bi.actionflags & ACTION_MOVERIGHT) == 0)
+			{
+				// Raptor007: Don't crouch if it blocks the shot.
+				float old_z = self->s.origin[2];
+				self->s.origin[2] -= 14;
+				if (ACEAI_CheckShot(self))
+				{
+					self->bot.bi.actionflags |= ACTION_CROUCH;
+					//Com_Printf("%s %s crouch shooting\n", __func__, self->client->pers.netname);
+				}
+				self->s.origin[2] = old_z;
+			}
+		}
+		else
+		{
+			// Keep distance with sniper
+			if (self->bot.enemy_dist < 1024 && self->client->weapon == FindItemByNum(SNIPER_NUM) && BOTLIB_CanMove(self, MOVE_BACK))
+			{
+				self->bot.bi.actionflags |= ACTION_MOVEBACK;
+			}
+			// Keep distance with grenade
+			if (self->bot.enemy_dist < 1024 && self->client->weapon == FindItemByNum(GRENADE_NUM) && BOTLIB_CanMove(self, MOVE_BACK))
+			{
+				self->bot.bi.actionflags |= ACTION_MOVEBACK;
+			}
+			// Otherwise move toward target
+			//else if (ACEMV_CanMove(self, MOVE_FORWARD))
+			//	self->bot.bi.actionflags |= ACTION_MOVEFORWARD;
+		}
+
+		// If the bot is dodging by strafing, add in some random jumps
+		if (self->bot_strafe != 0 && (self->bot.bi.actionflags & ACTION_CROUCH) == 0 && random() < 0.2)
+			self->bot.bi.actionflags |= ACTION_BOXJUMP; // Jump while dodging
+	}
+}
+
+void _Wander_GetUnstuck(edict_t* self, vec3_t walkdir)
+{
+	// Try strafing
+	qboolean right_blocked = BOTLIB_TEST_FORWARD_VEC(self, walkdir, 64, 8); // Check right
+	qboolean left_blocked = BOTLIB_TEST_FORWARD_VEC(self, walkdir, 64, -8); // Check left
+	if (right_blocked && left_blocked) // Both are blocked
+	{
+		self->bot.bi.actionflags |= ACTION_JUMP; // Try jumping to clear the obstacle
+		//Com_Printf( "%s %s blocked\n", __func__, self->client->pers.netname);
+
+
+		/*
+		// Bot stuck - Test of bot has LoS to next node
+		if (self->bot.next_node == INVALID)
+		{
+			self->bot.stuck = true;
+			return;
+		}
+		trace_t tr = gi.trace(self->s.origin, tv(-4, -4, 0.1), tv(4, 4, 56), nodes[self->bot.next_node].origin, self, MASK_PLAYERSOLID);
+		if (tr.startsolid || tr.fraction < 1.0)
+		{
+			if (VectorLength(self->velocity) < 5)
+				self->bot.stuck = true;
+		}
+		*/
+		//self->bot.bi.actionflags |= ACTION_MOVEFORWARD;
+		//self->bot.bi.viewangles[YAW] += 22.5 + (random() * 270);
+		//self->bot.bi.viewangles[PITCH] = 0;
+	}
+	else if (right_blocked && BOTLIB_CanMove(self, MOVE_LEFT)) // Strafe left
+	{
+		// Get the direction perpendicular to the dir, facing left
+		vec3_t left;
+		left[0] = -walkdir[1];
+		left[1] = walkdir[0];
+		left[2] = 0;
+		VectorNormalize(left);
+		VectorCopy(left, self->bot.bi.dir);
+
+
+		//Com_Printf("%s %s ACTION_MOVELEFT\n", __func__, self->client->pers.netname);
+		//self->bot.bi.actionflags |= ACTION_MOVELEFT;
+	}
+	else if (left_blocked && BOTLIB_CanMove(self, MOVE_RIGHT)) // Strafe right
+	{
+		// Get the direction perpendicular to the dir, facing right
+		vec3_t right;
+		right[0] = walkdir[1];
+		right[1] = -walkdir[0];
+		right[2] = 0;
+		VectorNormalize(right);
+		VectorCopy(right, self->bot.bi.dir);
+
+		//Com_Printf("%s %s ACTION_MOVERIGHT\n", __func__, self->client->pers.netname);
+		//self->bot.bi.actionflags |= ACTION_MOVERIGHT;
+	}
+	else
+	{
+		//Com_Printf("%s %s moved == false and not blocked on side\n", __func__, self->client->pers.netname);
+		//if (VectorLength(self->velocity) < 5)
+		//	self->bot.stuck = true;
+	}
+}
+
+void BOTLIB_Wander(edict_t* self, usercmd_t* ucmd)
+{
+	int next_node = INVALID; // Next node to walk towards
+	vec3_t walkdir; // Direction to walk
+	vec3_t lastdir;
+	float move_speed = SPEED_RUN; // Movement speed, default to running
+	self->bot.bi.speed = 0; // Zero speed
+	trace_t tr; // Trace
+
+	// Prevent stuck suicide if holding position
+	if ((self->bot.bi.actionflags & ACTION_HOLDPOS))
+		self->suicide_timeout = level.framenum + 10;
+
+	// Check how far we've moved
+	qboolean moved = true;
+	VectorSubtract(self->s.origin, self->lastPosition, lastdir);
+	float move_dist = VectorLength(lastdir);
+	if (move_dist < FRAMETIME)
+		moved = false; // We've not moved
+
+
+	// If the bot is near the get_item they're after, and the item is inuse
+	// inuse == false if the item was picked up and waiting to respawn
+	// inuse == true if the item has spawned in and is ready to be picked up
+	_Wander_PickupNearbyItem(self, walkdir, move_speed, ucmd);
 
 	if (self->bot.touching_ladder == false)// || (nodes[self->bot.next_node].type != NODE_LADDER && self->groundentity))
 	{
@@ -5380,532 +5875,10 @@ void BOTLIB_Wander(edict_t* self, usercmd_t* ucmd)
 		self->bot.bi.actionflags &= ~ACTION_MOVEUP;
 	}
 
-#if 0
-	/////////////////
-	// Look dir
-	/////////////////
-	qboolean touching_ladder = false;
-	//if (nodes[self->bot.current_node].type == NODE_LADDER || nodes[self->bot.next_node].type == NODE_LADDER)
-	{
-		// Check if touching ladder
-		{
-			float yaw_rad = 0;
-			vec3_t fwd = { 0 }, end = { 0 };
-			trace_t tr;
-
-			yaw_rad = DEG2RAD(self->s.angles[YAW]);
-			fwd[0] = cos(yaw_rad);
-			fwd[1] = sin(yaw_rad);
-
-			//VectorMA(self->s.origin, 1, fwd, end);
-			//tr = gi.trace(self->s.origin, self->mins, self->maxs, end, self, MASK_PLAYERSOLID);
-
-			VectorMA(self->s.origin, 1, fwd, end);
-			vec3_t lmins = { -16, -16, -96 };
-			vec3_t lmaxs = { 16, 16, 96 };
-			tr = gi.trace(self->s.origin, lmins, lmaxs, end, self, MASK_PLAYERSOLID);
-
-			touching_ladder = ((tr.fraction < 1) && (tr.contents & CONTENTS_LADDER));
-
-			if (touching_ladder == false)
-			{
-				VectorMA(self->s.origin, 8, fwd, end);
-				tr = gi.trace(self->s.origin, lmins, lmaxs, end, self, MASK_PLAYERSOLID);
-				touching_ladder = ((tr.fraction < 1) && (tr.contents & CONTENTS_LADDER));
-			}
-			if (touching_ladder == false)
-			{
-				VectorMA(self->s.origin, 16, fwd, end);
-				tr = gi.trace(self->s.origin, lmins, lmaxs, end, self, MASK_PLAYERSOLID);
-				touching_ladder = ((tr.fraction < 1) && (tr.contents & CONTENTS_LADDER));
-			}
-			if (touching_ladder == false)
-			{
-				VectorMA(self->s.origin, 32, fwd, end);
-				tr = gi.trace(self->s.origin, lmins, lmaxs, end, self, MASK_PLAYERSOLID);
-				touching_ladder = ((tr.fraction < 1) && (tr.contents & CONTENTS_LADDER));
-			}
-		}
-	}
-	//if (touching_ladder)
-	//	Com_Printf("%s touching_ladder [%d]\n", __func__, level.framenum);
-	if (touching_ladder == false)// || (nodes[self->bot.next_node].type != NODE_LADDER && self->groundentity))
-	{
-		self->bot.bi.actionflags &= ~ACTION_MOVEDOWN;
-		self->bot.bi.actionflags &= ~ACTION_MOVEUP;
-		touching_ladder = false;
-	}
-
-	// Look at ladder
-	if ((self->bot.current_node != INVALID && self->bot.next_node != INVALID) && (nodes[self->bot.current_node].type == NODE_LADDER || nodes[self->bot.next_node].type == NODE_LADDER))
-	{
-		// Check we're looking at ladder
-		qboolean looking_at_ladder = false;
-		{
-			float yaw_rad = 0;
-			vec3_t fwd = { 0 }, end = { 0 };
-			trace_t tr;
-
-			yaw_rad = DEG2RAD(self->s.angles[YAW]);
-			fwd[0] = cos(yaw_rad);
-			fwd[1] = sin(yaw_rad);
-
-			VectorMA(self->s.origin, 60, fwd, end);
-
-			vec3_t lmins = { -16, -16, -96 };
-			vec3_t lmaxs = { 16, 16, 96 };
-
-			tr = gi.trace(self->s.origin, lmins, lmaxs, end, self, MASK_PLAYERSOLID);
-
-			looking_at_ladder = ((tr.fraction < 1) && (tr.contents & CONTENTS_LADDER));
-			if (looking_at_ladder)
-				touching_ladder = true;
-		}
-		// Turn to find ladder
-		if (looking_at_ladder == false)
-		{
-			int additional_rotation = 0;
-			for (int i = 0; i < 16; i++)
-			{
-				vec3_t fwd = { 0 }, end = { 0 };
-				trace_t tr;
-
-				self->s.angles[YAW] += 22.5; // (22.5 * 16) = 360
-
-				float yaw_rad = DEG2RAD(self->s.angles[YAW]);
-
-				fwd[0] = cos(yaw_rad);
-				fwd[1] = sin(yaw_rad);
-
-				VectorMA(self->s.origin, 60, fwd, end);
-
-				vec3_t lmins = { -16, -16, -96 };
-				vec3_t lmaxs = { 16, 16, 96 };
-
-				tr = gi.trace(self->s.origin, lmins, lmaxs, end, self, MASK_PLAYERSOLID);
-
-				if ((tr.fraction < 1) && (tr.contents & CONTENTS_LADDER)) // Found ladder
-				{
-					touching_ladder = true;
-					VectorSubtract(end, self->s.origin, self->bot.bi.look_at);
-					BOTLIB_ChangeBotAngleYawPitch(self, self->bot.bi.look_at, false, 3.0, true, true);
-					if (additional_rotation >= 1)
-						break;
-					additional_rotation++;
-				}
-			}
-		}
-
-		// Look up or down when on ladder
-		if ((self->bot.current_node != INVALID && self->bot.next_node != INVALID) && (nodes[self->bot.current_node].type == NODE_LADDER && nodes[self->bot.next_node].type == NODE_LADDER))
-		{
-			if (nodes[self->bot.next_node].origin[2] > nodes[self->bot.current_node].origin[2]) // Going up
-			{
-				//Com_Printf("%s %s ladder up [%d]\n", __func__, self->client->pers.netname, level.framenum);
-
-				// Level out at top or bottom
-				if (VectorDistance(self->s.origin, nodes[self->bot.next_node].origin) <= 64 ||
-					VectorDistance(self->s.origin, nodes[self->bot.current_node].origin) <= 64)
-					self->bot.bi.viewangles[PITCH] = 0;
-				else
-					self->bot.bi.viewangles[PITCH] = -45; //-89
-			}
-			else if (nodes[self->bot.next_node].origin[2] < nodes[self->bot.current_node].origin[2]) // Going down
-			{
-				//Com_Printf("%s %s ladder down [%d]\n", __func__, self->client->pers.netname, level.framenum);
-
-				// Level out at top or bottom
-				if (VectorDistance(self->s.origin, nodes[self->bot.next_node].origin) <= 64 ||
-					VectorDistance(self->s.origin, nodes[self->bot.current_node].origin) <= 64)
-					self->bot.bi.viewangles[PITCH] = 0;
-				else
-					self->bot.bi.viewangles[PITCH] = 45; // 89
-			}
-		}
-	}
-	// Look at enemy
-	else if (self->enemy) // Track target
-	{
-		qboolean not_infront = false; // If target is in front
-
-		// Update bot to look at an enemy it can see. If the enemy is obstructed behind a wall, 
-		// the bot will keep looking in that general direction, but not directly at the enemy's pos
-		if (self->bot.see_enemies) // || BOTLIB_Infront(self, self->enemy, 0.3) == false)
-		{
-			if (BOTLIB_Infront(self, self->enemy, 0.3) == false)
-				not_infront = true;
-
-			if (1) // Predicted enemy pos
-			{
-				// Predict enemy position based on their velocity and distance
-				vec3_t predicted_enemy_origin = { 0 };
-				BOTLIB_PredictEnemyOrigin(self, predicted_enemy_origin, 1);
-				if (0) // Debug draw predicted enemy origin - blue is predicted, yellow is actual
-				{
-					uint32_t blue = MakeColor(0, 0, 255, 255); // Blue
-					uint32_t yellow = MakeColor(255, 255, 0, 255); // Yellow
-					void (*DrawBox)(int number, vec3_t origin, uint32_t color, vec3_t mins, vec3_t maxs, int time, qboolean occluded) = NULL;
-					DrawBox = players[0]->client->pers.draw->DrawBox;
-					players[0]->client->pers.draw->boxes_inuse = true; // Flag as being used
-					DrawBox(self->enemy->s.number, predicted_enemy_origin, blue, tv(-16, -16, -24), tv(16, 16, 32), 100, false);
-					DrawBox(self->enemy->s.number + 64, self->enemy->s.origin, yellow, tv(-16, -16, -24), tv(16, 16, 32), 100, false);
-				}
-				VectorSubtract(predicted_enemy_origin, self->s.origin, self->bot.bi.look_at); // Aim at enemy
-				/*
-				if (self->enemy->maxs[2] == CROUCHING_MAXS2) // If enemy is crouching
-					VectorSubtract(tv(predicted_enemy_origin[0], predicted_enemy_origin[1], predicted_enemy_origin[2] - 24), self->s.origin, self->bot.bi.look_at); // Aim lower for crouched enemies
-				else
-					VectorSubtract(predicted_enemy_origin, self->s.origin, self->bot.bi.look_at); // Aim at standing enemy
-				*/
-			}
-			else // Not predicted
-			{
-				if (self->enemy->maxs[2] == CROUCHING_MAXS2) // If enemy is crouching
-					VectorSubtract(tv(self->enemy->s.origin[0], self->enemy->s.origin[1], self->enemy->s.origin[2] - 24), self->s.origin, self->bot.bi.look_at); // Aim lower for crouched enemies
-				else
-					VectorSubtract(self->enemy->s.origin, self->s.origin, self->bot.bi.look_at); // Aim at standing enemy
-			}
-		}
-		else // Look where enemy was last
-		{
-			// Test to see if bot is looking at a wall, if so goto LookAhead, otherwise keep tracking enemy_seen_loc
-			vec3_t eyes;
-			VectorCopy(self->s.origin, eyes);
-			eyes[2] += self->viewheight; // Get our eye level (standing and crouching)
-			vec3_t enemy_eyes;
-			VectorCopy(self->enemy->s.origin, enemy_eyes);
-			enemy_eyes[2] += self->enemy->viewheight; // Get our enemy eye level (standing and crouching)
-			trace_t tr = gi.trace(eyes, NULL, NULL, enemy_eyes, self, MASK_SHOT); // Trace to target
-			float distance = VectorDistance(self->s.origin, tr.endpos);
-			if (distance > 256)
-				VectorSubtract(self->bot.enemy_seen_loc, self->s.origin, self->bot.bi.look_at);
-			else
-				goto LookAhead; // Looking at a wall, so just look at nodes
-		}
-
-		// Adjust turn speed based on skill
-		//float turn_speed = (10 - bot_skill->value) * 3 / 9; // [Min:0 Max:10] skill "10" == 0, Skill "0" == 3
-		float turn_speed = (MAX_BOTSKILL - self->bot.skill) * 3 / 9; // [Min:0 Max:10] skill "10" == 0, Skill "0" == 3
-		if (self->bot.skill >= MAX_BOTSKILL)
-		{
-			turn_speed = 0.2;
-		}
-		//if (bot_skill_threshold->value > 0 && self->bot.skill >= MAX_BOTSKILL)
-		{
-			//turn_speed = 0.1; // Slightly reduce max turn speed when using bot_skill_threshold
-		}
-
-		if (turn_speed > 1.0)
-		{
-			if (not_infront)
-				turn_speed = 2.0;
-
-			if (self->client->weapon == FindItemByNum(HC_NUM))//FindItem(HC_NAME)) // HC bots get almost instant aim
-				turn_speed = 0.2;
-			else if (self->client->weapon == FindItemByNum(KNIFE_NUM)) // Knife bots get almost instant aim
-				turn_speed = 0.2;
-			else if (self->client->weapon == FindItemByNum(GRENADE_NUM)) // Grenade bots get almost instant aim
-				turn_speed = 0.2;
-			else if (rand() % 2 == 0 && self->client->weapon == FindItemByNum(M3_NUM)) // Bots sometimes get aim snap
-				turn_speed = 0.5;
-			else if (rand() % 2 == 0 && self->client->weapon == FindItemByNum(SNIPER_NUM)) // Bots sometimes get aim snap
-				turn_speed = 0.5;
-			else if (rand() % 10 == 0) // Bots sometimes get aim snap
-				turn_speed = 0.5;
-		}
-
-		//Com_Printf("%s %s turn_speed[%f]\n", __func__, self->client->pers.netname, turn_speed);
-
-		//if (self->client->weaponstate != WEAPON_READY)
-		//	not_infront = rand() % 2;
-
-		if (not_infront) // Just 'pan' left and right (don't pitch up and down until enemy is in view)
-		{
-			BOTLIB_ChangeBotAngleYawPitch(self, self->bot.bi.look_at, false, turn_speed, true, false);
-		}
-		else
-			BOTLIB_ChangeBotAngleYawPitch(self, self->bot.bi.look_at, false, turn_speed, true, true);
-	}
-	/*
-	// When at a POI, get a direction to look at by finding a node NODE_POI_LOOKAT link
-	else if (self->bot.current_node != INVALID && self->bot.next_node != INVALID && nodes[self->bot.current_node].type == NODE_POI)
-	{
-		// See if this node has any POI lookat links
-		int num_lookat_nodes = 0;
-		int lookat_nodes[MAXLINKS] = { 0 };
-		for (int i = 0; i < nodes[self->bot.current_node].num_links; i++)
-		{
-			if (nodes[self->bot.current_node].links[i].targetNodeType == NODE_POI_LOOKAT)
-			{
-				lookat_nodes[num_lookat_nodes] = nodes[self->bot.current_node].links[i].targetNode;
-				num_lookat_nodes++;
-			}
-		}
-		if (num_lookat_nodes) // One or more POI lookat nodes found
-		{
-			// When the timer is up pick a new node to look at
-			if (self->bot.node_poi_look_time < level.framenum)
-			{
-				self->bot.node_poi_look_time = level.framenum + 5 * HZ;
-				self->bot.node_poi_lookat_node = lookat_nodes[rand() % num_lookat_nodes]; // Pick a random POI lookat node
-			}
-
-			// Look at POI lookat node
-			VectorSubtract(nodes[self->bot.node_poi_lookat_node].origin, self->s.origin, self->bot.bi.look_at);
-			BOTLIB_ChangeBotAngleYawPitch(self, self->bot.bi.look_at, false, 2.0);
-		}
-	}
-	*/
-	else if (0 && self->bot.current_node != INVALID && nodes[self->bot.current_node].num_links)
-	{
-		//for (int i = 0; i < nodes[self->bot.current_node].num_links; i++)
-		{
-		}
-		//rand() % nodes[self->bot.current_node].num_links + 1;
-		Com_Printf("%s found_viable_node [%d]\n", __func__, level.framenum);
-
-		VectorSubtract(nodes[rand() % nodes[self->bot.current_node].num_links + 1].origin, self->s.origin, self->bot.bi.look_at);
-		BOTLIB_ChangeBotAngleYawPitch(self, self->bot.bi.look_at, false, 1.0, true, true);
-	}
-	// If no enemy, have bot look at PNOISES, if any.
-	else if (1)
-	{
-		int type = 0;
-		int player_num = INVALID;
-		float nearest = 9999999;
-		qboolean found_target = false;
-		for (int i = 0; i < num_players; i++)
-		{
-			if (players[i] != self && OnSameTeam(self, players[i]) == false)
-			{
-				if (botlib_noises.weapon_time[i] > 0 && BOTLIB_MovingToward(self, botlib_noises.weapon_origin[i], 0.3))
-				{
-					//Com_Printf("%s %s look at weapon_origin [%d]\n", __func__, self->client->pers.netname, botlib_noises.weapon_time[i]);
-					float dist = VectorDistance(botlib_noises.weapon_origin[i], self->s.origin);
-					if (dist < nearest && dist > 256)
-					{
-						type = PNOISE_WEAPON;
-						nearest = dist;
-						player_num = i;
-					}
-				}
-				if (botlib_noises.self_time[i] > 0 && BOTLIB_MovingToward(self, botlib_noises.self_origin[i], 0.3))
-				{
-					float dist = VectorDistance(botlib_noises.self_origin[i], self->s.origin);
-					if (dist < nearest && dist > 256)
-					{
-						type = PNOISE_SELF;
-						nearest = dist;
-						player_num = i;
-					}
-				}
-			}
-		}
-		if (player_num == INVALID)
-		{
-			for (int i = 0; i < num_players; i++)
-			{
-				if (players[i] != self && OnSameTeam(self, players[i]) == false)
-				{
-					if (botlib_noises.impact_time[i] > 0 && BOTLIB_MovingToward(self, botlib_noises.impact_origin[i], 0.3))
-					{
-						float dist = VectorDistance(botlib_noises.impact_origin[i], self->s.origin);
-						if (dist < nearest && dist > 256)
-						{
-							type = PNOISE_WEAPON;
-							nearest = dist;
-							player_num = i;
-						}
-					}
-				}
-			}
-		}
-
-		if (player_num != INVALID)
-		{
-			vec3_t noise_origin;
-
-			if (type == PNOISE_WEAPON)
-				VectorCopy(botlib_noises.weapon_origin[player_num], noise_origin);
-			else if (type == PNOISE_SELF)
-				VectorCopy(botlib_noises.self_origin[player_num], noise_origin);
-			else if (type == PNOISE_IMPACT)
-				VectorCopy(botlib_noises.impact_origin[player_num], noise_origin);
-
-
-			// Test to see if bot is looking at a wall, if so goto LookAhead, otherwise keep tracking noise
-			vec3_t eyes;
-			VectorCopy(self->s.origin, eyes);
-			eyes[2] += self->viewheight; // Get our eye level (standing and crouching)
-			vec3_t noise_origin_eyes;
-			VectorCopy(noise_origin, noise_origin_eyes);
-			noise_origin_eyes[2] += self->viewheight; // Set noise origin to eye level
-			trace_t tr = gi.trace(eyes, NULL, NULL, noise_origin_eyes, self, MASK_SHOT); // Trace to target
-			float distance = VectorDistance(self->s.origin, tr.endpos);
-			if (distance > 256)
-			{
-				VectorSubtract(noise_origin_eyes, self->s.origin, self->bot.bi.look_at);
-				BOTLIB_ChangeBotAngleYawPitch(self, self->bot.bi.look_at, false, 1.0, true, true);
-			}
-			else
-				goto LookAhead;
-		}
-		else
-			goto LookAhead;
-	}
-	// If no enemy, look at nodes in front/behind, or look at map center
-	else // if (self->enemy == NULL)
-	{
-
-	LookAhead:
-
-		const int look_ahead = 5;
-		qboolean found_viable_node = false;
-		for (int i = self->bot.node_list_current; i < self->bot.node_list_count; i++) // Loop from current node until end of list
-		{
-			/*
-			if ((i + look_ahead) < self->bot.node_list_count && self->bot.node_list[i + look_ahead] != INVALID)
-			{
-				int look_node = self->bot.node_list[(i + look_ahead)];
-				if (nodes[look_node].num_links)
-				{
-					int rnd_link = rand() % nodes[look_node].num_links + 1;
-					int rnd_node = nodes[look_node].links[rnd_link].targetNode;
-					if (rnd_node != INVALID)
-					{
-						VectorSubtract(nodes[rnd_node].origin, self->s.origin, self->bot.bi.look_at);
-						BOTLIB_ChangeBotAngleYawPitch(self, self->bot.bi.look_at, false, 0.1);
-						found_viable_node = true;
-						break;
-					}
-				}
-			}
-			*/
-
-			// Look x nodes ahead
-			if ((i + look_ahead) < self->bot.node_list_count && self->bot.node_list[i + look_ahead] != INVALID)
-			{
-				VectorSubtract(nodes[self->bot.node_list[(i + look_ahead)]].origin, self->s.origin, self->bot.bi.look_at);
-				BOTLIB_ChangeBotAngleYawPitch(self, self->bot.bi.look_at, false, 1.0, true, true);
-				found_viable_node = true;
-				break;
-			}
-			// Look x nodes behind
-			else if ((i - look_ahead) < self->bot.node_list_count && self->bot.node_list[(i - look_ahead)] != INVALID)
-			{
-				VectorSubtract(nodes[self->bot.node_list[(i - look_ahead)]].origin, self->s.origin, self->bot.bi.look_at);
-				BOTLIB_ChangeBotAngleYawPitch(self, self->bot.bi.look_at, false, 1.0, true, true);
-				found_viable_node = true;
-				break;
-			}
-			else
-				break;
-		}
-		//if (found_viable_node)
-		//	Com_Printf("%s found_viable_node [%d]\n", __func__, level.framenum);
-		//else
-		//	Com_Printf("%s no node [%d]\n", __func__, level.framenum);
-
-		if (0 && found_viable_node == false && self->bot.next_node != INVALID && nodes[self->bot.next_node].num_links)
-		{
-			//for (int i = 0; i < nodes[self->bot.current_node].num_links; i++)
-			{
-			}
-			//rand() % nodes[self->bot.current_node].num_links + 1;
-			Com_Printf("%s found_viable_node [%d]\n", __func__, level.framenum);
-
-			VectorSubtract(nodes[rand() % nodes[self->bot.current_node].num_links + 1].origin, self->s.origin, self->bot.bi.look_at);
-			BOTLIB_ChangeBotAngleYawPitch(self, self->bot.bi.look_at, false, 1.0, true, true);
-		}
-
-		if (0 && found_viable_node == false)
-		{
-			// If no enemy, look at random thing
-			{
-				// If no enemy, look at random item or map center
-				// Search through map looking for a random item, or NULL
-				//if (self->bot.bi.look_at_ent == NULL || self->bot.bi.look_at_ent_time < level.framenum)
-				if (self->bot.bi.look_at_time < level.framenum)
-				{
-					self->bot.bi.look_at_time = level.framenum + 1 * HZ; // Change target every 5 seconds
-
-					edict_t* map_ents;
-					int edict_num = 1 + game.maxclients; // skip worldclass & players
-					for (map_ents = g_edicts + edict_num; map_ents < &g_edicts[globals.num_edicts]; map_ents++)
-					{
-						// Skip ents that are not in used and not an item
-						if (map_ents->inuse == false || map_ents->item == NULL)
-							continue;
-
-						//trace_t tr = gi.trace(self->s.origin, NULL, NULL, map_ents->s.origin, self, MASK_SOLID);
-						//if (tr.fraction == 1.0)
-						{
-							VectorCopy(map_ents->s.origin, self->bot.bi.look_at);
-							break;
-						}
-					}
-				}
-				if (VectorEmpty(self->bot.bi.look_at))
-					VectorSubtract(tv(0, 0, 0), self->s.origin, lookdir); // Look at center of map
-				else
-					VectorSubtract(self->bot.bi.look_at, self->s.origin, lookdir); // Look at random map item
-
-			}
-
-			// If lookdir is empty, then look at map center
-			if (VectorEmpty(self->bot.bi.look_at))
-			{
-				VectorSubtract(tv(0, 0, 0), self->s.origin, lookdir);
-			}
-
-			BOTLIB_ChangeBotAngleYawPitch(self, lookdir, false, 1.0, true, true);
-		}
-	}
-#endif
-	
 	// This only applies for teamplay
-	
 	// Do not follow path when teammates are still inside us.
-	if (OnTransparentList(self)) { // Teamplay
-		// If the bot has just spawned, then we need to wait a bit before we start moving.
-		if (self->just_spawned) // set by SpawnPlayers() in a_team.c
-		{
-			self->just_spawned = false;
-			self->just_spawned_go = true; // Bot is ready, when wander_timeout is reached.
-
-			// If enemy is in sight, don't wait too long
-			if (self->enemy)
-				self->just_spawned_timeout = level.framenum + random() * HZ;			// Short wait
-			else
-			{
-				// Otherwise pick from various wait times before moving out
-				int rnd_rng = rand() % 4;
-				if (rnd_rng == 0)
-					self->just_spawned_timeout = level.framenum + (random() * 3) * HZ;	// Long wait
-				else if (rnd_rng == 1)
-					self->just_spawned_timeout = level.framenum + (random() * 2) * HZ;	// Medium wait
-				else if (rnd_rng == 2)
-					self->just_spawned_timeout = level.framenum + (random() * HZ);  // Short wait
-				else
-					self->just_spawned_timeout = 0;										// No wait
-			}
-
-			self->bot.bi.actionflags |= ACTION_HOLDPOS;
-			return;
-		}
-		// Wait
-		if (self->just_spawned_go && self->just_spawned_timeout > level.framenum && self->bot.see_enemies == false)
-		{
-			self->bot.bi.actionflags |= ACTION_HOLDPOS;
-			return; // It's not time to move yet, wait!
-		}
-		// Go!
-		if (self->just_spawned_go || self->bot.see_enemies)
-		{
-			BOTLIB_PickLongRangeGoal(self);
-			self->just_spawned_go = false; // Now we can move!
-		}
-	}
+	if (OnTransparentList(self)) // Teamplay
+		_Wander_Teamplay(self);
 
 
 	if (self->groundentity && self->bot.next_node == INVALID) // No next node, pick new nav
@@ -5916,60 +5889,19 @@ void BOTLIB_Wander(edict_t* self, usercmd_t* ucmd)
 		return;
 	}
 	// On ground and current or next node is invalid
-	//if (self->groundentity && (self->bot.current_node == INVALID || self->bot.next_node == INVALID))
-	//self->bot.current_node = ACEND_FindClosestReachableNode(self, NODE_DENSITY, NODE_ALL); // Update current node
 	if (self->groundentity && self->bot.current_node == INVALID)
 	{
-		//self->bot.state = BOT_MOVE_STATE_NAV;
-		//self->bot.bi.speed = 0;
-		//return;
-
-		//Com_Printf("%s %s on ground and current_node (%i) is invalid; try to wander\n", __func__, self->client->pers.netname, self->bot.current_node);
 		self->bot.bi.speed = 0;
 		self->bot.stuck_wander_time = 1;
 	}
 	if (self->groundentity && self->bot.goal_node == INVALID)// && self->bot.node_travel_time >= 15)
 	{
-		//Com_Printf("%s %s on ground and goal_node (%i) is invalid; find a new path\n", __func__, self->client->pers.netname, self->bot.goal_node);
 		self->bot.bi.speed = 0;
 		self->bot.state = BOT_MOVE_STATE_NAV;
 		return;
 	}
 
-
-
-	/*
-	// If next node is INVALID, assume we're stuck
-	//if (self->bot.next_node == INVALID || self->bot.current_node == INVALID || self->bot.goal_node == INVALID)
-	if (self->bot.goal_node == INVALID)
-	{
-		self->bot.stuck_wander_time = 2;
-		//Com_Printf("%s %s next_node:%d current_node:%d goal_node:%d\n", __func__, self->client->pers.netname, self->bot.next_node, self->bot.current_node, self->bot.goal_node);
-	}
-	else */
-		next_node = self->bot.next_node;
-
-	/*
-	if (self->bot.node_travel_time > 30)
-	{
-		self->bot.node_travel_time = 0;
-
-		// Wander
-		self->bot.state = STATE_WANDER;
-		self->wander_timeout = level.framenum + 1.0 * HZ;
-		self->bot.goal_node = INVALID;
-	}
-	*/
-
-	//if (self->bot.goal_node != INVALID && nav_area.total_areas > 0 && self->bot.node_travel_time >= 120)
-	{
-		//Com_Printf("%s %s ATTEMPTING TO FIX cur[%d] nxt[%d] goal[%d]\n", __func__, self->client->pers.netname, self->bot.current_node, self->bot.next_node, self->bot.goal_node);
-		//if (BOTLIB_CanVisitNode(self, self->bot.goal_node, false, INVALID))
-		{
-			//self->bot.node_travel_time = 0;
-			//Com_Printf("%s %s FIXED node_travel_time cur[%d] nxt[%d] goal[%d]\n", __func__, self->client->pers.netname, self->bot.current_node, self->bot.next_node, self->bot.goal_node);
-		}
-	}
+	next_node = self->bot.next_node;
 
 	// If travel time took too long, assume we're stuck
 	if (self->bot.node_travel_time >= 120) //60 // Bot failure to reach next node
@@ -5980,164 +5912,8 @@ void BOTLIB_Wander(edict_t* self, usercmd_t* ucmd)
 
 	//self->bot.stuck_wander_time = 0;
 
-	if (self->bot.stuck_wander_time)// && nav_area.total_areas <= 0)
-	{
-		self->bot.stuck_wander_time--;
-		self->bot.node_travel_time = 0;
-
-		//Com_Printf("%s %s stuck_wander cur[%d] nxt[%d] goal[%d]\n", __func__, self->client->pers.netname, self->bot.current_node, self->bot.next_node, self->bot.goal_node);
-
-		//Com_Printf("%s %s stuck_wander BOTLIB_PickLongRangeGoal()\n", __func__, self->client->pers.netname);
-		//BOTLIB_PickLongRangeGoal(self); // pick a new long range goal
-		// Wander
-		//if (nav_area.total_areas <= 0)
-		{
-			//Com_Printf("%s %s stuck_wander\n", __func__, self->client->pers.netname);
-			self->bot.state = BOT_MOVE_STATE_NAV;
-			self->bot.goal_node = INVALID;
-		}
-		//return;
-		
-
-		VectorCopy(self->bot.stuck_random_dir, walkdir);
-
-		if (self->groundentity)
-		{
-			self->bot.stuck_last_negate = 0; // Reset if we touched ground
-		}
-
-		float fwd_distance = 32;
-		tr = gi.trace(self->s.origin, NULL, NULL, tv(self->s.origin[0], self->s.origin[1], self->s.origin[2] - 128), self, (MASK_PLAYERSOLID | MASK_OPAQUE));
-		if (tr.plane.normal[2] < 0.99) // If on a slope that makes the player 'bounce' when moving down the slope
-			fwd_distance = 128; // Extend the distance we check for a safe direction to move toward
-		//Com_Printf("%s %s tr.plane.normal[%f] \n", __func__, self->client->pers.netname, tr.plane.normal[2]);
-
-		qboolean can_move = BOTLIB_CanMoveInDirection(self, walkdir, fwd_distance, NODE_MAX_CROUCH_FALL_HEIGHT, false);
-		if (can_move == false || VectorEmpty(self->bot.stuck_random_dir))
-		{
-			// Try to aquire a safe random direction to move toward
-			qboolean success = false;
-			for (int i = 0; i < 8; i++)
-			{
-				if (BOTLIB_CanMoveInDirection(self, walkdir, fwd_distance, NODE_MAX_CROUCH_FALL_HEIGHT, true) == false)
-					continue;
-				else
-				{
-					success = true;
-					break;
-				}
-			}
-			if (success)
-			{
-				VectorCopy(walkdir, self->bot.stuck_random_dir);
-				// vect to angles
-				vec3_t angles;
-				vectoangles(walkdir, angles);
-				//Com_Printf("%s %s found random direction [%f %f %f]\n", __func__, self->client->pers.netname, angles[0], angles[1], angles[2]);
-			}
-			else
-			{
-				//Com_Printf("%s %s ACTION_HOLDPOS N[%d] L[%d] \n", __func__, self->client->pers.netname, self->bot.stuck_last_negate, level.framenum);
-
-				// Prevent bot from falling off a ledge by reversing its velocity, pulling it away from the ledge
-				if (level.framenum > self->bot.stuck_last_negate)
-				{
-					// Only allow this to happen once every 60 seconds
-					// It's reset after 60 seconds, death, or touching ground again
-					self->bot.stuck_last_negate = level.framenum + 60 * HZ;
-
-					//Com_Printf("%s %s stuck_last_negate N[%d] L[%d] \n", __func__, self->client->pers.netname, self->bot.stuck_last_negate, level.framenum);
-
-					// Reverse the direction
-					VectorNegate(self->velocity, self->velocity);
-				}
-				//self->bot.bi.actionflags |= ACTION_HOLDPOS; // Stop moving
-				//BOTLIB_Crouch_Or_Jump(self, ucmd, walkdir); // Crouch or jump if needed
-				//return;
-			}
-		}
-		else
-		{
-			//Com_Printf("%s %s heading for random dir\n", __func__, self->client->pers.netname);
-			//VectorCopy(walkdir, self->bot.stuck_random_dir);
-			//VectorCopy(self->bot.stuck_random_dir, walkdir);
-		}
-
-		vec3_t hordir;
-		VectorNormalize(walkdir);
-		hordir[0] = walkdir[0];
-		hordir[1] = walkdir[1];
-		hordir[2] = 0;
-		VectorNormalize(hordir);
-		VectorCopy(hordir, self->bot.bi.dir);
-		self->bot.bi.speed = move_speed; // Set our suggested speed
-
-		int perform_action = BOTLIB_Crouch_Or_Jump(self, ucmd, walkdir); // Crouch or jump if needed
-		if (perform_action == ACTION_NONE)
-		{
-			//self->bot.bi.actionflags &= ~ACTION_CROUCH; // Remove crouching
-			//self->bot.bi.actionflags &= ~ACTION_JUMP; // Remove jumping
-		}
-		else if (perform_action == ACTION_JUMP)
-		{
-			self->bot.bi.actionflags |= ACTION_JUMP; // Add jumping
-			self->bot.bi.actionflags &= ~ACTION_CROUCH; // Remove crouching
-		}
-		else if (perform_action == ACTION_CROUCH)
-		{
-			self->bot.bi.actionflags |= ACTION_CROUCH; // Add crouching
-			self->bot.bi.actionflags &= ~ACTION_JUMP; // Remove jumping
-		}
-		
-		return;
-	}
-	else
-	{
-		/*
-		qboolean fetch_item = false;
-		if (self->bot.get_item != NULL)
-		{
-			float item_dist = VectorDistance(self->bot.get_item->s.origin, self->s.origin);
-			Com_Printf("%s %s is looking for item %s [%f] sf[0x%x] f[0x%x]\n", __func__, self->client->pers.netname, self->bot.get_item->classname, item_dist, self->bot.get_item->spawnflags, self->bot.get_item->flags);
-
-			// TP item not picked up
-			// spawnflags = 0
-			// flags = 0
-			// 
-			// TP item picked up and in bot inventory
-			// spawnflags = ITEM_TARGETS_USED
-			// flags = FL_RESPAWN
-			//
-			// TP item picked up then dropped by bot
-			// spawnflags = DROPPED_ITEM
-			// flags = 0
-			// 
-			// TP item picked up, bot killed, dropping all items to ground
-			// spawnflags = DROPPED_PLAYER_ITEM
-			// flags = 0
-
-			if (item_dist <= 128)
-			{
-				Com_Printf("%s %s is near item %s [%f]\n", __func__, self->client->pers.netname, self->bot.get_item->classname, item_dist);
-				VectorSubtract(self->bot.get_item->s.origin, self->s.origin, walkdir); // Head to next node
-				VectorNormalize(walkdir);
-				fetch_item = true;
-
-				if (item_dist <= 16)
-				{
-					Com_Printf("%s %s grabbed item %s [%f]\n", __func__, self->client->pers.netname, self->bot.get_item->classname, item_dist);
-					self->bot.get_item = NULL;
-				}
-			}
-			//else if (item_dist <= 64)
-			{
-				//Com_Printf("%s %s grabbed item %s [%f]\n", __func__, self->client->pers.netname, self->bot.get_item->classname, item_dist);
-				//self->bot.get_item = NULL;
-			}
-		}
-		*/
-		//if (fetch_item == false)
-		{
+	if (self->bot.stuck_wander_time) {// && nav_area.total_areas <= 0)
+		if (!_Wandering(self, walkdir, move_speed, tr, ucmd)) {
 			if (next_node == INVALID)
 			{
 				//self->bot.stuck_wander_time = 1;
@@ -6145,48 +5921,15 @@ void BOTLIB_Wander(edict_t* self, usercmd_t* ucmd)
 			}
 			VectorSubtract(nodes[next_node].origin, self->s.origin, walkdir); // Head to next node
 			VectorNormalize(walkdir);
-			//VectorSubtract(nodes[self->bot.next_node].origin, self->s.origin, walkdir); // Head to next node
 		}
 	}
-
-	//qboolean can_move = BOTLIB_CanMoveInDirection(self, walkdir, 32, NODE_MAX_CROUCH_FALL_HEIGHT, false);
-	//if (can_move == false)
-	//	self->bot.stuck_wander_time = 1;
 
 	if (self->bot.stuck_wander_time)
 		return;
 
-
-	//if (self->bot.state == STATE_WANDER || self->bot.goal_node == INVALID)
-	//	Com_Printf("%s %s [%d] INVALID\n", __func__, self->client->pers.netname, level.framenum);
-
-	//qboolean perform = BOTLIB_Crouch_Or_Jump(self, ucmd, walkdir); // Crouch or jump if needed
-	/*
-	if (perform == false && moved == false)
-	{
-		//self->bot.bi.actionflags |= (ACTION_JUMP); // Try jumping anyway
-		//self->bot.stuck_wander_time = 1;
-	}
-	*/
-
-	/*
-	//horizontal direction
-	vec3_t hordir;
-	hordir[0] = walkdir[0];
-	hordir[1] = walkdir[1];
-	hordir[2] = 0;
-	VectorNormalize(hordir);
-	VectorCopy(hordir, self->bot.bi.dir);
-	*/
-
 	// Strafe to get back on track
 	if (0 && self->bot.next_node != INVALID)
 	{
-		// Get distance from bot to next node
-		//float dist = VectorDistance(self->s.origin, nodes[self->bot.next_node].origin);
-		// Get distanced from current node to next node
-		//float dist2 = VectorDistance(nodes[self->bot.current_node].origin, nodes[self->bot.next_node].origin);
-
 		byte mov_strafe = 0;
 		float dot = BOTLIB_DirectionCheck(self, &mov_strafe);
 		if (dot > 0.7 && dot < 0.99) // .995
@@ -6204,70 +5947,32 @@ void BOTLIB_Wander(edict_t* self, usercmd_t* ucmd)
 				VectorNormalize(hordir);
 				VectorCopy(hordir, self->bot.bi.dir);
 			}
-
-
-
-			/*
-			//move_speed = SPEED_ROAM; // Slow down if we're moving in the right direction
-
-			//BOTLIB_UTIL_NEAREST_PATH_POINT(self, ucmd); // Update the nearest path point
-			float mov_strafe = BOTLIB_UTIL_PATH_DEVIATION(self, ucmd);
-
-			if (mov_strafe > 0)
-			{
-				//Com_Printf("%s %s [s %f]\n", __func__, self->client->pers.netname, mov_strafe);
-				// Get the direction perpendicular to the dir, facing left
-				vec3_t right;
-				right[0] = walkdir[0];
-				right[1] = -walkdir[0];
-				right[2] = 0;
-				VectorNormalize(right);
-				VectorCopy(right, self->bot.bi.dir);
-				move_speed = SPEED_ROAM; // Slow down if we're moving in the right direction
-			}
-			else if (mov_strafe < 0)
-			{
-				//Com_Printf("%s %s [s %f]\n", __func__, self->client->pers.netname, mov_strafe);
-				// Get the direction perpendicular to the dir, facing left
-				vec3_t left;
-				left[0] = -walkdir[1];
-				left[1] = walkdir[1];
-				left[2] = 0;
-				VectorNormalize(left);
-				VectorCopy(left, self->bot.bi.dir);
-				move_speed = SPEED_ROAM; // Slow down if we're moving in the right direction
-			}
-			else
-			{
-				move_speed = SPEED_RUN; // Slow down if we're moving in the right direction
-			}
-			*/
 		}
 	}
 
 	//self->bot.bi.speed = move_speed; // Set our suggested speed
 
-	if (0)
-	{
-		// Get current direction
-		vec3_t angle, forward, right, start, end, origin, offset;
-		vectoangles(walkdir, angle);
-		AngleVectors(angle, forward, right, NULL);
-		VectorCopy(self->s.origin, origin);
-		//origin[2] -= 24; // From the ground up
-		origin[2] += 8; // [Origin 24 units] + [8 units] == 32 units heigh (same as node height)
+	// if (0)
+	// {
+	// 	// Get current direction
+	// 	vec3_t angle, forward, right, start, end, origin, offset;
+	// 	vectoangles(walkdir, angle);
+	// 	AngleVectors(angle, forward, right, NULL);
+	// 	VectorCopy(self->s.origin, origin);
+	// 	//origin[2] -= 24; // From the ground up
+	// 	origin[2] += 8; // [Origin 24 units] + [8 units] == 32 units heigh (same as node height)
 
-		VectorSet(offset, 0, 0, 0); // changed from 18,0,0
-		G_ProjectSource(origin, offset, forward, right, start);
-		offset[0] += 1024; // Distance forward dir
-		G_ProjectSource(origin, offset, forward, right, end);
+	// 	VectorSet(offset, 0, 0, 0); // changed from 18,0,0
+	// 	G_ProjectSource(origin, offset, forward, right, start);
+	// 	offset[0] += 1024; // Distance forward dir
+	// 	G_ProjectSource(origin, offset, forward, right, end);
 
-		gi.WriteByte(svc_temp_entity);
-		gi.WriteByte(TE_BFG_LASER);
-		gi.WritePosition(start);
-		gi.WritePosition(end);
-		gi.multicast(self->s.origin, MULTICAST_PHS);
-	}
+	// 	gi.WriteByte(svc_temp_entity);
+	// 	gi.WriteByte(TE_BFG_LASER);
+	// 	gi.WritePosition(start);
+	// 	gi.WritePosition(end);
+	// 	gi.multicast(self->s.origin, MULTICAST_PHS);
+	// }
 
 	
 	if (1 & self->bot.node_list_count)
@@ -6300,38 +6005,13 @@ void BOTLIB_Wander(edict_t* self, usercmd_t* ucmd)
 			if (target_node == self->bot.next_node)
 			{
 				next_node_type = nodes[self->bot.current_node].links[i].targetNodeType; // Next node type
-
-				//self->prev_to_curr_node_type = self->curr_to_next_node_type; // Previous node type
-				//self->curr_to_next_node_type = nodes[self->bot.current_node].links[i].targetNodeType; // Next node type
 				break;
 			}
-
-			/*
-			// Try search surrounding nodes to see if they contain next_node
-			for (int j = 0; j < nodes[target_node].num_links; j++)
-			{
-				int target_target_node = nodes[target_node].links[j].targetNode;
-				for (int k = 0; k < nodes[target_target_node].num_links; k++)
-				{
-					int target_target_target_node = nodes[target_target_node].links[k].targetNode;
-					if (target_target_target_node == self->bot.next_node)
-					{
-						next_node_type = nodes[target_target_target_node].links[i].targetNodeType; // Next node type
-						Com_Printf("%s %s using target_target_target_node\n", __func__, self->client->pers.netname);
-						break;
-					}
-				}
-			}
-			*/
 		}
 	}
 
-	//if (current_node_type == INVALID || next_node_type == INVALID)
 	if (next_node_type == INVALID)
 	{
-		//next_node_type = NODE_MOVE;
-		//Com_Printf("%s %s invalid types node:curr/next[%d %d]  type:curr/next[%d %d]\n", __func__, self->client->pers.netname, self->bot.current_node, self->bot.next_node, current_node_type, next_node_type);
-
 		if (self->bot.next_node == INVALID)
 		{
 			Com_Printf("%s %s invalid next_node node:curr/next/goal[%d %d %d]  type:curr/next[%d %d]\n", __func__, self->client->pers.netname, self->bot.current_node, self->bot.next_node, self->bot.goal_node, current_node_type, next_node_type);
@@ -6349,66 +6029,13 @@ void BOTLIB_Wander(edict_t* self, usercmd_t* ucmd)
 		}
 		else if (self->bot.next_node != INVALID && VectorDistance(nodes[self->bot.next_node].origin, self->s.origin) <= 128)
 		{
-			/*
-			// Try search surrounding nodes to see if they contain next_node
-			qboolean resolved = false;
-			for (int i = 0; i < nodes[self->bot.current_node].num_links; i++)   //for (i = 0; i < MAXLINKS; i++)
-			{
-				if (next_node_type != INVALID) break;
-				int target_node = nodes[self->bot.current_node].links[i].targetNode;
-				if (target_node == INVALID) continue;
-
-				for (int j = 0; j < nodes[target_node].num_links; j++)
-				{
-					if (next_node_type != INVALID) break;
-					int target_target_node = nodes[target_node].links[j].targetNode;
-					if (target_target_node == INVALID) continue;
-
-					for (int k = 0; k < nodes[target_target_node].num_links; k++)
-					{
-						int target_target_target_node = nodes[target_target_node].links[k].targetNode;
-						if (target_target_target_node == INVALID) continue;
-
-						if (target_target_target_node == self->bot.next_node)
-						{
-							if (VectorDistance(nodes[target_target_target_node].origin, self->s.origin) <= 128)
-							{
-								next_node_type = nodes[target_target_node].links[i].targetNodeType; // Next node type
-								Com_Printf("%s %s resolved next node:curr/next/goal[%d %d %d]\n", __func__, self->client->pers.netname, self->bot.current_node, self->bot.next_node, self->bot.goal_node);
-								break;
-							}
-						}
-					}
-				}
-			}
-			*/
-
-			//if (next_node_type != INVALID)
-			//	Com_Printf("%s %s resolved next node:curr/next/goal[%d %d %d]\n", __func__, self->client->pers.netname, self->bot.current_node, self->bot.next_node, self->bot.goal_node);
+			//Com_Printf("Distance to next node: %s %f\n", self->client->pers.netname, VectorDistance(nodes[self->bot.next_node].origin, self->s.origin));
+			//Com_Printf("%s %s resolved next node:curr/next/goal[%d %d %d]\n", __func__, self->client->pers.netname, self->bot.current_node, self->bot.next_node, self->bot.goal_node);
 		}
 		if (next_node_type == INVALID)
 		{
-			//Com_Printf("%s %s invalid types node:curr/next/goal[%d %d %d]  type:curr/next[%d %d]\n", __func__, self->client->pers.netname, self->bot.current_node, self->bot.next_node, self->bot.goal_node, current_node_type, next_node_type);
-
-			// Path failed, so try again
-			//BOTLIB_CanVisitNode(self, self->bot.goal_node, false, nodes[self->bot.goal_node].area, true);
-
-			/*
-			if (self->bot.goal_node != INVALID)
-				BOTLIB_CanGotoNode(self, self->bot.goal_node, false);
-			else
-				self->bot.state = BOT_MOVE_STATE_NAV;
-			*/
-
 			return;
 		}
-
-		//VectorCopy(nodes[self->bot.goal_node].origin, self->s.origin);
-
-		//self->bot.state = STATE_WANDER;
-		//self->wander_timeout = level.framenum + 1.0 * HZ;
-		//self->bot.goal_node = INVALID;
-		//return;
 	}
 
 	if (current_node_type != INVALID && next_node_type != INVALID)
@@ -6437,108 +6064,65 @@ void BOTLIB_Wander(edict_t* self, usercmd_t* ucmd)
 			self->bot.bi.speed = move_speed; // Set our suggested speed
 		}
 
-		// Water!
-		/// Borrowed from P_WorldEffects
-		int waterlevel = self->waterlevel;
-		int old_waterlevel = self->client->old_waterlevel;
-		self->client->old_waterlevel = waterlevel;
+		// Decisions based on nodetype
 
-		if (current_node_type == NODE_WATER || waterlevel == 3){
-			gi.dprintf("I'm in the water %s and my air is %d\n", self->client->pers.netname, self->air_finished_framenum - level.framenum);
-			// Get out before you start drowning!
-			if (self->air_finished_framenum < level.framenum + 10) {
-				self->bot.bi.actionflags |= ACTION_MOVEUP;
-				self->bot.node_travel_time = 0;
-			}
-		}
+		if (current_node_type == NODE_WATER || next_node_type == NODE_WATER)
+			_Wander_Node_Water(self, current_node_type, next_node_type, walkdir, move_speed);
+		if (next_node_type == NODE_BOXJUMP)
+			_Wander_Node_Boxjump(self);
+		if (next_node_type == NODE_MOVE)
+			_Wander_Node_Move(self);
+		if (next_node_type == NODE_CROUCH)
+			_Wander_Node_Crouch(self);
+		if (nodes[self->bot.current_node].type == NODE_LADDER && nodes[self->bot.next_node].type == NODE_LADDER)
+			_Wander_Node_Ladder(self, walkdir);
+		if (next_node_type == NODE_JUMP && self->groundentity)
+			_Wander_Node_Jump(self);
+		if (next_node_type == NODE_JUMPPAD)
+			_Wander_Node_Jumppad(self, walkdir, move_speed);
+		if (ctf->value)
+			_Wander_CTF(self);
+		if (self->bot.see_enemies)
+			_Wander_SeeEnemies(self);
+	
 
-		// move, crouch, or jump
-		if (next_node_type == NODE_WATER)
-		{
-			self->bot.bi.actionflags &= ~ACTION_MOVEUP;
-			self->bot.bi.actionflags &= ~ACTION_MOVEDOWN;
-			self->bot.bi.actionflags &= ~ACTION_CROUCH;
 
-			//VectorClear(self->bot.bi.dir);
-			//self->bot.bi.speed = 0;
-
-			VectorNormalize(walkdir);
-			VectorCopy(walkdir, self->bot.bi.dir);
-			self->bot.bi.speed = move_speed; // Set our suggested speed
-
-			// Check that we're in the water
-			vec3_t temp = { 0,0,0 };
-			VectorCopy(self->s.origin, temp);
-			temp[2] = self->s.origin[2] - 8;
-			int contents_feet = gi.pointcontents(temp);
-
-			// Almost out of air, start heading up to the surface
-			//if ((contents_feet & MASK_WATER) && self->air_finished_framenum < level.framenum + 5) // Move up to get air
-			if (self->air_finished_framenum < level.framenum + 5) // Move up to get air
-			{
-				self->bot.bi.actionflags |= ACTION_MOVEUP;
-				self->bot.node_travel_time = 0; // Ignore node travel time while we get some air
-				//Com_Printf("%s %s [%d] water: get air\n", __func__, self->client->pers.netname, level.framenum);
-			}
-			else if ((contents_feet & MASK_WATER) && fabs(nodes[self->bot.next_node].origin[2] - self->s.origin[2]) <= 33) // Roughly leveled out
-			{
-				//Com_Printf("%s %s [%d] water: level\n", __func__, self->client->pers.netname, level.framenum);
-			}
-			else if ((contents_feet & MASK_WATER) && nodes[self->bot.next_node].origin[2] > self->s.origin[2]) // Move up
-			{
-				//self->bot.bi.actionflags |= ACTION_MOVEUP;
-				// darksaint: changed this to MOVEUP and MOVEFORWARD simultanously to get out of water?
-				self->bot.bi.actionflags |= (ACTION_MOVEUP | ACTION_MOVEFORWARD);
-				//Com_Printf("%s %s [%d] water: move up\n", __func__, self->client->pers.netname, level.framenum);
-			}
-			else if (nodes[self->bot.next_node].origin[2] < self->s.origin[2]) // Move down
-			{
-				if (contents_feet & MASK_WATER)
-					self->bot.bi.actionflags |= ACTION_MOVEDOWN; // In water moving down
-				else
-					self->bot.bi.actionflags |= ACTION_CROUCH; // Crouch drop down into water below
-
-				//Com_Printf("%s %s [%d] water: move down\n", __func__, self->client->pers.netname, level.framenum);
-			}
-			
-		}
 
 		// Pull bot in when close to the next node, help guide it in
-		if (0)
-		{
-			if (self->groundentity == false && level.framenum > self->bot.stuck_last_negate)
-			{
-				vec3_t bot_to_node;
-				VectorSubtract(nodes[self->bot.next_node].origin, self->s.origin, bot_to_node);
-				bot_to_node[2] = 0;
-				float xy_bot_to_next_dist = VectorLength(bot_to_node); // Distance from bot to next node
-				if (xy_bot_to_next_dist > 16 && xy_bot_to_next_dist <= 150)
-				{
-					// Line of sight
-					tr = gi.trace(self->s.origin, NULL, NULL, nodes[self->bot.next_node].origin, self, MASK_PLAYERSOLID);
-					if (tr.fraction == 1.0)
-					{
-						self->bot.stuck_last_negate = level.framenum + 1 * HZ;
-						vec3_t dir;
-						dir[0] = walkdir[0];
-						dir[1] = walkdir[1];
-						dir[2] = walkdir[2];
-						VectorNormalize(dir);
-						self->velocity[0] += 50 * dir[0];
-						self->velocity[1] += 50 * dir[1];
-						self->velocity[2] += 300 * dir[2];
-						// Limit velocity
-						if (self->velocity[2] < -300)
-							self->velocity[2] = -300;
-						//Com_Printf("%s %s [%d] directing bot closer to next node\n", __func__, self->client->pers.netname, level.framenum);
-					}
-				}
-			}
-		}
+		// Not sure why this is (0)
+		// if (0)
+		// {
+		// if (self->groundentity == false && level.framenum > self->bot.stuck_last_negate)
+		// {
+		// 	vec3_t bot_to_node;
+		// 	VectorSubtract(nodes[self->bot.next_node].origin, self->s.origin, bot_to_node);
+		// 	bot_to_node[2] = 0;
+		// 	float xy_bot_to_next_dist = VectorLength(bot_to_node); // Distance from bot to next node
+		// 	if (xy_bot_to_next_dist > 16 && xy_bot_to_next_dist <= 150)
+		// 	{
+		// 		// Line of sight
+		// 		tr = gi.trace(self->s.origin, NULL, NULL, nodes[self->bot.next_node].origin, self, MASK_PLAYERSOLID);
+		// 		if (tr.fraction == 1.0)
+		// 		{
+		// 			self->bot.stuck_last_negate = level.framenum + 1 * HZ;
+		// 			vec3_t dir;
+		// 			dir[0] = walkdir[0];
+		// 			dir[1] = walkdir[1];
+		// 			dir[2] = walkdir[2];
+		// 			VectorNormalize(dir);
+		// 			self->velocity[0] += 50 * dir[0];
+		// 			self->velocity[1] += 50 * dir[1];
+		// 			self->velocity[2] += 300 * dir[2];
+		// 			// Limit velocity
+		// 			if (self->velocity[2] < -300)
+		// 				self->velocity[2] = -300;
+		// 			//Com_Printf("%s %s [%d] directing bot closer to next node\n", __func__, self->client->pers.netname, level.framenum);
+		// 		}
+		// 	}
+		// }
 
-		if (next_node_type == NODE_MOVE)
-		{
-			
+		//if (next_node_type == NODE_MOVE)
+		//{}
 			// if (BOTLIB_CanMoveDir(self, walkdir) == false)
 			// {
 			// 	// We can't move in this direction
@@ -6569,410 +6153,7 @@ void BOTLIB_Wander(edict_t* self, usercmd_t* ucmd)
 			// 		VectorClear(self->bot.bi.dir);
 			// 	}
 			// }
-		}
-
-		//if (next_node_type == NODE_JUMPPAD || next_node_type == NODE_JUMP)
-		//	BOTLIB_Crouch_Or_Jump(self, ucmd, dir);
-
-		if (next_node_type == NODE_BOXJUMP)
-		{
-			if (nodes[self->bot.next_node].origin[2] > nodes[self->bot.current_node].origin[2]) // Going up
-			{
-				self->bot.bi.actionflags |= ACTION_BOXJUMP;
-				self->bot.bi.actionflags &= ~ACTION_JUMP;
-				self->bot.bi.actionflags &= ~ACTION_CROUCH;
-			}
-			else
-			{
-				// Remove flags
-				self->bot.bi.actionflags &= ~ACTION_CROUCH;
-				self->bot.bi.actionflags &= ~ACTION_BOXJUMP;
-				self->bot.bi.actionflags &= ~ACTION_JUMP;
-			}
-		}
-
-		// Slow down if we're not on the ground
-		if (next_node_type == NODE_MOVE)
-		{
-			if (self->groundentity == NULL)
-			{
-				//self->bot.bi.speed = SPEED_CAREFUL; // Set our speed directly
-				self->bot.bi.speed = SPEED_ROAM; // Set our speed directly
-				//Com_Printf("%s %s SPEED_CAREFUL node_travel_time[%d]\n", __func__, self->client->pers.netname, self->bot.node_travel_time);
-			}
-			//if (nodes[self->bot.next_node].origin[2] > nodes[self->bot.current_node].origin[2] + 32) // Going up
-			//{
-			//	self->bot.bi.actionflags |= ACTION_JUMP;
-			//}
-			else
-			{
-				// Remove flags
-				//self->bot.bi.actionflags &= ~ACTION_CROUCH;
-				//self->bot.bi.actionflags &= ~ACTION_JUMP;
-
-				//if (nodes[self->bot.next_node].normal[2] > 0.7) // If the next node is flat
-				//if (random() < 0.1)
-				//	self->bot.bi.actionflags |= ACTION_BOXJUMP;
-			}
-		}
-		if (next_node_type == NODE_CROUCH)
-		{
-			self->bot.bi.actionflags |= ACTION_CROUCH;
-			
-			// Remove flags
-			self->bot.bi.actionflags &= ~ACTION_JUMP;
-		}
-
-
-		if (nodes[self->bot.current_node].type == NODE_LADDER && nodes[self->bot.next_node].type == NODE_LADDER)
-		{
-			VectorCopy(walkdir, self->bot.bi.dir);
-			self->bot.bi.speed = 100; // Set speed slower for ladders
-
-			if (self->bot.touching_ladder)
-			{
-				// Remove flags
-				self->bot.bi.actionflags &= ~ACTION_ATTACK; // Don't attack when on ladder
-
-				if (nodes[self->bot.next_node].origin[2] > nodes[self->bot.current_node].origin[2]) // Going up
-				{
-					self->bot.bi.actionflags |= ACTION_MOVEUP;
-					self->bot.bi.actionflags &= ~ACTION_MOVEDOWN;
-				}
-				else if (nodes[self->bot.next_node].origin[2] < nodes[self->bot.current_node].origin[2]) // Going down
-				{
-					self->bot.bi.actionflags |= ACTION_MOVEDOWN;
-					self->bot.bi.actionflags &= ~ACTION_MOVEUP;
-				}
-			}
-			else if (nodes[self->bot.next_node].origin[2] > nodes[self->bot.current_node].origin[2]) // Jump to ladder
-			{
-				self->bot.bi.actionflags |= ACTION_JUMP;
-			}
-		}
-		/*
-		//if (self->bot.prev_node != INVALID && nodes[self->bot.prev_node].type == NODE_LADDER && nodes[self->bot.current_node].type == NODE_LADDER && nodes[self->bot.next_node].type != NODE_LADDER)
-		if (touching_ladder == false && nodes[self->bot.current_node].type == NODE_LADDER && nodes[self->bot.next_node].type != NODE_LADDER)
-		{
-			VectorCopy(walkdir, self->bot.bi.dir);
-			self->bot.bi.speed = 400; // Set speed slower for ladders
-
-			//if (touching_ladder)
-			{
-				self->bot.bi.actionflags |= ACTION_JUMP;
-
-				self->bot.bi.actionflags &= ~ACTION_MOVEUP;
-				self->bot.bi.actionflags &= ~ACTION_MOVEDOWN;
-			}
-		}
-		*/
-		// Make sure the bot gets off the top and bottom of the ladder
-		if (self->bot.prev_node != INVALID && nodes[self->bot.prev_node].type == NODE_LADDER && nodes[self->bot.current_node].type == NODE_LADDER && nodes[self->bot.next_node].type != NODE_LADDER && self->s.origin[2] < nodes[self->bot.current_node].origin[2] + 4 && self->groundentity == NULL) // 
-		{
-			if (nodes[self->bot.prev_node].origin[2] < nodes[self->bot.current_node].origin[2] && self->s.origin[2] < nodes[self->bot.current_node].origin[2] + 2) // Getting off ladder at the top
-			{
-				//Com_Printf("%s %s MOVE UP\n", __func__, self->client->pers.netname);
-				//self->bot.bi.actionflags |= ACTION_JUMPPAD;
-				self->bot.bi.actionflags |= ACTION_MOVEUP;
-				//self->bot.bi.actionflags |= ACTION_BOXJUMP;
-			}
-			else if (nodes[self->bot.prev_node].origin[2] > nodes[self->bot.current_node].origin[2]) // Getting off ladder at the bottom
-			{
-				//Com_Printf("%s %s MOVE DOWN\n", __func__, self->client->pers.netname);
-				//self->bot.bi.actionflags |= ACTION_JUMPPAD;
-				//self->bot.bi.actionflags |= ACTION_MOVEDOWN;
-				//self->bot.bi.actionflags |= ACTION_BOXJUMP;
-			}
-		}
-		//if (self->bot.prev_node != INVALID)
-		{
-			//Com_Printf("%s %s types[ %d %d %d ]\n", __func__, self->client->pers.netname, nodes[self->bot.prev_node].type, nodes[self->bot.current_node].type, nodes[self->bot.next_node].type);
-		}
-
-		if (next_node_type == NODE_JUMP && self->groundentity)
-		{
-			//Com_Printf("%s %s ACTION_JUMP\n", __func__, self->client->pers.netname);
-			self->bot.bi.actionflags |= ACTION_JUMP;
-
-			// Remove flags
-			self->bot.bi.actionflags &= ~ACTION_CROUCH;
-		}
-
-		// Handle jumping
-		if (next_node_type == NODE_JUMPPAD)
-		{
-			//Com_Printf("%s %s jump takeoff\n", __func__, self->client->pers.netname);
-
-			// Remove flags
-			self->bot.bi.actionflags &= ~ACTION_CROUCH;
-			self->bot.bi.actionflags &= ~ACTION_JUMP;
-
-			//self->bot.bi.actionflags = 0;
-			//VectorClear(self->bot.bi.dir);
-
-			// Bot only applies direction when it's in a falling state
-			if (self->groundentity || self->velocity[2] > 0)
-				self->bot.bi.speed = 0;
-			else
-			{
-				//horizontal direction
-				vec3_t hordir;
-				hordir[0] = walkdir[0];
-				hordir[1] = walkdir[1];
-				hordir[2] = 0;
-				VectorNormalize(hordir);
-				VectorCopy(hordir, self->bot.bi.dir);
-
-				self->bot.bi.speed = move_speed; // Set our suggested speed
-			}
-			self->bot.bi.actionflags |= ACTION_JUMPPAD;
-			//BOTLIB_Jump_Takeoff(self, NULL, nodes[self->bot.next_node].origin, self->viewheight, self->velocity);
-
-			//Com_Printf("%s %s NODE_JUMPPAD\n", __func__, self->client->pers.netname);
-#if 0
-			// Get distance from bot to node
-			nodes[self->bot.current_node].origin;
-			vec3_t bot_to_node;
-
-			VectorSubtract(nodes[self->bot.next_node].origin, self->s.origin, bot_to_node);
-			bot_to_node[2] = 0;
-			float xy_bot_to_next_dist = VectorLength(bot_to_node); // Distance from bot to next node
-
-			VectorSubtract(nodes[self->bot.current_node].origin, self->s.origin, bot_to_node);
-			bot_to_node[2] = 0;
-			float xy_bot_to_curr_dist = VectorLength(bot_to_node); // Distance from bot to current node
-			//if (xy_bot_to_curr_dist <= 32) // If close enough to jump pad
-
-
-			float distance = 16;
-			vec3_t bmins = { nodes[self->bot.current_node].absmin[0] + -(distance), nodes[self->bot.current_node].absmin[1] + -(distance), nodes[self->bot.current_node].absmin[2] + -(distance) };
-			vec3_t bmaxs = { nodes[self->bot.current_node].absmax[0] + distance, nodes[self->bot.current_node].absmax[1] + distance, nodes[self->bot.current_node].absmax[2] + distance };
-			if (BOTLIB_BoxIntersection(self->absmin, self->absmax, bmins, bmaxs))
-			{
-				Com_Printf("%s %s jump takeoff\n", __func__, self->client->pers.netname);
-				self->bot.bi.actionflags |= ACTION_JUMPPAD;
-				//BOTLIB_Jump_Takeoff(self, NULL, nodes[self->bot.next_node].origin, self->viewheight, self->velocity);
-
-				// Trace up to see if we're going to hit our head
-				tr = gi.trace(self->s.origin, tv(-16, -16, -0), tv(16, 16, 32), tv(self->s.origin[0], self->s.origin[1], self->s.origin[2] + 60), self, MASK_PLAYERSOLID);
-				if (tr.fraction == 1.0)
-				{
-					// Trace down to see if we hit the ground
-					tr = gi.trace(self->s.origin, tv(-32, -32, -0), tv(32, 32, 0), tv(self->s.origin[0], self->s.origin[1], self->s.origin[2] - 60), self, MASK_PLAYERSOLID);
-					qboolean is_player = false;
-					if (tr.ent && tr.ent->client)
-						is_player = true;
-
-					/*
-					// If landing on flat ground, only allow jumping when once we touch the ground
-					// Otherwise if its a slope, allow jumping when we're close'ish to the ground
-					qboolean can_jump = true;
-					//if (tr.plane.normal[2] == 1 && self->groundentity == NULL && self->velocity[2] < 0) // flat ground
-					if (self->groundentity == NULL && self->velocity[2] < 0) // flat ground
-					{
-						can_jump = false;
-						self->bot.bi.actionflags |= ACTION_HOLDPOS; // Stop moving
-						Com_Printf("%s %s ACTION_HOLDPOS\n", __func__, self->client->pers.netname);
-					}
-					*/
-
-					if ((tr.fraction < 1 || tr.startsolid) && is_player == false) // && can_jump)
-					{
-						//float height_diff = nodes[self->bot.next_node].origin[2] - self->s.origin[2]; // Height difference between bot and next node
-						//if (xy_bot_to_next_dist <= 32 && height_diff <= 60)
-						{
-							// Bot jumped
-							//Com_Printf("%s %s jumped\n", __func__, self->client->pers.netname);
-							//self->bot.bi.actionflags |= ACTION_JUMP;
-						}
-						//else
-						{
-							// Trace from bot to node to see if we can jump to it
-							//tr = gi.trace(self->s.origin, tv(-24, -24, -STEPSIZE), tv(24, 24, 96), nodes[self->bot.current_node].origin, self, MASK_PLAYERSOLID);
-							//if (tr.fraction == 1.0)
-							{
-								//Com_Printf("%s %s jump takeoff\n", __func__, self->client->pers.netname);
-								//self->bot.bi.actionflags |= ACTION_JUMPPAD; // Stop moving
-							}
-						}
-					}
-				}
-			}
-#endif
-			//if (moved == false) 
-		}
-	}
-
-	if (ctf->value)
-	{
-		// Slow down if near flag
-		if (bot_ctf_status.flag1_curr_node != INVALID && VectorDistance(nodes[bot_ctf_status.flag1_curr_node].origin, self->s.origin) < 128)
-		{
-			self->bot.bi.speed = 200;
-		}
-		if (bot_ctf_status.flag2_curr_node != INVALID && VectorDistance(nodes[bot_ctf_status.flag2_curr_node].origin, self->s.origin) < 128)
-		{
-			self->bot.bi.speed = 200;
-		}
-	}
-
-	if (self->bot.see_enemies)
-	{
-		qboolean dodging = ((rand() % 10) < 7);
-
-		// Don't dodge if < x links on node - low link count might indicate a tight walk or narrow way
-		if (nodes[self->bot.current_node].num_links < 4 || nodes[self->bot.next_node].num_links < 4)
-			dodging = false;
-
-		// Don't dodge if bot is taking a direct path
-		if (self->bot.node_random_path == false)
-			dodging = false;
-
-		if (ctf->value) // Reduce dodging in CTF
-		{
-			//float f1 = BOTLIB_DistanceToFlag(self, FLAG_T1_NUM);
-			//float f2 = BOTLIB_DistanceToFlag(self, FLAG_T2_NUM);
-
-			float f1 = 99999999;
-			float f2 = 99999999;
-			if (bot_ctf_status.flag1_curr_node != INVALID)
-				f1 = VectorDistance(nodes[bot_ctf_status.flag1_curr_node].origin, self->s.origin);
-			if (bot_ctf_status.flag2_curr_node != INVALID)
-				f2 = VectorDistance(nodes[bot_ctf_status.flag2_curr_node].origin, self->s.origin);
-
-			if (f1 < 1500 || f2 < 1500 || BOTLIB_Carrying_Flag(self)) // || self->bot.goal_node == bot_ctf_status.flag1_curr_node || self->bot.goal_node == bot_ctf_status.flag2_curr_node)
-			{
-				dodging = false;
-				//Com_Printf("%s %s dodging is OFF ------ \n", __func__, self->client->pers.netname);
-			}
-
-			//dodging = false;
-		}
-
-		// Try strafing around enemy
-		trace_t tr = gi.trace(self->s.origin, NULL, NULL, tv(self->s.origin[0], self->s.origin[1], self->s.origin[2] - 32), self, MASK_SHOT);
-		if (dodging && tr.plane.normal[2] > 0.85) // Not too steep
-		{
-			// Try strafing continually in a general direction, if possible
-			static int max_strafe_left = -10;
-			static int max_strafe_right = 10;
-			if (self->bot_strafe == 0) // Pick new direction
-			{
-				float strafe_choice = random() < 0.333;
-				if (strafe_choice < 0.33) // Left
-					self->bot_strafe = -1;
-				else if (strafe_choice < 0.66) // Right
-					self->bot_strafe = 1;
-				else
-					self->bot_strafe = 0; // Neither - skip strafing this turn
-			}
-
-			if (self->client->weapon == FindItem(HC_NAME))
-				self->bot_strafe = 0; // Don't strafe with HC, just go straight for them
-
-			if (self->bot_strafe < 0 && random() > 0.15) // Going left 85% of the time
-			{
-				if (BOTLIB_CanMove(self, MOVE_LEFT) && self->bot_strafe >= max_strafe_left) // Can go left with a limit
-				{
-					//Com_Printf("%s %s strafe [LEFT] %d\n", __func__, self->client->pers.netname, self->bot_strafe);
-					self->bot_strafe--;
-					self->bot.bi.actionflags |= ACTION_MOVELEFT;
-				}
-				else if (BOTLIB_CanMove(self, MOVE_RIGHT)) // Cannot go left anymore, so try going right
-				{
-					self->bot_strafe = 1; // Go right
-					self->bot.bi.actionflags |= ACTION_MOVERIGHT;
-					//Com_Printf("%s %s strafe [RIGHT] %d\n", __func__, self->client->pers.netname, self->bot_strafe);
-				}
-				else
-					self->bot_strafe = 0; // Could not go either direction, so skip strafing this turn and reset back to random choice
-			}
-			else if (self->bot_strafe > 0 && random() > 0.15) // Going right 85% of the time
-			{
-				if (BOTLIB_CanMove(self, MOVE_RIGHT) && self->bot_strafe <= max_strafe_right) // Can go right with a limit
-				{
-					//Com_Printf("%s %s strafe [RIGHT] %d\n", __func__, self->client->pers.netname, self->bot_strafe);
-					self->bot_strafe++;
-					self->bot.bi.actionflags |= ACTION_MOVERIGHT;
-				}
-				else if (BOTLIB_CanMove(self, MOVE_LEFT)) // Cannot go right anymore, so try going left
-				{
-					self->bot_strafe = -1; // Go left
-					self->bot.bi.actionflags |= ACTION_MOVELEFT;
-					//Com_Printf("%s %s strafe [LEFT] %d\n", __func__, self->client->pers.netname, self->bot_strafe);
-				}
-				else
-					self->bot_strafe = 0; // Could not go either direction, so skip strafing this turn and reset back to random choice
-			}
-			else
-				self->bot_strafe = 0; // Skip strafing this turn
-
-			// Back off if getting too close (unless we have a HC or knife)
-			if (self->bot.enemy_dist < 256)
-			{
-				if (self->client->weapon == FindItem(HC_NAME) && self->client->cannon_rds)
-				{
-					// Come in close for the kill
-					if (ACEMV_CanMove(self, MOVE_FORWARD))
-						self->bot.bi.actionflags |= ACTION_MOVEFORWARD;
-				}
-				else if (self->client->weapon == FindItem(KNIFE_NAME))
-				{
-					// Come in close for the kill
-					if (ACEMV_CanMove(self, MOVE_FORWARD))
-						self->bot.bi.actionflags |= ACTION_MOVEFORWARD;
-				}
-				// Try move backwards
-				else if (BOTLIB_CanMove(self, MOVE_BACK))
-				{
-					self->bot.bi.actionflags |= ACTION_MOVEBACK;
-				}
-			}
-			// If distance is far, consider crouching to increase accuracy
-			else if (self->bot.enemy_dist > 1024)
-			{
-				// Check if bot should be crouching based on weapon and if strafing
-				if (INV_AMMO(self, LASER_NUM) == false && 
-					self->client->weapon != FindItem(SNIPER_NAME) && 
-					self->client->weapon != FindItem(HC_NAME) && 
-					self->client->weapon != FindItem(M3_NAME) && 
-					(self->bot.bi.actionflags & ACTION_MOVELEFT) == 0 && 
-					(self->bot.bi.actionflags & ACTION_MOVERIGHT) == 0)
-				{
-					// Raptor007: Don't crouch if it blocks the shot.
-					float old_z = self->s.origin[2];
-					self->s.origin[2] -= 14;
-					if (ACEAI_CheckShot(self))
-					{
-						self->bot.bi.actionflags |= ACTION_CROUCH;
-						//Com_Printf("%s %s crouch shooting\n", __func__, self->client->pers.netname);
-					}
-					self->s.origin[2] = old_z;
-				}
-			}
-			else
-			{
-				// Keep distance with sniper
-				if (self->bot.enemy_dist < 1024 && self->client->weapon == FindItemByNum(SNIPER_NUM) && BOTLIB_CanMove(self, MOVE_BACK))
-				{
-					self->bot.bi.actionflags |= ACTION_MOVEBACK;
-				}
-				// Keep distance with grenade
-				if (self->bot.enemy_dist < 1024 && self->client->weapon == FindItemByNum(GRENADE_NUM) && BOTLIB_CanMove(self, MOVE_BACK))
-				{
-					self->bot.bi.actionflags |= ACTION_MOVEBACK;
-				}
-				// Otherwise move toward target
-				//else if (ACEMV_CanMove(self, MOVE_FORWARD))
-				//	self->bot.bi.actionflags |= ACTION_MOVEFORWARD;
-			}
-
-			// If the bot is dodging by strafing, add in some random jumps
-			if (self->bot_strafe != 0 && (self->bot.bi.actionflags & ACTION_CROUCH) == 0 && random() < 0.2)
-				self->bot.bi.actionflags |= ACTION_BOXJUMP; // Jump while dodging
-		}
-	}
-	
+		//}
 	int perform_action = BOTLIB_Crouch_Or_Jump(self, ucmd, walkdir); // Crouch or jump if needed
 	if (perform_action == ACTION_JUMP)
 	{
@@ -6990,313 +6171,8 @@ void BOTLIB_Wander(edict_t* self, usercmd_t* ucmd)
 	// Stay on course by strafing back to the path line (if not already strafing)
 	//if (VectorLength(self->velocity) < 37) // If stuck
 	if (moved == false)
-	{
-		// Try strafing
-		qboolean right_blocked = BOTLIB_TEST_FORWARD_VEC(self, walkdir, 64, 8); // Check right
-		qboolean left_blocked = BOTLIB_TEST_FORWARD_VEC(self, walkdir, 64, -8); // Check left
-		if (right_blocked && left_blocked) // Both are blocked
-		{
-			self->bot.bi.actionflags |= ACTION_JUMP; // Try jumping to clear the obstacle
-			//Com_Printf( "%s %s blocked\n", __func__, self->client->pers.netname);
-
-
-			/*
-			// Bot stuck - Test of bot has LoS to next node
-			if (self->bot.next_node == INVALID)
-			{
-				self->bot.stuck = true;
-				return;
-			}
-			trace_t tr = gi.trace(self->s.origin, tv(-4, -4, 0.1), tv(4, 4, 56), nodes[self->bot.next_node].origin, self, MASK_PLAYERSOLID);
-			if (tr.startsolid || tr.fraction < 1.0)
-			{
-				if (VectorLength(self->velocity) < 5)
-					self->bot.stuck = true;
-			}
-			*/
-			//self->bot.bi.actionflags |= ACTION_MOVEFORWARD;
-			//self->bot.bi.viewangles[YAW] += 22.5 + (random() * 270);
-			//self->bot.bi.viewangles[PITCH] = 0;
-		}
-		else if (right_blocked && BOTLIB_CanMove(self, MOVE_LEFT)) // Strafe left
-		{
-			// Get the direction perpendicular to the dir, facing left
-			vec3_t left;
-			left[0] = -walkdir[1];
-			left[1] = walkdir[0];
-			left[2] = 0;
-			VectorNormalize(left);
-			VectorCopy(left, self->bot.bi.dir);
-
-
-			//Com_Printf("%s %s ACTION_MOVELEFT\n", __func__, self->client->pers.netname);
-			//self->bot.bi.actionflags |= ACTION_MOVELEFT;
-		}
-		else if (left_blocked && BOTLIB_CanMove(self, MOVE_RIGHT)) // Strafe right
-		{
-			// Get the direction perpendicular to the dir, facing right
-			vec3_t right;
-			right[0] = walkdir[1];
-			right[1] = -walkdir[0];
-			right[2] = 0;
-			VectorNormalize(right);
-			VectorCopy(right, self->bot.bi.dir);
-
-			//Com_Printf("%s %s ACTION_MOVERIGHT\n", __func__, self->client->pers.netname);
-			//self->bot.bi.actionflags |= ACTION_MOVERIGHT;
-		}
-		else
-		{
-			//Com_Printf("%s %s moved == false and not blocked on side\n", __func__, self->client->pers.netname);
-			//if (VectorLength(self->velocity) < 5)
-			//	self->bot.stuck = true;
-		}
-	}
-
-	/*
-	// Project forward looking for walls
-	vec3_t      start, end;
-	vec3_t      forward, right;
-	vec3_t      offset;
-	AngleVectors(self->client->v_angle, forward, right, NULL);
-	VectorSet(offset, 0, 7, self->viewheight - 8);
-	offset[1] = 0;
-	G_ProjectSource(self->s.origin, offset, forward, right, start);
-	VectorMA(start, 48, forward, end);
-	trace_t tr = gi.trace(start, NULL, NULL, end, self, MASK_PLAYERSOLID);
-
-	// If we hit an obstacle or we've not moved much, turn around
-	if (tr.fraction < 1.0 || VectorLength(self->velocity) < 37)
-	{
-		self->bot.bi.viewangles[YAW] += 22.5 + (random() * 270);
-		self->bot.bi.viewangles[PITCH] = 0;
-	}
-	*/
-}
-//rekkie -- Quake3 -- e
-
-////////////////////
-// Wandering code //
-////////////////////
-//
-// Basic wandering code, simply here as a backup to help the bot find a nearby node
-//
-void BOTLIB_MOV_Wander(edict_t* self, usercmd_t* ucmd)
-{
-#if 0
-	vec3_t      start, end;
-	vec3_t      forward, right;
-	vec3_t      offset;
-
-	// Do not move
-	if (self->next_move_time > level.framenum)
-		return;
-
-	//Com_Printf("%s %s wandering...\n", __func__, self->client->pers.netname);
-
-	// Special check for elevators, stand still until the ride comes to a complete stop.
-	if (self->groundentity && (VectorLength(self->groundentity->velocity) >= 8))
-	{
-		// only move when platform not
-		if (self->groundentity->moveinfo.state == STATE_UP || self->groundentity->moveinfo.state == STATE_DOWN)
-		{
-			self->velocity[0] = 0;
-			self->velocity[1] = 0;
-			self->velocity[2] = 0;
-			self->next_move_time = level.framenum + 0.5 * HZ;
-			return;
-		}
-	}
-
-	// Contents check
-	vec3_t temp = { 0,0,0 };
-	VectorCopy(self->s.origin, temp);
-	temp[2] += 22;
-	int contents_head = gi.pointcontents(temp);
-	temp[2] = self->s.origin[2] - 8;
-	int contents_feet = gi.pointcontents(temp);
-
-	// Just try to keep our head above water.
-	if (contents_head & MASK_WATER)
-	{
-		// If drowning and no node, move up
-		if (self->client->next_drown_framenum > 0)
-		{
-			ucmd->upmove = SPEED_RUN;
-			self->s.angles[PITCH] = -45;
-		}
-		else
-			ucmd->upmove = SPEED_WALK;
-	}
-
-	// Don't wade in lava, try to get out!
-	if (contents_feet & (CONTENTS_LAVA | CONTENTS_SLIME))
-		ucmd->upmove = SPEED_RUN;
-
-
-
-	// Check speed
-	VectorSubtract(self->s.origin, self->lastPosition, temp);
-	float moved = VectorLength(temp);
-
-	if (contents_feet & MASK_WATER)
-	{
-		self->bot.goal_node = INVALID;
-		self->bot.current_node = INVALID;
-		//if (debug_mode) 
-		//Com_Printf("%s %s is stuck [Wander]: GOAL INVALID\n", __func__, self->client->pers.netname);
-	}
-
-
-
-	// Crouch or jump
-	trace_t tr_lower_body;
-	trace_t tr_upper_body;
-	//vec3_t fwd;
-	//AngleVectors(self->s.angles, fwd, NULL, NULL); // project forward from origin
-	//VectorMA(self->s.origin, 50, fwd, fwd);
-	//tr_lower_body = gi.trace(self->s.origin, tv(-15, -15, -15), tv(15, 15, 0), forward, self, MASK_DEADSOLID); // Box test [feet to mid body] -> forward 16 units
-	//tr_upper_body = gi.trace(self->s.origin, tv(-15, -15, 0), tv(15, 15, 32), forward, self, MASK_DEADSOLID); // Box test [mid body to head] -> forward 16 units
-
-	AngleVectors(self->client->v_angle, forward, right, NULL);
-	VectorSet(offset, 0, 7, self->viewheight - 8);
-	offset[1] = 0;
-	G_ProjectSource(self->s.origin, offset, forward, right, start);
-	VectorMA(start, 50, forward, end);
-	tr_lower_body = gi.trace(start, tv(-15, -15, -15), tv(15, 15, 0), end, self, MASK_DEADSOLID); // Box test [feet to mid body] -> forward 16 units
-	tr_upper_body = gi.trace(start, tv(-15, -15, 0), tv(15, 15, 32), end, self, MASK_DEADSOLID); // Box test [mid body to head] -> forward 16 units
-
-	// Need to crouch?
-	// Lower body is free, upper body is blocked
-	if (tr_lower_body.fraction == 1.0 && tr_upper_body.fraction < 1.0)
-	{
-		ucmd->upmove = -400;
-		ucmd->forwardmove = SPEED_RUN;
-		//if (debug_mode) 
-		//Com_Printf("%s %s is stuck [Wander]: crouching\n", __func__, self->client->pers.netname);
-		return;
-	}
-	// Need to jump?
-	// Lower body is blocked, upper body is free
-	if (tr_lower_body.fraction < 1.0 && tr_upper_body.fraction == 1.0)
-	{
-		if (contents_feet & MASK_WATER)
-		{
-			//if (debug_mode) 
-			//Com_Printf("%s %s is stuck [Wander]: jumping out of water\n", __func__, self->client->pers.netname);
-			self->s.angles[PITCH] = -45;
-			//VectorScale(end, 50, self->velocity);
-			ucmd->forwardmove = 400;
-			//ucmd->upmove = 400;
-			if (self->velocity[2] < 350)
-				self->velocity[2] = 350;
-			return;
-		}
-
-		ucmd->upmove = 400;
-		ucmd->forwardmove = SPEED_RUN;
-		//if (debug_mode) 
-		//Com_Printf("%s %s is stuck [Wander]: jumping\n", __func__, self->client->pers.netname);
-
-		return;
-	}
-	// In water facing a ladder
-	//if ((contents_feet & MASK_WATER) && tr_lower_body.fraction < 1.0 && tr_upper_body.fraction < 1.0)
-	if ((contents_feet & MASK_WATER) && ((tr_lower_body.contents & CONTENTS_LADDER) || (tr_upper_body.contents & CONTENTS_LADDER)))
-	{
-		//if ((tr_lower_body.contents & CONTENTS_LADDER) || (tr_upper_body.contents & CONTENTS_LADDER))
-		{
-			//if (debug_mode)
-			//Com_Printf("%s %s is stuck [Wander]: MASK_WATER -> CONTENTS_LADDER\n", __func__, self->client->pers.netname);
-			ucmd->forwardmove = 400;
-			ucmd->upmove = 400;
-			self->bot.current_node = ACEND_FindClosestReachableNode(self, NODE_DENSITY * 3, NODE_ALL);
-			self->s.angles[PITCH] = -45;
-			if (self->velocity[2] < 350)
-				self->velocity[2] = 350;
-			return;
-		}
-	}
-
-
+		_Wander_GetUnstuck(self, walkdir);
 	
-	// Project forward looking for walls
-	//vec3_t      start, end;
-	//vec3_t      forward, right;
-	//vec3_t      offset;
-	AngleVectors(self->client->v_angle, forward, right, NULL);
-	VectorSet(offset, 0, 7, self->viewheight - 8);
-	offset[1] = 0;
-	G_ProjectSource(self->s.origin, offset, forward, right, start);
-	VectorMA(start, 48, forward, end);
-	trace_t tr = gi.trace(start, NULL, NULL, end, self, MASK_PLAYERSOLID);
-
-	// If we hit an obstacle or we've not moved much, turn around
-	if (tr.fraction < 1.0 || VectorLength(self->velocity) < 37 || moved < FRAMETIME)
-	{
-		self->s.angles[YAW] += 22.5 + (random() * 270);
-		self->s.angles[PITCH] = 0;
-		
-		if (contents_feet & MASK_WATER)  // Just keep swimming.
-			ucmd->forwardmove = SPEED_RUN;
-		else if (!M_CheckBottom(self) && !self->groundentity) // if there is ground continue otherwise wait for next move
-			ucmd->forwardmove = 0;
-		else if (ACEMV_CanMove(self, MOVE_FORWARD))
-			ucmd->forwardmove = SPEED_WALK;
-
-		return;
+	
 	}
-
-	// Otherwise try move forward normally
-	if (ACEMV_CanMove(self, MOVE_FORWARD) || (contents_feet & MASK_WATER))
-	{
-		ucmd->forwardmove = SPEED_RUN;
-	}
-
-	//if (self->client->leg_damage > 0) // Do we have leg damage?
-	//	return;
-
-	// If no goal, try to get a new one
-	if (self->bot.goal_node == INVALID)
-		ACEAI_PickLongRangeGoal(self);
-
-	// Try to move to our goal if we can
-	if (self->bot.goal_node != INVALID)
-	{
-		// Update the node we're near
-		self->bot.current_node = ACEND_FindClosestReachableNode(self, NODE_DENSITY*3, NODE_ALL);
-		//int tmp_node = ACEND_FindClosestReachableNode(self, NODE_DENSITY*3, NODE_ALL);
-		//if (tmp_node != self->bot.current_node)
-		//{
-		//	self->bot.prev_node = self->bot.current_node;
-		//	self->bot.current_node = tmp_node;
-		//	//Com_Printf("%s %s prev_node %d -> curr node %d\n", __func__, self->client->pers.netname, self->bot.prev_node, self->bot.current_node);
-		//}
-
-		if (self->bot.current_node == INVALID)
-		{
-			if (debug_mode) 
-				Com_Printf("%s %s could not find FindClosestReachableNode to reach goal %d. Wandering...\n", __func__, self->client->pers.netname, self->bot.goal_node);
-			self->bot.state = STATE_WANDER;
-			self->wander_timeout = level.framenum + 0.1 * HZ;
-			return;
-		}
-		if (BOTLIB_CanVisitNode(self, self->bot.goal_node)) // Try to find another way to our goal
-		{
-			if (debug_mode) 
-				Com_Printf("%s %s Wander finding alternative path to goal %d\n", __func__, self->client->pers.netname, self->bot.goal_node);
-			//BOTLIB_SetGoal(self, self->bot.goal_node);
-			//return;
-			
-			self->bot.next_node = self->bot.current_node;
-			self->bot.state = STATE_POSITION;
-		}
-		else // We couldn't visit the goal node, so lets pick a new goal
-		{
-			if (debug_mode)
-				Com_Printf("%s %s Wander cannot visit goal %d. Picking new goal\n", __func__, self->client->pers.netname, self->bot.goal_node);
-			ACEAI_PickLongRangeGoal(self);
-		}
-	}
-#endif
 }

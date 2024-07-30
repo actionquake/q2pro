@@ -768,7 +768,7 @@ void Add_Frag(edict_t * ent, int mod)
 		}
 
 		// A little taunting...
-		int wavechoice = rand() % 5;
+		int wavechoice = rand() % 10;
 		switch (wavechoice)
 		{
 		case 0:

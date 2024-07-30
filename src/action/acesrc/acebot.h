@@ -680,7 +680,6 @@ short BOTLIB_AlliesAlive(edict_t* self);
 
 // DC Movement
 void BOTLIB_MOV_Move(edict_t* self, usercmd_t* ucmd);
-void BOTLIB_MOV_Wander(edict_t* self, usercmd_t* ucmd);
 void BOTLIB_Wander(edict_t* self, usercmd_t* ucmd);
 float VectorDistance(vec3_t start, vec3_t end);
 float VectorDistanceXY(vec3_t start, vec3_t end);
