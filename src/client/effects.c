@@ -20,7 +20,7 @@ with this program; if not, write to the Free Software Foundation, Inc.,
 #include "client.h"
 #include "shared/m_flash.h"
 
-static void CL_LogoutEffect(const vec3_t org, int type);
+//static void CL_LogoutEffect(const vec3_t org, int type);
 
 static vec3_t avelocities[NUMVERTEXNORMALS];
 
@@ -959,39 +959,39 @@ CL_LogoutEffect
 
 ===============
 */
-static void CL_LogoutEffect(const vec3_t org, int type)
-{
-    int         i, j;
-    cparticle_t *p;
+// static void CL_LogoutEffect(const vec3_t org, int type)
+// {
+//     int         i, j;
+//     cparticle_t *p;
 
-    for (i = 0; i < 500; i++) {
-        p = CL_AllocParticle();
-        if (!p)
-            return;
+//     for (i = 0; i < 500; i++) {
+//         p = CL_AllocParticle();
+//         if (!p)
+//             return;
 
-        p->time = cl.time;
+//         p->time = cl.time;
 
-        if (type == MZ_LOGIN)
-            p->color = 0xd0 + (Q_rand() & 7); // green
-        else if (type == MZ_LOGOUT)
-            p->color = 0x40 + (Q_rand() & 7); // red
-        else
-            p->color = 0xe0 + (Q_rand() & 7); // yellow
+//         if (type == MZ_LOGIN)
+//             p->color = 0xd0 + (Q_rand() & 7); // green
+//         else if (type == MZ_LOGOUT)
+//             p->color = 0x40 + (Q_rand() & 7); // red
+//         else
+//             p->color = 0xe0 + (Q_rand() & 7); // yellow
 
-        p->org[0] = org[0] - 16 + frand() * 32;
-        p->org[1] = org[1] - 16 + frand() * 32;
-        p->org[2] = org[2] - 24 + frand() * 56;
+//         p->org[0] = org[0] - 16 + frand() * 32;
+//         p->org[1] = org[1] - 16 + frand() * 32;
+//         p->org[2] = org[2] - 24 + frand() * 56;
 
-        for (j = 0; j < 3; j++)
-            p->vel[j] = crand() * 20;
+//         for (j = 0; j < 3; j++)
+//             p->vel[j] = crand() * 20;
 
-        p->accel[0] = p->accel[1] = 0;
-        p->accel[2] = -PARTICLE_GRAVITY;
-        p->alpha = 1.0f;
+//         p->accel[0] = p->accel[1] = 0;
+//         p->accel[2] = -PARTICLE_GRAVITY;
+//         p->alpha = 1.0f;
 
-        p->alphavel = -1.0f / (1.0f + frand() * 0.3f);
-    }
-}
+//         p->alphavel = -1.0f / (1.0f + frand() * 0.3f);
+//     }
+// }
 
 
 /*

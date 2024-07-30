@@ -1277,10 +1277,9 @@ qboolean BOTLIB_FindEnemy(edict_t *self)
 		// 1) Target high priority enemies (flag carriers, briefcase, vip, etc)
 		for (i = 0; i < self->bot.enemies_num; i++)
 		{
-			if (self->bot.enemies_weight[i] > 300 && INV_AMMO(players[self->bot.enemies[i]], FLAG_T1_NUM) || INV_AMMO(players[self->bot.enemies[i]], FLAG_T2_NUM))
+			if ((self->bot.enemies_weight[i] > 300 && INV_AMMO(players[self->bot.enemies[i]], FLAG_T1_NUM)) || INV_AMMO(players[self->bot.enemies[i]], FLAG_T2_NUM))
 				bestenemy = players[self->bot.enemies[i]];
 		}
-
 		// 2) Target enemy based on their weight
 		if (bestenemy == NULL)
 		{

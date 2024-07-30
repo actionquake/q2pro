@@ -5006,7 +5006,7 @@ void ClientThink(edict_t * ent, usercmd_t * ucmd)
 				if (tr.startsolid == false) // Make sure we're not inside a wall
 				{
 					int node_added;
-					if (node_added = BOTLIB_AddNode(ent->s.origin, tr.plane.normal, NODE_MOVE) != INVALID)
+					if (node_added == BOTLIB_AddNode(ent->s.origin, tr.plane.normal, NODE_MOVE) != INVALID)
 					{
 						char typename[32] = { '\0' }; // Length of the longest node type name
 						NodeTypeToString(ent, nodes[node_added].type, typename, sizeof(typename));
