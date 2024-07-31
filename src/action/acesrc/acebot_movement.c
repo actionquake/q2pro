@@ -3097,7 +3097,7 @@ void ACEMV_Attack (edict_t *self, usercmd_t *ucmd)
 	if (bHasWeapon == false)
 	{
 		//Com_Printf("%s %s bHasWeapon %d self->bot.goal_node %d\n", __func__, self->client->pers.netname, bHasWeapon, self->bot.goal_node);
-		BOTLIB_MOV_Move(self, ucmd); // Keep moving
+		//BOTLIB_MOV_Move(self, ucmd); // Keep moving
 	}
 	//rekkie -- DEV_1 -- e
 

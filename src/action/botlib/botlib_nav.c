@@ -6,7 +6,6 @@
  //== GLOBAL SEMAPHORE ==
 int	antSearch;
 
-short int** path_table;
 nav_area_t nav_area;
 
 qboolean	nodeused[MAX_PNODES]; // This is used for a FAST check if the node has been used
@@ -826,7 +825,7 @@ qboolean BOTLIB_CanGotoNode(edict_t* self, int goal_node, qboolean path_randomiz
 	else // Fallback to old pathing
 	{
 		self->bot.goal_node = INVALID;
-		//gi.dprintf("BOTLIB_CanVisitNode? %d\n", BOTLIB_CanVisitNode(self, nodes[goal_node].nodenum, path_randomization, INVALID, false));
+		gi.dprintf("BOTLIB_CanVisitNode? %d\n", BOTLIB_CanVisitNode(self, nodes[goal_node].nodenum, path_randomization, INVALID, false));
 		if (BOTLIB_CanVisitNode(self, nodes[goal_node].nodenum, path_randomization, INVALID, false))
 		{
 			// Add the goal to the end of the node list + terminate
@@ -835,12 +834,12 @@ qboolean BOTLIB_CanGotoNode(edict_t* self, int goal_node, qboolean path_randomiz
 				self->bot.node_list[self->bot.node_list_count++] = self->bot.goal_node; // Save goal node
 				self->bot.node_list[self->bot.node_list_count] = INVALID; // Terminate
 			}
-
+			gi.dprintf("I returned true, the bot can visit the node\n");
 			return true; // Success
 		}
 	}
 
-	//Com_Printf("%s %s failed #2 \n", __func__, self->client->pers.netname);
+	Com_Printf("%s %s failed #2 \n", __func__, self->client->pers.netname);
 	return false; // Failure to find path
 }
 
@@ -1110,7 +1109,7 @@ qboolean BOTLIB_GetNextAreaNode(edict_t *self)
 {
 	if (self->bot.next_area_nodes_counter == self->bot.next_area_counter)
 	{
-		Com_Printf("%s Successfully made a path to goal node [%d]\n", __func__, self->bot.goal_node);
+		//Com_Printf("%s Successfully made a path to goal node [%d]\n", __func__, self->bot.goal_node);
 		return false;
 	}
 
@@ -2247,7 +2246,9 @@ qboolean BOTLIB_DijkstraPath(edict_t* ent, int from, int to, qboolean path_rando
 		//Com_Printf("%s EXIT PATH\n\n", __func__);
 
 		// Each time a path is found, make a copy
-		//ent->bot.node_list_count = 0;
+		ent->bot.node_list_count = 0;
+		memset(ent->bot.node_list, 0, sizeof(ent->bot.node_list)); // Ensure the node list is cleared
+
 		ent->bot.node_list_count = BOTLIB_SLL_Query_All_Nodes(ent, &ent->pathList, ent->bot.node_list, MAX_NODELIST); // Retrieve the nodes in the list
 		ent->bot.node_list_current = 0;
 		if (ent->bot.node_list_count) // Set the current and next nodes
@@ -2257,7 +2258,7 @@ qboolean BOTLIB_DijkstraPath(edict_t* ent, int from, int to, qboolean path_rando
 		}
 		ent->bot.node_random_path = path_randomization; // Note down if the bot was taking a random or direct path
 
-		if (0)
+		if (1)
 		{
 			if (1)
 			{
@@ -2271,11 +2272,11 @@ qboolean BOTLIB_DijkstraPath(edict_t* ent, int from, int to, qboolean path_rando
 			}
 			else
 				gi.dprintf("%s from[%d] to[%d]\n", __func__, from, to);
-			//gi.dprintf("%s found a path\n", __func__);
+			gi.dprintf("%s found a path\n", __func__);
 		}
 
 		if (SLLempty(&ent->pathList)){
-			//gi.dprintf("SLLempty: %s failed to find a path from %d to %d\n", __func__, from, to);
+			gi.dprintf("SLLempty: %s failed to find a path from %d to %d\n", __func__, from, to);
 			return false; // Failure
 		}
 
@@ -2291,7 +2292,7 @@ qboolean BOTLIB_DijkstraPath(edict_t* ent, int from, int to, qboolean path_rando
 	}
 	// Else: just fail it completely
 	{
-		//gi.dprintf("Complete failure: %s failed to find a path from %d to %d\n", __func__, from, to);
+		gi.dprintf("Complete failure: %s failed to find a path from %d to %d\n", __func__, from, to);
 		return false; // Failure
 	}
 }

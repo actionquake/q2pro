@@ -22,6 +22,34 @@ with this program; if not, write to the Free Software Foundation, Inc.,
 // shared.h -- included first by ALL program modules
 //
 
+#if HAVE_CONFIG_H
+#include "config.h"
+#endif
+
+#include <math.h>
+#include <ctype.h>
+#include <stdio.h>
+#include <stdarg.h>
+#include <string.h>
+#include <stdlib.h>
+#include <stdint.h>
+#include <stdbool.h>
+#include <inttypes.h>
+#include <limits.h>
+#include <time.h>
+//FIREBLADE
+#include <stddef.h>
+//FIREBLADE
+
+#include "shared/platform.h"
+
+// legacy ABI support for Windows
+#if defined(__GNUC__) && defined(WIN32) && ! defined(WIN64)
+#define		q_gameabi           __attribute__((callee_pop_aggregate_return(0)))
+#else
+#define		q_gameabi
+#endif
+
 //rekkie -- CMAKE -- s
 #if _MSC_VER >= 1920 && !__INTEL_COMPILER
     //#define NDEBUG 1
@@ -43,29 +71,85 @@ with this program; if not, write to the Free Software Foundation, Inc.,
 #pragma warning(disable:4047) // warning C4047: 'function': 'HDC' differs in levels of indirection from 'int'
 #pragma warning(disable:4133) // warning C4133: 'function': incompatible types - from 'HGLRC' to 'HDC'
 #pragma warning(disable:4146) // warning C4146: unary minus operator applied to unsigned type, result still unsigned
+
+# define HAVE___INLINE
+# define HAVE__SNPRINTF
+# define HAVE__VSNPRINTF
+# define HAVE__STRICMP
+# define HAVE___FASTCALL
+# define HAVE__CDECL
 #endif
 //rekkie -- CMAKE -- e
 
-#if HAVE_CONFIG_H
-#include "config.h"
+//==============================================
+#if defined(__linux__) || defined(__FreeBSD__) || defined(__GNUC__)
+
+# define HAVE_INLINE
+# define HAVE_STRCASECMP
+# define HAVE_SNPRINTF
+# define HAVE_VSNPRINTF
+
+#endif
+//==============================================
+
+#if ! defined(HAVE__CDECL) && ! defined(__cdecl)
+# define __cdecl
 #endif
 
-#include <math.h>
-#include <ctype.h>
-#include <stdio.h>
-#include <stdarg.h>
-#include <string.h>
-#include <stdlib.h>
-#include <stdint.h>
-#include <stdbool.h>
-#include <inttypes.h>
-#include <limits.h>
-#include <time.h>
-//FIREBLADE
-#include <stddef.h>
-//FIREBLADE
+#if ! defined(HAVE___FASTCALL) && ! defined(__fastcall)
+# define __fastcall
+#endif
 
-#include "shared/platform.h"
+#if ! defined(HAVE_INLINE) && ! defined(inline)
+# ifdef HAVE___INLINE
+#  define inline __inline
+# else
+#  define inline
+# endif
+#endif
+
+#if defined(HAVE__SNPRINTF) && ! defined(snprintf)
+# define snprintf _snprintf
+#endif
+
+#if defined(HAVE__VSNPRINTF) && ! defined(vsnprintf)
+# define vsnprintf(dest, size, src, list) _vsnprintf((dest), (size), (src), (list)), (dest)[(size)-1] = 0
+#endif
+
+#ifdef HAVE__STRICMP
+# ifndef Q_stricmp
+#  define Q_stricmp _stricmp
+# endif
+# ifndef Q_strnicmp
+#  define Q_strnicmp _strnicmp
+# endif
+# ifndef strcasecmp
+#  define strcasecmp _stricmp
+# endif
+# ifndef strncasecmp
+#  define strncasecmp _strnicmp
+# endif
+#elif defined(HAVE_STRCASECMP)
+# ifndef Q_stricmp
+#  define Q_stricmp strcasecmp
+# endif
+# ifndef Q_strnicmp
+#  define Q_strnicmp strncasecmp
+# endif
+#endif
+
+// New define for this came from 3.20  -FB
+#if (defined(_M_IX86) || defined(__i386__) || defined(__ia64__)) && !defined(C_ONLY)
+# define id386 1
+#else
+# define id386 0
+#endif
+
+#if __GNUC__ >= 4
+#define q_offsetof(t, m)    __builtin_offsetof(t, m)
+#else
+#define q_offsetof(t, m)    ((size_t)&((t *)0)->m)
+#endif
 
 #define q_countof(a)        (sizeof(a) / sizeof(a[0]))
 
@@ -480,6 +564,46 @@ static inline int Q_gcd(int a, int b)
     }
     return a;
 }
+
+#if defined _M_IX86 && !defined C_ONLY
+#pragma warning (disable:4035)
+__declspec( naked ) long Q_ftol( float f )
+{
+	static int tmp;
+	__asm fld dword ptr [esp+4]
+	__asm fistp tmp
+	__asm mov eax, tmp
+	__asm ret
+}
+#pragma warning (default:4035)
+
+#elif defined __i386__ && !defined C_ONLY
+static inline int32_t Q_ftol(float f) {
+    int32_t result;
+    __asm__ (
+        "flds %1\n\t"
+        "fistpl %0"
+        : "=m" (result)
+        : "m" (f)
+    );
+    return result;
+}
+#elif defined __aarch64__ && !defined C_ONLY
+static inline int32_t Q_ftol(float f) {
+    int32_t result;
+    __asm__ (
+        "fcvtzs %w[result], %s[f]"
+        : [result] "=r" (result)
+        : [f] "w" (f)
+    );
+    return result;
+}
+#else
+static inline int32_t Q_ftol(float f) {
+    return (int32_t)lrintf(f);
+}
+#endif
+
 
 void ProjectPointOnPlane (vec3_t dst, const vec3_t p, const vec3_t normal);
 void PerpendicularVector (vec3_t dst, const vec3_t src);

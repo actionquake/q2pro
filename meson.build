@@ -4,7 +4,7 @@ project('q2pro', 'c',
   meson_version: '>= 0.59.0',
   default_options: [
     'c_std=c11',
-    'buildtype=debugoptimized',
+    'buildtype=debug',
   ],
 )
 
@@ -334,7 +334,7 @@ if cc.get_argument_syntax() == 'gcc'
 elif cc.get_id() == 'msvc'
   common_args += ['/wd4146', '/wd4244', '/wd4305']
 else
-  dll_link_args += '--no-relax'
+  dll_link_args += '-fPIC'
 endif
 
 add_project_arguments(common_args, language: 'c')

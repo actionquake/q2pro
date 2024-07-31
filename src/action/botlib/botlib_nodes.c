@@ -3,7 +3,7 @@
 #include "botlib.h"
 
 int num_poi_nodes = 0;
-int poi_nodes[MAX_POI_NODES] = { INVALID };
+int poi_nodes[MAX_POI_NODES];
 // edict_t* node_ents[MAX_EDICTS]; // If the node is attached to an entity (such as a NODE_DOOR being attached to a func_door_rotating or func_door entity)
 node_t *nodes = NULL;
 nmesh_t nmesh = { 0 };
@@ -633,7 +633,6 @@ qboolean BOTLIB_CanVisitNode(edict_t* self, int goal_node, qboolean path_randomi
 		//Com_Printf("%s %s invalid goal set: current_node[%d] goal_node[%d] inuse[%d]\n", __func__, self->client->pers.netname, self->bot.current_node, self->bot.goal_node, nodes[goal_node].inuse);
 		return false;
 	}
-
 	// NEW PATHING: limit search to same area
 	if (area != INVALID && BOTLIB_DijkstraAreaPath(self, self->bot.current_node, goal_node, path_randomization, area, build_new_path) == false) {
 		//gi.dprintf("NEW: %s %s failed to find path to node %d\n", __func__, self->client->pers.netname, goal_node);
@@ -651,6 +650,7 @@ qboolean BOTLIB_CanVisitNode(edict_t* self, int goal_node, qboolean path_randomi
 	// ================================================================
 	// BOTLIB_SetGoal ()
 	// ================================================================
+	Com_Printf("Goal node: %d\n", goal_node);
 	if (self->bot.goal_node == INVALID)
 		self->bot.goal_node = goal_node;
 
@@ -666,9 +666,9 @@ qboolean BOTLIB_CanVisitNode(edict_t* self, int goal_node, qboolean path_randomi
 		}
 	}
 	
-	//Com_Printf("All if statement parameters: current_node[%d] goal_node[%d] inuse[%d]\n", self->bot.current_node, self->bot.goal_node, nodes[goal_node].inuse);
 	if (self->bot.current_node == INVALID || goal_node == self->bot.current_node || goal_node == INVALID || nodes[goal_node].inuse == false)
 	{
+		Com_Printf("All if statement parameters: current_node[%d] goal_node[%d] inuse[%d]\n", self->bot.current_node, self->bot.goal_node, nodes[goal_node].inuse);
 		self->bot.goal_node = INVALID;
 		self->bot.state = BOT_MOVE_STATE_NAV; // BOT_MOVE_STATE_WANDER
 		return false;
@@ -677,7 +677,7 @@ qboolean BOTLIB_CanVisitNode(edict_t* self, int goal_node, qboolean path_randomi
 	self->bot.next_node = self->bot.current_node; // make sure we get to the nearest node first
 	self->node_timeout = 0;
 
-	self->bot.state = BOT_MOVE_STATE_NAV;
+	self->bot.state = BOT_MOVE_STATE_MOVE;
 
 	//Com_Printf("%s curr[%d] goal[%d] state[%d]\n", __func__, self->bot.current_node, self->bot.goal_node, self->state);
 	// ================================================================
@@ -4672,6 +4672,7 @@ void BOTLIB_BSP_SURFACES(bsp_t* bsp)
 		nmesh.face[f].drawflags = surf->drawflags; // Copy draw flags (DSURF_PLANEBACK, etc)
 		VectorCopy(surf->plane->normal, nmesh.face[f].normal); // Copy plane normal
 		nmesh.face[f].num_edges = surf->numsurfedges; // Copy total edges on this face
+		nmesh.face[f].num_verts = 0; // Initialize num_verts to 0
 
 		// Don't exclude sky because some walkable surfaces are sky
 		//if (surf->drawflags & SURF_SKY)
