@@ -677,7 +677,7 @@ qboolean BOTLIB_CanVisitNode(edict_t* self, int goal_node, qboolean path_randomi
 	self->bot.next_node = self->bot.current_node; // make sure we get to the nearest node first
 	self->node_timeout = 0;
 
-	self->bot.state = BOT_MOVE_STATE_NAV;
+	self->bot.state = BOT_MOVE_STATE_MOVE;
 
 	//Com_Printf("%s curr[%d] goal[%d] state[%d]\n", __func__, self->bot.current_node, self->bot.goal_node, self->state);
 	// ================================================================
@@ -4672,6 +4672,7 @@ void BOTLIB_BSP_SURFACES(bsp_t* bsp)
 		nmesh.face[f].drawflags = surf->drawflags; // Copy draw flags (DSURF_PLANEBACK, etc)
 		VectorCopy(surf->plane->normal, nmesh.face[f].normal); // Copy plane normal
 		nmesh.face[f].num_edges = surf->numsurfedges; // Copy total edges on this face
+		nmesh.face[f].num_verts = 0; // Initialize num_verts to 0
 
 		// Don't exclude sky because some walkable surfaces are sky
 		//if (surf->drawflags & SURF_SKY)

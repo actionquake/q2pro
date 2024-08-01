@@ -2650,7 +2650,7 @@ qboolean BOTLIB_FollowPath(edict_t *self)
 					self->bot.bi.speed = 100;
 					//self->bot.bi.actionflags = 0;
 
-					//Com_Printf("%s %s SUCCESSFULLY REACHED GOAL - curr_node[%d] goal_node[%d] dist[%f]\n", __func__, self->client->pers.netname, self->bot.current_node, self->bot.goal_node, VectorDistance(nodes[self->bot.current_node].origin, nodes[node].origin));
+					Com_Printf("%s %s SUCCESSFULLY REACHED GOAL - curr_node[%d] goal_node[%d] dist[%f]\n", __func__, self->client->pers.netname, self->bot.current_node, self->bot.goal_node, VectorDistance(nodes[self->bot.current_node].origin, nodes[node].origin));
 					self->bot.node_travel_time = 0;
 
 					////if (nav_area.total_areas > 0)
