@@ -27,7 +27,6 @@ float VectorDistanceXY(vec3_t start, vec3_t end)
 // Returns: false if node type was not found
 qboolean NodeTypeToString(edict_t* self, int type, char *string, const int max_string_size)
 {
-	int len;
 	switch (type)
 	{
 	case NODE_MOVE:
@@ -153,7 +152,7 @@ void PrintAllLinkNodeTypes(edict_t *self, qboolean onlyPrintProblemTypes)
 		}
 	}
 
-	if (0) // Debug: print out the node list
+	if (1) // Debug: print out the node list
 	{
 		Com_Printf("%s: count[%d] node_list[", __func__, self->bot.node_list_count);
 		for (int i = curr_node_position; i < self->bot.node_list_count; i++) // Start at the current node position
@@ -5343,7 +5342,7 @@ void _Wander_Teamplay(edict_t* self)
 	}
 }
 
-qboolean _Wandering(edict_t* self, vec3_t walkdir, float move_speed, trace_t tr, usercmd_t* ucmd)
+qboolean _Wandering(edict_t* self, vec3_t walkdir, float move_speed, usercmd_t* ucmd)
 {
 	self->bot.stuck_wander_time--;
 	self->bot.node_travel_time = 0;
@@ -5358,7 +5357,7 @@ qboolean _Wandering(edict_t* self, vec3_t walkdir, float move_speed, trace_t tr,
 	}
 
 	float fwd_distance = 32;
-	tr = gi.trace(self->s.origin, NULL, NULL, tv(self->s.origin[0], self->s.origin[1], self->s.origin[2] - 128), self, (MASK_PLAYERSOLID | MASK_OPAQUE));
+	trace_t tr = gi.trace(self->s.origin, NULL, NULL, tv(self->s.origin[0], self->s.origin[1], self->s.origin[2] - 128), self, (MASK_PLAYERSOLID | MASK_OPAQUE));
 	if (tr.plane.normal[2] < 0.99) // If on a slope that makes the player 'bounce' when moving down the slope
 		fwd_distance = 128; // Extend the distance we check for a safe direction to move toward
 	//Com_Printf("%s %s tr.plane.normal[%f] \n", __func__, self->client->pers.netname, tr.plane.normal[2]);
@@ -5850,7 +5849,7 @@ void BOTLIB_Wander(edict_t* self, usercmd_t* ucmd)
 	vec3_t lastdir;
 	float move_speed = SPEED_RUN; // Movement speed, default to running
 	self->bot.bi.speed = 0; // Zero speed
-	trace_t tr; // Trace
+	//trace_t tr = {0}; // Trace
 
 	// Prevent stuck suicide if holding position
 	if ((self->bot.bi.actionflags & ACTION_HOLDPOS))
@@ -5863,7 +5862,7 @@ void BOTLIB_Wander(edict_t* self, usercmd_t* ucmd)
 	if (move_dist < FRAMETIME)
 		moved = false; // We've not moved
 
-
+	
 	// If the bot is near the get_item they're after, and the item is inuse
 	// inuse == false if the item was picked up and waiting to respawn
 	// inuse == true if the item has spawned in and is ready to be picked up
@@ -5913,7 +5912,7 @@ void BOTLIB_Wander(edict_t* self, usercmd_t* ucmd)
 	//self->bot.stuck_wander_time = 0;
 
 	if (self->bot.stuck_wander_time) {// && nav_area.total_areas <= 0)
-		if (!_Wandering(self, walkdir, move_speed, tr, ucmd)) {
+		if (!_Wandering(self, walkdir, move_speed, ucmd)) {
 			if (next_node == INVALID)
 			{
 				//self->bot.stuck_wander_time = 1;
@@ -6064,7 +6063,7 @@ void BOTLIB_Wander(edict_t* self, usercmd_t* ucmd)
 			self->bot.bi.speed = move_speed; // Set our suggested speed
 		}
 
-		// Decisions based on nodetype
+		// Decisions based on nodetype and other situations
 
 		if (current_node_type == NODE_WATER || next_node_type == NODE_WATER)
 			_Wander_Node_Water(self, current_node_type, next_node_type, walkdir, move_speed);

@@ -61,10 +61,12 @@
 #define MAX_BOTS 100
 
 // Platform states
-#define	STATE_TOP			0
-#define	STATE_BOTTOM		1
-#define STATE_UP			2
-#define STATE_DOWN			3
+enum platform_state_t {
+	STATE_TOP,
+	STATE_BOTTOM,
+	STATE_UP,
+	STATE_DOWN
+};
 
 // Maximum nodes
 //#define MAX_NODES 1200

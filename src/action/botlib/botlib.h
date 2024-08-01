@@ -184,10 +184,10 @@ typedef struct esp_status_s
 } esp_status_t;
 extern esp_status_t bot_esp_status;
 
-// Get flag, retrieve flag, intercept flag carrier, etc.
+// Attack target, defend leader, etc.
 typedef enum
 {
-	BOT_ESP_STATE_NONE, // No / Normal state (both teams actively attacking)
+	BOT_ESP_STATE_NONE, // Normal state (both teams actively attacking)
 	BOT_ESP_COVER_TEAM_LEADER, // Cover the team leader
 	BOT_ESP_ATTACK_TARGET, // Attack the target (enemy leader or target area)
 	BOT_ESP_DEFEND_TARGET, // Defend the target (team leader or target area)
