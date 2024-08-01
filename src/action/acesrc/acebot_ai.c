@@ -372,16 +372,26 @@ void BOTLIB_PickLongRangeGoal(edict_t* self)
 			}
 		}
 		
-		// Random node
-		int retries = 0;
-			while (retries < max_random_retries)
+		// // Random node
+		// int retries = 0;
+		// 	while (retries < max_random_retries)
+		// 	{
+		// 		if (!BOTLIB_ChooseRandomNode(self, 128))
+		// 			retries++;
+		// 	}
+		for (int i = 0; i < 128; i++)
+		{
+			int n = rand() % numnodes; // pick a random node
+			//Com_Printf("%s %s RNG Node[%i]\n", __func__, self->client->pers.netname, nodes[n].nodenum);
+			if (BOTLIB_CanGotoNode(self, nodes[n].nodenum, rand() % 2))
 			{
-				if (!BOTLIB_ChooseRandomNode(self, 128))
-					retries++;
+				//Com_Printf("%s %s visiting [RNG] node[%i]\n", __func__, self->client->pers.netname, nodes[n].nodenum);
+				return;
 			}
+		}
 	}
 
-	//Com_Printf("%s %s BOT_MOVE_STATE_NAV couldn't find a good path [%d]\n", __func__, self->client->pers.netname, level.framenum);
+	Com_Printf("%s %s BOT_MOVE_STATE_NAV couldn't find a good path [%d]\n", __func__, self->client->pers.netname, level.framenum);
 	self->bot.goal_node = INVALID;
 	self->bot.state = BOT_MOVE_STATE_NAV; // Get new nav
 	return; // no path? 

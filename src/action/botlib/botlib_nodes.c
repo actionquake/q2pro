@@ -4672,6 +4672,7 @@ void BOTLIB_BSP_SURFACES(bsp_t* bsp)
 		nmesh.face[f].drawflags = surf->drawflags; // Copy draw flags (DSURF_PLANEBACK, etc)
 		VectorCopy(surf->plane->normal, nmesh.face[f].normal); // Copy plane normal
 		nmesh.face[f].num_edges = surf->numsurfedges; // Copy total edges on this face
+		nmesh.face[f].num_verts = 0; // Initialize num_verts to 0
 
 		// Don't exclude sky because some walkable surfaces are sky
 		//if (surf->drawflags & SURF_SKY)

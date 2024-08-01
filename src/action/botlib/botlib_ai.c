@@ -870,6 +870,7 @@ void BOTLIB_Think(edict_t* self)
 
 		}
 
+		Com_Printf("Bot state: %d\n", self->bot.state);
 		if (self->bot.state == BOT_MOVE_STATE_MOVE || self->bot.state == BOT_MOVE_STATE_WANDER || self->bot.state == BOT_MOVE_STATE_STAND)
 		{
 			BOTLIB_FollowPath(self); // Get current and next node back from nav code.

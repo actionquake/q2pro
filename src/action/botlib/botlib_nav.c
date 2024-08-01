@@ -826,7 +826,7 @@ qboolean BOTLIB_CanGotoNode(edict_t* self, int goal_node, qboolean path_randomiz
 	else // Fallback to old pathing
 	{
 		self->bot.goal_node = INVALID;
-		//gi.dprintf("BOTLIB_CanVisitNode? %d\n", BOTLIB_CanVisitNode(self, nodes[goal_node].nodenum, path_randomization, INVALID, false));
+		gi.dprintf("BOTLIB_CanVisitNode? %d\n", BOTLIB_CanVisitNode(self, nodes[goal_node].nodenum, path_randomization, INVALID, false));
 		if (BOTLIB_CanVisitNode(self, nodes[goal_node].nodenum, path_randomization, INVALID, false))
 		{
 			// Add the goal to the end of the node list + terminate
@@ -840,7 +840,7 @@ qboolean BOTLIB_CanGotoNode(edict_t* self, int goal_node, qboolean path_randomiz
 		}
 	}
 
-	//Com_Printf("%s %s failed #2 \n", __func__, self->client->pers.netname);
+	Com_Printf("%s %s failed #2 \n", __func__, self->client->pers.netname);
 	return false; // Failure to find path
 }
 
@@ -2248,6 +2248,8 @@ qboolean BOTLIB_DijkstraPath(edict_t* ent, int from, int to, qboolean path_rando
 
 		// Each time a path is found, make a copy
 		//ent->bot.node_list_count = 0;
+		ent->bot.node_list_count = 0;
+		memset(ent->bot.node_list, 0, sizeof(ent->bot.node_list)); // Ensure the node list is cleared
 		ent->bot.node_list_count = BOTLIB_SLL_Query_All_Nodes(ent, &ent->pathList, ent->bot.node_list, MAX_NODELIST); // Retrieve the nodes in the list
 		ent->bot.node_list_current = 0;
 		if (ent->bot.node_list_count) // Set the current and next nodes
@@ -2257,7 +2259,7 @@ qboolean BOTLIB_DijkstraPath(edict_t* ent, int from, int to, qboolean path_rando
 		}
 		ent->bot.node_random_path = path_randomization; // Note down if the bot was taking a random or direct path
 
-		if (0)
+		if (1)
 		{
 			if (1)
 			{
@@ -2271,11 +2273,11 @@ qboolean BOTLIB_DijkstraPath(edict_t* ent, int from, int to, qboolean path_rando
 			}
 			else
 				gi.dprintf("%s from[%d] to[%d]\n", __func__, from, to);
-			//gi.dprintf("%s found a path\n", __func__);
+			gi.dprintf("%s found a path\n", __func__);
 		}
 
 		if (SLLempty(&ent->pathList)){
-			//gi.dprintf("SLLempty: %s failed to find a path from %d to %d\n", __func__, from, to);
+			gi.dprintf("SLLempty: %s failed to find a path from %d to %d\n", __func__, from, to);
 			return false; // Failure
 		}
 
