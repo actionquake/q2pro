@@ -174,12 +174,12 @@ static void emit_delta_frame(const server_frame_t *from, const server_frame_t *t
 
     // delta encode the playerstate
     MSG_WriteByte(svc_playerinfo);
-    MSG_PackPlayer(&newpack, &to->ps);
+    MSG_PackPlayerNew(&newpack, &to->ps);
     if (from) {
-        MSG_PackPlayer(&oldpack, &from->ps);
-        MSG_WriteDeltaPlayerstate_Default(&oldpack, &newpack, cl.psFlags);
+        MSG_PackPlayerNew(&oldpack, &from->ps);
+        MSG_WriteDeltaPlayerstate_Default(&oldpack, &newpack, cls.demo.psFlags);
     } else {
-        MSG_WriteDeltaPlayerstate_Default(NULL, &newpack, cl.psFlags);
+        MSG_WriteDeltaPlayerstate_Default(NULL, &newpack, cls.demo.psFlags);
     }
 
     // delta encode the entities
@@ -749,6 +749,7 @@ static void CL_PlayDemo_f(void)
     CL_Disconnect(ERR_RECONNECT);
 
     cls.demo.playback = f;
+    cls.demo.compat = !strcmp(Cmd_Argv(2), "compat");
     cls.state = ca_connected;
     Q_strlcpy(cls.servername, COM_SkipPath(name), sizeof(cls.servername));
     cls.serverAddress.type = NA_LOOPBACK;
@@ -761,7 +762,7 @@ static void CL_PlayDemo_f(void)
     CL_ParseServerMessage();
 
     // read and parse messages util `precache' command
-    while (cls.state == ca_connected) {
+    for (int i = 0; cls.state == ca_connected && i < 1000; i++) {
         Cbuf_Execute(&cl_cmdbuf);
         parse_next_message(0);
     }
@@ -1178,7 +1179,7 @@ bool CL_GetDemoInfo(const char *path, demoInfo_t *info)
             goto fail;
         }
         c = MSG_ReadLong();
-        if (c == PROTOCOL_VERSION_EXTENDED) {
+        if (c == PROTOCOL_VERSION_EXTENDED || c == PROTOCOL_VERSION_EXTENDED_OLD) {
             csr = &cs_remap_new;
         } else if (c < PROTOCOL_VERSION_OLD || c > PROTOCOL_VERSION_DEFAULT) {
             goto fail;
@@ -1262,6 +1263,10 @@ void CL_CleanupDemos(void)
                            cls.demo.time_frames, sec, fps);
             }
         }
+
+        // clear whatever stufftext remains
+        if (!cls.demo.compat)
+            Cbuf_Clear(&cl_cmdbuf);
     }
 
     CL_FreeDemoSnapshots();

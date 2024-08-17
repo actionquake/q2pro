@@ -91,6 +91,11 @@ with this program; if not, write to the Free Software Foundation, Inc.,
 #else
 #define SOLIB_X_OK X_OK
 #endif   
+#ifdef __has_builtin
+#define q_has_builtin(x)    __has_builtin(x)
+#else
+#define q_has_builtin(x)    0
+#endif
 
 #ifdef __GNUC__
 
@@ -133,6 +138,12 @@ with this program; if not, write to the Free Software Foundation, Inc.,
 
 #define q_unused            __attribute__((unused))
 
+#if q_has_builtin(__builtin_unreachable)
+#define q_unreachable()     __builtin_unreachable()
+#else
+#define q_unreachable()     abort()
+#endif
+
 #else /* __GNUC__ */
 
 #ifdef _MSC_VER
@@ -140,11 +151,13 @@ with this program; if not, write to the Free Software Foundation, Inc.,
 #define q_noinline          __declspec(noinline)
 #define q_malloc            __declspec(restrict)
 #define q_alignof(t)        __alignof(t)
+#define q_unreachable()     __assume(0)
 #else
 #define q_noreturn
 #define q_noinline
 #define q_malloc
 #define q_alignof(t)        1
+#define q_unreachable()     abort()
 #endif
 
 #define q_printf(f, a)

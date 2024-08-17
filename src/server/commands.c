@@ -250,9 +250,9 @@ static void abort_func(void *arg)
 
 static void SV_Map(bool restart)
 {
-    mapcmd_t    cmd;
-
-    memset(&cmd, 0, sizeof(cmd));
+    mapcmd_t cmd = {
+        .endofunit = restart,   // wipe savegames
+    };
 
     // save the mapcmd
     if (Cmd_ArgvBuffer(1, cmd.buffer, sizeof(cmd.buffer)) >= sizeof(cmd.buffer)) {
@@ -263,11 +263,16 @@ static void SV_Map(bool restart)
     if (!SV_ParseMapCmd(&cmd))
         return;
 
+#if USE_CLIENT
+    // hack for demomap
+    if (cmd.state == ss_demo) {
+        Cbuf_InsertText(&cmd_buffer, va("demo \"%s\" compat\n", cmd.server));
+        return;
+    }
+#endif
+
     // save pending CM to be freed later if ERR_DROP is thrown
     Com_AbortFunc(abort_func, &cmd.cm);
-
-    // wipe savegames
-    cmd.endofunit |= restart;
 
     SV_AutoSaveBegin(&cmd);
 
@@ -290,21 +295,15 @@ SV_DemoMap_f
 Puts the server in demo mode on a specific map/cinematic
 ==================
 */
-#if USE_CLIENT
 static void SV_DemoMap_f(void)
 {
-    char *s = Cmd_Argv(1);
+    if (Cmd_Argc() != 2) {
+        Com_Printf("Usage: %s <mapname>\n", Cmd_Argv(0));
+        return;
+    }
 
-    if (!COM_CompareExtension(s, ".dm2"))
-        Cbuf_InsertText(&cmd_buffer, va("demo \"%s\"\n", s));
-    else if (!COM_CompareExtension(s, ".cin"))
-        Cbuf_InsertText(&cmd_buffer, va("map \"%s\" force\n", s));
-    else if (*s)
-        Com_Printf("\"%s\" only supports .dm2 and .cin files\n", Cmd_Argv(0));
-    else
-        Com_Printf("Usage: %s <demo>\n", Cmd_Argv(0));
+    SV_Map(false);
 }
-#endif
 
 /*
 ==================
@@ -410,17 +409,43 @@ static void SV_Map_f(void)
 
 static void SV_Map_c(genctx_t *ctx, int argnum)
 {
-    unsigned flags = FS_SEARCH_RECURSIVE | FS_SEARCH_STRIPEXT;
-    if (argnum == 1) {
-        FS_File_g("maps", ".bsp", flags, ctx);
-        const char *s = Cvar_VariableString("map_override_path");
-        if (*s) {
-            int pos = ctx->count;
-            FS_File_g(s, ".bsp.override", flags, ctx);
-            for (int i = pos; i < ctx->count; i++)
-                *COM_FileExtension(ctx->matches[i]) = 0;
-        }
+    const char *path;
+    void **list;
+    int count;
+
+    if (argnum != 1)
+        return;
+
+    // complete regular maps
+    FS_File_g("maps", ".bsp", FS_SEARCH_RECURSIVE | FS_SEARCH_STRIPEXT, ctx);
+
+    // complete overrides
+    path = Cvar_VariableString("map_override_path");
+    if (!*path)
+        return;
+
+    list = FS_ListFiles(path, ".bsp.override", FS_SEARCH_RECURSIVE, &count);
+    if (!list)
+        return;
+
+    ctx->ignoredups = true;
+    for (int i = 0; i < count; i++) {
+        const char *s = list[i];
+        const int len = strlen(s) - strlen(".bsp.override");
+        Prompt_AddMatch(ctx, va("%.*s", len, s));
     }
+
+    FS_FreeList(list);
+}
+
+static void SV_DemoMap_c(genctx_t *ctx, int argnum)
+{
+#if USE_CLIENT
+    if (argnum == 1) {
+        FS_File_g("demos", ".dm2", FS_SEARCH_RECURSIVE, ctx);
+        SCR_Cinematic_g(ctx);
+    }
+#endif
 }
 
 static void SV_DumpEnts_f(void)
@@ -532,7 +557,7 @@ static void dump_clients(void)
         }
 
         Com_Printf("%3i %5i %s %-15.15s %7u %-21s %5i %2i %3i\n", client->number,
-                   client->edict->client->ps.stats[STAT_FRAGS],
+                   SV_GetClient_Stat(client, STAT_FRAGS),
                    ping, client->name, svs.realtime - client->lastmessage,
                    NET_AdrToString(&client->netchan.remote_address),
                    client->rate, client->protocol, client->moves_per_sec);
@@ -1794,9 +1819,7 @@ static const cmdreg_t c_server[] = {
     { "stuffcvar", SV_StuffCvar_f, SV_SetPlayer_c },
     { "printall", SV_PrintAll_f },
     { "map", SV_Map_f, SV_Map_c },
-#if USE_CLIENT
-    { "demomap", SV_DemoMap_f },
-#endif
+    { "demomap", SV_DemoMap_f, SV_DemoMap_c },
     { "gamemap", SV_GameMap_f, SV_Map_c },
     { "dumpents", SV_DumpEnts_f },
     { "setmaster", SV_SetMaster_f },

@@ -488,7 +488,7 @@ static void MVD_ParseSound(mvd_t *mvd, int extrabits)
         MSG_WriteByte(offset);
 
     MSG_WriteShort(sendchan);
-    MSG_WritePos(origin);
+    MSG_WritePos(origin, mvd->esFlags & MSG_ES_EXTENSIONS_2);
 
     leaf1 = NULL;
     if (!(extrabits & 1)) {
@@ -622,7 +622,7 @@ static void MVD_PlayerToEntityStates(mvd_t *mvd)
         mvd->numplayers++;
         if (player->ps.pmove.pm_type != PM_NORMAL) {
             continue;   // can be out of sync, in this case
-            // server should provide valid data
+                        // server should provide valid data
         }
 
         edict = &mvd->edicts[i];
@@ -632,7 +632,9 @@ static void MVD_PlayerToEntityStates(mvd_t *mvd)
 
         Com_PlayerToEntityState(&player->ps, &edict->s);
 
-        MVD_LinkEdict(mvd, edict);
+        if (!mvd->demoseeking) {
+            MVD_LinkEdict(mvd, edict);
+        }
     }
 }
 
@@ -650,6 +652,9 @@ static void MVD_ParsePacketEntities(mvd_t *mvd)
     edict_t     *ent;
 
     while (1) {
+#if USE_DEBUG
+        uint32_t readcount = msg_read.readcount;
+#endif
         if (msg_read.readcount > msg_read.cursize) {
             MVD_Destroyf(mvd, "%s: read past end of message", __func__);
         }
@@ -667,10 +672,10 @@ static void MVD_ParsePacketEntities(mvd_t *mvd)
 
 #if USE_DEBUG
         if (mvd_shownet->integer > 2) {
-            Com_Printf("   %s: %d ", ent->inuse ?
-                       "delta" : "baseline", number);
+            Com_LPrintf(PRINT_DEVELOPER, "%3u:%s:%d ", readcount,
+                       ent->inuse ? "delta" : "baseline", number);
             MSG_ShowDeltaEntityBits(bits);
-            Com_Printf("\n");
+            Com_LPrintf(PRINT_DEVELOPER, "\n");
         }
 #endif
 
@@ -686,7 +691,7 @@ static void MVD_ParsePacketEntities(mvd_t *mvd)
 
         // shuffle current origin to old if removed
         if (bits & U_REMOVE) {
-            SHOWNET(2, "   remove: %d\n", number);
+            SHOWNET(2, "%3u:remove:%d\n", readcount, number);
             if (!(ent->s.renderfx & RF_BEAM)) {
                 VectorCopy(ent->s.origin, ent->s.old_origin);
             }
@@ -713,6 +718,9 @@ static void MVD_ParsePacketPlayers(mvd_t *mvd)
     mvd_player_t    *player;
 
     while (1) {
+#if USE_DEBUG
+        uint32_t readcount = msg_read.readcount;
+#endif
         if (msg_read.readcount > msg_read.cursize) {
             MVD_Destroyf(mvd, "%s: read past end of message", __func__);
         }
@@ -732,17 +740,17 @@ static void MVD_ParsePacketPlayers(mvd_t *mvd)
 
 #if USE_DEBUG
         if (mvd_shownet->integer > 2) {
-            Com_Printf("   %s: %d ", player->inuse ?
-                       "delta" : "baseline", number);
+            Com_LPrintf(PRINT_DEVELOPER, "%3u:%s:%d ", readcount,
+                       player->inuse ? "delta" : "baseline", number);
             MSG_ShowDeltaPlayerstateBits_Packet(bits);
-            Com_Printf("\n");
+            Com_LPrintf(PRINT_DEVELOPER, "\n");
         }
 #endif
 
-        MSG_ParseDeltaPlayerstate_Packet(&player->ps, &player->ps, bits, mvd->psFlags);
+        MSG_ParseDeltaPlayerstate_Packet(&player->ps, bits, mvd->psFlags);
 
         if (bits & PPS_REMOVE) {
-            SHOWNET(2, "   remove: %d\n", number);
+            SHOWNET(2, "%3u:remove:%d\n", readcount, number);
             player->inuse = false;
             continue;
         }
@@ -894,12 +902,18 @@ static void MVD_ParseServerData(mvd_t *mvd, int extrabits)
                      "Current version is %d.\n", mvd->version, PROTOCOL_VERSION_MVD_CURRENT);
     }
 
+    // parse MVD stream flags
+    if (mvd->version >= PROTOCOL_VERSION_MVD_EXTENDED_LIMITS_2) {
+        mvd->flags = MSG_ReadWord();
+    } else {
+        mvd->flags = extrabits;
+    }
+
     mvd->servercount = MSG_ReadLong();
     if (MSG_ReadString(mvd->gamedir, sizeof(mvd->gamedir)) >= sizeof(mvd->gamedir)) {
         MVD_Destroyf(mvd, "Oversize gamedir string");
     }
     mvd->clientNum = MSG_ReadShort();
-    mvd->flags = extrabits;
     mvd->esFlags = MSG_ES_UMASK | MSG_ES_BEAMORIGIN;
     mvd->psFlags = 0;
     mvd->csr = &cs_remap_old;
@@ -908,6 +922,13 @@ static void MVD_ParseServerData(mvd_t *mvd, int extrabits)
         mvd->esFlags |= MSG_ES_LONGSOLID | MSG_ES_SHORTANGLES | MSG_ES_EXTENSIONS;
         mvd->psFlags |= MSG_PS_EXTENSIONS;
         mvd->csr = &cs_remap_new;
+    }
+    if (mvd->version >= PROTOCOL_VERSION_MVD_EXTENDED_LIMITS_2 && mvd->flags & MVF_EXTLIMITS_2) {
+        mvd->esFlags |= MSG_ES_EXTENSIONS_2;
+        mvd->psFlags |= MSG_PS_EXTENSIONS_2;
+        if (!(mvd->flags & MVF_EXTLIMITS)) {
+            MVD_Destroyf(mvd, "MVF_EXTLIMITS_2 without MVF_EXTLIMITS");
+        }
     }
 
 #if 0

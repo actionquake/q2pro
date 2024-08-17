@@ -2568,7 +2568,7 @@ static void exec_server_string(cmdbuf_t *buf, const char *text)
     }
 
     // forbid nearly every command from demos
-    if (cls.demo.playback) {
+    if (cls.demo.playback && !cls.demo.compat) {
         if (strcmp(s, "play")) {
             return;
         }
@@ -3349,6 +3349,8 @@ unsigned CL_Frame(unsigned msec)
     // calculate local time
     if (cls.state == ca_active && !sv_paused->integer)
         CL_SetClientTime();
+
+    cl.rand_seed = cl.time / 16;
 
 #if USE_AUTOREPLY
     // check for version reply

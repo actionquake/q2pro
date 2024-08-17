@@ -50,6 +50,14 @@ with this program; if not, write to the Free Software Foundation, Inc.,
 #include "config.h"
 #endif
 
+#ifndef USE_PROTOCOL_EXTENSIONS
+#define USE_PROTOCOL_EXTENSIONS (USE_CLIENT || USE_SERVER)
+#endif
+
+#ifndef USE_NEW_GAME_API
+#define USE_NEW_GAME_API (USE_CLIENT || USE_SERVER)
+#endif
+
 #include <math.h>
 #include <ctype.h>
 #include <stdio.h>
@@ -460,6 +468,22 @@ static inline uint32_t Q_npot32(uint32_t k)
     return k + 1;
 }
 
+static inline int Q_log2(uint32_t k)
+{
+#if q_has_builtin(__builtin_clz)
+    return 31 - __builtin_clz(k | 1);
+#elif (defined _MSC_VER)
+    unsigned long index;
+    _BitScanReverse(&index, k | 1);
+    return index;
+#else
+    for (int i = 31; i > 0; i--)
+        if (k & BIT(i))
+            return i;
+    return 0;
+#endif
+}
+
 static inline float LerpAngle(float a2, float a1, float frac)
 {
     if (a1 - a2 > 180)
@@ -510,6 +534,16 @@ uint32_t Q_rand(void);
 uint32_t Q_rand_uniform(uint32_t n);
 
 #define bound(a,b,c) ((a) >= (c) ? (a) : (b) < (a) ? (a) : (b) > (c) ? (c) : (b))
+static inline uint32_t Q_rand_state(uint32_t *seed)
+{
+    uint32_t x = *seed;
+
+    x ^= x << 13;
+    x ^= x >> 17;
+    x ^= x << 5;
+
+    return *seed = x;
+}
 
 static inline int Q_clip(int a, int b, int c)
 {
@@ -766,15 +800,23 @@ char    *vtos(const vec3_t v);
 
 static inline uint16_t ShortSwap(uint16_t s)
 {
+#if q_has_builtin(__builtin_bswap16)
+    return __builtin_bswap16(s);
+#else
     s = (s >> 8) | (s << 8);
     return s;
+#endif
 }
 
 static inline uint32_t LongSwap(uint32_t l)
 {
+#if q_has_builtin(__builtin_bswap32)
+    return __builtin_bswap32(l);
+#else
     l = ((l >> 8) & 0x00ff00ff) | ((l << 8) & 0xff00ff00);
     l = (l >> 16) | (l << 16);
     return l;
+#endif
 }
 
 static inline float FloatSwap(float f)
@@ -806,28 +848,29 @@ static inline int32_t SignExtend(uint32_t v, int bits)
 }
 
 #if USE_LITTLE_ENDIAN
-#define BigShort    ShortSwap
-#define BigLong     LongSwap
-#define BigFloat    FloatSwap
-#define LittleShort(x)    ((uint16_t)(x))
-#define LittleLong(x)     ((uint32_t)(x))
-#define LittleFloat(x)    ((float)(x))
-#define MakeRawLong(b1,b2,b3,b4) (((unsigned)(b4)<<24)|((b3)<<16)|((b2)<<8)|(b1))
+#define BigShort(x)     ShortSwap(x)
+#define BigLong(x)      LongSwap(x)
+#define BigFloat(x)     FloatSwap(x)
+#define LittleShort(x)  ((uint16_t)(x))
+#define LittleLong(x)   ((uint32_t)(x))
+#define LittleFloat(x)  ((float)(x))
+#define MakeRawLong(b1,b2,b3,b4) MakeLittleLong(b1,b2,b3,b4)
 #define MakeRawShort(b1,b2) (((b2)<<8)|(b1))
 #elif USE_BIG_ENDIAN
 #define BigShort(x)     ((uint16_t)(x))
 #define BigLong(x)      ((uint32_t)(x))
 #define BigFloat(x)     ((float)(x))
-#define LittleShort ShortSwap
-#define LittleLong  LongSwap
-#define LittleFloat FloatSwap
-#define MakeRawLong(b1,b2,b3,b4) (((unsigned)(b1)<<24)|((b2)<<16)|((b3)<<8)|(b4))
+#define LittleShort(x)  ShortSwap(x)
+#define LittleLong(x)   LongSwap(x)
+#define LittleFloat(x)  FloatSwap(x)
+#define MakeRawLong(b1,b2,b3,b4) MakeBigLong(b1,b2,b3,b4)
 #define MakeRawShort(b1,b2) (((b1)<<8)|(b2))
 #else
 #error Unknown byte order
 #endif
 
-#define MakeLittleLong(b1,b2,b3,b4) (((unsigned)(b4)<<24)|((b3)<<16)|((b2)<<8)|(b1))
+#define MakeLittleLong(b1,b2,b3,b4) (((uint32_t)(b4)<<24)|((uint32_t)(b3)<<16)|((uint32_t)(b2)<<8)|(uint32_t)(b1))
+#define MakeBigLong(b1,b2,b3,b4) (((uint32_t)(b1)<<24)|((uint32_t)(b2)<<16)|((uint32_t)(b3)<<8)|(uint32_t)(b4))
 
 #define LittleVector(a,b) \
     ((b)[0]=LittleFloat((a)[0]),\
@@ -898,13 +941,18 @@ typedef struct cvar_s {
 #if AQTION_EXTENSION
 	int			sync_index;
 #endif
+#if USE_NEW_GAME_API
     int         integer;
     char        *default_string;
+#endif
+#if USE_CLIENT || USE_SERVER
     xchanged_t      changed;
     xgenerator_t    generator;
     struct cvar_s   *hashNext;
 #endif
 } cvar_t;
+
+#endif
 
 #endif      // CVAR
 
@@ -963,7 +1011,7 @@ COLLISION DETECTION
 #define SURF_FLOWING            BIT(6)      // scroll towards angle
 #define SURF_NODRAW             BIT(7)      // don't bother referencing the texture
 
-#define SURF_ALPHATEST          BIT(25)     // used by kmquake2
+#define SURF_ALPHATEST          BIT(25)     // used by KMQuake2
 
 //KEX
 #define SURF_N64_UV             BIT(28)
@@ -1047,6 +1095,7 @@ typedef enum {
 
 //KEX
 #define PMF_IGNORE_PLAYER_COLLISION     BIT(7)
+#define PMF_ON_LADDER                   BIT(8)
 //KEX
 
 
@@ -1076,7 +1125,26 @@ typedef struct {
 	unsigned short pm_timestamp; // timestamp, resets every 60 seconds
 	byte		pm_aq2_leghits;		 // number of leg hits
 #endif
-} pmove_state_t;
+} pmove_state_old_t;
+
+#if USE_NEW_GAME_API
+typedef struct {
+    pmtype_t    pm_type;
+
+    int32_t     origin[3];      // 19.3
+    int32_t     velocity[3];    // 19.3
+    uint16_t    pm_flags;       // ducked, jump_held, etc
+    uint16_t    pm_time;        // in msec
+    int16_t     gravity;
+    int16_t     delta_angles[3];    // add to command angles to get view direction
+                                    // changed by spawns, rotating objects, and teleporters
+#if AQTION_EXTENSION
+	short       pm_aq2_flags;   // limping, bandaging, etc
+	unsigned short pm_timestamp; // timestamp, resets every 60 seconds
+	byte		pm_aq2_leghits;		 // number of leg hits
+#endif
+} pmove_state_new_t;
+#endif
 
 //
 // button bits
@@ -1096,16 +1164,17 @@ typedef struct {
 } usercmd_t;
 
 #define MAXTOUCH    32
+
 typedef struct {
     // state (in / out)
-    pmove_state_t   s;
+    pmove_state_old_t   s;
 
     // command (in)
     usercmd_t       cmd;
     qboolean        snapinitial;    // if s has been changed outside pmove
 
     // results (out)
-    int         numtouch;
+    int             numtouch;
     struct edict_s  *touchents[MAXTOUCH];
 
     vec3_t      viewangles;         // clamped
@@ -1114,13 +1183,41 @@ typedef struct {
     vec3_t      mins, maxs;         // bounding box size
 
     struct edict_s  *groundentity;
-    int         watertype;
-    int         waterlevel;
+    int             watertype;
+    int             waterlevel;
 
     // callbacks to test the world
     trace_t     (* q_gameabi trace)(const vec3_t start, const vec3_t mins, const vec3_t maxs, const vec3_t end);
     int         (*pointcontents)(const vec3_t point);
-} pmove_t;
+} pmove_old_t;
+
+#if USE_NEW_GAME_API
+typedef struct {
+    // state (in / out)
+    pmove_state_new_t   s;
+
+    // command (in)
+    usercmd_t       cmd;
+    qboolean        snapinitial;    // if s has been changed outside pmove
+
+    // results (out)
+    int             numtouch;
+    struct edict_s  *touchents[MAXTOUCH];
+
+    vec3_t      viewangles;         // clamped
+    float       viewheight;
+
+    vec3_t      mins, maxs;         // bounding box size
+
+    struct edict_s  *groundentity;
+    int             watertype;
+    int             waterlevel;
+
+    // callbacks to test the world
+    trace_t     (* q_gameabi trace)(const vec3_t start, const vec3_t mins, const vec3_t maxs, const vec3_t end);
+    int         (*pointcontents)(const vec3_t point);
+} pmove_new_t;
+#endif
 
 // entity_state_t->effects
 // Effects are things handled on the client side (lights, particles, frame animations)
@@ -1351,6 +1448,8 @@ typedef enum {
     TE_EXPLOSION2_NL,
 //[Paril-KEX]
 
+    TE_DAMAGE_DEALT = 128,
+
     TE_NUM_ENTITIES
 } temp_event_t;
 
@@ -1431,6 +1530,9 @@ enum {
 
 #define STAT_TEAM1_HEADER  30
 #define STAT_TEAM2_HEADER  31
+
+#define MAX_STATS_OLD   32
+#define MAX_STATS_NEW   64
 
 // STAT_LAYOUTS flags
 #define LAYOUTS_LAYOUT          BIT(0)
@@ -1648,7 +1750,7 @@ typedef struct {
 // but the number of pmove_state_t changes will be reletive to client
 // frame rates
 typedef struct {
-    pmove_state_t   pmove;      // for prediction
+    pmove_state_old_t   pmove;  // for prediction
 
     // these fields do not need to be communicated bit-precise
 
@@ -1668,8 +1770,37 @@ typedef struct {
 
     int         rdflags;        // refdef flags
 
-    short       stats[MAX_STATS];       // fast status bar updates
-} player_state_t;
+    short       stats[MAX_STATS_OLD];   // fast status bar updates
+} player_state_old_t;
+
+#if USE_NEW_GAME_API
+typedef struct {
+    pmove_state_new_t   pmove;  // for prediction
+
+    // these fields do not need to be communicated bit-precise
+
+    vec3_t      viewangles;     // for fixed views
+    vec3_t      viewoffset;     // add to pmovestate->origin
+    vec3_t      kick_angles;    // add to view direction to get render angles
+                                // set by weapon kicks, pain effects, etc
+
+    vec3_t      gunangles;
+    vec3_t      gunoffset;
+    int         gunindex;
+    int         gunframe;
+
+    vec4_t      blend;          // rgba full screen effect
+    vec4_t      damage_blend;
+
+    float       fov;            // horizontal field of view
+
+    int         rdflags;        // refdef flags
+
+    int         reserved[4];
+
+    int16_t     stats[MAX_STATS_NEW];   // fast status bar updates
+} player_state_new_t;
+#endif
 
 
 // Reki : Cvar Sync info shared between engine and game
@@ -1698,5 +1829,21 @@ typedef struct {
     float       loop_volume;
     float       loop_attenuation;
 } entity_state_extension_t;
+
+#endif
+
+#if USE_NEW_GAME_API
+
+#define MAX_STATS           MAX_STATS_NEW
+typedef pmove_new_t         pmove_t;
+typedef pmove_state_new_t   pmove_state_t;
+typedef player_state_new_t  player_state_t;
+
+#else
+
+#define MAX_STATS           MAX_STATS_OLD
+typedef pmove_old_t         pmove_t;
+typedef pmove_state_old_t   pmove_state_t;
+typedef player_state_old_t  player_state_t;
 
 #endif

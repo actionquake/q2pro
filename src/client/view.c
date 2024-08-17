@@ -406,12 +406,10 @@ void V_RenderView(void)
             V_TestEntities();
         if (cl_testlights->integer)
             V_TestLights();
-        if (cl_testblend->integer) {
-            cl.refdef.blend[0] = 1;
-            cl.refdef.blend[1] = 0.5f;
-            cl.refdef.blend[2] = 0.25f;
-            cl.refdef.blend[3] = 0.5f;
-        }
+        if (cl_testblend->integer & 1)
+            Vector4Set(cl.refdef.screen_blend, 1, 0.5f, 0.25f, 0.5f);
+        if (cl_testblend->integer & 2)
+            Vector4Set(cl.refdef.damage_blend, 0.25f, 0.5f, 0.7f, 0.5f);
 #endif
 
         // never let it sit exactly on a node line, because a water plane can
@@ -454,8 +452,10 @@ void V_RenderView(void)
             r_numparticles = 0;
         if (!cl_add_lights->integer)
             r_numdlights = 0;
-        if (!cl_add_blend->integer)
-            Vector4Clear(cl.refdef.blend);
+        if (!cl_add_blend->integer) {
+            Vector4Clear(cl.refdef.screen_blend);
+            Vector4Clear(cl.refdef.damage_blend);
+        }
 
         cl.refdef.num_entities = r_numentities;
         cl.refdef.entities = r_entities;
@@ -465,6 +465,7 @@ void V_RenderView(void)
         cl.refdef.dlights = r_dlights;
         cl.refdef.lightstyles = r_lightstyles;
         cl.refdef.rdflags = cl.frame.ps.rdflags;
+        cl.refdef.extended = cl.csr.extended;
 
         // sort entities for better cache locality
         qsort(cl.refdef.entities, cl.refdef.num_entities, sizeof(cl.refdef.entities[0]), entitycmpfnc);

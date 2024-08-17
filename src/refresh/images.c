@@ -27,6 +27,7 @@ with this program; if not, write to the Free Software Foundation, Inc.,
 #include "common/cvar.h"
 #include "common/files.h"
 #include "common/intreadwrite.h"
+#include "common/sizebuf.h"
 #include "system/system.h"
 #include "format/pcx.h"
 #include "format/wal.h"
@@ -179,44 +180,38 @@ PCX LOADING
 =================================================================
 */
 
-static int uncompress_pcx(const byte *raw, const byte *end,
-                          int w, int h, int scan, byte *pixels)
+#define PCX_PALETTE_SIZE    768
+
+static int uncompress_pcx(sizebuf_t *s, int scan, byte *pix)
 {
-    int dataByte, runLength;
+    for (int x = 0; x < scan;) {
+        int dataByte, runLength;
 
-    for (int y = 0; y < h; y++, pixels += w) {
-        for (int x = 0; x < scan;) {
-            if (raw >= end)
+        if ((dataByte = SZ_ReadByte(s)) == -1)
+            return Q_ERR_UNEXPECTED_EOF;
+
+        if ((dataByte & 0xC0) == 0xC0) {
+            runLength = dataByte & 0x3F;
+            if (x + runLength > scan)
                 return Q_ERR_OVERRUN;
-            dataByte = *raw++;
-
-            if ((dataByte & 0xC0) == 0xC0) {
-                runLength = dataByte & 0x3F;
-                if (x + runLength > scan)
-                    return Q_ERR_OVERRUN;
-                if (raw >= end)
-                    return Q_ERR_OVERRUN;
-                dataByte = *raw++;
-            } else {
-                runLength = 1;
-            }
-
-            while (runLength--) {
-                if (x < w)
-                    pixels[x] = dataByte;
-                x++;
-            }
+            if ((dataByte = SZ_ReadByte(s)) == -1)
+                return Q_ERR_UNEXPECTED_EOF;
+        } else {
+            runLength = 1;
         }
+
+        while (runLength--)
+            pix[x++] = dataByte;
     }
 
     return Q_ERR_SUCCESS;
 }
 
-static int load_pcx(const byte *rawdata, size_t rawlen, byte **pixels_p,
-                    byte *palette, int *width, int *height)
+static int load_pcx(const byte *rawdata, size_t rawlen,
+                    image_t *image, byte *palette, byte **pic)
 {
     const dpcx_t    *pcx;
-    int             w, h, scan;
+    int             w, h, bytes_per_line;
 
     //
     // parse the PCX file
@@ -232,25 +227,25 @@ static int load_pcx(const byte *rawdata, size_t rawlen, byte **pixels_p,
     }
 
     if (pcx->encoding != 1 || pcx->bits_per_pixel != 8) {
-        Com_SetLastError("invalid encoding or bits per pixel");
+        Com_SetLastError("Unsupported encoding or bits per pixel");
         return Q_ERR_INVALID_FORMAT;
     }
 
     w = (LittleShort(pcx->xmax) - LittleShort(pcx->xmin)) + 1;
     h = (LittleShort(pcx->ymax) - LittleShort(pcx->ymin)) + 1;
     if (check_image_size(w, h)) {
-        Com_SetLastError("invalid image dimensions");
+        Com_SetLastError("Invalid image dimensions");
         return Q_ERR_INVALID_FORMAT;
     }
 
-    if (pcx->color_planes != 1) {
-        Com_SetLastError("invalid number of color planes");
+    if (pcx->color_planes != 1 && (palette || pcx->color_planes != 3)) {
+        Com_SetLastError("Unsupported number of color planes");
         return Q_ERR_INVALID_FORMAT;
     }
 
-    scan = LittleShort(pcx->bytes_per_line);
-    if (scan < w) {
-        Com_SetLastError("invalid number of bytes per line");
+    bytes_per_line = LittleShort(pcx->bytes_per_line);
+    if (bytes_per_line < w) {
+        Com_SetLastError("Invalid number of bytes per line");
         return Q_ERR_INVALID_FORMAT;
     }
 
@@ -258,56 +253,81 @@ static int load_pcx(const byte *rawdata, size_t rawlen, byte **pixels_p,
     // get palette
     //
     if (palette) {
-        if (rawlen < 768) {
+        if (rawlen < PCX_PALETTE_SIZE) {
             return Q_ERR_FILE_TOO_SMALL;
         }
-        memcpy(palette, rawdata + rawlen - 768, 768);
+        memcpy(palette, rawdata + rawlen - PCX_PALETTE_SIZE, PCX_PALETTE_SIZE);
     }
 
     //
     // get pixels
     //
-    if (pixels_p) {
-        byte *pixels = IMG_AllocPixels(w * h);
-        int ret = uncompress_pcx(pcx->data, rawdata + rawlen, w, h, scan, pixels);
+    if (image) {
+        int bytes_per_scanline = bytes_per_line * pcx->color_planes;
+        bool is_pal = pcx->color_planes == 1;
+        byte *scanline, *pixels, *out;
+        sizebuf_t s;
+        int ret = 0;
+
+        SZ_InitRead(&s, rawdata, rawlen);
+        s.readcount = q_offsetof(dpcx_t, data);
+
+        out = pixels = IMG_AllocPixels(w * h * (is_pal ? 1 : 4));
+        scanline = IMG_AllocPixels(bytes_per_scanline);
+
+        for (int y = 0; y < h; y++) {
+            ret = uncompress_pcx(&s, bytes_per_scanline, scanline);
+            if (ret < 0)
+                break;
+            if (is_pal) {
+                memcpy(out, scanline, w);
+                out += w;
+            } else {
+                for (int x = 0; x < w; x++, out += 4) {
+                    out[0] = scanline[x];
+                    out[1] = scanline[x + bytes_per_line];
+                    out[2] = scanline[x + bytes_per_line * 2];
+                    out[3] = 255;
+                }
+            }
+        }
+
+        IMG_FreePixels(scanline);
+
         if (ret < 0) {
             IMG_FreePixels(pixels);
             return ret;
         }
-        *pixels_p = pixels;
-    }
 
-    if (width)
-        *width = w;
-    if (height)
-        *height = h;
+        if (is_pal) {
+            if (SZ_Remaining(&s) < PCX_PALETTE_SIZE)
+                Com_WPrintf("PCX file %s possibly corrupted\n", image->name);
+
+            if (image->type == IT_SKIN)
+                IMG_FloodFill(pixels, w, h);
+
+            *pic = IMG_AllocPixels(w * h * 4);
+
+            image->flags |= IMG_Unpack8((uint32_t *)*pic, pixels, w, h);
+
+            IMG_FreePixels(pixels);
+        } else {
+            Com_WPrintf("%s is a 24-bit PCX file. This is not portable.\n", image->name);
+            *pic = pixels;
+            image->flags |= IF_OPAQUE;
+        }
+
+        image->upload_width = image->width = w;
+        image->upload_height = image->height = h;
+    }
 
     return Q_ERR_SUCCESS;
 }
 
 IMG_LOAD(PCX)
 {
-    byte    *pixels;
-    int     w, h, ret;
-
-    ret = load_pcx(rawdata, rawlen, &pixels, NULL, &w, &h);
-    if (ret < 0)
-        return ret;
-
-    if (image->type == IT_SKIN)
-        IMG_FloodFill(pixels, w, h);
-
-    *pic = IMG_AllocPixels(w * h * 4);
-
-    image->upload_width = image->width = w;
-    image->upload_height = image->height = h;
-    image->flags |= IMG_Unpack8((uint32_t *)*pic, pixels, w, h);
-
-    IMG_FreePixels(pixels);
-
-    return Q_ERR_SUCCESS;
+    return load_pcx(rawdata, rawlen, image, NULL, pic);
 }
-
 
 /*
 =================================================================
@@ -331,13 +351,13 @@ IMG_LOAD(WAL)
     w = LittleLong(mt->width);
     h = LittleLong(mt->height);
     if (check_image_size(w, h))  {
-        Com_SetLastError("invalid image dimensions");
+        Com_SetLastError("Invalid image dimensions");
         return Q_ERR_INVALID_FORMAT;
     }
 
     offset = LittleLong(mt->offsets[0]);
     if ((uint64_t)offset + w * h > rawlen) {
-        Com_SetLastError("data out of bounds");
+        Com_SetLastError("Data out of bounds");
         return Q_ERR_INVALID_FORMAT;
     }
 
@@ -362,200 +382,307 @@ TARGA IMAGES
 
 #define TARGA_HEADER_SIZE  18
 
-#define TGA_DECODE_RAW(x, bpp, a, b, c, d)                              \
-static int tga_decode_##x##_raw(const byte *in, byte **row_pointers,    \
-                                int cols, int rows, const byte *max_in) \
-{                                                                       \
-    int col, row;                                                       \
-    byte *out_row;                                                      \
-                                                                        \
-    for (row = 0; row < rows; row++) {                                  \
-        out_row = row_pointers[row];                                    \
-        for (col = 0; col < cols; col++, out_row += 4, in += bpp) {     \
-            out_row[0] = a;                                             \
-            out_row[1] = b;                                             \
-            out_row[2] = c;                                             \
-            out_row[3] = d;                                             \
-        }                                                               \
-    }                                                                   \
-                                                                        \
-    return Q_ERR_SUCCESS;                                               \
+enum {
+    TGA_Colormap = 1,
+    TGA_RGB = 2,
+    TGA_Mono = 3,
+    TGA_RLE = 8
+};
+
+enum {
+    TGA_RIGHTTOLEFT     = BIT(4),
+    TGA_TOPTOBOTTOM     = BIT(5),
+    TGA_INTERLEAVE_2    = BIT(6),
+    TGA_INTERLEAVE_4    = BIT(7),
+};
+
+static uint32_t tga_unpack_pixel(const byte *in, int bpp)
+{
+    int r, g, b;
+
+    switch (bpp) {
+    case 1:
+        return MakeColor(255, 255, 255, in[0]);
+    case 2:
+        r = (in[1] & 0x7C) >> 2;
+        g = ((in[1] & 0x03) << 3) | ((in[0] & 0xE0) >> 5);
+        b = (in[0] & 0x1F);
+        return MakeColor(r << 3, g << 3, b << 3, 255);
+    case 3:
+        return MakeColor(in[2], in[1], in[0], 255);
+    case 4:
+        return MakeColor(in[2], in[1], in[0], in[3]);
+    default:
+        q_unreachable();
+    }
 }
 
-#define TGA_DECODE_RLE(x, bpp, a, b, c, d)                              \
-static int tga_decode_##x##_rle(const byte *in, byte **row_pointers,    \
-                                int cols, int rows, const byte *max_in) \
-{                                                                       \
-    int col, row;                                                       \
-    byte *out_row;                                                      \
-    uint32_t color;                                                     \
-    int j, packet_header, packet_size;                                  \
-                                                                        \
-    for (row = 0; row < rows; row++) {                                  \
-        out_row = row_pointers[row];                                    \
-                                                                        \
-        for (col = 0; col < cols;) {                                    \
-            packet_header = *in++;                                      \
-            packet_size = 1 + (packet_header & 0x7f);                   \
-                                                                        \
-            if (packet_header & 0x80) {                                 \
-                if (max_in - in < bpp)                                  \
-                    return Q_ERR_OVERRUN;                               \
-                                                                        \
-                color = MakeColor(a, b, c, d);                          \
-                in += bpp;                                              \
-                for (j = 0; j < packet_size; j++) {                     \
-                    *(uint32_t *)out_row = color;                       \
-                    out_row += 4;                                       \
-                                                                        \
-                    if (++col == cols) {                                \
-                        col = 0;                                        \
-                        if (++row == rows)                              \
-                            return Q_ERR_SUCCESS;                       \
-                        out_row = row_pointers[row];                    \
-                    }                                                   \
-                }                                                       \
-            } else {                                                    \
-                if (max_in - in < bpp * packet_size)                    \
-                    return Q_ERR_OVERRUN;                               \
-                                                                        \
-                for (j = 0; j < packet_size; j++) {                     \
-                    out_row[0] = a;                                     \
-                    out_row[1] = b;                                     \
-                    out_row[2] = c;                                     \
-                    out_row[3] = d;                                     \
-                    out_row += 4;                                       \
-                    in += bpp;                                          \
-                                                                        \
-                    if (++col == cols) {                                \
-                        col = 0;                                        \
-                        if (++row == rows)                              \
-                            return Q_ERR_SUCCESS;                       \
-                        out_row = row_pointers[row];                    \
-                    }                                                   \
-                }                                                       \
-            }                                                           \
-        }                                                               \
-    }                                                                   \
-                                                                        \
-    return Q_ERR_SUCCESS;                                               \
+static int tga_decode_raw(sizebuf_t *s, uint32_t **row_pointers,
+                          int cols, int rows, int bpp,
+                          const uint32_t *palette)
+{
+    int col, row;
+    uint32_t *out_row;
+    const byte *in;
+
+    in = SZ_ReadData(s, cols * rows * bpp);
+    if (!in)
+        return Q_ERR_UNEXPECTED_EOF;
+
+    for (row = 0; row < rows; row++) {
+        out_row = row_pointers[row];
+        if (palette) {
+            for (col = 0; col < cols; col++, in++)
+                *out_row++ = palette[*in];
+        } else {
+            for (col = 0; col < cols; col++, in += bpp)
+                *out_row++ = tga_unpack_pixel(in, bpp);
+        }
+    }
+
+    return Q_ERR_SUCCESS;
 }
 
-TGA_DECODE_RAW(mono, 1,   255,   255,   255, in[0])
-TGA_DECODE_RAW(bgr,  3, in[2], in[1], in[0],   255)
-TGA_DECODE_RAW(bgra, 4, in[2], in[1], in[0], in[3])
+static int tga_decode_rle(sizebuf_t *s, uint32_t **row_pointers,
+                          int cols, int rows, int bpp,
+                          const uint32_t *palette)
+{
+    int col, row;
+    uint32_t *out_row;
+    uint32_t color;
+    const byte *in;
+    int packet_header, packet_size;
 
-TGA_DECODE_RLE(mono, 1,   255,   255,   255, in[0])
-TGA_DECODE_RLE(bgr,  3, in[2], in[1], in[0],   255)
-TGA_DECODE_RLE(bgra, 4, in[2], in[1], in[0], in[3])
+    col = row = 0;
+    out_row = row_pointers[row];
+
+    while (1) {
+        packet_header = SZ_ReadByte(s);
+        packet_size = 1 + (packet_header & 0x7f);
+
+        if (packet_header & 0x80) {
+            in = SZ_ReadData(s, bpp);
+            if (!in)
+                return Q_ERR_UNEXPECTED_EOF;
+
+            if (palette)
+                color = palette[*in];
+            else
+                color = tga_unpack_pixel(in, bpp);
+            do {
+                *out_row++ = color;
+                packet_size--;
+
+                if (++col == cols) {
+                    col = 0;
+                    if (++row == rows)
+                        goto done;
+                    out_row = row_pointers[row];
+                }
+            } while (packet_size);
+        } else {
+            in = SZ_ReadData(s, bpp * packet_size);
+            if (!in)
+                return Q_ERR_UNEXPECTED_EOF;
+
+            do {
+                if (palette)
+                    color = palette[*in];
+                else
+                    color = tga_unpack_pixel(in, bpp);
+                *out_row++ = color;
+                in += bpp;
+                packet_size--;
+
+                if (++col == cols) {
+                    col = 0;
+                    if (++row == rows)
+                        goto done;
+                    out_row = row_pointers[row];
+                }
+            } while (packet_size);
+        }
+    }
+
+done:
+    if (packet_size)
+        return Q_ERR_OVERRUN;
+
+    return Q_ERR_SUCCESS;
+}
 
 IMG_LOAD(TGA)
 {
-    byte *pixels;
-    byte *row_pointers[MAX_TEXTURE_SIZE];
-    unsigned i, bpp, id_length, colormap_type, image_type, w, h, pixel_size, attributes, offset;
-    int (*decode)(const byte *, byte **, int, int, const byte *) = NULL;
-    int ret;
+    byte *pixels, *start;
+    uint32_t *row_pointers[MAX_TEXTURE_SIZE];
+    uint32_t colormap[256];
+    const uint32_t *pal;
+    sizebuf_t s;
+    unsigned id_length, colormap_type, image_type, colormap_start,
+             colormap_length, colormap_size, w, h, pixel_size, attributes;
+    bool rle;
+    int i, j, ret, bpp, stride, interleave;
 
-    if (rawlen < TARGA_HEADER_SIZE) {
+    if (rawlen < TARGA_HEADER_SIZE)
         return Q_ERR_FILE_TOO_SMALL;
-    }
 
-    id_length = rawdata[0];
-    colormap_type = rawdata[1];
-    image_type = rawdata[2];
-    w = RL16(&rawdata[12]);
-    h = RL16(&rawdata[14]);
-    pixel_size = rawdata[16];
-    attributes = rawdata[17];
+    SZ_InitRead(&s, rawdata, rawlen);
 
-    // skip TARGA image comment
-    offset = TARGA_HEADER_SIZE + id_length;
-    if (offset + 4 > rawlen) {
-        Com_SetLastError("bad offset");
-        return Q_ERR_INVALID_FORMAT;
-    }
+    id_length       = SZ_ReadByte(&s);
+    colormap_type   = SZ_ReadByte(&s);
+    image_type      = SZ_ReadByte(&s);
+    colormap_start  = SZ_ReadWord(&s);
+    colormap_length = SZ_ReadWord(&s);
+    colormap_size   = SZ_ReadByte(&s);
+    s.readcount     += 4;
+    w               = SZ_ReadWord(&s);
+    h               = SZ_ReadWord(&s);
+    pixel_size      = SZ_ReadByte(&s);
+    attributes      = SZ_ReadByte(&s);
 
-    if (colormap_type) {
-        Com_SetLastError("color mapped targa images are not supported");
-        return Q_ERR_INVALID_FORMAT;
-    }
+    rle = image_type & TGA_RLE;
+    image_type &= ~TGA_RLE;
 
-    if (pixel_size == 32) {
-        bpp = 4;
-    } else if (pixel_size == 24) {
-        bpp = 3;
-    } else if (pixel_size == 8) {
-        bpp = 1;
-    } else {
-        Com_SetLastError("unsupported number of bits per pixel");
+    switch (image_type) {
+    case TGA_Colormap:
+    case TGA_RGB:
+    case TGA_Mono:
+        break;
+    default:
+        Com_SetLastError("Unsupported targa image type");
         return Q_ERR_INVALID_FORMAT;
     }
 
     if (check_image_size(w, h)) {
-        Com_SetLastError("invalid image dimensions");
+        Com_SetLastError("Invalid image dimensions");
         return Q_ERR_INVALID_FORMAT;
     }
 
-    if (image_type == 2) {
-        if (pixel_size == 32) {
-            decode = tga_decode_bgra_raw;
-        } else if (pixel_size == 24) {
-            decode = tga_decode_bgr_raw;
-        }
-    } else if (image_type == 3) {
-        if (pixel_size == 8) {
-            decode = tga_decode_mono_raw;
-        }
-    } else if (image_type == 10) {
-        if (pixel_size == 32) {
-            decode = tga_decode_bgra_rle;
-        } else if (pixel_size == 24) {
-            decode = tga_decode_bgr_rle;
-        }
-    } else if (image_type == 11) {
-        if (pixel_size == 8) {
-            decode = tga_decode_mono_rle;
-        }
-    }
-    if (!decode) {
-        Com_SetLastError("unsupported targa image type");
+    switch (pixel_size) {
+    case 8:
+    case 15:
+    case 16:
+    case 24:
+    case 32:
+        break;
+    default:
+        Com_SetLastError("Unsupported number of bits per pixel");
         return Q_ERR_INVALID_FORMAT;
     }
 
-    if (image_type == 2 || image_type == 3) {
-        if (offset + w * h * bpp > rawlen) {
-            Com_SetLastError("data out of bounds");
+    switch (attributes & (TGA_INTERLEAVE_2 | TGA_INTERLEAVE_4)) {
+    case 0:
+        interleave = 1;
+        break;
+    case TGA_INTERLEAVE_2:
+        interleave = 2;
+        break;
+    case TGA_INTERLEAVE_4:
+        interleave = 4;
+        break;
+    default:
+        Com_SetLastError("Unsupported interleaving flag");
+        return Q_ERR_INVALID_FORMAT;
+    }
+
+    if (image_type == TGA_Colormap) {
+        if (!colormap_type) {
+            Com_SetLastError("Colormapped image but no colormap present");
+            return Q_ERR_INVALID_FORMAT;
+        }
+        if (pixel_size != 8) {
+            Com_SetLastError("Only 8-bit colormaps are supported");
             return Q_ERR_INVALID_FORMAT;
         }
     }
 
-    pixels = IMG_AllocPixels(w * h * 4);
-    if (attributes & 32) {
-        for (i = 0; i < h; i++) {
-            row_pointers[i] = pixels + i * w * 4;
+    // skip TARGA image comment
+    if (!SZ_ReadData(&s, id_length))
+        return Q_ERR_UNEXPECTED_EOF;
+
+    // read the colormap
+    if (colormap_type) {
+        int colormap_bpp = (colormap_size + 1) / 8;
+        const byte *in;
+
+        switch (colormap_size) {
+        case 15:
+        case 16:
+        case 24:
+        case 32:
+            break;
+        default:
+            Com_SetLastError("Unsupported number of bits per colormap pixel");
+            return Q_ERR_INVALID_FORMAT;
         }
-    } else {
-        for (i = 0; i < h; i++) {
-            row_pointers[i] = pixels + (h - i - 1) * w * 4;
+
+        if (colormap_start + colormap_length > 256) {
+            Com_SetLastError("Too many colormap entries");
+            return Q_ERR_INVALID_FORMAT;
+        }
+
+        in = SZ_ReadData(&s, colormap_length * colormap_bpp);
+        if (!in)
+            return Q_ERR_UNEXPECTED_EOF;
+
+        // don't bother unpacking palette unless we need it
+        if (image_type == TGA_Colormap) {
+            if (colormap_length != 256)
+                memset(colormap, 0, sizeof(colormap));
+
+            for (i = 0; i < colormap_length; i++) {
+                colormap[colormap_start + i] = tga_unpack_pixel(in, colormap_bpp);
+                in += colormap_bpp;
+            }
         }
     }
 
-    ret = decode(rawdata + offset, row_pointers, w, h, rawdata + rawlen);
+    stride = w * 4;
+    start = pixels = IMG_AllocPixels(h * stride);
+
+    if (!(attributes & TGA_TOPTOBOTTOM)) {
+        start += (h - 1) * stride;
+        stride = -stride;
+    }
+
+    for (i = j = 0; i < h; i++) {
+        row_pointers[i] = (uint32_t *)(start + j * stride);
+        j += interleave;
+        if (j >= h)
+            j = (j + 1) & (interleave - 1);
+    }
+
+    bpp = (pixel_size + 1) / 8;
+    pal = image_type == TGA_Colormap ? colormap : NULL;
+
+    if (rle)
+        ret = tga_decode_rle(&s, row_pointers, w, h, bpp, pal);
+    else
+        ret = tga_decode_raw(&s, row_pointers, w, h, bpp, pal);
     if (ret < 0) {
         IMG_FreePixels(pixels);
         return ret;
     }
+
+    if (attributes & TGA_RIGHTTOLEFT)
+        for (i = 0; i < h; i++)
+            for (j = 0; j < w / 2; j++)
+                SWAP(uint32_t, row_pointers[i][j], row_pointers[i][w - j - 1]);
 
     *pic = pixels;
 
     image->upload_width = image->width = w;
     image->upload_height = image->height = h;
 
-    if (pixel_size == 24)
-        image->flags |= IF_OPAQUE;
-    else if (pixel_size == 8)
+    if (image_type == TGA_Colormap) {
+        image->flags |= IF_PALETTED;
+        pixel_size = colormap_size;
+    }
+
+    if (pixel_size == 8)
         image->flags |= IF_TRANSPARENT;
+    else if (pixel_size != 32)
+        image->flags |= IF_OPAQUE;
 
     return Q_ERR_SUCCESS;
 }
@@ -658,7 +785,7 @@ static int my_jpeg_start_decompress(j_decompress_ptr cinfo, const byte *rawdata,
     jpeg_read_header(cinfo, TRUE);
 
     if (cinfo->out_color_space != JCS_RGB && cinfo->out_color_space != JCS_GRAYSCALE) {
-        Com_SetLastError("invalid image color space");
+        Com_SetLastError("Invalid image color space");
         return Q_ERR_INVALID_FORMAT;
     }
 
@@ -670,12 +797,12 @@ static int my_jpeg_start_decompress(j_decompress_ptr cinfo, const byte *rawdata,
     jpeg_start_decompress(cinfo);
 
     if (cinfo->output_components != 4) {
-        Com_SetLastError("invalid number of color components");
+        Com_SetLastError("Invalid number of color components");
         return Q_ERR_INVALID_FORMAT;
     }
 
     if (check_image_size(cinfo->output_width, cinfo->output_height)) {
-        Com_SetLastError("invalid image dimensions");
+        Com_SetLastError("Invalid image dimensions");
         return Q_ERR_INVALID_FORMAT;
     }
 
@@ -860,7 +987,7 @@ static int my_png_read_header(png_structp png_ptr, png_infop info_ptr,
     }
 
     if (check_image_size(w, h)) {
-        Com_SetLastError("invalid image dimensions");
+        Com_SetLastError("Invalid image dimensions");
         return Q_ERR_INVALID_FORMAT;
     }
 
@@ -1374,13 +1501,15 @@ static cvar_t   *r_texture_overrides;
 static cvar_t   *r_glowmaps;
 
 static const cmd_option_t o_imagelist[] = {
+    { "8", "pal", "list paletted images" },
     { "f", "fonts", "list fonts" },
     { "h", "help", "display this help message" },
     { "m", "skins", "list skins" },
     { "p", "pics", "list pics" },
-    { "P", "placeholder", "list placeholder images" },
+    { "r", "rgb", "list rgb images" },
     { "s", "sprites", "list sprites" },
     { "w", "walls", "list walls" },
+    { "x", "missing", "list missing images" },
     { "y", "skies", "list skies" },
     { NULL }
 };
@@ -1400,7 +1529,8 @@ static void IMG_List_f(void)
     static const char types[8] = "PFMSWY??";
     image_t     *image;
     const char  *wildcard = NULL;
-    bool        placeholder = false;
+    bool        missing = false;
+    int         paletted = 0;
     int         i, c, mask = 0, count;
     size_t      texels;
 
@@ -1412,7 +1542,9 @@ static void IMG_List_f(void)
         case 's': mask |= 1 << IT_SPRITE;   break;
         case 'w': mask |= 1 << IT_WALL;     break;
         case 'y': mask |= 1 << IT_SKY;      break;
-        case 'P': placeholder = true;       break;
+        case '8': paletted = 1;             break;
+        case 'r': paletted = -1;            break;
+        case 'x': missing = true;           break;
         case 'h':
             Cmd_PrintUsage(o_imagelist, "[wildcard]");
             Com_Printf("List registered images.\n");
@@ -1450,7 +1582,11 @@ static void IMG_List_f(void)
             continue;
         if (wildcard && !Com_WildCmp(wildcard, image->name))
             continue;
-        if ((image->width && image->height) == placeholder)
+        if ((image->width && image->height) == missing)
+            continue;
+        if (paletted == 1 && !(image->flags & IF_PALETTED))
+            continue;
+        if (paletted == -1 && (image->flags & IF_PALETTED))
             continue;
 
         Com_Printf("%c%c%c%c %4i %4i %s: %s\n",
@@ -1523,7 +1659,7 @@ static image_t *lookup_image(const char *name,
     return NULL;
 }
 
-static int try_image_format_(imageformat_t fmt, image_t *image, byte **pic)
+static int try_image_format(imageformat_t fmt, image_t *image, byte **pic)
 {
     byte    *data;
     int     ret;
@@ -1542,15 +1678,14 @@ static int try_image_format_(imageformat_t fmt, image_t *image, byte **pic)
     return ret < 0 ? ret : fmt;
 }
 
-static int try_image_format(imageformat_t fmt, image_t *image, byte **pic)
+#if USE_PNG || USE_JPG || USE_TGA
+
+static int try_replace_ext(imageformat_t fmt, image_t *image, byte **pic)
 {
     // replace the extension
     memcpy(image->name + image->baselen + 1, img_loaders[fmt].ext, 4);
-    return try_image_format_(fmt, image, pic);
+    return try_image_format(fmt, image, pic);
 }
-
-
-#if USE_PNG || USE_JPG || USE_TGA
 
 // tries to load the image with a different extension
 static int try_other_formats(imageformat_t orig, image_t *image, byte **pic)
@@ -1565,7 +1700,7 @@ static int try_other_formats(imageformat_t orig, image_t *image, byte **pic)
             continue;   // don't retry twice
         }
 
-        ret = try_image_format(fmt, image, pic);
+        ret = try_replace_ext(fmt, image, pic);
         if (ret != Q_ERR(ENOENT)) {
             return ret; // found something
         }
@@ -1577,7 +1712,7 @@ static int try_other_formats(imageformat_t orig, image_t *image, byte **pic)
         return Q_ERR(ENOENT); // don't retry twice
     }
 
-    return try_image_format(fmt, image, pic);
+    return try_replace_ext(fmt, image, pic);
 }
 
 static void get_image_dimensions(imageformat_t fmt, image_t *image)
@@ -1690,7 +1825,7 @@ static void print_error(const char *name, imageflags_t flags, int err)
     case Q_ERR(ENOENT):
         if (flags == -1) {
             return;
-        } else if (flags & IF_PERMANENT) {
+        } else if ((flags & (IF_PERMANENT | IF_OPTIONAL)) == IF_PERMANENT) {
             // ugly hack for console code
             if (strcmp(name, "pics/conchars.pcx"))
                 level = PRINT_WARNING;
@@ -1707,10 +1842,10 @@ static void print_error(const char *name, imageflags_t flags, int err)
         break;
     }
 
-    Com_LPrintf(level, "Couldn't load %s: %s\n", name, msg);
+    Com_LPrintf(level, "Couldn't load %s: %s\n", Com_MakePrintable(name), msg);
 }
 
-static int load_image_data(image_t *image, imageformat_t fmt, bool check_dimensions, byte **pic)
+static int load_image_data(image_t *image, imageformat_t fmt, bool need_dimensions, byte **pic)
 {
     int ret;
 
@@ -1727,7 +1862,7 @@ static int load_image_data(image_t *image, imageformat_t fmt, bool check_dimensi
         ret = try_other_formats(IM_MAX, image, pic);
     } else {
         // first try with original extension
-        ret = try_image_format_(fmt, image, pic);
+        ret = try_image_format(fmt, image, pic);
         if (ret == Q_ERR(ENOENT)) {
             // retry with remaining extensions
             ret = try_other_formats(fmt, image, pic);
@@ -1736,14 +1871,14 @@ static int load_image_data(image_t *image, imageformat_t fmt, bool check_dimensi
 
     // if we are replacing 8-bit texture with a higher resolution 32-bit
     // texture, we need to recover original image dimensions
-    if (check_dimensions && fmt <= IM_WAL && ret > IM_WAL) {
+    if (need_dimensions && fmt <= IM_WAL && ret > IM_WAL) {
         get_image_dimensions(fmt, image);
     }
 #else
     if (fmt == IM_MAX) {
         ret = Q_ERR_INVALID_PATH;
     } else {
-        ret = try_image_format_(fmt, image, pic);
+        ret = try_image_format(fmt, image, pic);
     }
 #endif
 
@@ -1860,7 +1995,15 @@ static image_t *find_or_load_image(const char *name, size_t len,
     // load the pic from disk
     pic = NULL;
 
-    ret = load_image_data(image, fmt, true, &pic);
+    if (flags & IF_DIRECT) {
+        // direct load requested (for testing code)
+        if (fmt == IM_MAX)
+            ret = Q_ERR_INVALID_PATH;
+        else
+            ret = try_image_format(fmt, image, &pic);
+    } else {
+        ret = load_image_data(image, fmt, true, &pic);
+    }
 
     if (ret < 0) {
         print_error(image->name, flags, ret);
@@ -2053,7 +2196,7 @@ R_GetPalette
 */
 void IMG_GetPalette(void)
 {
-    byte        pal[768], *src, *data;
+    byte        pal[PCX_PALETTE_SIZE], *src, *data;
     int         i, ret;
 
     // get the palette
@@ -2062,7 +2205,7 @@ void IMG_GetPalette(void)
         goto fail;
     }
 
-    ret = load_pcx(data, ret, NULL, pal, NULL, NULL);
+    ret = load_pcx(data, ret, NULL, pal, NULL);
 
     FS_FreeFile(data);
 

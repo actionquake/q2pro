@@ -97,7 +97,7 @@ static void SV_CreateBaselines(void)
                 base->solid = 0;
         } else
 #endif
-        if (sv_client->esFlags & MSG_ES_LONGSOLID) {
+        if (sv_client->esFlags & MSG_ES_LONGSOLID && !sv_client->csr->extended) {
             base->solid = sv.entities[i].solid32;
         }
     }
@@ -344,6 +344,9 @@ static int q2pro_protocol_flags(void)
 
     if (sv_client->csr->extended)
         flags |= Q2PRO_PF_EXTENSIONS;
+
+    if (sv_client->esFlags & MSG_ES_EXTENSIONS_2)
+        flags |= Q2PRO_PF_EXTENSIONS_2;
 
     return flags;
 }

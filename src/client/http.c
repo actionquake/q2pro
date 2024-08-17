@@ -153,7 +153,9 @@ static void escape_path(char *escaped, const char *path)
     while (*path) {
         byte c = *path++;
         if (!Q_isalnum(c) && !strchr("/-_.~", c)) {
-            sprintf(escaped, "%%%02x", c);
+            escaped[0] = '%';
+            escaped[1] = com_hexchars[c >> 4];
+            escaped[2] = com_hexchars[c & 15];
             escaped += 3;
         } else {
             *escaped++ = c;
@@ -373,7 +375,7 @@ int HTTP_FetchFile(const char *url, void **data)
     Com_EPrintf("[HTTP] Failed to fetch '%s': %s\n",
                 url, ret == CURLE_HTTP_RETURNED_ERROR ?
                 http_strerror(response) : curl_easy_strerror(ret));
-    free(tmp.buffer);
+    HTTP_FreeFile(tmp.buffer);
     return -1;
 }
 
@@ -582,7 +584,7 @@ int HTTP_QueueDownload(const char *path, dltype_t type)
 
         //this is a nasty hack to let the server know what we're doing so admins don't
         //get confused by a ton of people stuck in CNCT state. it's assumed the server
-        //is running r1q2 if we're even able to do http downloading so hopefully this
+        //is running R1Q2 if we're even able to do http downloading so hopefully this
         //won't spew an error msg.
         if (!download_default_repo)
             CL_ClientCommand("download http\n");

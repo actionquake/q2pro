@@ -18,8 +18,8 @@ with this program; if not, write to the Free Software Foundation, Inc.,
 
 #include "gl.h"
 
-static int      oldframenum;
-static int      newframenum;
+static unsigned oldframenum;
+static unsigned newframenum;
 static float    frontlerp;
 static float    backlerp;
 static vec3_t   origin;
@@ -421,7 +421,7 @@ static void draw_celshading(const QGL_INDEX_TYPE *indices, int num_indices)
     qglPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
     qglCullFace(GL_FRONT);
     GL_Color(0, 0, 0, color[3] * celscale);
-    qglDrawElements(GL_TRIANGLES, num_indices, QGL_INDEX_ENUM, indices);
+    GL_DrawTriangles(num_indices, indices);
     qglCullFace(GL_BACK);
     qglPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
     qglLineWidth(1);
@@ -503,7 +503,7 @@ static void draw_shadow(const QGL_INDEX_TYPE *indices, int num_indices)
     qglEnable(GL_POLYGON_OFFSET_FILL);
     qglPolygonOffset(-1.0f, -2.0f);
     GL_Color(0, 0, 0, color[3] * 0.5f);
-    qglDrawElements(GL_TRIANGLES, num_indices, QGL_INDEX_ENUM, indices);
+    GL_DrawTriangles(num_indices, indices);
     qglDisable(GL_POLYGON_OFFSET_FILL);
 
     // once we have drawn something to stencil buffer, continue to clear it for
@@ -515,7 +515,7 @@ static void draw_shadow(const QGL_INDEX_TYPE *indices, int num_indices)
     }
 }
 
-static image_t *skin_for_mesh(image_t **skins, int num_skins)
+static const image_t *skin_for_mesh(image_t **skins, int num_skins)
 {
     const entity_t *ent = glr.ent;
 
@@ -532,7 +532,7 @@ static image_t *skin_for_mesh(image_t **skins, int num_skins)
         return R_NOTEXTURE;
 
     if (ent->skinnum < 0 || ent->skinnum >= num_skins) {
-        Com_DPrintf("%s: no such skin: %d\n", "GL_DrawAliasModel", ent->skinnum);
+        Com_DPrintf("GL_DrawAliasModel: no such skin: %d\n", ent->skinnum);
         return skins[0];
     }
 
@@ -547,7 +547,7 @@ static void draw_alias_mesh(const QGL_INDEX_TYPE *indices, int num_indices,
                             image_t **skins, int num_skins)
 {
     glStateBits_t state = GLS_INTENSITY_ENABLE;
-    image_t *skin = skin_for_mesh(skins, num_skins);
+    const image_t *skin = skin_for_mesh(skins, num_skins);
 
     // fall back to entity matrix
     GL_LoadMatrix(glr.entmatrix);
@@ -559,9 +559,11 @@ static void draw_alias_mesh(const QGL_INDEX_TYPE *indices, int num_indices,
         GL_ArrayBits(GLA_VERTEX);
         GL_BindTexture(0, TEXNUM_WHITE);
         GL_VertexPointer(3, dotshading ? VERTEX_SIZE : 4, tess.vertices);
+        GL_LockArrays(num_verts);
         qglColorMask(0, 0, 0, 0);
-        qglDrawElements(GL_TRIANGLES, num_indices, QGL_INDEX_ENUM, indices);
+        GL_DrawTriangles(num_indices, indices);
         qglColorMask(1, 1, 1, 1);
+        GL_UnlockArrays();
     }
 
     if (dotshading)
@@ -594,14 +596,13 @@ static void draw_alias_mesh(const QGL_INDEX_TYPE *indices, int num_indices,
 
     GL_LockArrays(num_verts);
 
-    qglDrawElements(GL_TRIANGLES, num_indices, QGL_INDEX_ENUM, indices);
+    GL_DrawTriangles(num_indices, indices);
     c.trisDrawn += num_indices / 3;
 
     draw_celshading(indices, num_indices);
 
-    if (gl_showtris->integer & BIT(1)) {
+    if (gl_showtris->integer & SHOWTRIS_MESH)
         GL_DrawOutlines(num_indices, indices);
-    }
 
     // FIXME: unlock arrays before changing matrix?
     draw_shadow(indices, num_indices);
@@ -677,8 +678,8 @@ static void tess_shell_skel(const md5_mesh_t *mesh, const md5_joint_t *skeleton)
 
 static void lerp_alias_skeleton(const md5_model_t *model)
 {
-    int frame_a = oldframenum % model->num_frames;
-    int frame_b = newframenum % model->num_frames;
+    unsigned frame_a = oldframenum % model->num_frames;
+    unsigned frame_b = newframenum % model->num_frames;
     const md5_joint_t *skel_a = &model->skeleton_frames[frame_a * model->num_joints];
     const md5_joint_t *skel_b = &model->skeleton_frames[frame_b * model->num_joints];
 
@@ -759,16 +760,21 @@ void GL_DrawAliasModel(const model_t *model)
     void (*tessfunc)(const maliasmesh_t *);
     int i;
 
-    newframenum = ent->frame;
-    if (newframenum < 0 || newframenum >= model->numframes) {
-        Com_DPrintf("%s: no such frame %d\n", __func__, newframenum);
-        newframenum = 0;
-    }
+    if (glr.fd.extended) {
+        newframenum = ent->frame % model->numframes;
+        oldframenum = ent->oldframe % model->numframes;
+    } else {
+        newframenum = ent->frame;
+        if (newframenum >= model->numframes) {
+            Com_DPrintf("%s: no such frame: %u\n", __func__, newframenum);
+            newframenum = 0;
+        }
 
-    oldframenum = ent->oldframe;
-    if (oldframenum < 0 || oldframenum >= model->numframes) {
-        Com_DPrintf("%s: no such oldframe %d\n", __func__, oldframenum);
-        oldframenum = 0;
+        oldframenum = ent->oldframe;
+        if (oldframenum >= model->numframes) {
+            Com_DPrintf("%s: no such oldframe: %u\n", __func__, oldframenum);
+            oldframenum = 0;
+        }
     }
 
     backlerp = ent->backlerp;
@@ -818,7 +824,9 @@ void GL_DrawAliasModel(const model_t *model)
 
     // draw all the meshes
 #if USE_MD5
-    if (model->skeleton && gl_md5_use->integer)
+    if (model->skeleton && gl_md5_use->integer &&
+        (ent->flags & RF_NO_LOD || gl_md5_distance->value <= 0 ||
+         Distance(origin, glr.fd.vieworg) <= gl_md5_distance->value))
         draw_alias_skeleton(model->skeleton);
     else
 #endif

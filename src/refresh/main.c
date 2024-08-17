@@ -56,12 +56,15 @@ cvar_t *gl_dlight_falloff;
 cvar_t *gl_modulate_entities;
 cvar_t *gl_doublelight_entities;
 cvar_t *gl_glowmap_intensity;
+cvar_t *gl_flarespeed;
 cvar_t *gl_fontshadow;
 cvar_t *gl_shaders;
 #if USE_MD5
 cvar_t *gl_md5_load;
 cvar_t *gl_md5_use;
+cvar_t *gl_md5_distance;
 #endif
+cvar_t *gl_damageblend_frac;
 cvar_t *gl_waterwarp;
 cvar_t *gl_swapinterval;
 
@@ -98,8 +101,6 @@ cvar_t* gl_vert_diff;
 //rekkie -- Attach model to player -- e
 
 // ==============================================================================
-
-static const vec_t quad_tc[8] = { 0, 1, 0, 0, 1, 1, 1, 0 };
 
 static void GL_SetupFrustum(void)
 {
@@ -232,7 +233,7 @@ glCullResult_t GL_CullLocalBox(const vec3_t origin, const vec3_t bounds[2])
 }
 
 // shared between lightmap and scrap allocators
-bool GL_AllocBlock(int width, int height, int *inuse,
+bool GL_AllocBlock(int width, int height, uint16_t *inuse,
                    int w, int h, int *s, int *t)
 {
     int i, j, k, x, y, max_inuse, min_inuse;
@@ -287,7 +288,7 @@ void GL_MultMatrix(GLfloat *restrict p, const GLfloat *restrict a, const GLfloat
 
 void GL_SetEntityAxis(void)
 {
-    entity_t *e = glr.ent;
+    const entity_t *e = glr.ent;
 
     glr.entrotated = false;
     glr.entscale = 1;
@@ -345,12 +346,11 @@ void GL_RotateForEntity(void)
 static void GL_DrawSpriteModel(const model_t *model)
 {
     const entity_t *e = glr.ent;
-    const mspriteframe_t *frame = &model->spriteframes[(unsigned)e->frame % model->numframes];
+    const mspriteframe_t *frame = &model->spriteframes[e->frame % model->numframes];
     const image_t *image = frame->image;
     const float alpha = (e->flags & RF_TRANSLUCENT) ? e->alpha : 1;
-    int bits = GLS_DEPTHMASK_FALSE;
+    glStateBits_t bits = GLS_DEPTHMASK_FALSE;
     vec3_t up, down, left, right;
-    vec3_t points[4];
 
     if (alpha == 1) {
         if (image->flags & IF_TRANSPARENT) {
@@ -375,14 +375,21 @@ static void GL_DrawSpriteModel(const model_t *model)
     VectorScale(glr.viewaxis[2], -frame->origin_y, down);
     VectorScale(glr.viewaxis[2], frame->height - frame->origin_y, up);
 
-    VectorAdd3(e->origin, down, left, points[0]);
-    VectorAdd3(e->origin, up, left, points[1]);
-    VectorAdd3(e->origin, down, right, points[2]);
-    VectorAdd3(e->origin, up, right, points[3]);
+    VectorAdd3(e->origin, down, left,  tess.vertices);
+    VectorAdd3(e->origin, up,   left,  tess.vertices +  5);
+    VectorAdd3(e->origin, down, right, tess.vertices + 10);
+    VectorAdd3(e->origin, up,   right, tess.vertices + 15);
 
-    GL_TexCoordPointer(2, 0, quad_tc);
-    GL_VertexPointer(3, 0, &points[0][0]);
+    tess.vertices[ 3] = 0; tess.vertices[ 4] = 1;
+    tess.vertices[ 8] = 0; tess.vertices[ 9] = 0;
+    tess.vertices[13] = 1; tess.vertices[14] = 1;
+    tess.vertices[18] = 1; tess.vertices[19] = 0;
+
+    GL_VertexPointer(3, 5, tess.vertices);
+    GL_TexCoordPointer(2, 5, tess.vertices + 3);
+    GL_LockArrays(4);
     qglDrawArrays(GL_TRIANGLE_STRIP, 0, 4);
+    GL_UnlockArrays();
 }
 
 static void GL_DrawNullModel(void)
@@ -393,15 +400,14 @@ static void GL_DrawNullModel(void)
         U32_BLUE, U32_BLUE
     };
     const entity_t *e = glr.ent;
-    vec3_t points[6];
 
-    VectorCopy(e->origin, points[0]);
-    VectorCopy(e->origin, points[2]);
-    VectorCopy(e->origin, points[4]);
+    VectorCopy(e->origin, tess.vertices +  0);
+    VectorCopy(e->origin, tess.vertices +  6);
+    VectorCopy(e->origin, tess.vertices + 12);
 
-    VectorMA(e->origin, 16, glr.entaxis[0], points[1]);
-    VectorMA(e->origin, 16, glr.entaxis[1], points[3]);
-    VectorMA(e->origin, 16, glr.entaxis[2], points[5]);
+    VectorMA(e->origin, 16, glr.entaxis[0], tess.vertices +  3);
+    VectorMA(e->origin, 16, glr.entaxis[1], tess.vertices +  9);
+    VectorMA(e->origin, 16, glr.entaxis[2], tess.vertices + 15);
 
     //rekkie -- allow gl_showtris to show nodes points as a cross configuration -- s
     //if (gl_showtris->integer && gl_showtris->integer < 0) // gl_showtris -1, etc.
@@ -5865,139 +5871,111 @@ static void GL_InitDebugDraw(void)
 #endif
 //rekkie -- debug drawing -- e
 
-static void make_flare_quad(const entity_t *e, float scale, vec3_t points[4])
+static void make_flare_quad(const entity_t *e, float scale)
 {
     vec3_t up, down, left, right;
 
-    scale *= e->scale;
-
-    VectorScale(glr.viewaxis[1], scale, left);
+    VectorScale(glr.viewaxis[1],  scale, left);
     VectorScale(glr.viewaxis[1], -scale, right);
     VectorScale(glr.viewaxis[2], -scale, down);
-    VectorScale(glr.viewaxis[2], scale, up);
+    VectorScale(glr.viewaxis[2],  scale, up);
 
-    VectorAdd3(e->origin, down, left, points[0]);
-    VectorAdd3(e->origin, up, left, points[1]);
-    VectorAdd3(e->origin, down, right, points[2]);
-    VectorAdd3(e->origin, up, right, points[3]);
+    VectorAdd3(e->origin, down, left,  tess.vertices + 0);
+    VectorAdd3(e->origin, up,   left,  tess.vertices + 3);
+    VectorAdd3(e->origin, down, right, tess.vertices + 6);
+    VectorAdd3(e->origin, up,   right, tess.vertices + 9);
 }
 
 static void GL_OccludeFlares(void)
 {
-    vec3_t points[4];
-    entity_t *e;
+    const entity_t *e;
     glquery_t *q;
-    int i;
+    int i, j;
+    bool set = false;
 
     if (!glr.num_flares)
         return;
     if (!gl_static.queries)
         return;
 
-    GL_LoadMatrix(glr.viewmatrix);
-    GL_StateBits(GLS_DEPTHMASK_FALSE);
-    GL_ArrayBits(GLA_VERTEX);
-    qglColorMask(0, 0, 0, 0);
-    GL_BindTexture(0, TEXNUM_WHITE);
-    GL_VertexPointer(3, 0, &points[0][0]);
-
     for (i = 0, e = glr.fd.entities; i < glr.fd.num_entities; i++, e++) {
         if (!(e->flags & RF_FLARE))
             continue;
 
         q = HashMap_Lookup(glquery_t, gl_static.queries, &e->skinnum);
-        if (q && q->pending)
-            continue;
+
+        for (j = 0; j < 4; j++)
+            if (PlaneDiff(e->origin, &glr.frustumPlanes[j]) < -2.5f)
+                break;
+        if (j != 4) {
+            if (q)
+                q->pending = q->visible = false;
+            continue;   // not visible
+        }
+
+        c.occlusionQueries++;
 
         if (!q) {
             glquery_t new = { 0 };
             uint32_t map_size = HashMap_Size(gl_static.queries);
-            if (map_size >= MAX_EDICTS)
-                continue;
+            Q_assert(map_size < MAX_EDICTS);
             qglGenQueries(1, &new.query);
             Q_assert(!HashMap_Insert(gl_static.queries, &e->skinnum, &new));
             q = HashMap_GetValue(glquery_t, gl_static.queries, map_size);
         }
 
-        make_flare_quad(e, 2.5f, points);
+        if (q->pending)
+            continue;
 
+        if (!set) {
+            GL_LoadMatrix(glr.viewmatrix);
+            GL_StateBits(GLS_DEPTHMASK_FALSE);
+            GL_ArrayBits(GLA_VERTEX);
+            qglColorMask(0, 0, 0, 0);
+            GL_BindTexture(0, TEXNUM_WHITE);
+            GL_VertexPointer(3, 0, tess.vertices);
+            set = true;
+        }
+
+        make_flare_quad(e, 2.5f);
+
+        GL_LockArrays(4);
         qglBeginQuery(gl_static.samples_passed, q->query);
         qglDrawArrays(GL_TRIANGLE_STRIP, 0, 4);
         qglEndQuery(gl_static.samples_passed);
+        GL_UnlockArrays();
 
         q->pending = true;
     }
 
-    qglColorMask(1, 1, 1, 1);
-}
-
-static void GL_DrawFlare(const entity_t *e)
-{
-    vec3_t points[4];
-    GLuint result;
-    glquery_t *q;
-
-    if (!gl_static.queries)
-        return;
-
-    q = HashMap_Lookup(glquery_t, gl_static.queries, &e->skinnum);
-    if (!q) {
-        glr.num_flares++;
-        return;
-    }
-
-    if (q->pending) {
-        qglGetQueryObjectuiv(q->query, GL_QUERY_RESULT_AVAILABLE, &result);
-        if (result) {
-            qglGetQueryObjectuiv(q->query, GL_QUERY_RESULT, &result);
-            q->visible = result;
-            q->pending = false;
-        }
-    }
-
-    if (!q->pending)
-        glr.num_flares++;
-
-    if (!q->visible)
-        return;
-
-    GL_LoadMatrix(glr.viewmatrix);
-    GL_BindTexture(0, IMG_ForHandle(e->skin)->texnum);
-    GL_StateBits(GLS_DEPTHTEST_DISABLE | GLS_DEPTHMASK_FALSE | GLS_BLEND_ADD);
-    GL_ArrayBits(GLA_VERTEX | GLA_TC);
-    GL_Color(e->rgba.u8[0] / 255.0f,
-             e->rgba.u8[1] / 255.0f,
-             e->rgba.u8[2] / 255.0f,
-             e->alpha * 0.5f);
-
-    make_flare_quad(e, 25.0f, points);
-
-    GL_TexCoordPointer(2, 0, quad_tc);
-    GL_VertexPointer(3, 0, &points[0][0]);
-    qglDrawArrays(GL_TRIANGLE_STRIP, 0, 4);
+    if (set)
+        qglColorMask(1, 1, 1, 1);
 }
 
 static void GL_DrawEntities(int musthave, int canthave)
 {
-    entity_t *ent, *last;
+    entity_t *ent;
     model_t *model;
+    int i;
 
     if (!gl_drawentities->integer) {
         return;
     }
 
-    last = glr.fd.entities + glr.fd.num_entities;
-    for (ent = glr.fd.entities; ent != last; ent++) {
+    for (i = 0, ent = glr.fd.entities; i < glr.fd.num_entities; i++, ent++) {
         if (ent->flags & RF_BEAM) {
             // beams are drawn elsewhere in single batch
             glr.num_beams++;
             continue;
         }
-        if ((ent->flags & musthave) != musthave || (ent->flags & canthave)) {
+
+        if (ent->flags & RF_FLARE) {
+            // flares are drawn elsewhere in single batch
+            glr.num_flares++;
             continue;
         }
-        if (ent->flags & RF_FLARE) {
-            GL_DrawFlare(ent);
+
+        if ((ent->flags & musthave) != musthave || (ent->flags & canthave)) {
             continue;
         }
 
@@ -6008,7 +5986,7 @@ static void GL_DrawEntities(int musthave, int canthave)
 
         // inline BSP model
         if (ent->model & BIT(31)) {
-            bsp_t *bsp = gl_static.world.cache;
+            const bsp_t *bsp = gl_static.world.cache;
             int index = ~ent->model;
 
             if (glr.fd.rdflags & RDF_NOWORLDMODEL) {
@@ -6113,21 +6091,29 @@ bool GL_ShowErrors(const char *func)
 
 static void GL_WaterWarp(void)
 {
+    float x0, x1, y0, y1;
+
     GL_ForceTexture(0, gl_static.warp_texture);
     GL_StateBits(GLS_DEPTHTEST_DISABLE | GLS_DEPTHMASK_FALSE |
                  GLS_CULL_DISABLE | GLS_TEXTURE_REPLACE | GLS_WARP_ENABLE);
     GL_ArrayBits(GLA_VERTEX | GLA_TC);
 
-    vec_t points[8] = {
-        glr.fd.x,                glr.fd.y,
-        glr.fd.x,                glr.fd.y + glr.fd.height,
-        glr.fd.x + glr.fd.width, glr.fd.y,
-        glr.fd.x + glr.fd.width, glr.fd.y + glr.fd.height,
-    };
+    x0 = glr.fd.x;
+    x1 = glr.fd.x + glr.fd.width;
 
-    GL_TexCoordPointer(2, 0, quad_tc);
-    GL_VertexPointer(2, 0, points);
+    y0 = glr.fd.y;
+    y1 = glr.fd.y + glr.fd.height;
+
+    Vector4Set(tess.vertices,      x0, y0, 0, 1);
+    Vector4Set(tess.vertices +  4, x0, y1, 0, 0);
+    Vector4Set(tess.vertices +  8, x1, y0, 1, 1);
+    Vector4Set(tess.vertices + 12, x1, y1, 1, 0);
+
+    GL_VertexPointer(2, 4, tess.vertices);
+    GL_TexCoordPointer(2, 4, tess.vertices + 2);
+    GL_LockArrays(4);
     qglDrawArrays(GL_TRIANGLE_STRIP, 0, 4);
+    GL_UnlockArrays();
 }
 
 void R_RenderFrame(const refdef_t *fd)
@@ -6135,6 +6121,9 @@ void R_RenderFrame(const refdef_t *fd)
     GL_Flush2D();
 
     Q_assert(gl_static.world.cache || (fd->rdflags & RDF_NOWORLDMODEL));
+
+    glr.frametime = (com_eventTime - glr.timestamp) * 0.001f;
+    glr.timestamp = com_eventTime;
 
     glr.drawframe++;
     glr.rand_seed = fd->time * 20;
@@ -6169,9 +6158,7 @@ void R_RenderFrame(const refdef_t *fd)
 
     GL_Setup3D(waterwarp);
 
-    if (gl_cull_nodes->integer) {
-        GL_SetupFrustum();
-    }
+    GL_SetupFrustum();
 
     if (!(glr.fd.rdflags & RDF_NOWORLDMODEL) && gl_drawworld->integer) {
         GL_DrawWorld();
@@ -6192,6 +6179,8 @@ void R_RenderFrame(const refdef_t *fd)
 
     GL_OccludeFlares();
 
+    GL_DrawFlares();
+
     if (!(glr.fd.rdflags & RDF_NOWORLDMODEL)) {
         GL_DrawAlphaFaces();
     }
@@ -6209,7 +6198,7 @@ void R_RenderFrame(const refdef_t *fd)
         GL_WaterWarp();
     }
 
-    if (gl_polyblend->integer && glr.fd.blend[3] != 0) {
+    if (gl_polyblend->integer) {
         GL_Blend();
     }
 
@@ -6258,7 +6247,7 @@ void R_EndFrame(void)
 
     GL_ShowErrors(__func__);
 
-    vid.swap_buffers();
+    vid->swap_buffers();
 }
 
 // ==============================================================================
@@ -6354,8 +6343,8 @@ static void gl_novis_changed(cvar_t *self)
 
 static void gl_swapinterval_changed(cvar_t *self)
 {
-    if (vid.swap_interval)
-        vid.swap_interval(self->integer);
+    if (vid && vid->swap_interval)
+        vid->swap_interval(self->integer);
 }
 
 static void GL_Register(void)
@@ -6381,12 +6370,15 @@ static void GL_Register(void)
     gl_modulate_entities->changed = gl_modulate_entities_changed;
     gl_doublelight_entities = Cvar_Get("gl_doublelight_entities", "1", 0);
     gl_glowmap_intensity = Cvar_Get("gl_glowmap_intensity", "0.75", 0);
+    gl_flarespeed = Cvar_Get("gl_flarespeed", "8", 0);
     gl_fontshadow = Cvar_Get("gl_fontshadow", "0", 0);
     gl_shaders = Cvar_Get("gl_shaders", (gl_config.caps & QGL_CAP_SHADER) ? "1" : "0", CVAR_REFRESH);
 #if USE_MD5
     gl_md5_load = Cvar_Get("gl_md5_load", "1", CVAR_FILES);
     gl_md5_use = Cvar_Get("gl_md5_use", "1", 0);
+    gl_md5_distance = Cvar_Get("gl_md5_distance", "2048", 0);
 #endif
+    gl_damageblend_frac = Cvar_Get("gl_damageblend_frac", "0.2", 0);
     gl_waterwarp = Cvar_Get("gl_waterwarp", "0", 0);
     gl_swapinterval = Cvar_Get("gl_swapinterval", "1", CVAR_ARCHIVE);
     gl_swapinterval->changed = gl_swapinterval_changed;
@@ -6458,6 +6450,10 @@ static void GL_SetupConfig(void)
 {
     GLint integer = 0;
 
+    qglGetIntegerv(GL_MAX_TEXTURE_SIZE, &integer);
+    gl_config.max_texture_size_log2 = Q_log2(min(integer, MAX_TEXTURE_SIZE));
+    gl_config.max_texture_size = 1U << gl_config.max_texture_size_log2;
+
     gl_config.colorbits = 0;
     qglGetIntegerv(GL_RED_BITS, &integer);
     gl_config.colorbits += integer;
@@ -6481,19 +6477,16 @@ static void GL_SetupConfig(void)
 
 static void GL_InitTables(void)
 {
-    vec_t lat, lng;
-    const vec_t *v;
-    int i;
+    for (int i = 0; i < NUMVERTEXNORMALS; i++) {
+        const vec_t *v = bytedirs[i];
+        float lat = acosf(v[2]);
+        float lng = atan2f(v[1], v[0]);
 
-    for (i = 0; i < NUMVERTEXNORMALS; i++) {
-        v = bytedirs[i];
-        lat = acosf(v[2]);
-        lng = atan2f(v[1], v[0]);
         gl_static.latlngtab[i][0] = (int)(lat * (255 / (2 * M_PIf))) & 255;
         gl_static.latlngtab[i][1] = (int)(lng * (255 / (2 * M_PIf))) & 255;
     }
 
-    for (i = 0; i < 256; i++) {
+    for (int i = 0; i < 256; i++) {
         gl_static.sintab[i] = sinf(i * (2 * M_PIf / 255));
     }
 }
@@ -6504,10 +6497,11 @@ static void GL_PostInit(void)
 
     GL_ClearState();
     GL_InitImages();
+    GL_InitQueries();
     MOD_Init();
 }
 
-static void GL_InitQueries(void)
+void GL_InitQueries(void)
 {
     if (!qglBeginQuery)
         return;
@@ -6516,10 +6510,11 @@ static void GL_InitQueries(void)
     if (gl_config.ver_gl >= QGL_VER(3, 3) || gl_config.ver_es >= QGL_VER(3, 0))
         gl_static.samples_passed = GL_ANY_SAMPLES_PASSED;
 
+    Q_assert(!gl_static.queries);
     gl_static.queries = HashMap_Create(int, glquery_t, HashInt32, NULL);
 }
 
-static void GL_ShutdownQueries(void)
+void GL_DeleteQueries(void)
 {
     if (!gl_static.queries)
         return;
@@ -6530,20 +6525,11 @@ static void GL_ShutdownQueries(void)
         qglDeleteQueries(1, &q->query);
     }
 
+    if (map_size)
+        Com_DPrintf("%s: %u queries deleted\n", __func__, map_size);
+
     HashMap_Destroy(gl_static.queries);
     gl_static.queries = NULL;
-}
-
-static void GL_ClearQueries(void)
-{
-    if (!gl_static.queries)
-        return;
-
-    uint32_t map_size = HashMap_Size(gl_static.queries);
-    for (int i = 0; i < map_size; i++) {
-        glquery_t *q = HashMap_GetValue(glquery_t, gl_static.queries, i);
-        q->pending = q->visible = false;
-    }
 }
 
 // ==============================================================================
@@ -6563,11 +6549,11 @@ bool R_Init(bool total)
     }
 
     Com_Printf("------- R_Init -------\n");
-    Com_Printf("Using video driver: %s\n", vid.name);
+    Com_Printf("Using video driver: %s\n", vid->name);
 
     // initialize OS-specific parts of OpenGL
     // create the window and set up the context
-    if (!vid.init()) {
+    if (!vid->init()) {
         return false;
     }
 
@@ -6584,8 +6570,6 @@ bool R_Init(bool total)
 
     GL_InitState();
 
-    GL_InitQueries();
-
     GL_InitTables();
 
     GL_PostInit();
@@ -6600,7 +6584,7 @@ fail:
     memset(&gl_static, 0, sizeof(gl_static));
     memset(&gl_config, 0, sizeof(gl_config));
     QGL_Shutdown();
-    vid.shutdown();
+    vid->shutdown();
     return false;
 }
 
@@ -6614,6 +6598,7 @@ void R_Shutdown(bool total)
     Com_DPrintf("GL_Shutdown( %i )\n", total);
 
     GL_FreeWorld();
+    GL_DeleteQueries();
     GL_ShutdownImages();
     MOD_Shutdown();
 
@@ -6621,15 +6606,13 @@ void R_Shutdown(bool total)
         return;
     }
 
-    GL_ShutdownQueries();
-
     GL_ShutdownState();
 
     // shutdown our QGL subsystem
     QGL_Shutdown();
 
     // shut down OS specific OpenGL stuff like contexts, etc.
-    vid.shutdown();
+    vid->shutdown();
 
     GL_Unregister();
 

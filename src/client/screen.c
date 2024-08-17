@@ -40,11 +40,12 @@ static struct {
     color_t     crosshair_color;
     int         scope_width, scope_height;
 
+    qhandle_t   hit_marker_pic;
+    int         hit_marker_width, hit_marker_height;
+
     qhandle_t   pause_pic;
-    int         pause_width, pause_height;
 
     qhandle_t   loading_pic;
-    int         loading_width, loading_height;
     bool        draw_loading;
 
     qhandle_t   sb_pics[2][STAT_PICS];
@@ -120,6 +121,8 @@ static cvar_t   *ch_alpha;
 static cvar_t   *ch_scale;
 static cvar_t   *ch_x;
 static cvar_t   *ch_y;
+
+static cvar_t   *scr_hit_marker_time;
 
 vrect_t     scr_vrect;      // position of render window on screen
 
@@ -356,7 +359,7 @@ static void SCR_DrawDemo(void)
     }
 
     if (cls.demo.playback) {
-        if (cls.demo.file_size) {
+        if (cls.demo.file_size && !cls.demo.compat) {
             draw_progress_bar(
                 cls.demo.file_progress,
                 sv_paused->integer &&
@@ -1192,47 +1195,41 @@ static void SCR_TimeRefresh_f(void)
 
 //============================================================================
 
-static void scr_crosshair_changed(cvar_t *self)
+static void ch_scale_changed(cvar_t *self)
 {
-    char buffer[16];
     int w, h;
     float scale;
     qhandle_t scope_pic;
 
-    if (scr_crosshair->integer > 0) {
-        Q_snprintf(buffer, sizeof(buffer), "ch%i", scr_crosshair->integer);
-        scr.crosshair_pic = R_RegisterPic(buffer);
-        R_GetPicSize(&w, &h, scr.crosshair_pic);
+    scale = Cvar_ClampValue(self, 0.1f, 9.0f);
 
-        // prescale
-        scale = Cvar_ClampValue(ch_scale, 0.1f, 9.0f) * scr.hud_scale;
-        scr.crosshair_width = w * scale;
-        scr.crosshair_height = h * scale;
-        if (scr.crosshair_width < 1)
-            scr.crosshair_width = 1;
-        if (scr.crosshair_height < 1)
-            scr.crosshair_height = 1;
+    // prescale
+    R_GetPicSize(&w, &h, scr.crosshair_pic);
+    scr.crosshair_width = Q_rint(w * scale);
+    scr.crosshair_height = Q_rint(h * scale);
 
-        // action mod scope scaling
-        scope_pic = R_RegisterPic("scope2x");;
-        if (scope_pic) {
-            R_GetPicSize(&w, &h, scope_pic);
-            scr.scope_width = w * scale;
-            scr.scope_height = h * scale;
-            if (scr.scope_width < 1)
-                scr.scope_width = 1;
-            if (scr.scope_height < 1)
-                scr.scope_height = 1;
-        }
+    R_GetPicSize(&w, &h, scr.hit_marker_pic);
+    scr.hit_marker_width = Q_rint(w * scale);
+    scr.hit_marker_height = Q_rint(h * scale);
+}
 
-        if (ch_health->integer) {
-            SCR_SetCrosshairColor();
-        } else {
-            scr.crosshair_color.u8[0] = Cvar_ClampValue(ch_red, 0, 1) * 255;
-            scr.crosshair_color.u8[1] = Cvar_ClampValue(ch_green, 0, 1) * 255;
-            scr.crosshair_color.u8[2] = Cvar_ClampValue(ch_blue, 0, 1) * 255;
-        }
-        scr.crosshair_color.u8[3] = Cvar_ClampValue(ch_alpha, 0, 1) * 255;
+static void ch_color_changed(cvar_t *self)
+{
+    if (ch_health->integer) {
+        SCR_SetCrosshairColor();
+    } else {
+        scr.crosshair_color.u8[0] = Cvar_ClampValue(ch_red, 0, 1) * 255;
+        scr.crosshair_color.u8[1] = Cvar_ClampValue(ch_green, 0, 1) * 255;
+        scr.crosshair_color.u8[2] = Cvar_ClampValue(ch_blue, 0, 1) * 255;
+    }
+    scr.crosshair_color.u8[3] = Cvar_ClampValue(ch_alpha, 0, 1) * 255;
+}
+
+static void scr_crosshair_changed(cvar_t *self)
+{
+    if (self->integer > 0) {
+        scr.crosshair_pic = R_RegisterPic(va("ch%i", self->integer));
+        ch_scale_changed(ch_scale);
     } else {
         scr.crosshair_pic = 0;
     }
@@ -1284,6 +1281,15 @@ void SCR_ModeChanged(void)
         scr.hud_scale = R_ClampScale(scr_scale);
 }
 
+static void scr_font_changed(cvar_t *self)
+{
+    scr.font_pic = R_RegisterFont(self->string);
+    if (!scr.font_pic && strcmp(self->string, self->default_string)) {
+        Cvar_Reset(self);
+        scr.font_pic = R_RegisterFont(self->default_string);
+    }
+}
+
 /*
 ==================
 SCR_RegisterMedia
@@ -1303,24 +1309,14 @@ void SCR_RegisterMedia(void)
 
     scr.inven_pic = R_RegisterPic("inventory");
     scr.field_pic = R_RegisterPic("field_3");
-
     scr.backtile_pic = R_RegisterImage("backtile", IT_PIC, IF_PERMANENT | IF_REPEAT);
-
     scr.pause_pic = R_RegisterPic("pause");
-    R_GetPicSize(&scr.pause_width, &scr.pause_height, scr.pause_pic);
-
     scr.loading_pic = R_RegisterPic("loading");
-    R_GetPicSize(&scr.loading_width, &scr.loading_height, scr.loading_pic);
-
     scr.net_pic = R_RegisterPic("net");
-    scr.font_pic = R_RegisterFont(scr_font->string);
+    scr.hit_marker_pic = R_RegisterImage("marker", IT_PIC, IF_PERMANENT | IF_OPTIONAL);
 
     scr_crosshair_changed(scr_crosshair);
-}
-
-static void scr_font_changed(cvar_t *self)
-{
-    scr.font_pic = R_RegisterFont(self->string);
+    scr_font_changed(scr_font);
 }
 
 static void scr_scale_changed(cvar_t *self)
@@ -1396,18 +1392,18 @@ void SCR_Init(void)
     r_maxfps = Cvar_Get("r_maxfps","0",0);
 
     ch_health = Cvar_Get("ch_health", "0", 0);
-    ch_health->changed = scr_crosshair_changed;
+    ch_health->changed = ch_color_changed;
     ch_red = Cvar_Get("ch_red", "1", 0);
-    ch_red->changed = scr_crosshair_changed;
+    ch_red->changed = ch_color_changed;
     ch_green = Cvar_Get("ch_green", "1", 0);
-    ch_green->changed = scr_crosshair_changed;
+    ch_green->changed = ch_color_changed;
     ch_blue = Cvar_Get("ch_blue", "1", 0);
-    ch_blue->changed = scr_crosshair_changed;
+    ch_blue->changed = ch_color_changed;
     ch_alpha = Cvar_Get("ch_alpha", "1", 0);
-    ch_alpha->changed = scr_crosshair_changed;
+    ch_alpha->changed = ch_color_changed;
 
     ch_scale = Cvar_Get("ch_scale", "1", 0);
-    ch_scale->changed = scr_crosshair_changed;
+    ch_scale->changed = ch_scale_changed;
     ch_x = Cvar_Get("ch_x", "0", 0);
     ch_y = Cvar_Get("ch_y", "0", 0);
 
@@ -1427,11 +1423,14 @@ void SCR_Init(void)
     scr_showpmove = Cvar_Get("scr_showpmove", "0", 0);
 #endif
 
+    scr_hit_marker_time = Cvar_Get("scr_hit_marker_time", "500", 0);
+
     Cmd_Register(scr_cmds);
 
     scr_scale_changed(scr_scale);
     scr_crosshair_changed(scr_crosshair);
     scr_lag_draw_scale_changed(scr_lag_draw_scale);
+    ch_color_changed(NULL);
 
     scr.initialized = true;
 }
@@ -1689,7 +1688,7 @@ static void SCR_SkipToEndif(const char **s)
             continue;
         }
 
-        if (!strcmp(token, "num")) {
+        if (!strcmp(token, "num") || !strcmp(token, "health_bars")) {
             COM_Parse(s);
             COM_Parse(s);
             continue;
@@ -1711,6 +1710,21 @@ static void SCR_SkipToEndif(const char **s)
             return;
         }
     }
+}
+
+static void SCR_DrawHealthBar(int x, int y, int value)
+{
+    if (!value)
+        return;
+
+    int bar_width = scr.hud_width / 3;
+    float percent = (value - 1) / 254.0f;
+    int w = bar_width * percent + 0.5f;
+    int h = CHAR_HEIGHT / 2;
+
+    x -= bar_width / 2;
+    R_DrawFill8(x, y, w, h, 240);
+    R_DrawFill8(x + w, y, bar_width - w, h, 4);
 }
 
 static void SCR_ExecuteLayoutString(const char *s)
@@ -2052,6 +2066,26 @@ static void SCR_ExecuteLayoutString(const char *s)
             }
             continue;
         }
+
+        if (!strcmp(token, "health_bars")) {
+            token = COM_Parse(&s);
+            value = Q_atoi(token);
+            if (value < 0 || value >= MAX_STATS) {
+                Com_Error(ERR_DROP, "%s: invalid stat index", __func__);
+            }
+            value = cl.frame.ps.stats[value];
+
+            token = COM_Parse(&s);
+            index = Q_atoi(token);
+            if (index < 0 || index >= cl.csr.end) {
+                Com_Error(ERR_DROP, "%s: invalid string index", __func__);
+            }
+
+            HUD_DrawCenterString(x + 320 / 2, y, cl.configstrings[index]);
+            SCR_DrawHealthBar(x + 320 / 2, y + CHAR_HEIGHT + 4, value & 0xff);
+            SCR_DrawHealthBar(x + 320 / 2, y + CHAR_HEIGHT + 12, (value >> 8) & 0xff);
+            continue;
+        }
     }
 
     R_ClearColor();
@@ -2062,7 +2096,7 @@ static void SCR_ExecuteLayoutString(const char *s)
 
 static void SCR_DrawPause(void)
 {
-    int x, y;
+    int x, y, w, h;
 
     if (!sv_paused->integer)
         return;
@@ -2071,15 +2105,16 @@ static void SCR_DrawPause(void)
     if (scr_showpause->integer != 1)
         return;
 
-    x = scr.hud_x + (scr.hud_width - scr.pause_width) / 2;
-    y = scr.hud_y + (scr.hud_height - scr.pause_height) / 2;
+    R_GetPicSize(&w, &h, scr.pause_pic);
+    x = (scr.hud_width - w) / 2;
+    y = (scr.hud_height - h) / 2;
 
     R_DrawPic(x, y, scr.pause_pic);
 }
 
 static void SCR_DrawLoading(void)
 {
-    int x, y;
+    int x, y, w, h;
 
     if (!scr.draw_loading)
         return;
@@ -2088,8 +2123,9 @@ static void SCR_DrawLoading(void)
 
     R_SetScale(scr.hud_scale);
 
-    x = (r_config.width * scr.hud_scale - scr.loading_width) / 2;
-    y = (r_config.height * scr.hud_scale - scr.loading_height) / 2;
+    R_GetPicSize(&w, &h, scr.loading_pic);
+    x = (r_config.width * scr.hud_scale - w) / 2;
+    y = (r_config.height * scr.hud_scale - h) / 2;
 
     R_DrawPic(x, y, scr.loading_pic);
 
@@ -2279,8 +2315,36 @@ static void SCR_DrawXhair(void) {
         }
     } 
 }
-static void SCR_DrawClassicCrosshair(void) {
-    R_SetColor(scr.crosshair_color.u32);
+// static void SCR_DrawClassicCrosshair(void) {
+//     R_SetColor(scr.crosshair_color.u32);
+
+static void SCR_DrawHitMarker(void)
+{
+    if (!cl.hit_marker_count)
+        return;
+    if (!scr.hit_marker_pic || scr_hit_marker_time->integer <= 0 ||
+        cls.realtime - cl.hit_marker_time > scr_hit_marker_time->integer) {
+        cl.hit_marker_count = 0;
+        return;
+    }
+
+    float frac = (float)(cls.realtime - cl.hit_marker_time) / scr_hit_marker_time->integer;
+    float alpha = 1.0f - (frac * frac);
+
+    int x = (scr.hud_width - scr.hit_marker_width) / 2;
+    int y = (scr.hud_height - scr.hit_marker_height) / 2;
+
+    R_SetColor(MakeColor(255, 0, 0, alpha * 255));
+
+    R_DrawStretchPic(x + ch_x->integer,
+                     y + ch_y->integer,
+                     scr.hit_marker_width,
+                     scr.hit_marker_height,
+                     scr.hit_marker_pic);
+}
+
+static void SCR_DrawCrosshair(void)
+{
     int x, y;
 
     if (!scr_crosshair->integer)
@@ -2296,6 +2360,8 @@ static void SCR_DrawClassicCrosshair(void) {
                      scr.crosshair_width,
                      scr.crosshair_height,
                      scr.crosshair_pic);
+
+    SCR_DrawHitMarker();
 }
 #if AQTION_EXTENSION
 void CL_Clear3DGhudQueue(void)
@@ -2560,9 +2626,9 @@ static void SCR_Draw2D(void)
 	scr.hud_x *= scr.hud_scale / 2;
 	scr.hud_y *= scr.hud_scale / 2;
 
-    if (!xhair_enabled->integer) {
-        SCR_DrawClassicCrosshair();
-    }    
+    // if (!xhair_enabled->integer) {
+    //     SCR_DrawClassicCrosshair();
+    // }    
     
     // the rest of 2D elements share common alpha
     R_ClearColor();

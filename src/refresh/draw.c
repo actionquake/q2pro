@@ -31,9 +31,8 @@ static inline void GL_StretchPic_(
 
     if (tess.numverts + 4 > TESS_MAX_VERTICES ||
         tess.numindices + 6 > TESS_MAX_INDICES ||
-        (tess.numverts && tess.texnum[0] != texnum)) {
+        (tess.numverts && tess.texnum[0] != texnum))
         GL_Flush2D();
-    }
 
     tess.texnum[0] = texnum;
 
@@ -58,16 +57,14 @@ static inline void GL_StretchPic_(
     dst_indices[5] = tess.numverts + 2;
 
     if (flags & IF_TRANSPARENT) {
-        if ((flags & IF_PALETTED) && draw.scale == 1) {
-            tess.flags |= 1;
-        } else {
-            tess.flags |= 2;
-        }
+        if ((flags & IF_PALETTED) && draw.scale == 1)
+            tess.flags |= GLS_ALPHATEST_ENABLE;
+        else
+            tess.flags |= GLS_BLEND_BLEND;
     }
 
-    if ((color & U32_ALPHA) != U32_ALPHA) {
-        tess.flags |= 2;
-    }
+    if ((color & U32_ALPHA) != U32_ALPHA)
+        tess.flags |= GLS_BLEND_BLEND;
 
     tess.numverts += 4;
     tess.numindices += 6;
@@ -76,17 +73,126 @@ static inline void GL_StretchPic_(
 #define GL_StretchPic(x,y,w,h,s1,t1,s2,t2,color,image) \
     GL_StretchPic_(x,y,w,h,s1,t1,s2,t2,color,(image)->texnum,(image)->flags)
 
+static void GL_DrawVignette(int distance, color_t outer, color_t inner)
+{
+    vec_t *dst_vert;
+    uint32_t *dst_color;
+    QGL_INDEX_TYPE *dst_indices;
+
+    if (tess.numverts + 8 > TESS_MAX_VERTICES ||
+        tess.numindices + 24 > TESS_MAX_INDICES ||
+        (tess.numverts && tess.texnum[0] != TEXNUM_WHITE))
+        GL_Flush2D();
+
+    tess.texnum[0] = TEXNUM_WHITE;
+
+    int x = 0, y = 0;
+    int w = glr.fd.width, h = glr.fd.height;
+
+    // outer vertices
+    dst_vert = tess.vertices + tess.numverts * 4;
+    Vector4Set(dst_vert,      x,     y,     0, 0);
+    Vector4Set(dst_vert +  4, x + w, y,     0, 0);
+    Vector4Set(dst_vert +  8, x + w, y + h, 0, 0);
+    Vector4Set(dst_vert + 12, x,     y + h, 0, 0);
+
+    dst_color = (uint32_t *)tess.colors + tess.numverts;
+    dst_color[0] = outer.u32;
+    dst_color[1] = outer.u32;
+    dst_color[2] = outer.u32;
+    dst_color[3] = outer.u32;
+
+    // inner vertices
+    x += distance;
+    y += distance;
+    w -= distance * 2;
+    h -= distance * 2;
+
+    dst_vert += 16;
+    Vector4Set(dst_vert,      x,     y,     0, 0);
+    Vector4Set(dst_vert +  4, x + w, y,     0, 0);
+    Vector4Set(dst_vert +  8, x + w, y + h, 0, 0);
+    Vector4Set(dst_vert + 12, x,     y + h, 0, 0);
+
+    dst_color += 4;
+    dst_color[0] = inner.u32;
+    dst_color[1] = inner.u32;
+    dst_color[2] = inner.u32;
+    dst_color[3] = inner.u32;
+
+    /*
+    0             1
+        4     5
+
+        7     6
+    3             2
+    */
+
+    dst_indices = tess.indices + tess.numindices;
+    dst_indices[0] = tess.numverts + 0;
+    dst_indices[1] = tess.numverts + 5;
+    dst_indices[2] = tess.numverts + 4;
+    dst_indices[3] = tess.numverts + 0;
+    dst_indices[4] = tess.numverts + 1;
+    dst_indices[5] = tess.numverts + 5;
+
+    dst_indices[6]  = tess.numverts + 1;
+    dst_indices[7]  = tess.numverts + 6;
+    dst_indices[8]  = tess.numverts + 5;
+    dst_indices[9]  = tess.numverts + 1;
+    dst_indices[10] = tess.numverts + 2;
+    dst_indices[11] = tess.numverts + 6;
+
+    dst_indices[12] = tess.numverts + 6;
+    dst_indices[13] = tess.numverts + 2;
+    dst_indices[14] = tess.numverts + 3;
+    dst_indices[15] = tess.numverts + 6;
+    dst_indices[16] = tess.numverts + 3;
+    dst_indices[17] = tess.numverts + 7;
+
+    dst_indices[18] = tess.numverts + 0;
+    dst_indices[19] = tess.numverts + 7;
+    dst_indices[20] = tess.numverts + 3;
+    dst_indices[21] = tess.numverts + 0;
+    dst_indices[22] = tess.numverts + 4;
+    dst_indices[23] = tess.numverts + 7;
+
+    tess.flags |= GLS_BLEND_BLEND | GLS_SHADE_SMOOTH;
+
+    tess.numverts += 8;
+    tess.numindices += 24;
+}
+
 void GL_Blend(void)
 {
-    color_t color;
+    if (glr.fd.screen_blend[3]) {
+        color_t color;
 
-    color.u8[0] = glr.fd.blend[0] * 255;
-    color.u8[1] = glr.fd.blend[1] * 255;
-    color.u8[2] = glr.fd.blend[2] * 255;
-    color.u8[3] = glr.fd.blend[3] * 255;
+        color.u8[0] = glr.fd.screen_blend[0] * 255;
+        color.u8[1] = glr.fd.screen_blend[1] * 255;
+        color.u8[2] = glr.fd.screen_blend[2] * 255;
+        color.u8[3] = glr.fd.screen_blend[3] * 255;
 
-    GL_StretchPic_(glr.fd.x, glr.fd.y, glr.fd.width, glr.fd.height, 0, 0, 1, 1,
-                   color.u32, TEXNUM_WHITE, 0);
+        GL_StretchPic_(glr.fd.x, glr.fd.y, glr.fd.width, glr.fd.height, 0, 0, 1, 1,
+                       color.u32, TEXNUM_WHITE, 0);
+    }
+
+    if (glr.fd.damage_blend[3]) {
+        color_t outer, inner;
+
+        outer.u8[0] = glr.fd.damage_blend[0] * 255;
+        outer.u8[1] = glr.fd.damage_blend[1] * 255;
+        outer.u8[2] = glr.fd.damage_blend[2] * 255;
+        outer.u8[3] = glr.fd.damage_blend[3] * 255;
+
+        inner.u32 = outer.u32 & U32_RGB;
+
+        if (gl_damageblend_frac->value > 0)
+            GL_DrawVignette(min(glr.fd.width, glr.fd.height) * gl_damageblend_frac->value, outer, inner);
+        else
+            GL_StretchPic_(glr.fd.x, glr.fd.y, glr.fd.width, glr.fd.height, 0, 0, 1, 1,
+                           outer.u32, TEXNUM_WHITE, 0);
+    }
 }
 
 void R_ClearColor(void)
@@ -165,8 +271,8 @@ static int get_auto_scale(void)
             scale = 2;
     }
 
-    if (vid.get_dpi_scale) {
-        int min_scale = vid.get_dpi_scale();
+    if (vid && vid->get_dpi_scale) {
+        int min_scale = vid->get_dpi_scale();
         return max(scale, min_scale);
     }
 
@@ -186,9 +292,8 @@ float R_ClampScale(cvar_t *var)
 
 void R_SetScale(float scale)
 {
-    if (draw.scale == scale) {
+    if (draw.scale == scale)
         return;
-    }
 
     GL_Flush2D();
 
@@ -200,7 +305,7 @@ void R_SetScale(float scale)
 
 void R_DrawStretchPic(int x, int y, int w, int h, qhandle_t pic)
 {
-    image_t *image = IMG_ForHandle(pic);
+    const image_t *image = IMG_ForHandle(pic);
 
     GL_StretchPic(x, y, w, h, image->sl, image->tl, image->sh, image->th,
                   draw.colors[0].u32, image);
@@ -208,7 +313,7 @@ void R_DrawStretchPic(int x, int y, int w, int h, qhandle_t pic)
 
 void R_DrawKeepAspectPic(int x, int y, int w, int h, qhandle_t pic)
 {
-    image_t *image = IMG_ForHandle(pic);
+    const image_t *image = IMG_ForHandle(pic);
 
     if (image->flags & IF_SCRAP) {
         R_DrawStretchPic(x, y, w, h, pic);
@@ -227,7 +332,7 @@ void R_DrawKeepAspectPic(int x, int y, int w, int h, qhandle_t pic)
 
 void R_DrawPic(int x, int y, qhandle_t pic)
 {
-    image_t *image = IMG_ForHandle(pic);
+    const image_t *image = IMG_ForHandle(pic);
 
     GL_StretchPic(x, y, image->width, image->height,
                   image->sl, image->tl, image->sh, image->th, draw.colors[0].u32, image);
@@ -270,16 +375,14 @@ static inline void draw_char(int x, int y, int flags, int c, const image_t *imag
 {
     float s, t;
 
-    if ((c & 127) == 32) {
+    if ((c & 127) == 32)
         return;
-    }
 
-    if (flags & UI_ALTCOLOR) {
+    if (flags & UI_ALTCOLOR)
         c |= 0x80;
-    }
-    if (flags & UI_XORCOLOR) {
+
+    if (flags & UI_XORCOLOR)
         c ^= 0x80;
-    }
 
     s = (c & 15) * 0.0625f;
     t = (c >> 4) * 0.0625f;
@@ -306,7 +409,7 @@ void R_DrawChar(int x, int y, int flags, int c, qhandle_t font)
 
 int R_DrawString(int x, int y, int flags, size_t maxlen, const char *s, qhandle_t font)
 {
-    image_t *image = IMG_ForHandle(font);
+    const image_t *image = IMG_ForHandle(font);
 
     while (maxlen-- && *s) {
         byte c = *s++;
@@ -338,9 +441,9 @@ void Draw_Stats(void)
     int x = 10, y = 10;
 
     R_SetScale(1.0f / get_auto_scale());
-    R_DrawFill8(8, 8, 25*8, 21*10+2, 4);
+    R_DrawFill8(8, 8, 25*8, 22*10+2, 4);
 
-    Draw_Stringf(x, y, "Nodes visible  : %i", c.nodesVisible); y += 10;
+    Draw_Stringf(x, y, "Nodes visible  : %i", glr.nodes_visible); y += 10;
     Draw_Stringf(x, y, "Nodes culled   : %i", c.nodesCulled); y += 10;
     Draw_Stringf(x, y, "Nodes drawn    : %i", c.nodesDrawn); y += 10;
     Draw_Stringf(x, y, "Leaves drawn   : %i", c.leavesDrawn); y += 10;
@@ -361,6 +464,7 @@ void Draw_Stats(void)
     Draw_Stringf(x, y, "Total dlights  : %i", glr.fd.num_dlights); y += 10;
     Draw_Stringf(x, y, "Total particles: %i", glr.fd.num_particles); y += 10;
     Draw_Stringf(x, y, "Uniform uploads: %i", c.uniformUploads); y += 10;
+    Draw_Stringf(x, y, "Occl. queries  : %i", c.occlusionQueries); y += 10;
 
     R_SetScale(1.0f);
 }

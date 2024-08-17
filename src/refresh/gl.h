@@ -79,6 +79,7 @@ typedef struct {
 
 typedef struct {
     GLuint query;
+    float frac;
     bool pending;
     bool visible;
 } glquery_t;
@@ -86,10 +87,8 @@ typedef struct {
 typedef struct {
     bool            registering;
     bool            use_shaders;
-    glbackend_t     backend;
     struct {
         bsp_t       *cache;
-        memhunk_t   hunk;
         vec_t       *vertices;
         GLuint      bufnum;
         vec_t       size;
@@ -121,8 +120,11 @@ typedef struct {
     unsigned        drawframe;
     unsigned        dlightframe;
     unsigned        rand_seed;
+    unsigned        timestamp;
+    float           frametime;
     int             viewcluster1;
     int             viewcluster2;
+    int             nodes_visible;
     cplane_t        frustumPlanes[4];
     entity_t        *ent;
     bool            entrotated;
@@ -137,7 +139,7 @@ typedef struct {
     bool            framebuffer_ok;
 } glRefdef_t;
 
-enum {
+typedef enum {
     QGL_CAP_LEGACY                      = BIT(0),
     QGL_CAP_SHADER                      = BIT(1),
     QGL_CAP_TEXTURE_BITS                = BIT(2),
@@ -146,7 +148,7 @@ enum {
     QGL_CAP_TEXTURE_LOD_BIAS            = BIT(5),
     QGL_CAP_TEXTURE_NON_POWER_OF_TWO    = BIT(6),
     QGL_CAP_TEXTURE_ANISOTROPY          = BIT(7),
-};
+} glcap_t;
 
 #define QGL_VER(major, minor)   ((major) * 100 + (minor))
 #define QGL_UNPACK_VER(ver)     (ver) / 100, (ver) % 100
@@ -155,10 +157,12 @@ typedef struct {
     int     ver_gl;
     int     ver_es;
     int     ver_sl;
-    int     caps;
+    glcap_t caps;
     int     colorbits;
     int     depthbits;
     int     stencilbits;
+    int     max_texture_size_log2;
+    int     max_texture_size;
 } glConfig_t;
 
 extern glStatic_t gl_static;
@@ -170,7 +174,6 @@ extern entity_t gl_world;
 extern unsigned r_registration_sequence;
 
 typedef struct {
-    int nodesVisible;
     int nodesDrawn;
     int leavesDrawn;
     int facesMarked;
@@ -188,6 +191,7 @@ typedef struct {
     int rotatedBoxesCulled;
     int batchesDrawn2D;
     int uniformUploads;
+    int occlusionQueries;
 } statCounters_t;
 
 extern statCounters_t c;
@@ -207,12 +211,15 @@ extern cvar_t *gl_dlight_falloff;
 extern cvar_t *gl_modulate_entities;
 extern cvar_t *gl_doublelight_entities;
 extern cvar_t *gl_glowmap_intensity;
+extern cvar_t *gl_flarespeed;
 extern cvar_t *gl_fontshadow;
 extern cvar_t *gl_shaders;
 #if USE_MD5
 extern cvar_t *gl_md5_load;
 extern cvar_t *gl_md5_use;
+extern cvar_t *gl_md5_distance;
 #endif
+extern cvar_t *gl_damageblend_frac;
 
 // development variables
 extern cvar_t *gl_znear;
@@ -232,6 +239,9 @@ extern cvar_t *gl_vertexlight;
 extern cvar_t *gl_lightgrid;
 extern cvar_t *gl_showerrors;
 
+#define GL_rand()   Q_rand_state(&glr.rand_seed)
+#define GL_frand()  ((int32_t)GL_rand() * 0x1p-32f + 0.5f)
+
 typedef enum {
     CULL_OUT,
     CULL_IN,
@@ -242,7 +252,7 @@ glCullResult_t GL_CullBox(const vec3_t bounds[2]);
 glCullResult_t GL_CullSphere(const vec3_t origin, float radius);
 glCullResult_t GL_CullLocalBox(const vec3_t origin, const vec3_t bounds[2]);
 
-bool GL_AllocBlock(int width, int height, int *inuse,
+bool GL_AllocBlock(int width, int height, uint16_t *inuse,
                    int w, int h, int *s, int *t);
 
 void GL_MultMatrix(GLfloat *restrict out, const GLfloat *restrict a, const GLfloat *restrict b);
@@ -253,6 +263,23 @@ void GL_RotateForEntity(void);
 void GL_ClearErrors(void);
 bool GL_ShowErrors(const char *func);
 
+void GL_InitQueries(void);
+void GL_DeleteQueries(void);
+
+static inline void GL_AdvanceValue(float *restrict val, float target, float speed)
+{
+    if (speed <= 0) {
+        *val = target;
+    } else if (*val < target) {
+        *val += speed * glr.frametime;
+        if (*val > target)
+            *val = target;
+    } else if (*val > target) {
+        *val -= speed * glr.frametime;
+        if (*val < target)
+            *val = target;
+    }
+}
 
 /*
  * gl_model.c
@@ -264,8 +291,8 @@ typedef struct {
 } maliastc_t;
 
 typedef struct {
-    short   pos[3];
-    byte    norm[2]; // lat, lng
+    int16_t     pos[3];
+    uint8_t     norm[2]; // lat, lng
 } maliasvert_t;
 
 typedef struct {
@@ -305,7 +332,7 @@ typedef struct {
 #define MD5_MAX_JOINTS      256
 #define MD5_MAX_JOINTNAME   32
 #define MD5_MAX_MESHES      32
-#define MD5_MAX_WEIGHTS     4096
+#define MD5_MAX_WEIGHTS     8192
 #define MD5_MAX_FRAMES      1024
 
 /* Joint */
@@ -405,12 +432,12 @@ qhandle_t R_RegisterModel(const char *name);
 #define LIGHT_STYLE(i) \
     &glr.fd.lightstyles[gl_static.lightstylemap[(i)]]
 
-#define LM_MAX_LIGHTMAPS    32
-#define LM_BLOCK_WIDTH      (1 << 10)
+#define LM_MAX_LIGHTMAPS    128
+#define LM_MAX_BLOCK_WIDTH  (1 << 10)
 
 typedef struct lightmap_s {
-    int         mins[2];
-    int         maxs[2];
+    uint16_t    mins[2];
+    uint16_t    maxs[2];
     byte        *buffer;
 } lightmap_t;
 
@@ -419,7 +446,7 @@ typedef struct {
     int         comp, block_size, block_shift;
     float       add, modulate, scale;
     int         nummaps, maxmaps;
-    int         inuse[LM_BLOCK_WIDTH];
+    uint16_t    inuse[LM_MAX_BLOCK_WIDTH];
     GLuint      texnums[LM_MAX_LIGHTMAPS];
     lightmap_t  lightmaps[LM_MAX_LIGHTMAPS];
     byte        buffer[0x4000000];
@@ -499,6 +526,8 @@ typedef struct {
 
 extern glState_t gls;
 
+extern const glbackend_t *gl_backend;
+
 static inline void GL_ActiveTexture(GLuint tmu)
 {
     if (gls.server_tmu != tmu) {
@@ -518,7 +547,7 @@ static inline void GL_ClientActiveTexture(GLuint tmu)
 static inline void GL_StateBits(GLbitfield bits)
 {
     if (gls.state_bits != bits) {
-        gl_static.backend.state_bits(bits);
+        gl_backend->state_bits(bits);
         gls.state_bits = bits;
     }
 }
@@ -526,7 +555,7 @@ static inline void GL_StateBits(GLbitfield bits)
 static inline void GL_ArrayBits(GLbitfield bits)
 {
     if (gls.array_bits != bits) {
-        gl_static.backend.array_bits(bits);
+        gl_backend->array_bits(bits);
         gls.array_bits = bits;
     }
 }
@@ -547,14 +576,14 @@ static inline void GL_UnlockArrays(void)
 
 static inline void GL_ForceMatrix(const GLfloat *matrix)
 {
-    gl_static.backend.load_view_matrix(matrix);
+    gl_backend->load_view_matrix(matrix);
     gls.currentmatrix = matrix;
 }
 
 static inline void GL_LoadMatrix(const GLfloat *matrix)
 {
     if (gls.currentmatrix != matrix) {
-        gl_static.backend.load_view_matrix(matrix);
+        gl_backend->load_view_matrix(matrix);
         gls.currentmatrix = matrix;
     }
 }
@@ -575,12 +604,34 @@ static inline void GL_DepthRange(GLfloat n, GLfloat f)
         qglDepthRange(n, f);
 }
 
-#define GL_VertexPointer        gl_static.backend.vertex_pointer
-#define GL_TexCoordPointer      gl_static.backend.tex_coord_pointer
-#define GL_LightCoordPointer    gl_static.backend.light_coord_pointer
-#define GL_ColorBytePointer     gl_static.backend.color_byte_pointer
-#define GL_ColorFloatPointer    gl_static.backend.color_float_pointer
-#define GL_Color                gl_static.backend.color
+#define VBO_OFS(n)   ((void *)(sizeof(GLfloat) * (n)))
+
+#define GL_VertexPointer(size, stride, ptr) \
+    gl_backend->vertex_pointer((size), (stride) * sizeof(GLfloat), (ptr))
+
+#define GL_TexCoordPointer(size, stride, ptr) \
+    gl_backend->tex_coord_pointer((size), (stride) * sizeof(GLfloat), (ptr))
+
+#define GL_LightCoordPointer(size, stride, ptr) \
+    gl_backend->light_coord_pointer((size), (stride) * sizeof(GLfloat), (ptr))
+
+#define GL_ColorBytePointer(size, stride, ptr) \
+    gl_backend->color_byte_pointer((size), (stride) * sizeof(GLfloat), (ptr))
+
+#define GL_ColorFloatPointer(size, stride, ptr) \
+    gl_backend->color_float_pointer((size), (stride) * sizeof(GLfloat), (ptr))
+
+#define GL_Color(r, g, b, a) gl_backend->color(r, g, b, a)
+
+#define GL_DrawTriangles(num_indices, indices) \
+    qglDrawElements(GL_TRIANGLES, num_indices, QGL_INDEX_ENUM, indices)
+
+enum {
+    SHOWTRIS_WORLD  = BIT(0),
+    SHOWTRIS_MESH   = BIT(1),
+    SHOWTRIS_PIC    = BIT(2),
+    SHOWTRIS_FX     = BIT(3),
+};
 
 void GL_ForceTexture(GLuint tmu, GLuint texnum);
 void GL_BindTexture(GLuint tmu, GLuint texnum);
@@ -649,7 +700,7 @@ extern cvar_t *gl_intensity;
  * gl_tess.c
  *
  */
-#define TESS_MAX_VERTICES   4096
+#define TESS_MAX_VERTICES   6144
 #define TESS_MAX_INDICES    (3 * TESS_MAX_VERTICES)
 
 typedef struct {
@@ -667,6 +718,7 @@ extern tesselator_t tess;
 void GL_Flush2D(void);
 void GL_DrawParticles(void);
 void GL_DrawBeams(void);
+void GL_DrawFlares(void);
 
 void GL_BindArrays(void);
 void GL_Flush3D(void);

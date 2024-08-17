@@ -32,16 +32,12 @@ void GL_Flush2D(void)
 {
     glStateBits_t bits;
 
-    if (!tess.numverts) {
+    if (!tess.numverts)
         return;
-    }
 
-    bits = GLS_DEPTHTEST_DISABLE | GLS_DEPTHMASK_FALSE | GLS_CULL_DISABLE;
-    if (tess.flags & 2) {
-        bits |= GLS_BLEND_BLEND;
-    } else if (tess.flags & 1) {
-        bits |= GLS_ALPHATEST_ENABLE;
-    }
+    bits = GLS_DEPTHTEST_DISABLE | GLS_DEPTHMASK_FALSE | GLS_CULL_DISABLE | tess.flags;
+    if (bits & GLS_BLEND_BLEND)
+        bits &= ~GLS_ALPHATEST_ENABLE;
 
     Scrap_Upload();
 
@@ -55,11 +51,10 @@ void GL_Flush2D(void)
 
     GL_LockArrays(tess.numverts);
 
-    qglDrawElements(GL_TRIANGLES, tess.numindices, QGL_INDEX_ENUM, tess.indices);
+    GL_DrawTriangles(tess.numindices, tess.indices);
 
-    if (gl_showtris->integer & BIT(2)) {
+    if (gl_showtris->integer & SHOWTRIS_PIC)
         GL_DrawOutlines(tess.numindices, tess.indices);
-    }
 
     GL_UnlockArrays();
 
@@ -76,7 +71,7 @@ void GL_Flush2D(void)
 
 void GL_DrawParticles(void)
 {
-    particle_t *p;
+    const particle_t *p;
     int total, count;
     vec3_t transformed;
     vec_t scale, scale2, dist;
@@ -84,7 +79,7 @@ void GL_DrawParticles(void)
     int numverts;
     vec_t *dst_vert;
     uint32_t *dst_color;
-    int bits;
+    glStateBits_t bits;
 
     if (!glr.fd.num_particles)
         return;
@@ -130,11 +125,10 @@ void GL_DrawParticles(void)
 
             dst_vert += 15;
 
-            if (p->color == -1) {
+            if (p->color == -1)
                 color.u32 = p->rgba.u32;
-            } else {
+            else
                 color.u32 = d_8to24table[p->color & 0xff];
-            }
             color.u8[3] *= p->alpha;
 
             dst_color[0] = color.u32;
@@ -145,12 +139,35 @@ void GL_DrawParticles(void)
             p++;
         } while (--count);
 
+        GL_LockArrays(numverts);
         qglDrawArrays(GL_TRIANGLES, 0, numverts);
 
-        if (gl_showtris->integer & BIT(2)) {
+        if (gl_showtris->integer & SHOWTRIS_FX)
             GL_DrawOutlines(numverts, NULL);
-        }
+
+        GL_UnlockArrays();
     } while (total);
+}
+
+static void GL_FlushBeamSegments(void)
+{
+    if (!tess.numindices)
+        return;
+
+    GL_BindTexture(0, TEXNUM_BEAM);
+    GL_StateBits(GLS_BLEND_BLEND | GLS_DEPTHMASK_FALSE);
+    GL_ArrayBits(GLA_VERTEX | GLA_TC | GLA_COLOR);
+
+    GL_LockArrays(tess.numverts);
+
+    GL_DrawTriangles(tess.numindices, tess.indices);
+
+    if (gl_showtris->integer & SHOWTRIS_FX)
+        GL_DrawOutlines(tess.numindices, tess.indices);
+
+    GL_UnlockArrays();
+
+    tess.numverts = tess.numindices = 0;
 }
 
 static void GL_DrawBeamSegment(const vec3_t start, const vec3_t end, color_t color, float width)
@@ -159,24 +176,17 @@ static void GL_DrawBeamSegment(const vec3_t start, const vec3_t end, color_t col
     vec_t *dst_vert;
     uint32_t *dst_color;
     QGL_INDEX_TYPE *dst_indices;
-    vec_t length;
 
     VectorSubtract(end, start, d1);
     VectorSubtract(glr.fd.vieworg, start, d2);
     CrossProduct(d1, d2, d3);
-    VectorNormalize(d3);
+    if (VectorNormalize(d3) < 0.1f)
+        return;
     VectorScale(d3, width, d3);
 
-    length = VectorLength(d1);
-    if (length < 0.1f)
-        return;
-
     if (q_unlikely(tess.numverts + 4 > TESS_MAX_VERTICES ||
-                   tess.numindices + 6 > TESS_MAX_INDICES)) {
-        qglDrawElements(GL_TRIANGLES, tess.numindices,
-                        QGL_INDEX_ENUM, tess.indices);
-        tess.numverts = tess.numindices = 0;
-    }
+                   tess.numindices + 6 > TESS_MAX_INDICES))
+        GL_FlushBeamSegments();
 
     dst_vert = tess.vertices + tess.numverts * 5;
     VectorAdd(start, d3, dst_vert);
@@ -184,10 +194,10 @@ static void GL_DrawBeamSegment(const vec3_t start, const vec3_t end, color_t col
     VectorSubtract(end, d3, dst_vert + 10);
     VectorAdd(end, d3, dst_vert + 15);
 
-    dst_vert[3] = 0; dst_vert[4] = 0;
-    dst_vert[8] = 1; dst_vert[9] = 0;
-    dst_vert[13] = 1; dst_vert[14] = length;
-    dst_vert[18] = 0; dst_vert[19] = length;
+    dst_vert[ 3] = 0; dst_vert[ 4] = 0;
+    dst_vert[ 8] = 1; dst_vert[ 9] = 0;
+    dst_vert[13] = 1; dst_vert[14] = 1;
+    dst_vert[18] = 0; dst_vert[19] = 1;
 
     dst_color = (uint32_t *)tess.colors + tess.numverts;
     dst_color[0] = color.u32;
@@ -209,45 +219,37 @@ static void GL_DrawBeamSegment(const vec3_t start, const vec3_t end, color_t col
 
 #define MIN_LIGHTNING_SEGMENTS      3
 #define MAX_LIGHTNING_SEGMENTS      7
-#define MIN_SEGMENT_LENGTH          10
-
-static uint32_t GL_rand(void)
-{
-    uint32_t x = glr.rand_seed;
-
-    x ^= x << 13;
-    x ^= x >> 17;
-    x ^= x << 5;
-
-    return glr.rand_seed = x;
-}
-
-static float GL_frand(void)
-{
-    return (int32_t)GL_rand() * 0x1p-32f + 0.5f;
-}
+#define MIN_SEGMENT_LENGTH          16
 
 static void GL_DrawLightningBeam(const vec3_t start, const vec3_t end, color_t color, float width)
 {
     vec3_t d1, segments[MAX_LIGHTNING_SEGMENTS - 1];
-    vec_t length;
-    int i, num_segments = MIN_LIGHTNING_SEGMENTS + GL_rand() % (MAX_LIGHTNING_SEGMENTS - MIN_LIGHTNING_SEGMENTS);
+    vec_t length, segment_length;
+    int i, num_segments, max_segments;
 
     VectorSubtract(end, start, d1);
     length = VectorNormalize(d1);
 
-    num_segments = min(num_segments, (int)(length / MIN_SEGMENT_LENGTH));
-    if (num_segments <= 1) {
+    max_segments = length / MIN_SEGMENT_LENGTH;
+    if (max_segments <= 1) {
         GL_DrawBeamSegment(start, end, color, width);
         return;
     }
 
+    if (max_segments <= MIN_LIGHTNING_SEGMENTS) {
+        num_segments = max_segments;
+    } else {
+        max_segments = min(max_segments, MAX_LIGHTNING_SEGMENTS);
+        num_segments = MIN_LIGHTNING_SEGMENTS + GL_rand() % (max_segments - MIN_LIGHTNING_SEGMENTS + 1);
+    }
+
+    segment_length = length / num_segments;
     for (i = 0; i < num_segments - 1; i++) {
         int dir = GL_rand() % q_countof(bytedirs);
-        float dist = GL_frand() * 20;
-        float frac = (float)(i + 1) / num_segments;
-        VectorMA(start, frac * length, d1, segments[i]);
-        VectorMA(segments[i], dist, bytedirs[dir], segments[i]);
+        float offs = GL_frand() * (segment_length * 0.5f);
+        float dist = (i + 1) * segment_length;
+        VectorMA(start, dist, d1, segments[i]);
+        VectorMA(segments[i], offs, bytedirs[dir], segments[i]);
     }
 
     for (i = 0; i < num_segments; i++) {
@@ -260,72 +262,180 @@ static void GL_DrawLightningBeam(const vec3_t start, const vec3_t end, color_t c
 
 void GL_DrawBeams(void)
 {
-    vec_t *start, *end;
+    const vec_t *start, *end;
     color_t color;
     float width;
-    entity_t *ent;
+    const entity_t *ent;
     int i;
 
-    if (!glr.num_beams) {
+    if (!glr.num_beams)
         return;
-    }
 
     GL_LoadMatrix(glr.viewmatrix);
-    GL_BindTexture(0, TEXNUM_BEAM);
-    GL_StateBits(GLS_BLEND_BLEND | GLS_DEPTHMASK_FALSE);
-    GL_ArrayBits(GLA_VERTEX | GLA_TC | GLA_COLOR);
 
     GL_VertexPointer(3, 5, tess.vertices);
     GL_TexCoordPointer(2, 5, tess.vertices + 3);
     GL_ColorBytePointer(4, 0, tess.colors);
 
     for (i = 0, ent = glr.fd.entities; i < glr.fd.num_entities; i++, ent++) {
-        if (!(ent->flags & RF_BEAM)) {
+        if (!(ent->flags & RF_BEAM))
             continue;
-        }
 
         start = ent->origin;
         end = ent->oldorigin;
 
-        if (ent->skinnum == -1) {
+        if (ent->skinnum == -1)
             color.u32 = ent->rgba.u32;
-        } else {
+        else
             color.u32 = d_8to24table[ent->skinnum & 0xff];
-        }
         color.u8[3] *= ent->alpha;
 
-        width = ent->frame * 1.2f;
+        width = abs((int16_t)ent->frame) * 1.2f;
 
-        if (ent->flags & RF_GLOW) {
+        if (ent->flags & RF_GLOW)
             GL_DrawLightningBeam(start, end, color, width);
-        } else {
+        else
             GL_DrawBeamSegment(start, end, color, width);
-        }
     }
 
-    qglDrawElements(GL_TRIANGLES, tess.numindices,
-                    QGL_INDEX_ENUM, tess.indices);
+    GL_FlushBeamSegments();
+}
+
+static void GL_FlushFlares(void)
+{
+    if (!tess.numindices)
+        return;
+
+    GL_BindTexture(0, tess.texnum[0]);
+    GL_StateBits(GLS_DEPTHTEST_DISABLE | GLS_DEPTHMASK_FALSE | GLS_BLEND_ADD);
+    GL_ArrayBits(GLA_VERTEX | GLA_TC | GLA_COLOR);
+
+    GL_LockArrays(tess.numverts);
+
+    GL_DrawTriangles(tess.numindices, tess.indices);
+
+    if (gl_showtris->integer & SHOWTRIS_FX)
+        GL_DrawOutlines(tess.numindices, tess.indices);
+
+    GL_UnlockArrays();
+
     tess.numverts = tess.numindices = 0;
+    tess.texnum[0] = 0;
+}
+
+void GL_DrawFlares(void)
+{
+    vec3_t up, down, left, right;
+    color_t color;
+    vec_t *dst_vert;
+    uint32_t *dst_color;
+    QGL_INDEX_TYPE *dst_indices;
+    GLuint result, texnum;
+    const entity_t *ent;
+    glquery_t *q;
+    float scale;
+    int i;
+
+    if (!glr.num_flares)
+        return;
+    if (!gl_static.queries)
+        return;
+
+    GL_LoadMatrix(glr.viewmatrix);
+
+    GL_VertexPointer(3, 5, tess.vertices);
+    GL_TexCoordPointer(2, 5, tess.vertices + 3);
+    GL_ColorBytePointer(4, 0, tess.colors);
+
+    for (i = 0, ent = glr.fd.entities; i < glr.fd.num_entities; i++, ent++) {
+        if (!(ent->flags & RF_FLARE))
+            continue;
+
+        q = HashMap_Lookup(glquery_t, gl_static.queries, &ent->skinnum);
+        if (!q)
+            continue;
+
+        if (q->pending) {
+            qglGetQueryObjectuiv(q->query, GL_QUERY_RESULT_AVAILABLE, &result);
+            if (result) {
+                qglGetQueryObjectuiv(q->query, GL_QUERY_RESULT, &result);
+                q->visible = result;
+                q->pending = false;
+            }
+        }
+
+        GL_AdvanceValue(&q->frac, q->visible, gl_flarespeed->value);
+        if (!q->frac)
+            continue;
+
+        texnum = IMG_ForHandle(ent->skin)->texnum;
+
+        if (q_unlikely(tess.numverts + 4 > TESS_MAX_VERTICES ||
+                       tess.numindices + 6 > TESS_MAX_INDICES) ||
+            (tess.numindices && tess.texnum[0] != texnum))
+            GL_FlushFlares();
+
+        tess.texnum[0] = texnum;
+
+        scale = 25.0f * (ent->scale * q->frac);
+
+        VectorScale(glr.viewaxis[1],  scale, left);
+        VectorScale(glr.viewaxis[1], -scale, right);
+        VectorScale(glr.viewaxis[2], -scale, down);
+        VectorScale(glr.viewaxis[2],  scale, up);
+
+        dst_vert = tess.vertices + tess.numverts * 5;
+
+        VectorAdd3(ent->origin, down, left,  dst_vert);
+        VectorAdd3(ent->origin, up,   left,  dst_vert +  5);
+        VectorAdd3(ent->origin, up,   right, dst_vert + 10);
+        VectorAdd3(ent->origin, down, right, dst_vert + 15);
+
+        dst_vert[ 3] = 0; dst_vert[ 4] = 1;
+        dst_vert[ 8] = 0; dst_vert[ 9] = 0;
+        dst_vert[13] = 1; dst_vert[14] = 0;
+        dst_vert[18] = 1; dst_vert[19] = 1;
+
+        color.u32 = ent->rgba.u32;
+        color.u8[3] = 128 * (ent->alpha * q->frac);
+
+        dst_color = (uint32_t *)tess.colors + tess.numverts;
+        dst_color[0] = color.u32;
+        dst_color[1] = color.u32;
+        dst_color[2] = color.u32;
+        dst_color[3] = color.u32;
+
+        dst_indices = tess.indices + tess.numindices;
+        dst_indices[0] = tess.numverts + 0;
+        dst_indices[1] = tess.numverts + 2;
+        dst_indices[2] = tess.numverts + 3;
+        dst_indices[3] = tess.numverts + 0;
+        dst_indices[4] = tess.numverts + 1;
+        dst_indices[5] = tess.numverts + 2;
+
+        tess.numverts += 4;
+        tess.numindices += 6;
+    }
+
+    GL_FlushFlares();
 }
 
 void GL_BindArrays(void)
 {
     if (gl_static.world.vertices) {
         GL_VertexPointer(3, VERTEX_SIZE, tess.vertices);
-        GL_TexCoordPointer(2, VERTEX_SIZE, tess.vertices + 4);
-        if (lm.nummaps) {
-            GL_LightCoordPointer(2, VERTEX_SIZE, tess.vertices + 6);
-        }
         GL_ColorBytePointer(4, VERTEX_SIZE, (GLubyte *)(tess.vertices + 3));
+        GL_TexCoordPointer(2, VERTEX_SIZE, tess.vertices + 4);
+        if (lm.nummaps)
+            GL_LightCoordPointer(2, VERTEX_SIZE, tess.vertices + 6);
     } else {
         qglBindBuffer(GL_ARRAY_BUFFER, gl_static.world.bufnum);
 
-        GL_VertexPointer(3, VERTEX_SIZE, (GLfloat *)0);
-        GL_TexCoordPointer(2, VERTEX_SIZE, (GLfloat *)(sizeof(GLfloat) * 4));
-        if (lm.nummaps) {
-            GL_LightCoordPointer(2, VERTEX_SIZE, (GLfloat *)(sizeof(GLfloat) * 6));
-        }
-        GL_ColorBytePointer(4, VERTEX_SIZE, (GLubyte *)(sizeof(GLfloat) * 3));
+        GL_VertexPointer(3, VERTEX_SIZE, VBO_OFS(0));
+        GL_ColorBytePointer(4, VERTEX_SIZE, VBO_OFS(3));
+        GL_TexCoordPointer(2, VERTEX_SIZE, VBO_OFS(4));
+        if (lm.nummaps)
+            GL_LightCoordPointer(2, VERTEX_SIZE, VBO_OFS(6));
 
         qglBindBuffer(GL_ARRAY_BUFFER, 0);
     }
@@ -336,51 +446,40 @@ void GL_Flush3D(void)
     glStateBits_t state = tess.flags;
     glArrayBits_t array = GLA_VERTEX | GLA_TC;
 
-    if (!tess.numindices) {
+    if (!tess.numindices)
         return;
-    }
 
     if (q_likely(tess.texnum[1])) {
         state |= GLS_LIGHTMAP_ENABLE;
         array |= GLA_LMTC;
 
-        if (q_unlikely(gl_lightmap->integer)) {
+        if (q_unlikely(gl_lightmap->integer))
             state &= ~GLS_INTENSITY_ENABLE;
-        }
     }
 
-    if (tess.texnum[2]) {
+    if (tess.texnum[2])
         state |= GLS_GLOWMAP_ENABLE;
-    }
 
-    if (!(state & GLS_TEXTURE_REPLACE)) {
+    if (!(state & GLS_TEXTURE_REPLACE))
         array |= GLA_COLOR;
-    }
 
     GL_StateBits(state);
     GL_ArrayBits(array);
 
-    GL_BindTexture(0, tess.texnum[0]);
-    if (q_likely(tess.texnum[1])) {
-        GL_BindTexture(1, tess.texnum[1]);
-    }
-    if (tess.texnum[2]) {
-        GL_BindTexture(2, tess.texnum[2]);
-    }
+    for (int i = 0; i < MAX_TMUS; i++)
+        if (tess.texnum[i])
+            GL_BindTexture(i, tess.texnum[i]);
 
-    if (gl_static.world.vertices) {
+    if (gl_static.world.vertices)
         GL_LockArrays(tess.numverts);
-    }
 
-    qglDrawElements(GL_TRIANGLES, tess.numindices, QGL_INDEX_ENUM, tess.indices);
+    GL_DrawTriangles(tess.numindices, tess.indices);
 
-    if (gl_showtris->integer & BIT(0)) {
+    if (gl_showtris->integer & SHOWTRIS_WORLD)
         GL_DrawOutlines(tess.numindices, tess.indices);
-    }
 
-    if (gl_static.world.vertices) {
+    if (gl_static.world.vertices)
         GL_UnlockArrays();
-    }
 
     c.batchesDrawn++;
 
@@ -392,16 +491,14 @@ void GL_Flush3D(void)
 
 static int GL_CopyVerts(const mface_t *surf)
 {
-    void *src, *dst;
     int firstvert;
 
-    if (tess.numverts + surf->numsurfedges > TESS_MAX_VERTICES) {
+    if (tess.numverts + surf->numsurfedges > TESS_MAX_VERTICES)
         GL_Flush3D();
-    }
 
-    src = gl_static.world.vertices + surf->firstvert * VERTEX_SIZE;
-    dst = tess.vertices + tess.numverts * VERTEX_SIZE;
-    memcpy(dst, src, surf->numsurfedges * VERTEX_SIZE * sizeof(vec_t));
+    memcpy(tess.vertices + tess.numverts * VERTEX_SIZE,
+           gl_static.world.vertices + surf->firstvert * VERTEX_SIZE,
+           surf->numsurfedges * VERTEX_SIZE * sizeof(GLfloat));
 
     firstvert = tess.numverts;
     tess.numverts += surf->numsurfedges;
@@ -410,14 +507,9 @@ static int GL_CopyVerts(const mface_t *surf)
 
 static const image_t *GL_TextureAnimation(const mtexinfo_t *tex)
 {
-    if (q_unlikely(tex->next)) {
-        unsigned c = (unsigned)glr.ent->frame % tex->numframes;
-
-        while (c) {
+    if (q_unlikely(tex->next))
+        for (int i = 0; i < glr.ent->frame % tex->numframes; i++)
             tex = tex->next;
-            c--;
-        }
-    }
 
     return tex->image;
 }
@@ -444,20 +536,18 @@ static void GL_DrawFace(const mface_t *surf)
         tess.texnum[1] != texnum[1] ||
         tess.texnum[2] != texnum[2] ||
         tess.flags != surf->statebits ||
-        tess.numindices + numindices > TESS_MAX_INDICES) {
+        tess.numindices + numindices > TESS_MAX_INDICES)
         GL_Flush3D();
-    }
 
     tess.texnum[0] = texnum[0];
     tess.texnum[1] = texnum[1];
     tess.texnum[2] = texnum[2];
     tess.flags = surf->statebits;
 
-    if (q_unlikely(gl_static.world.vertices)) {
+    if (q_unlikely(gl_static.world.vertices))
         j = GL_CopyVerts(surf);
-    } else {
+    else
         j = surf->firstvert;
-    }
 
     dst_indices = tess.indices + tess.numindices;
     for (i = 0; i < numtris; i++) {
@@ -475,39 +565,29 @@ static void GL_DrawFace(const mface_t *surf)
 
 void GL_ClearSolidFaces(void)
 {
-    int i;
-
-    for (i = 0; i < FACE_HASH_SIZE; i++) {
+    for (int i = 0; i < FACE_HASH_SIZE; i++)
         faces_next[i] = &faces_head[i];
-    }
 }
 
 void GL_DrawSolidFaces(void)
 {
-    mface_t *face;
-    int i;
-
-    for (i = 0; i < FACE_HASH_SIZE; i++) {
-        for (face = faces_head[i]; face; face = face->next) {
+    for (int i = 0; i < FACE_HASH_SIZE; i++) {
+        for (const mface_t *face = faces_head[i]; face; face = face->next)
             GL_DrawFace(face);
-        }
         faces_head[i] = NULL;
     }
 }
 
 void GL_DrawAlphaFaces(void)
 {
-    mface_t *face;
-
-    if (!faces_alpha) {
+    if (!faces_alpha)
         return;
-    }
 
     glr.ent = NULL;
 
     GL_BindArrays();
 
-    for (face = faces_alpha; face; face = face->next) {
+    for (const mface_t *face = faces_alpha; face; face = face->next) {
         if (glr.ent != face->entity) {
             glr.ent = face->entity;
             GL_Flush3D();

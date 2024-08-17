@@ -30,8 +30,6 @@ static int upload_width;
 static int upload_height;
 static bool upload_alpha;
 
-static int max_texture_size;
-
 static cvar_t *gl_noscrap;
 static cvar_t *gl_round_down;
 static cvar_t *gl_picmip;
@@ -263,7 +261,7 @@ static void IMG_MipMap(byte *out, const byte *in, int width, int height)
 #define SCRAP_BLOCK_WIDTH       256
 #define SCRAP_BLOCK_HEIGHT      256
 
-static int scrap_inuse[SCRAP_BLOCK_WIDTH];
+static uint16_t scrap_inuse[SCRAP_BLOCK_WIDTH];
 static byte scrap_data[SCRAP_BLOCK_WIDTH * SCRAP_BLOCK_HEIGHT * 4];
 static bool scrap_dirty;
 
@@ -479,7 +477,8 @@ static void GL_Upload32(byte *data, int width, int height, int baselevel, imaget
     }
 
     // don't ever bother with >256 textures
-    while (scaled_width > max_texture_size || scaled_height > max_texture_size) {
+    while (scaled_width > gl_config.max_texture_size ||
+           scaled_height > gl_config.max_texture_size) {
         scaled_width >>= 1;
         scaled_height >>= 1;
     }
@@ -574,7 +573,7 @@ static int GL_UpscaleLevel(int width, int height, imagetype_t type, imageflags_t
 
     maxlevel = Cvar_ClampInteger(gl_upscale_pcx, 0, 2);
     while (maxlevel) {
-        int maxsize = max_texture_size >> maxlevel;
+        int maxsize = gl_config.max_texture_size >> maxlevel;
 
         // don't bother upscaling larger than max texture size
         if (width <= maxsize && height <= maxsize)
@@ -822,8 +821,8 @@ static void GL_BuildGammaTables(void)
 static void gl_gamma_changed(cvar_t *self)
 {
     GL_BuildGammaTables();
-    if (vid.update_gamma)
-        vid.update_gamma(gammatable);
+    if (vid && vid->update_gamma)
+        vid->update_gamma(gammatable);
 }
 
 static const byte dottexture[8][8] = {
@@ -1020,14 +1019,11 @@ GL_InitImages
 */
 void GL_InitImages(void)
 {
-    GLint integer = 0;
-
     gl_bilerp_chars = Cvar_Get("gl_bilerp_chars", "0", 0);
     gl_bilerp_chars->changed = gl_bilerp_chars_changed;
     gl_bilerp_pics = Cvar_Get("gl_bilerp_pics", "1", 0);
     gl_bilerp_pics->changed = gl_bilerp_pics_changed;
-    gl_texturemode = Cvar_Get("gl_texturemode",
-                              "GL_LINEAR_MIPMAP_LINEAR", CVAR_ARCHIVE);
+    gl_texturemode = Cvar_Get("gl_texturemode", "GL_LINEAR_MIPMAP_LINEAR", CVAR_ARCHIVE);
     gl_texturemode->changed = gl_texturemode_changed;
     gl_texturemode->generator = gl_texturemode_g;
     gl_texturebits = Cvar_Get("gl_texturebits", "0", CVAR_FILES);
@@ -1057,14 +1053,6 @@ void GL_InitImages(void)
         gl_intensity->flags &= ~CVAR_FILES;
     else
         gl_intensity->flags |= CVAR_FILES;
-
-    qglGetIntegerv(GL_MAX_TEXTURE_SIZE, &integer);
-
-    if (integer & (integer - 1)) {
-        integer = Q_npot32(integer) >> 1;
-    }
-
-    max_texture_size = min(integer, MAX_TEXTURE_SIZE);
 
     IMG_Init();
 

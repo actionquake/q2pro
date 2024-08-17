@@ -479,7 +479,8 @@ should do it for us by providing some SVF_* flag or something.
 */
 static bool player_is_active(const edict_t *ent)
 {
-    int num;
+    int num, pm_type, pm_flags;
+    float fov;
 
     if ((g_features->integer & GMF_PROPERINUSE) && !ent->inuse) {
         return false;
@@ -503,8 +504,20 @@ static bool player_is_active(const edict_t *ent)
         }
     }
 
+    if (IS_NEW_GAME_API) {
+        const gclient_new_t *cl = ent->client;
+        pm_type  = cl->ps.pmove.pm_type;
+        pm_flags = cl->ps.pmove.pm_flags;
+        fov      = cl->ps.fov;
+    } else {
+        const gclient_old_t *cl = ent->client;
+        pm_type  = cl->ps.pmove.pm_type;
+        pm_flags = cl->ps.pmove.pm_flags;
+        fov      = cl->ps.fov;
+    }
+
     // first of all, make sure player_state_t is valid
-    if (!ent->client->ps.fov) {
+    if (!fov) {
         return false;
     }
 
@@ -514,7 +527,7 @@ static bool player_is_active(const edict_t *ent)
     }
 
     // never capture spectators
-    if (ent->client->ps.pmove.pm_type == PM_SPECTATOR) {
+    if (pm_type == PM_SPECTATOR) {
         return false;
     }
 
@@ -532,12 +545,12 @@ static bool player_is_active(const edict_t *ent)
     }
 
     // they are likely following someone in case of PM_FREEZE
-    if (ent->client->ps.pmove.pm_type == PM_FREEZE) {
+    if (pm_type == PM_FREEZE) {
         return false;
     }
 
     // they are likely following someone if PMF_NO_PREDICTION is set
-    if (ent->client->ps.pmove.pm_flags & PMF_NO_PREDICTION) {
+    if (pm_flags & PMF_NO_PREDICTION) {
         return false;
     }
 
@@ -574,7 +587,10 @@ static void build_gamestate(void)
             continue;
         }
 
-        MSG_PackPlayer(&mvd.players[i], &ent->client->ps);
+        if (IS_NEW_GAME_API)
+            MSG_PackPlayerNew(&mvd.players[i], ent->client);
+        else
+            MSG_PackPlayerOld(&mvd.players[i], ent->client);
         PPS_INUSE(&mvd.players[i]) = true;
     }
 
@@ -588,8 +604,6 @@ static void build_gamestate(void)
 
         SV_CheckEntityNumber(ent, i);
         MSG_PackEntity(&mvd.entities[i], &ent->s, ENT_EXTENSION(&svs.csr, ent));
-        if (svs.csr.extended)
-            mvd.entities[i].solid = sv.entities[i].solid32;
     }
 }
 
@@ -602,7 +616,7 @@ static void emit_gamestate(void)
     player_packed_t *ps;
     entity_packed_t *es;
     size_t      length;
-    int         flags, extra, portalbytes;
+    int         flags, portalbytes;
     byte        portalbits[MAX_MAP_PORTAL_BYTES];
 
     // don't bother writing if there are no active MVD clients
@@ -610,22 +624,25 @@ static void emit_gamestate(void)
         return;
     }
 
-    // pack MVD stream flags into extra bits
-    extra = 0;
-    if (sv_mvd_nomsgs->integer && mvd.dummy) {
-        extra |= MVF_NOMSGS << SVCMD_BITS;
-    }
-    if (svs.csr.extended) {
-        extra |= MVF_EXTLIMITS << SVCMD_BITS;
-    }
+    // setup MVD stream flags
+    flags = 0;
+    if (sv_mvd_nomsgs->integer && mvd.dummy)
+        flags |= MVF_NOMSGS;
 
     // send the serverdata
-    MSG_WriteByte(mvd_serverdata | extra);
-    MSG_WriteLong(PROTOCOL_VERSION_MVD);
-    if (svs.csr.extended)
+    if (svs.csr.extended) {
+        flags |= MVF_EXTLIMITS;
+        if (IS_NEW_GAME_API)
+            flags |= MVF_EXTLIMITS_2;
+        MSG_WriteByte(mvd_serverdata);
+        MSG_WriteLong(PROTOCOL_VERSION_MVD);
         MSG_WriteShort(PROTOCOL_VERSION_MVD_CURRENT);
-    else
+        MSG_WriteShort(flags);
+    } else {
+        MSG_WriteByte(mvd_serverdata | (flags << SVCMD_BITS));
+        MSG_WriteLong(PROTOCOL_VERSION_MVD);
         MSG_WriteShort(PROTOCOL_VERSION_MVD_DEFAULT);
+    }
     MSG_WriteLong(sv.spawncount);
     MSG_WriteString(fs_game->string);
     if (mvd.dummy)
@@ -681,33 +698,6 @@ static void emit_gamestate(void)
     MSG_WriteShort(0);
 }
 
-static void copy_entity_state(entity_packed_t *dst, const entity_packed_t *src, int flags)
-{
-    if (!(flags & MSG_ES_FIRSTPERSON)) {
-        VectorCopy(src->origin, dst->origin);
-        VectorCopy(src->angles, dst->angles);
-        VectorCopy(src->old_origin, dst->old_origin);
-    }
-    dst->modelindex = src->modelindex;
-    dst->modelindex2 = src->modelindex2;
-    dst->modelindex3 = src->modelindex3;
-    dst->modelindex4 = src->modelindex4;
-    dst->frame = src->frame;
-    dst->skinnum = src->skinnum;
-    dst->effects = src->effects;
-    dst->renderfx = src->renderfx;
-    dst->solid = src->solid;
-    dst->sound = src->sound;
-    dst->event = 0;
-    if (svs.csr.extended) {
-        dst->morefx = src->morefx;
-        dst->alpha = src->alpha;
-        dst->scale = src->scale;
-        dst->loop_volume = src->loop_volume;
-        dst->loop_attenuation = src->loop_attenuation;
-    }
-}
-
 /*
 Builds a new delta compressed MVD frame by capturing all entity and player
 states and calculating portalbits. The same frame is used for all MVD clients,
@@ -715,10 +705,10 @@ as well as local recorder.
 */
 static void emit_frame(void)
 {
-    player_packed_t *oldps, newps;
-    entity_packed_t *oldes, newes;
 	entity_state_t ent_state;
 	int	ent_active;
+    player_packed_t *oldps, newps = { 0 };
+    entity_packed_t *oldes, newes = { 0 };
     edict_t *ent;
     int flags, portalbytes;
     byte portalbits[MAX_MAP_PORTAL_BYTES];
@@ -746,7 +736,10 @@ static void emit_frame(void)
         }
 
         // quantize
-        MSG_PackPlayer(&newps, &ent->client->ps);
+        if (IS_NEW_GAME_API)
+            MSG_PackPlayerNew(&newps, ent->client);
+        else
+            MSG_PackPlayerOld(&newps, ent->client);
 
         if (PPS_INUSE(oldps)) {
             // delta update from old position
@@ -793,6 +786,7 @@ static void emit_frame(void)
 
         // calculate flags
         flags = mvd.esFlags;
+        oldps = NULL; // shut up compiler
         if (i <= sv_maxclients->integer) {
             oldps = &mvd.players[i - 1];
             if (PPS_INUSE(oldps) && oldps->pmove.pm_type == PM_NORMAL) {
@@ -809,14 +803,15 @@ static void emit_frame(void)
 
         // quantize
         MSG_PackEntity(&newes, &ent->s, ENT_EXTENSION(&svs.csr, ent));
-        if (svs.csr.extended)
-            newes.solid = sv.entities[i].solid32;
 
         MSG_WriteDeltaEntity(oldes, &newes, flags);
 
         // shuffle current state to previous
-        copy_entity_state(oldes, &newes, flags);
-        oldes->number = i;
+        *oldes = newes;
+
+        // fixup origin for next delta
+        if (flags & MSG_ES_FIRSTPERSON)
+            VectorCopy(oldps->pmove.origin, oldes->origin);
     }
 
     MSG_WriteShort(0);      // end of packetentities
@@ -2136,12 +2131,19 @@ void SV_MvdPostInit(void)
     if (sv_mvd_noblend->integer) {
         mvd.psFlags |= MSG_PS_IGNORE_BLEND;
     }
+
     if (sv_mvd_nogun->integer) {
         mvd.psFlags |= MSG_PS_IGNORE_GUNINDEX | MSG_PS_IGNORE_GUNFRAMES;
     }
+
     if (svs.csr.extended) {
         mvd.esFlags |= MSG_ES_LONGSOLID | MSG_ES_SHORTANGLES | MSG_ES_EXTENSIONS;
         mvd.psFlags |= MSG_PS_EXTENSIONS;
+
+        if (IS_NEW_GAME_API) {
+            mvd.esFlags |= MSG_ES_EXTENSIONS_2;
+            mvd.psFlags |= MSG_PS_EXTENSIONS_2;
+        }
     }
 }
 

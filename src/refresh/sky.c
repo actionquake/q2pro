@@ -234,13 +234,13 @@ R_AddSkySurface
 */
 void R_AddSkySurface(const mface_t *fa)
 {
-    int         i;
-    vec3_t      verts[MAX_CLIP_VERTS];
-    vec3_t      temp;
-    msurfedge_t *surfedge;
-    mvertex_t   *vert;
-    medge_t     *edge;
-    bsp_t       *bsp = gl_static.world.cache;
+    int                 i;
+    vec3_t              verts[MAX_CLIP_VERTS];
+    vec3_t              temp;
+    const msurfedge_t   *surfedge;
+    const mvertex_t     *vert;
+    const medge_t       *edge;
+    const bsp_t         *bsp = gl_static.world.cache;
 
     if (fa->numsurfedges > MAX_CLIP_VERTS) {
         Com_DPrintf("%s: too many verts\n", __func__);
@@ -328,7 +328,6 @@ R_DrawSkyBox
 */
 void R_DrawSkyBox(void)
 {
-    vec5_t verts[4];
     int i;
 
     // check for no sky at all
@@ -337,8 +336,8 @@ void R_DrawSkyBox(void)
 
     GL_StateBits(GLS_TEXTURE_REPLACE);
     GL_ArrayBits(GLA_VERTEX | GLA_TC);
-    GL_VertexPointer(3, 5, &verts[0][0]);
-    GL_TexCoordPointer(2, 5, &verts[0][3]);
+    GL_VertexPointer(3, 5, tess.vertices);
+    GL_TexCoordPointer(2, 5, tess.vertices + 3);
 
     for (i = 0; i < 6; i++) {
         if (skymins[0][i] >= skymaxs[0][i] ||
@@ -347,11 +346,13 @@ void R_DrawSkyBox(void)
 
         GL_BindTexture(0, sky_images[i]);
 
-        MakeSkyVec(skymaxs[0][i], skymins[1][i], i, verts[0]);
-        MakeSkyVec(skymins[0][i], skymins[1][i], i, verts[1]);
-        MakeSkyVec(skymaxs[0][i], skymaxs[1][i], i, verts[2]);
-        MakeSkyVec(skymins[0][i], skymaxs[1][i], i, verts[3]);
+        MakeSkyVec(skymaxs[0][i], skymins[1][i], i, tess.vertices);
+        MakeSkyVec(skymins[0][i], skymins[1][i], i, tess.vertices +  5);
+        MakeSkyVec(skymaxs[0][i], skymaxs[1][i], i, tess.vertices + 10);
+        MakeSkyVec(skymins[0][i], skymaxs[1][i], i, tess.vertices + 15);
+        GL_LockArrays(4);
         qglDrawArrays(GL_TRIANGLE_STRIP, 0, 4);
+        GL_UnlockArrays();
     }
 }
 

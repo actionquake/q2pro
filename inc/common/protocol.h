@@ -24,35 +24,38 @@ with this program; if not, write to the Free Software Foundation, Inc.,
 
 #define MAX_MSGLEN  0x8000      // max length of a message, 32 KiB
 
-#define PROTOCOL_VERSION_OLD        26
-#define PROTOCOL_VERSION_DEFAULT    34
-#define PROTOCOL_VERSION_R1Q2       35
-#define PROTOCOL_VERSION_Q2PRO      36
-#define PROTOCOL_VERSION_MVD        37 // not used for UDP connections
-#define PROTOCOL_VERSION_AQTION     38
-#define PROTOCOL_VERSION_EXTENDED   3434
+#define PROTOCOL_VERSION_OLD            26
+#define PROTOCOL_VERSION_DEFAULT        34
+#define PROTOCOL_VERSION_R1Q2           35
+#define PROTOCOL_VERSION_Q2PRO          36
+#define PROTOCOL_VERSION_MVD            37      // not used for UDP connections
+#define PROTOCOL_VERSION_AQTION         38
+#define PROTOCOL_VERSION_EXTENDED_OLD   3434
+#define PROTOCOL_VERSION_EXTENDED       3435
 
 #define PROTOCOL_VERSION_R1Q2_MINIMUM           1903    // b6377
 #define PROTOCOL_VERSION_R1Q2_UCMD              1904    // b7387
 #define PROTOCOL_VERSION_R1Q2_LONG_SOLID        1905    // b7759
 #define PROTOCOL_VERSION_R1Q2_CURRENT           1905    // b7759
 
-#define PROTOCOL_VERSION_Q2PRO_MINIMUM          1015    // r335
-#define PROTOCOL_VERSION_Q2PRO_RESERVED         1016    // r364
-#define PROTOCOL_VERSION_Q2PRO_BEAM_ORIGIN      1017    // r1037-8
-#define PROTOCOL_VERSION_Q2PRO_SHORT_ANGLES     1018    // r1037-44
-#define PROTOCOL_VERSION_Q2PRO_SERVER_STATE     1019    // r1302
-#define PROTOCOL_VERSION_Q2PRO_EXTENDED_LAYOUT  1020    // r1354
-#define PROTOCOL_VERSION_Q2PRO_ZLIB_DOWNLOADS   1021    // r1358
-#define PROTOCOL_VERSION_Q2PRO_CLIENTNUM_SHORT  1022    // r2161
-#define PROTOCOL_VERSION_Q2PRO_CINEMATICS       1023    // r2263
-#define PROTOCOL_VERSION_Q2PRO_EXTENDED_LIMITS  1024    // r2894
-#define PROTOCOL_VERSION_Q2PRO_CURRENT          1024    // r2894
+#define PROTOCOL_VERSION_Q2PRO_MINIMUM              1015    // r335
+#define PROTOCOL_VERSION_Q2PRO_RESERVED             1016    // r364
+#define PROTOCOL_VERSION_Q2PRO_BEAM_ORIGIN          1017    // r1037-8
+#define PROTOCOL_VERSION_Q2PRO_SHORT_ANGLES         1018    // r1037-44
+#define PROTOCOL_VERSION_Q2PRO_SERVER_STATE         1019    // r1302
+#define PROTOCOL_VERSION_Q2PRO_EXTENDED_LAYOUT      1020    // r1354
+#define PROTOCOL_VERSION_Q2PRO_ZLIB_DOWNLOADS       1021    // r1358
+#define PROTOCOL_VERSION_Q2PRO_CLIENTNUM_SHORT      1022    // r2161
+#define PROTOCOL_VERSION_Q2PRO_CINEMATICS           1023    // r2263
+#define PROTOCOL_VERSION_Q2PRO_EXTENDED_LIMITS      1024    // r2894
+#define PROTOCOL_VERSION_Q2PRO_EXTENDED_LIMITS_2    1025    // r3300
+#define PROTOCOL_VERSION_Q2PRO_CURRENT              1025    // r3300
 
 #define PROTOCOL_VERSION_MVD_MINIMUM            2009    // r168
 #define PROTOCOL_VERSION_MVD_DEFAULT            2010    // r177
 #define PROTOCOL_VERSION_MVD_EXTENDED_LIMITS    2011    // r2894
-#define PROTOCOL_VERSION_MVD_CURRENT            2011    // r2894
+#define PROTOCOL_VERSION_MVD_EXTENDED_LIMITS_2  2012    // r3300
+#define PROTOCOL_VERSION_MVD_CURRENT            2012    // r3300
 
 
 #define PROTOCOL_VERSION_AQTION_MINIMUM         3011	//  minimum is equivalent to PROTOCOL_VERSION_Q2PRO_ZLIB_DOWNLOADS
@@ -92,6 +95,7 @@ with this program; if not, write to the Free Software Foundation, Inc.,
 #define Q2PRO_PF_QW_MODE            BIT(1)
 #define Q2PRO_PF_WATERJUMP_HACK     BIT(2)
 #define Q2PRO_PF_EXTENSIONS         BIT(3)
+#define Q2PRO_PF_EXTENSIONS_2       BIT(4)
 
 //=========================================
 
@@ -157,13 +161,13 @@ typedef enum {
     svc_deltapacketentities,    // [...]
     svc_frame,
 
-    // r1q2 specific operations
+    // R1Q2 specific operations
     svc_zpacket,
     svc_zdownload,
-    svc_gamestate, // q2pro specific, means svc_playerupdate in r1q2
+    svc_gamestate, // Q2PRO specific, means svc_playerupdate in R1Q2
     svc_setting,
 
-    // q2pro rerelease
+    // Q2PRO specific operations
     svc_configstringstream,
     svc_baselinestream,
 
@@ -204,11 +208,12 @@ typedef enum {
     mvd_num_types
 } mvd_ops_t;
 
-// MVD stream flags (only 3 bits can be used)
+// MVD stream flags
 typedef enum {
     MVF_NOMSGS      = BIT(0),
     MVF_SINGLEPOV   = BIT(1),
-    MVF_EXTLIMITS   = BIT(2)
+    MVF_EXTLIMITS   = BIT(2),
+    MVF_EXTLIMITS_2 = BIT(3),
 } mvd_flags_t;
 
 //==============================================
@@ -223,15 +228,15 @@ typedef enum {
 	clc_userinfo,           // [userinfo string]
 	clc_stringcmd,          // [string] message
 
-	// r1q2 specific operations
-	clc_setting,
+    // R1Q2 specific operations
+    clc_setting,
 
-	// q2pro specific operations
-	clc_move_nodelta = 10,
-	clc_move_batched,
-	clc_userinfo_delta,
+    // Q2PRO specific operations
+    clc_move_nodelta = 10,
+    clc_move_batched,
+    clc_userinfo_delta,
 
-	// AQtion specific operations
+    // AQtion specific operations
 	clc_cvarsync = 50,
 } clc_ops_t;
 
@@ -257,7 +262,7 @@ typedef enum {
 #define PS_RDFLAGS          BIT(14)
 #define PS_RESERVED         BIT(15)
 
-// r1q2 protocol specific extra flags
+// R1Q2 protocol specific extra flags
 #define EPS_GUNOFFSET       BIT(0)
 #define EPS_GUNANGLES       BIT(1)
 #define EPS_M_VELOCITY2     BIT(2)
@@ -265,7 +270,7 @@ typedef enum {
 #define EPS_VIEWANGLE2      BIT(4)
 #define EPS_STATS           BIT(5)
 
-// q2pro protocol specific extra flags
+// Q2PRO protocol specific extra flags
 #define EPS_CLIENTNUM       BIT(6)
 
 // aqtion protocol specific flags
@@ -314,7 +319,7 @@ typedef enum {
 #define CM_BUTTONS      BIT(6)
 #define CM_IMPULSE      BIT(7)
 
-// r1q2 button byte hacks
+// R1Q2 button byte hacks
 #define BUTTON_MASK     (BUTTON_ATTACK|BUTTON_USE|BUTTON_ANY)
 #define BUTTON_FORWARD  BIT(2)
 #define BUTTON_SIDE     BIT(3)
@@ -397,14 +402,14 @@ typedef enum {
 #define PACKED_BSP      31
 
 typedef enum {
-    // r1q2 specific
+    // R1Q2 specific
     CLS_NOGUN,
     CLS_NOBLEND,
     CLS_RECORDING,
     CLS_PLAYERUPDATES,
     CLS_FPS,
 
-    // q2pro specific
+    // Q2PRO specific
     CLS_NOGIBS            = 10,
     CLS_NOFOOTSTEPS,
     CLS_NOPREDICT,
@@ -414,7 +419,7 @@ typedef enum {
 } clientSetting_t;
 
 typedef enum {
-    // r1q2 specific
+    // R1Q2 specific
     SVS_PLAYERUPDATES,
     SVS_FPS,
 	SVS_VIEW_LOW,
@@ -422,7 +427,7 @@ typedef enum {
     SVS_MAX
 } serverSetting_t;
 
-// q2pro frame flags sent by the server
+// Q2PRO frame flags sent by the server
 // only SUPPRESSCOUNT_BITS can be used
 #define FF_SUPPRESSED   BIT(0)
 #define FF_CLIENTDROP   BIT(1)

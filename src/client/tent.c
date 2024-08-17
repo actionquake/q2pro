@@ -34,7 +34,12 @@ qhandle_t   cl_sfx_watrexp;
 qhandle_t   cl_sfx_footsteps[12];
 qhandle_t   cl_sfx_landing[8];
 
-//qhandle_t   cl_mod_explode;
+qhandle_t   cl_sfx_lightning;
+qhandle_t   cl_sfx_disrexp;
+
+qhandle_t   cl_sfx_hit_marker;
+
+qhandle_t   cl_mod_explode;
 qhandle_t   cl_mod_smoke;
 qhandle_t   cl_mod_flash;
 qhandle_t   cl_mod_parasite_segment;
@@ -47,13 +52,13 @@ qhandle_t   cl_mod_dmspot;
 
 qhandle_t   cl_mod_lightning;
 qhandle_t   cl_mod_heatbeam;
-qhandle_t   cl_mod_explo4_big;
 
 qhandle_t   cl_mod_muzzles[MFLASH_TOTAL];
 
 qhandle_t   cl_img_flare;
 
 static cvar_t   *cl_muzzleflashes;
+static cvar_t   *cl_hit_markers;
 
 #define MAX_FOOTSTEP_SFX    9
 
@@ -306,7 +311,27 @@ void CL_RegisterTEntSounds(void)
 
     CL_RegisterFootsteps();
     CL_RegisterAQtionSounds();
+
+    cl_sfx_lightning = S_RegisterSound("weapons/tesla.wav");
+    cl_sfx_disrexp = S_RegisterSound("weapons/disrupthit.wav");
+
+    cl_sfx_hit_marker = S_RegisterSound("weapons/marker.wav");
 }
+
+static const char *const muzzlenames[MFLASH_TOTAL] = {
+    [MFLASH_MACHN]     = "v_machn",
+    [MFLASH_SHOTG2]    = "v_shotg2",
+    [MFLASH_SHOTG]     = "v_shotg",
+    [MFLASH_ROCKET]    = "v_rocket",
+    [MFLASH_RAIL]      = "v_rail",
+    [MFLASH_LAUNCH]    = "v_launch",
+    [MFLASH_ETF_RIFLE] = "v_etf_rifle",
+    [MFLASH_DIST]      = "v_dist",
+    [MFLASH_BOOMER]    = "v_boomer",
+    [MFLASH_BLAST]     = "v_blast",
+    [MFLASH_BFG]       = "v_bfg",
+    [MFLASH_BEAMER]    = "v_beamer",
+};
 
 /*
 =================
@@ -332,20 +357,9 @@ void CL_RegisterTEntModels(void)
 
     cl_mod_lightning = R_RegisterModel("models/proj/lightning/tris.md2");
     cl_mod_heatbeam = R_RegisterModel("models/proj/beam/tris.md2");
-    cl_mod_explo4_big = R_RegisterModel("models/objects/r_explode2/tris.md2");
 
-    cl_mod_muzzles[MFLASH_MACHN] = R_RegisterModel("models/weapons/v_machn/flash/tris.md2");
-    cl_mod_muzzles[MFLASH_SHOTG2] = R_RegisterModel("models/weapons/v_shotg2/flash/tris.md2");
-    cl_mod_muzzles[MFLASH_SHOTG] = R_RegisterModel("models/weapons/v_shotg/flash/tris.md2");
-    cl_mod_muzzles[MFLASH_ROCKET] = R_RegisterModel("models/weapons/v_rocket/flash/tris.md2");
-    cl_mod_muzzles[MFLASH_RAIL] = R_RegisterModel("models/weapons/v_rail/flash/tris.md2");
-    cl_mod_muzzles[MFLASH_LAUNCH] = R_RegisterModel("models/weapons/v_launch/flash/tris.md2");
-    cl_mod_muzzles[MFLASH_ETF_RIFLE] = R_RegisterModel("models/weapons/v_etf_rifle/flash/tris.md2");
-    cl_mod_muzzles[MFLASH_DIST] = R_RegisterModel("models/weapons/v_dist/flash/tris.md2");
-    cl_mod_muzzles[MFLASH_BOOMER] = R_RegisterModel("models/weapons/v_boomer/flash/tris.md2");
-    cl_mod_muzzles[MFLASH_BLAST] = R_RegisterModel("models/weapons/v_blast/flash/tris.md2");
-    cl_mod_muzzles[MFLASH_BFG] = R_RegisterModel("models/weapons/v_bfg/flash/tris.md2");
-    cl_mod_muzzles[MFLASH_BEAMER] = R_RegisterModel("models/weapons/v_beamer/flash/tris.md2");
+    for (int i = 0; i < MFLASH_TOTAL; i++)
+        cl_mod_muzzles[i] = R_RegisterModel(va("models/weapons/%s/flash/tris.md2", muzzlenames[i]));
 
     cl_img_flare = R_RegisterSprite("misc/flare.tga");
 
@@ -829,7 +843,7 @@ void CL_DrawBeam(const vec3_t start, const vec3_t end, qhandle_t model)
         ent.flags = RF_FULLBRIGHT;
         ent.angles[0] = angles[0];
         ent.angles[1] = angles[1];
-        ent.angles[2] = Q_rand() % 360;
+        ent.angles[2] = CL_rand() % 360;
         V_AddEntity(&ent);
         return;
     }
@@ -845,11 +859,11 @@ void CL_DrawBeam(const vec3_t start, const vec3_t end, qhandle_t model)
             ent.flags = RF_FULLBRIGHT;
             ent.angles[0] = -angles[0];
             ent.angles[1] = angles[1] + 180.0f;
-            ent.angles[2] = Q_rand() % 360;
+            ent.angles[2] = CL_rand() % 360;
         } else {
             ent.angles[0] = angles[0];
             ent.angles[1] = angles[1];
-            ent.angles[2] = Q_rand() % 360;
+            ent.angles[2] = CL_rand() % 360;
         }
 
         V_AddEntity(&ent);
@@ -1011,7 +1025,7 @@ static void CL_AddPlayerBeams(void)
             ent.flags = RF_FULLBRIGHT;
             ent.angles[0] = angles[0];
             ent.angles[1] = angles[1];
-            ent.angles[2] = Q_rand() % 360;
+            ent.angles[2] = CL_rand() % 360;
             V_AddEntity(&ent);
             continue;
         }
@@ -1033,11 +1047,11 @@ static void CL_AddPlayerBeams(void)
                 ent.flags = RF_FULLBRIGHT;
                 ent.angles[0] = -angles[0];
                 ent.angles[1] = angles[1] + 180.0f;
-                ent.angles[2] = Q_rand() % 360;
+                ent.angles[2] = CL_rand() % 360;
             } else {
                 ent.angles[0] = angles[0];
                 ent.angles[1] = angles[1];
-                ent.angles[2] = Q_rand() % 360;
+                ent.angles[2] = CL_rand() % 360;
             }
 
             V_AddEntity(&ent);
@@ -1454,7 +1468,8 @@ void CL_ParseTEnt(void)
 
     case TE_EXPLOSION1_BIG:
         ex = CL_PlainExplosion();
-        ex->ent.model = cl_mod_explo4_big;
+        ex->ent.model = cl_mod_explo4;
+        ex->ent.scale = 2.0f;
         S_StartSound(te.pos1, 0, 0, cl_sfx_rockexp, 1, ATTN_NORM, 0);
         break;
 
@@ -1640,6 +1655,15 @@ void CL_ParseTEnt(void)
         CL_PowerSplash();
         break;
 
+    case TE_DAMAGE_DEALT:
+        if (te.count > 0 && cl_hit_markers->integer > 0) {
+            cl.hit_marker_time = cls.realtime;
+            cl.hit_marker_count = te.count;
+            if (cl_hit_markers->integer > 1)
+                S_StartSound(NULL, listener_entnum, 257, cl_sfx_hit_marker, 1, ATTN_NONE, 0);
+        }
+        break;
+
     default:
         Com_Error(ERR_DROP, "%s: bad type", __func__);
     }
@@ -1675,6 +1699,7 @@ void CL_ClearTEnts(void)
 void CL_InitTEnts(void)
 {
     cl_muzzleflashes = Cvar_Get("cl_muzzleflashes", "1", 0);
+    cl_hit_markers = Cvar_Get("cl_hit_markers", "2", 0);
     cl_railtrail_type = Cvar_Get("cl_railtrail_type", "0", 0);
     cl_railtrail_time = Cvar_Get("cl_railtrail_time", "1.0", 0);
     cl_railtrail_time->changed = cl_timeout_changed;

@@ -269,7 +269,13 @@ cl_gun_z::
     Specifies custom gun model offset. Default value is 0.
 
 cl_muzzleflashes::
-    Specifies if muzzleflash effects are enabled. Default value is 1.
+    Specifies if re-release muzzleflash effects are enabled. Default value is 1.
+
+cl_hit_markers::
+    Specifies if re-release hit marker effects are enabled. Default value is 2.
+      - 0 — hit marker effects disabled
+      - 1 — draw hit marker
+      - 2 — draw hit marker and play hit sound
 
 Sound Subsystem
 ~~~~~~~~~~~~~~~
@@ -566,6 +572,10 @@ xhair_y::
     the default position in center of the game screen. Default values are 0
     (draw in center).
 
+scr_hit_marker_time::
+    Hit marker visibility time in milliseconds. Hit marker is only visible if
+    crosshair is visible. Default value is 500.
+
 Video Modes
 ~~~~~~~~~~~
 
@@ -703,6 +713,10 @@ gl_drawsky::
 gl_waterwarp::
     Enable screen warping effect when underwater. Only effective when using
     GLSL backend. Default value is 0 (disabled).
+
+gl_flarespeed::
+    Specifies flare fading effect speed. Default value is 8. Set this to 0
+    to disable fading.
 
 gl_fontshadow::
     Specifies font shadow width, in pixels, ranging from 0 to 2. Default value
@@ -876,6 +890,11 @@ gl_md5_use::
     Enables use of MD5 replacement models as found in re-release. Only
     effective if ‘gl_md5_load’ is enabled. Default value is 1.
 
+gl_md5_distance::
+    Only use MD5 replacement model if entity is closer than this distance to
+    the viewer, otherwise use original model. Default value is 2048. Setting
+    this to 0 disables distance LOD.
+
 gl_glowmap_intensity::
     Intensity factor for entity glowmaps. Default value is 0.75.
 
@@ -912,8 +931,8 @@ When Q2PRO attempts to load an alias model from disk, it determines actual
 model format by file contents, rather than by filename extension. Therefore, if
 you wish to override MD2 model with MD3 replacement, simply rename the MD3
 model to ‘tris.md2’ and place it in appropriate packfile to make sure it gets
-loaded first. Note that MD5 models can't be loaded this way, see ‘gl_md5_’
-variables.
+loaded first. MD5 overrides don't work this way, use ‘gl_md5_’ variables to
+control that.
 ********************
 
 
@@ -1274,6 +1293,16 @@ NOTE: By default, during demo playback, Q2PRO overrides FOV value stored in
 demo file with value of local ‘fov’ variable, unless stored FOV value is less
 than 90. This behavior can be changed with ‘uf’ variable (see above).
 
+NOTE: Recommened way to play demos in Q2PRO is the ‘demo’ command, but
+‘demomap’ is still supported for compatibility. Playing demos using ‘demomap’
+enables some compatibility options, such as hiding player gun in wide angle
+view.
+
+WARNING: Unlike ‘demo’ command, ‘demomap’ allows executing stufftext commands
+from demos. Demos may change client settings, trick the client into connecting
+to random servers, and have other security implications. Only play demos from
+trusted sources using ‘demomap’!
+
 seek [+-]<timespec|percent>[%]::
     Seeks the given amount of time during demo playback.  Prepend with ‘+’ to
     seek forward relative to current position, prepend with ‘-’ to seek
@@ -1621,20 +1650,21 @@ it used to be you know where to look. The following list may be incomplete.
   separate modulation factors for world lightmaps and entities please use
   ‘gl_modulate_world’ and ‘gl_modulate_entities’ variables.
 
-- Default value of R1GL-specific ‘gl_dlight_falloff’ variable has been changed
-  from 0 to 1.
+- R1GL-specific ‘gl_dlight_falloff’ variable is supported, but its default has
+  been changed from 0 to 1.
 
 - ‘gl_particle_*’ series of variables are gone, as well as
-  ‘gl_ext_pointparameters’ and R1GL-specific ‘gl_ext_point_sprite’. For
-  controlling size of particles, which are always drawn as textured triangles,
-  Q2PRO supports its own ‘gl_partscale’ variable.
+  ‘gl_ext_pointparameters’. For controlling size of particles, which are always
+  drawn as textured triangles, Q2PRO supports its own ‘gl_partscale’ variable.
 
 - ‘ip’ variable has been renamed to ‘net_ip’.
 
 - ‘clientport’ variable has been renamed to ‘net_clientport’, and
   ‘ip_clientport’ alias is no longer supported.
 
-- ‘demomap’ command has been removed in favor of ‘demo’ and ‘mvdplay’.
+- ‘demomap’ command is emulated: if filename with ‘.dm2’ extension is specified,
+  client side demo playback is started. Otherwise ‘demomap’ command is equivalent
+  to ‘gamemap’ (attract loop mode is not supported).
 
 - Q2PRO works only with virtual paths constrained to the quake file system.
   All paths are normalized before use so that it is impossible to go past virtual
@@ -1652,5 +1682,5 @@ it used to be you know where to look. The following list may be incomplete.
 - Single player savegame format has been rewritten from scratch for better
   robustness and portability. Only the ‘baseq2’ game library included in Q2PRO
   distribution has been converted to use the new improved savegame format. Q2PRO
-  will refuse to load and save games in old format for security reasons.
-
+  will refuse to load and save games in old format for security reasons, unless
+  ‘sys_allow_unsafe_savegames’ is set to 1 from the command line (not recommended).

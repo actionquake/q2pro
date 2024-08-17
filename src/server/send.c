@@ -556,11 +556,8 @@ static void emit_snd(const client_t *client, const message_packet_t *msg)
 
     MSG_WriteShort(msg->sendchan);
 
-    if (flags & SND_POS) {
-        for (int i = 0; i < 3; i++) {
-            MSG_WriteShort(msg->pos[i]);
-        }
-    }
+    if (flags & SND_POS)
+        MSG_WriteIntPos(msg->pos, client->esFlags & MSG_ES_EXTENSIONS_2);
 }
 
 static inline void write_snd(client_t *client, message_packet_t *msg, unsigned maxsize)
@@ -665,7 +662,7 @@ static void repack_unreliables(client_t *client, unsigned maxsize)
         if (msg->cursize == SOUND_PACKET || msg->data[0] != svc_temp_entity) {
             continue;
         }
-        // ignore some low-priority effects, these checks come from r1q2
+        // ignore some low-priority effects, these checks come from R1Q2
         if (msg->data[1] == TE_BLOOD || msg->data[1] == TE_SPLASH ||
             msg->data[1] == TE_GUNSHOT || msg->data[1] == TE_BULLET_SPARKS ||
             msg->data[1] == TE_SHOTGUN) {

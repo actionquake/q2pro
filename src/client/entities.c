@@ -679,7 +679,7 @@ static void CL_AddPacketEntities(void)
         if (renderfx & RF_BEAM) {
             // the four beam colors are encoded in 32 bits of skinnum (hack)
             ent.alpha = 0.30f;
-            ent.skinnum = (s1->skinnum >> ((Q_rand() % 4) * 8)) & 0xff;
+            ent.skinnum = (s1->skinnum >> ((CL_rand() % 4) * 8)) & 0xff;
             ent.model = 0;
         } else {
             // set skin
@@ -990,7 +990,7 @@ static void CL_AddPacketEntities(void)
         } else if (effects & EF_TRAP) {
             ent.origin[2] += 32;
             CL_TrapParticles(cent, ent.origin);
-            i = (Q_rand() % 100) + 100;
+            i = (CL_rand() % 100) + 100;
             V_AddLight(ent.origin, i, 1, 0.8f, 0.1f);
         } else if (effects & EF_FLAG1) {
             CL_FlagTrail(cent->lerp_origin, ent.origin, 242);
@@ -1086,8 +1086,15 @@ static void CL_AddViewWeapon(void)
         return;
     }
 
-    if (info_hand->integer == 2 && cl_gun->integer == 1) {
-        return;
+    if (cl_gun->integer == 1) {
+        // don't draw gun if in wide angle view
+        if (cls.demo.playback && cls.demo.compat && cl.frame.ps.fov > 90) {
+            return;
+        }
+        // don't draw gun if center handed
+        if (info_hand->integer == 2) {
+            return;
+        }
     }
 
     // find states to interpolate between
@@ -1278,7 +1285,7 @@ first:
 
 static inline float lerp_client_fov(float ofov, float nfov, float lerp)
 {
-    if (cls.demo.playback) {
+    if (cls.demo.playback && !cls.demo.compat) {
         int fov = info_fov->integer;
 
         if (fov < 1)
@@ -1402,7 +1409,8 @@ void CL_CalcViewValues(void)
     }
 
     // don't interpolate blend color
-    Vector4Copy(ps->blend, cl.refdef.blend);
+    Vector4Copy(ps->blend, cl.refdef.screen_blend);
+    Vector4Copy(ps->damage_blend, cl.refdef.damage_blend);
 
 #if USE_FPS
     ps = &cl.keyframe.ps;

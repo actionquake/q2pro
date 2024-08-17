@@ -171,7 +171,7 @@ typedef struct {
     usercmd_t    cmd;
     usercmd_t    cmds[CMD_BACKUP];    // each mesage will send several old cmds
     unsigned     cmdNumber;
-    short        predicted_origins[CMD_BACKUP][3];    // for debug comparing against server
+    int          predicted_origins[CMD_BACKUP][3];    // for debug comparing against server
     client_history_t    history[CMD_BACKUP];
     unsigned    initialSeq;
 
@@ -237,6 +237,8 @@ typedef struct {
     int         keytime;
     float       keylerpfrac;
 #endif
+
+    uint32_t    rand_seed;
 
     refdef_t    refdef;
     float       fov_x;      // interpolated
@@ -322,6 +324,8 @@ typedef struct {
         } muzzle;
     } weapon;
 
+    unsigned hit_marker_time;
+    int hit_marker_count;
 } client_state_t;
 
 extern client_state_t   cl;
@@ -490,7 +494,9 @@ typedef struct {
         bool        paused;
         bool        seeking;
         bool        eof;
+        bool        compat;             // demomap compatibility mode
         msgEsFlags_t    esFlags;        // for snapshots/recording
+        msgPsFlags_t    psFlags;
     } demo;
 
 #if USE_CLIENT_GTV
@@ -638,6 +644,8 @@ static inline void CL_AdvanceValue(float *restrict val, float target, float spee
 // main.c
 //
 
+#define CL_rand()   Q_rand_state(&cl.rand_seed)
+
 void CL_Init(void);
 void CL_Quit_f(void);
 void CL_Disconnect(error_type_t type);
@@ -716,6 +724,9 @@ void CL_SendCmd(void);
 
 #define CL_ES_EXTENDED_MASK \
     (MSG_ES_LONGSOLID | MSG_ES_UMASK | MSG_ES_BEAMORIGIN | MSG_ES_SHORTANGLES | MSG_ES_EXTENSIONS)
+
+#define CL_ES_EXTENDED_MASK_2 (CL_ES_EXTENDED_MASK | MSG_ES_EXTENSIONS_2)
+#define CL_PS_EXTENDED_MASK_2 (MSG_PS_EXTENSIONS | MSG_PS_EXTENSIONS_2)
 
 typedef struct {
     int type;

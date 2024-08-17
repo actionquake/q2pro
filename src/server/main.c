@@ -21,8 +21,6 @@ with this program; if not, write to the Free Software Foundation, Inc.,
 
 bot_client_t bot_clients[MAX_CLIENTS];
 
-pmoveParams_t   sv_pmp;
-
 master_t    sv_masters[MAX_MASTERS];   // address of group servers
 
 LIST_DECL(sv_banlist);
@@ -454,7 +452,7 @@ static size_t SV_StatusString(char *status)
             }
             len = Q_snprintf(entry, sizeof(entry),
                              "%i %i \"%s\"\n",
-                             cl->edict->client->ps.stats[STAT_FRAGS],
+                             SV_GetClient_Stat(cl, STAT_FRAGS),
                              cl->ping, cl->name);
             if (len >= sizeof(entry)) {
                 continue;
@@ -865,7 +863,15 @@ static bool parse_enhanced_params(conn_params_t *p)
 	}
 
 
-    if (!CLIENT_COMPATIBLE(&svs.csr, p)) {
+    // verify protocol extensions compatibility
+    if (svs.csr.extended) {
+        int minimal = IS_NEW_GAME_API ?
+            PROTOCOL_VERSION_Q2PRO_EXTENDED_LIMITS_2 :
+            PROTOCOL_VERSION_Q2PRO_EXTENDED_LIMITS;
+
+        if (p->protocol == PROTOCOL_VERSION_Q2PRO && p->version >= minimal)
+            return true;
+
         return reject("This is a protocol limit removing enhanced server.\n"
                       "Your client version is not compatible. Make sure you are "
                       "running latest Q2PRO client version.\nYour major protocol version: %d\n "
@@ -1032,7 +1038,7 @@ static void init_pmove_and_es_flags(client_t *newcl)
     int force;
 
     // copy default pmove parameters
-    newcl->pmp = sv_pmp;
+    newcl->pmp = svs.pmp;
     newcl->pmp.airaccelerate = sv_airaccelerate->integer;
 
     // common extensions
@@ -1043,7 +1049,7 @@ static void init_pmove_and_es_flags(client_t *newcl)
     }
     newcl->pmp.strafehack = sv_strafejump_hack->integer >= force;
 
-    // r1q2 extensions
+    // R1Q2 extensions
     if (newcl->protocol == PROTOCOL_VERSION_R1Q2) {
         newcl->esFlags |= MSG_ES_BEAMORIGIN;
         if (newcl->version >= PROTOCOL_VERSION_R1Q2_LONG_SOLID) {
@@ -1051,7 +1057,7 @@ static void init_pmove_and_es_flags(client_t *newcl)
         }
     }
 
-    // q2pro extensions
+    // Q2PRO extensions
     force = 2;
     if (newcl->protocol == PROTOCOL_VERSION_Q2PRO) {
         if (sv_qwmod->integer) {
@@ -1068,6 +1074,12 @@ static void init_pmove_and_es_flags(client_t *newcl)
         }
         if (svs.csr.extended) {
             newcl->esFlags |= MSG_ES_EXTENSIONS;
+            newcl->psFlags |= MSG_PS_EXTENSIONS;
+
+            if (IS_NEW_GAME_API) {
+                newcl->esFlags |= MSG_ES_EXTENSIONS_2;
+                newcl->psFlags |= MSG_PS_EXTENSIONS_2;
+            }
         }
         force = 1;
     }
@@ -1593,7 +1605,7 @@ static void SV_CalcPings(void)
         }
 
         // let the game dll know about the ping
-        cl->edict->client->ping = cl->ping;
+        SV_SetClient_Ping(cl, cl->ping);
     }
 }
 
@@ -2440,9 +2452,6 @@ void SV_Init(void)
     sv.framerate = BASE_FRAMERATE;
     sv.frametime = Com_ComputeFrametime(sv.framerate);
 #endif
-
-    // set up default pmove parameters
-    PmoveInit(&sv_pmp);
 
 #if USE_SYSCON
     SV_SetConsoleTitle();
