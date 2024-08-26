@@ -590,6 +590,7 @@ If you are interested in building your own bot navmeshes, here is a quick guide 
 6. Use your reload key to cycle through options such as _Add node_, _Flood fill_ and so forth.  Left-click to issue the command at your cursor.
 7. Save your navmesh often with `nav_save` !
 8. When you feel happy with your navmesh, add a bot or two `sv bots ..` to see how they navigate.  Use `nav_toggle` to view their paths.  `nav_toggle` has three modes, cycle through them by issuing the command again: _Show Nodes_, _Show Paths_, _Show Nothing_
+9. If you find that the bots aren't moving, it's probably because whatever area they are in is not properly navmeshed, or that the area they are in does not have an exit to the larger map-wide navmesh.
 
 **Legacy LTK Commands (unsupported)**
 - `sv addbot [team] [name]` - add a bot for the duration of the current map

@@ -96,6 +96,7 @@
     - [map\_visibility\_patch](#map_visibility_patch)
     - [com\_fatal\_error](#com_fatal_error)
     - [com\_debug\_break](#com_debug_break)
+    - [g\_protocol\_extensions](#g_protocol_extensions)
 - [Commands](#commands)
   - [Generic](#generic-1)
     - [status \[mode\]](#status-mode)
@@ -840,6 +841,22 @@ exit. Default value is 0 (disabled).
 ### com\_debug\_break  
 Development variable that turns all errors into debug breakpoints.
 Default value is 0 (disabled).
+
+### g\_protocol\_extensions
+This greatly increases the amount of edicts, models, sounds and images the game can have loaded. This addresses problems such as overflows if the server loads too many sounds. Client must also support protocol extensions; connecting to a server with protocol extensions enabled with a non-compliant client will result in a connection rejection.  Compliant clients will auto-negotiate this with the server.  Default value is 0 (disabled).
+
+**Old values**:
+- MAX_EDICTS: **1024**
+- MAX_MODELS: **256**
+- MAX_SOUNDS: **256**
+- MAX_IMAGES: **256**
+
+**New values**:
+- MAX_EDICTS: **8192**
+- MAX_MODELS: **8192**
+- MAX_SOUNDS: **2048**
+- MAX_IMAGES: **2048**
+
 
 # Commands
 
