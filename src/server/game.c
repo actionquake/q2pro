@@ -1147,8 +1147,6 @@ void SV_InitGameProgs(void)
     }
 
     // initialize
-
-    // initialize
     ge->Init();
 
     if (g_features->integer & GMF_PROTOCOL_EXTENSIONS) {

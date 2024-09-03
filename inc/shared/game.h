@@ -226,7 +226,6 @@ typedef struct {
     void (*AddCommandString)(const char *text);
 
     void (*DebugGraph)(float value, int color);
-
 #if AQTION_EXTENSION
 	void *(*CheckForExtension)(char *text);
 #endif

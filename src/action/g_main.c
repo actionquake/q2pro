@@ -711,6 +711,13 @@ q_exported const game_export_ex_t *GetGameAPIEx(game_import_ex_t *import)
     gex->apiversion = GAME_API_VERSION_EX;
 	gex->structsize = sizeof(game_export_ex_t);
 
+	// gex->GetExtension = GetExtension;
+	// gex->CanSave = CanSave;
+	// gex->PrepFrame = PrepFrame;
+	// gex->RestartFilesystem = RestartFilesystem;
+	// gex->CustomizeEntityToClient = CustomizeEntityToClient;
+	// gex->EntityVisibleToClient = EntityVisibleToClient;
+
     return gex;
 }
 
