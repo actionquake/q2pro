@@ -1121,31 +1121,6 @@ void SV_InitGameProgs(void)
 #if AQTION_EXTENSION
 	import.CheckForExtension = G_CheckForExtension;
 #endif
-
-//rekkie -- BSP -- s
-    //#ifdef ACTION_DLL
-//     import.Bsp = SV_BSP;
-//     //#endif
-//     //rekkie -- BSP -- e
-//     //rekkie -- surface data -- s
-//     import.Nav = CS_NAV;
-//     //rekkie -- debug drawing -- s
-// #if DEBUG_DRAWING
-// //#if USE_REF
-//     import.Draw = CS_DebugDraw;
-// //#endif
-// #endif
-// //rekkie -- debug drawing -- e
-//     //import.SurfaceData = SV_SURFACE_DATA;
-//     //rekkie -- surface data -- e
-
-//     //rekkie -- Fake Bot Client -- s
-//     import.SV_BotUpdateInfo = SV_BotUpdateInfo;
-//     import.SV_BotConnect = SV_BotConnect;
-//     import.SV_BotDisconnect = SV_BotDisconnect;
-//     import.SV_BotClearClients = SV_BotClearClients;
-    //rekkie -- Fake Bot Client -- e
-
     ge = entry(&import);
     if (!ge) {
         Com_Error(ERR_DROP, "Game library returned NULL exports");
@@ -1158,6 +1133,7 @@ void SV_InitGameProgs(void)
 
     // get extended api if present
     game_entry_ex_t entry_ex = Sys_GetProcAddress(game_library, "GetGameAPIEx");
+    Com_Printf("==== Extended Protocol ====\n");
     if (entry_ex) {
         gex = entry_ex(&game_import_ex);
         if (gex == NULL) {
