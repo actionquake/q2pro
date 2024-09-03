@@ -23,19 +23,29 @@ env:
 
   MESON_ARGS_WIN: >-
     -Dsdl2=disabled
+    -Dx11=disabled
     -Dwayland=disabled
     -Dwrap_mode=forcefallback
-    -Dx11=disabled
 
-  MESON_ARGS_LINUX_WAYLAND: >-
-    -Dwindows-crash-dumps=disabled
-    -Dwrap_mode=nofallback
-    -Dx11=disabled
-
-  MESON_ARGS_LINUX_X11: >-
-    -Dwindows-crash-dumps=disabled
+  MESON_ARGS_WIN_EGL: >-
+    -Dsdl2=disabled
     -Dx11=disabled
     -Dwayland=disabled
+    -Dwindows-egl=enabled
+    -Dwrap_mode=forcefallback
+
+  MESON_ARGS_LINUX_WAYLAND: >-
+    -Dx11=disabled
+    -Dwayland=enabled
+    -Dsdl2=enabled
+    -Dwindows-crash-dumps=disabled
+    -Dwrap_mode=nofallback
+
+  MESON_ARGS_LINUX_X11: >-
+    -Dx11=disabled
+    -Dwayland=disabled
+    -Dsdl2=enabled
+    -Dwindows-crash-dumps=disabled
     -Dwrap_mode=nofallback
 
   MESON_ARGS_MAC: >-
@@ -113,6 +123,43 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: q2pro-msvc-${{ matrix.arch }}
+          path: |
+            builddir/q2pro.exe
+            builddir/q2proded.exe
+            builddir/gamex86_64.dll
+
+  msvc-egl:
+    runs-on: windows-latest
+    strategy:
+      matrix:
+        #arch: ["x86", "x64"]
+        arch: ["x64"]
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/cache@v4
+        with:
+          path: subprojects/packagecache
+          key: ${{ hashFiles('subprojects/*.wrap') }}
+
+      - uses: ilammy/msvc-dev-cmd@v1
+        with:
+          arch: ${{ matrix.arch }}
+
+      - uses: ilammy/setup-nasm@v1
+
+      - name: Install dependencies
+        run: pip3 install --no-input meson ninja
+
+      - name: Build
+        run: |
+          meson setup ${{ env.MESON_ARGS }} ${{ env.MESON_ARGS_WIN_EGL }} builddir
+          meson compile -C builddir
+
+      - name: Generate Win MSVC archives
+        uses: actions/upload-artifact@v4
+        with:
+          name: q2pro-msvc-egl-${{ matrix.arch }}
           path: |
             builddir/q2pro.exe
             builddir/q2proded.exe
