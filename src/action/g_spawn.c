@@ -1592,7 +1592,7 @@ void SpawnEntities (const char *mapname, const char *entities, const char *spawn
 	memset(&botlib_noises, 0, sizeof(botlib_noises));
 
 	//rekkie -- Fake Bot Client -- s
-	gi.SV_BotClearClients(); // So the server can clear all fake bot clients
+	gix->SV_BotClearClients(); // So the server can clear all fake bot clients
 	//rekkie -- Fake Bot Client -- e
 
 	if(bot_personality->value)

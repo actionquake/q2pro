@@ -649,7 +649,7 @@ void BOTLIB_Think(edict_t* self)
 		self->bot.bot_ping = self->bot.bot_baseline_ping + ping_jitter;
 		if (self->bot.bot_ping < 5) self->bot.bot_ping = 1; // Min ping
 		self->client->ping = self->bot.bot_ping;
-		gi.SV_BotUpdateInfo(self->client->pers.netname, self->bot.bot_ping, self->client->resp.score);
+		gix->SV_BotUpdateInfo(self->client->pers.netname, self->bot.bot_ping, self->client->resp.score);
 	}
 	//rekkie -- Fake Bot Client -- e
 

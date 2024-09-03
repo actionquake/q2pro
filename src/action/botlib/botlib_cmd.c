@@ -520,7 +520,7 @@ qboolean BOTLIB_Commands(edict_t* ent)
 		return true;
 
 #if 0
-		ent->nav = gi.Nav(); // Grant access to navigation data
+		ent->nav = gix->Nav(); // Grant access to navigation data
 		if (ent->nav == NULL)
 		{
 			gi.dprintf("%s failed to import NAV data\n", __func__);

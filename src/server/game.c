@@ -873,6 +873,16 @@ static const game_import_ex_t game_import_ex = {
 
     .GetExtension = PF_GetExtension,
     .TagRealloc = PF_TagRealloc,
+    .Bsp = SV_BSP,
+    .Nav = CS_NAV,
+#if DEBUG_DRAWING
+    .Draw = CS_DebugDraw,
+
+#endif
+    .SV_BotUpdateInfo = SV_BotUpdateInfo,
+    .SV_BotConnect = SV_BotConnect,
+    .SV_BotDisconnect = SV_BotDisconnect,
+    .SV_BotClearClients = SV_BotClearClients,
 };
 
 static void *game_library;
@@ -1114,26 +1124,26 @@ void SV_InitGameProgs(void)
 
 //rekkie -- BSP -- s
     //#ifdef ACTION_DLL
-    import.Bsp = SV_BSP;
-    //#endif
-    //rekkie -- BSP -- e
-    //rekkie -- surface data -- s
-    import.Nav = CS_NAV;
-    //rekkie -- debug drawing -- s
-#if DEBUG_DRAWING
-//#if USE_REF
-    import.Draw = CS_DebugDraw;
-//#endif
-#endif
-//rekkie -- debug drawing -- e
-    //import.SurfaceData = SV_SURFACE_DATA;
-    //rekkie -- surface data -- e
+//     import.Bsp = SV_BSP;
+//     //#endif
+//     //rekkie -- BSP -- e
+//     //rekkie -- surface data -- s
+//     import.Nav = CS_NAV;
+//     //rekkie -- debug drawing -- s
+// #if DEBUG_DRAWING
+// //#if USE_REF
+//     import.Draw = CS_DebugDraw;
+// //#endif
+// #endif
+// //rekkie -- debug drawing -- e
+//     //import.SurfaceData = SV_SURFACE_DATA;
+//     //rekkie -- surface data -- e
 
-    //rekkie -- Fake Bot Client -- s
-    import.SV_BotUpdateInfo = SV_BotUpdateInfo;
-    import.SV_BotConnect = SV_BotConnect;
-    import.SV_BotDisconnect = SV_BotDisconnect;
-    import.SV_BotClearClients = SV_BotClearClients;
+//     //rekkie -- Fake Bot Client -- s
+//     import.SV_BotUpdateInfo = SV_BotUpdateInfo;
+//     import.SV_BotConnect = SV_BotConnect;
+//     import.SV_BotDisconnect = SV_BotDisconnect;
+//     import.SV_BotClearClients = SV_BotClearClients;
     //rekkie -- Fake Bot Client -- e
 
     ge = entry(&import);
@@ -1150,11 +1160,17 @@ void SV_InitGameProgs(void)
     game_entry_ex_t entry_ex = Sys_GetProcAddress(game_library, "GetGameAPIEx");
     if (entry_ex) {
         gex = entry_ex(&game_import_ex);
-        if (gex->apiversion < GAME_API_VERSION_EX_MINIMUM)
+        if (gex == NULL) {
+            Com_Printf("Failed to get extended game API.\n");
+        } else if (gex->apiversion < GAME_API_VERSION_EX_MINIMUM) {
             gex = NULL;
-        else
-            Com_DPrintf("Game supports Q2PRO extended API version %d.\n", gex->apiversion);
+            Com_Printf("Extended game API version is too old.\n");
+        } else {
+            Com_Printf("Game supports Q2PRO extended API version %d.\n", gex->apiversion);
+        }
     }
+
+    // initialize
 
     // initialize
     ge->Init();

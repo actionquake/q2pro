@@ -275,6 +275,8 @@ game_locals_t game;
 level_locals_t level;
 game_import_t gi;
 game_export_t globals;
+game_import_ex_t *gix;
+game_export_ex_t *gex;
 spawn_temp_t st;
 
 int sm_meat_index;
@@ -588,6 +590,15 @@ void ReadLevel (const char *filename);
 void InitGame (void);
 void G_RunFrame (void);
 
+// Extended API
+void        GetExtension(const char *name);
+qboolean    CanSave(void);
+void        PrepFrame(void);
+void        RestartFilesystem(void); // called when fs_restart is issued
+qboolean    CustomizeEntityToClient(edict_t *client, edict_t *ent, customize_entity_t *temp); // if true is returned, `temp' must be initialized
+qboolean    EntityVisibleToClient(edict_t *client, edict_t *ent);
+
+
 qboolean CheckTimelimit(void);
 int dosoft;
 int softquit = 0;
@@ -686,6 +697,21 @@ q_exported game_export_t *GetGameAPI(game_import_t *import)
 
 
 	return &globals;
+}
+
+q_exported const game_export_ex_t *GetGameAPIEx(game_import_ex_t *import)
+{
+    gix = import;   // assign pointer, don't copy!
+	// Allocate memory for gex
+    gex = (game_export_ex_t *)malloc(sizeof(game_export_ex_t));
+    if (gex == NULL) {
+        // Handle memory allocation failure
+        return NULL;
+    }
+    gex->apiversion = GAME_API_VERSION_EX;
+	gex->structsize = sizeof(game_export_ex_t);
+
+    return gex;
 }
 
 #ifndef GAME_HARD_LINKED

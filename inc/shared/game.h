@@ -230,17 +230,6 @@ typedef struct {
 #if AQTION_EXTENSION
 	void *(*CheckForExtension)(char *text);
 #endif
-    bsp_t* (*Bsp)(void);
-    nav_t* (*Nav)(void);
-#if DEBUG_DRAWING
-    debug_draw_t* (*Draw)(void);
-#endif
-    surface_data_t* (*SurfaceData)(void);
-
-    void (*SV_BotUpdateInfo)(char* name, int ping, int score);
-    void (*SV_BotConnect)(char* name);
-    void (*SV_BotDisconnect)(char* name);
-    void (*SV_BotClearClients)(void);
 } game_import_t;
 //
 // functions exported by the game subsystem
@@ -329,7 +318,8 @@ typedef game_export_t *(*game_entry_t)(game_import_t *);
 #define GAME_API_VERSION_EX_MINIMUM             1
 #define GAME_API_VERSION_EX_CUSTOMIZE_ENTITY    2
 #define GAME_API_VERSION_EX_ENTITY_VISIBLE      3
-#define GAME_API_VERSION_EX                     3
+#define GAME_API_VERSION_EX_REKTEK_BOTS         400
+#define GAME_API_VERSION_EX                     400
 
 typedef enum {
     VIS_PVS     = 0,
@@ -355,6 +345,17 @@ typedef struct {
 
     void        *(*GetExtension)(const char *name);
     void        *(*TagRealloc)(void *ptr, size_t size);
+    bsp_t       *(*Bsp)(void);
+    nav_t       *(*Nav)(void);
+#if DEBUG_DRAWING
+    debug_draw_t    *(*Draw)(void);
+#endif
+    surface_data_t  *(*SurfaceData)(void);
+
+    void        (*SV_BotUpdateInfo)(char* name, int ping, int score);
+    void        (*SV_BotConnect)(char* name);
+    void        (*SV_BotDisconnect)(char* name);
+    void        (*SV_BotClearClients)(void);
 } game_import_ex_t;
 
 typedef struct {

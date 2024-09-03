@@ -3039,7 +3039,7 @@ void BOTLIB_LoadNavCompressed(void)
 			return;
 		}
 		/*
-		bsp_t* bsp = gi.Bsp();
+		bsp_t* bsp = gix->Bsp();
 		fileSize += sizeof(unsigned) * fread(&bsp_checksum, sizeof(unsigned), 1, fIn); // Map checksum
 		if (bsp_checksum != bsp->checksum)
 		{
@@ -3592,7 +3592,7 @@ void BOTLIB_LoadNav(void)
 			return;
 		}
 		/*
-		bsp_t* bsp = gi.Bsp();
+		bsp_t* bsp = gix->Bsp();
 		fileSize += sizeof(unsigned) * fread(&bsp_checksum, sizeof(unsigned), 1, fIn); // Map checksum
 		if (bsp_checksum != bsp->checksum)
 		{
@@ -3915,7 +3915,7 @@ void ACEND_LoadAAS(qboolean force)
 			fclose(fIn); // Close the file
 		}
 
-		bsp_t* bsp = gi.Bsp();
+		bsp_t* bsp = gix->Bsp();
 		fileSize += sizeof(unsigned) * fread(&bsp_checksum, sizeof(unsigned), 1, fIn); // Map checksum
 		if (bsp_checksum != bsp->checksum)
 		{
@@ -5345,7 +5345,7 @@ qboolean BOTLIB_InsideFace(vec3_t *verts, int num_verts, vec3_t point, vec3_t no
 
 void BOTLIB_InitNavigation(edict_t* ent)
 {
-	bsp_t* bsp = gi.Bsp();
+	bsp_t* bsp = gix->Bsp();
 	if (bsp == NULL)
 	{
 		gi.dprintf("%s failed to import BSP data\n", __func__);
@@ -5374,7 +5374,7 @@ void BOTLIB_InitNavigation(edict_t* ent)
 
 void ACEND_BSP(edict_t* ent)
 {
-	bsp_t* bsp = gi.Bsp();
+	bsp_t* bsp = gix->Bsp();
 	if (bsp == NULL)
 	{
 		gi.dprintf("%s failed to import BSP data\n", __func__);
@@ -5411,7 +5411,7 @@ void ACEND_BSP(edict_t* ent)
 
 	if (1)
 	{
-		ent->nav = gi.Nav(); // Grant access to navigation data
+		ent->nav = gix->Nav(); // Grant access to navigation data
 		if (ent->nav)
 		{
 			for (int f = 0; f < ent->nav->faces_total; f++)
