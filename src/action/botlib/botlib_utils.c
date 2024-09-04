@@ -2,10 +2,11 @@
 #include "../acesrc/acebot.h"
 #include "botlib.h"
 
-#ifndef _WIN32
+#if defined(_WIN32) || defined(_WIN64)
+#include <windows.h>
+#else
 #include <sys/time.h>
 #endif
-
 /*
 This file is for common utilties that are used by the botlib functions
 */
