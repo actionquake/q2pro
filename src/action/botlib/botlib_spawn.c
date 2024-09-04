@@ -72,10 +72,7 @@ qboolean BOTLIB_GetRandomBotFileLine(const char* file, char* buffer)
 
 	// Seed the random number generator with a high-resolution timestamp
 	// so that we don't get accidental repeats of random bot names
-	struct timeval tv;
-	gettimeofday(&tv, NULL);
-	srand(tv.tv_usec * tv.tv_sec);
-
+	seed_random_number_generator();
 	random_line = rand() % line_num + 1;
 
 	if(bot_debug->value)

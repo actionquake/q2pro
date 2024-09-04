@@ -527,6 +527,7 @@ int BOTLIB_GetEquipment(edict_t* self);
 // ===========================================================================
 // botlib_utils.c
 // ===========================================================================
+void seed_random_number_generator(void);
 void BOTLIB_SKILL_Init(edict_t* bot);
 qboolean BOTLIB_SkillChance(float skilltype);
 float BOTLIB_SkillMultiplier(float skill_level, bool increase_with_skill);
