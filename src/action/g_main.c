@@ -275,8 +275,8 @@ game_locals_t game;
 level_locals_t level;
 game_import_t gi;
 game_export_t globals;
-game_import_ex_t *gix;
-game_export_ex_t *gex;
+const game_import_ex_t *gix;
+const game_export_ex_t *gex;
 spawn_temp_t st;
 
 int sm_meat_index;
@@ -702,23 +702,19 @@ q_exported game_export_t *GetGameAPI(game_import_t *import)
 q_exported const game_export_ex_t *GetGameAPIEx(game_import_ex_t *import)
 {
     gix = import;   // assign pointer, don't copy!
-	// Allocate memory for gex
-    gex = (game_export_ex_t *)malloc(sizeof(game_export_ex_t));
-    if (gex == NULL) {
-        // Handle memory allocation failure
-        return NULL;
-    }
-    gex->apiversion = GAME_API_VERSION_EX;
-	gex->structsize = sizeof(game_export_ex_t);
 
-	gex->GetExtension = GetExtension;
-	gex->CanSave = CanSave;
-	gex->PrepFrame = PrepFrame;
-	gex->RestartFilesystem = RestartFilesystem;
-	gex->CustomizeEntityToClient = CustomizeEntityToClient;
-	gex->EntityVisibleToClient = EntityVisibleToClient;
+    // // Initialize gex directly
+    // gex->apiversion = GAME_API_VERSION_EX;
+    // gex->structsize = sizeof(game_export_ex_t);
 
-    return gex;
+    // gex->GetExtension = GetExtension;
+    // gex->CanSave = CanSave;
+    // gex->PrepFrame = PrepFrame;
+    // gex->RestartFilesystem = RestartFilesystem;
+    // gex->CustomizeEntityToClient = CustomizeEntityToClient;
+    // gex->EntityVisibleToClient = EntityVisibleToClient;
+
+    return &gex;
 }
 
 #ifndef GAME_HARD_LINKED

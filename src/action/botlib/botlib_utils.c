@@ -16,7 +16,6 @@ void seed_random_number_generator(void) {
     QueryPerformanceCounter(&li);
     srand((unsigned int)(li.QuadPart));
 #else
-    #include <sys/time.h>
     struct timeval tv;
     gettimeofday(&tv, NULL);
     srand(tv.tv_usec * tv.tv_sec);
