@@ -824,5 +824,5 @@ qboolean CustomizeEntityToClient(edict_t *client, edict_t *ent, customize_entity
 }
 qboolean EntityVisibleToClient(edict_t *client, edict_t *ent)
 {
-	return false;
+	return true;
 }
