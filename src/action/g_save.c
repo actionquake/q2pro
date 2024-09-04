@@ -804,7 +804,6 @@ void ReadLevel (const char *filename)
 void *GetExtension(const char *name)
 {
 	gi.dprintf("GetExtension: %s\n", name);
-	return NULL;
 }
 
 qboolean CanSave(void)
@@ -812,12 +811,22 @@ qboolean CanSave(void)
 	return false;
 }
 
+/*
+Used in SV_PrepWorldFrame() 
+*/
 void PrepFrame(void)
 {
 }
+
 void RestartFilesystem(void) // called when fs_restart is issued
 {
 }
+
+/*
+These two will customize an entity specific to a client, and then check if it's visible to the client.
+
+See usage in SV_BuildClientFrame()
+*/
 qboolean CustomizeEntityToClient(edict_t *client, edict_t *ent, customize_entity_t *temp)
 {
 	return false;

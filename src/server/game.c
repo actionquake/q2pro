@@ -859,6 +859,8 @@ static void *PF_GetExtension(const char *name)
         return NULL;
     if (!strcmp(name, "FILESYSTEM_API_V1"))
         return (void *)&filesystem_api_v1;
+
+    Com_Printf("Extension loaded: '%s'\n", name);
     return NULL;
 }
 
@@ -1148,6 +1150,10 @@ void SV_InitGameProgs(void)
 
     // initialize
     ge->Init();
+
+    // Load extensions by name
+    //Example
+    //gex->GetExtension("FILESYSTEM_API_V1");
 
     if (g_features->integer & GMF_PROTOCOL_EXTENSIONS) {
         Com_Printf("Game supports Q2PRO protocol extensions.\n");

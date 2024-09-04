@@ -5346,6 +5346,7 @@ qboolean BOTLIB_InsideFace(vec3_t *verts, int num_verts, vec3_t point, vec3_t no
 void BOTLIB_InitNavigation(edict_t* ent)
 {
 	bsp_t* bsp = gix->Bsp();
+
 	if (bsp == NULL)
 	{
 		gi.dprintf("%s failed to import BSP data\n", __func__);
