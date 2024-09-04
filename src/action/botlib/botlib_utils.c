@@ -41,9 +41,10 @@ void BOTLIB_SKILL_Init(edict_t* bot)
 	} else {  // We know what values to provide if we have a personality
 		//copy the personality data when it's implemented
 	}
-	gi.dprintf("%s's bot skills:\noverall: %f\naim: %f\nreaction: %f\nmovement: %f\nteamwork: %f\ncommunication: %f\nmap_skill: %f\n",
-		bot->client->pers.netname, bot->bot.skill.overall, bot->bot.skill.aim, bot->bot.skill.reaction, bot->bot.skill.movement, bot->bot.skill.teamwork, bot->bot.skill.communication, bot->bot.skill.map_skill);
-	
+    if (bot_debug->value) {
+	    gi.dprintf("%s's bot skills:\noverall: %f\naim: %f\nreaction: %f\nmovement: %f\nteamwork: %f\ncommunication: %f\nmap_skill: %f\n",
+		    bot->client->pers.netname, bot->bot.skill.overall, bot->bot.skill.aim, bot->bot.skill.reaction, bot->bot.skill.movement, bot->bot.skill.teamwork, bot->bot.skill.communication, bot->bot.skill.map_skill);
+    }
 }
 
 // Returns true or false depending on if the bot passes the skill check

@@ -44,20 +44,6 @@ jobs:
           workflow: build.yml
           name: q2pro-lin-gcc-x86_64
           skip_unpack: true
-
-      - name: Download Linux Wayland x64 clang build artifacts
-        uses: dawidd6/action-download-artifact@v2
-        with:
-          workflow: build.yml
-          name: q2pro-lin-wayland-clang-x86_64
-          skip_unpack: true
-
-      - name: Download Linux Wayland x64 gcc build artifacts
-        uses: dawidd6/action-download-artifact@v2
-        with:
-          workflow: build.yml
-          name: q2pro-lin-wayland-gcc-x86_64
-          skip_unpack: true
       
       - name: Download Linux ARM x64 build artifacts
         uses: dawidd6/action-download-artifact@v2
@@ -121,7 +107,5 @@ jobs:
             q2pro-lin-arm64.zip
             q2pro-lin-gcc-x86_64.zip
             q2pro-lin-clang-x86_64.zip
-            q2pro-lin-wayland-gcc-x86_64.zip
-            q2pro-lin-wayland-clang-x86_64.zip
             q2pro-darwin-x86_64.zip
             q2pro-darwin-arm64.zip

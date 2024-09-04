@@ -36,11 +36,10 @@ env:
     -Dwrap_mode=nofallback
 
   MESON_ARGS_MAC: >-
-    -Dwayland=disabled
-    -Dx11=disabled
-    -Dsdl2=enabled
     -Dwindows-crash-dumps=disabled
     -Dwrap_mode=nofallback
+    -Dwayland=disabled
+    -Dx11=disabled
     -Dicmp-errors=disabled
 
 jobs:
@@ -154,7 +153,7 @@ jobs:
       - name: Generate Linux x64 archives
         uses: actions/upload-artifact@v4
         with:
-          name: q2pro-lin-wayland-${{ matrix.cc }}-x86_64
+          name: q2pro-lin-${{ matrix.cc }}-x86_64
           path: |
             builddir/q2pro
             builddir/q2proded
