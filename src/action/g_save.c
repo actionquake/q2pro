@@ -801,37 +801,37 @@ void ReadLevel (const char *filename)
 {
 }
 
-void *GetExtension(const char *name)
-{
-	gi.dprintf("GetExtension: %s\n", name);
-}
+// void *GetExtension(const char *name)
+// {
+// 	gi.dprintf("GetExtension: %s\n", name);
+// }
 
-qboolean CanSave(void)
-{
-	return false;
-}
+// qboolean CanSave(void)
+// {
+// 	return false;
+// }
 
-/*
-Used in SV_PrepWorldFrame() 
-*/
-void PrepFrame(void)
-{
-}
+// /*
+// Used in SV_PrepWorldFrame() 
+// */
+// void PrepFrame(void)
+// {
+// }
 
-void RestartFilesystem(void) // called when fs_restart is issued
-{
-}
+// void RestartFilesystem(void) // called when fs_restart is issued
+// {
+// }
 
-/*
-These two will customize an entity specific to a client, and then check if it's visible to the client.
+// /*
+// These two will customize an entity specific to a client, and then check if it's visible to the client.
 
-See usage in SV_BuildClientFrame()
-*/
-qboolean CustomizeEntityToClient(edict_t *client, edict_t *ent, customize_entity_t *temp)
-{
-	return false;
-}
-qboolean EntityVisibleToClient(edict_t *client, edict_t *ent)
-{
-	return true;
-}
+// See usage in SV_BuildClientFrame()
+// */
+// qboolean CustomizeEntityToClient(edict_t *client, edict_t *ent, customize_entity_t *temp)
+// {
+// 	return false;
+// }
+// qboolean EntityVisibleToClient(edict_t *client, edict_t *ent)
+// {
+// 	return true;
+// }

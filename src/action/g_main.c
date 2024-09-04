@@ -276,7 +276,6 @@ level_locals_t level;
 game_import_t gi;
 game_export_t globals;
 const game_import_ex_t *gix;
-const game_export_ex_t *gex;
 spawn_temp_t st;
 
 int sm_meat_index;
@@ -591,12 +590,12 @@ void InitGame (void);
 void G_RunFrame (void);
 
 // Extended API
-void        *GetExtension(const char *name);
-qboolean    CanSave(void);
-void        PrepFrame(void);
-void        RestartFilesystem(void); // called when fs_restart is issued
-qboolean    CustomizeEntityToClient(edict_t *client, edict_t *ent, customize_entity_t *temp); // if true is returned, `temp' must be initialized
-qboolean    EntityVisibleToClient(edict_t *client, edict_t *ent);
+// void        *GetExtension(const char *name);
+// qboolean    CanSave(void);
+// void        PrepFrame(void);
+// void        RestartFilesystem(void); // called when fs_restart is issued
+// qboolean    CustomizeEntityToClient(edict_t *client, edict_t *ent, customize_entity_t *temp); // if true is returned, `temp' must be initialized
+// qboolean    EntityVisibleToClient(edict_t *client, edict_t *ent);
 
 
 qboolean CheckTimelimit(void);
@@ -699,21 +698,23 @@ q_exported game_export_t *GetGameAPI(game_import_t *import)
 	return &globals;
 }
 
+const game_export_ex_t gex = {
+    .apiversion = GAME_API_VERSION_EX,
+    // .structsize = sizeof(game_export_ex_t);
+
+	// // Functionality examples?
+	// // https://github.com/skullernet/q2pro/issues/294#issuecomment-1476818818
+    // .GetExtension = GetExtension;
+    // .CanSave = CanSave;
+    // .PrepFrame = PrepFrame;
+    // .RestartFilesystem = RestartFilesystem;
+    // .CustomizeEntityToClient = CustomizeEntityToClient;
+    // .EntityVisibleToClient = EntityVisibleToClient;
+};
+
 q_exported const game_export_ex_t *GetGameAPIEx(game_import_ex_t *import)
 {
     gix = import;   // assign pointer, don't copy!
-
-    // // Initialize gex directly
-    // gex->apiversion = GAME_API_VERSION_EX;
-    // gex->structsize = sizeof(game_export_ex_t);
-
-    // gex->GetExtension = GetExtension;
-    // gex->CanSave = CanSave;
-    // gex->PrepFrame = PrepFrame;
-    // gex->RestartFilesystem = RestartFilesystem;
-    // gex->CustomizeEntityToClient = CustomizeEntityToClient;
-    // gex->EntityVisibleToClient = EntityVisibleToClient;
-
     return &gex;
 }
 

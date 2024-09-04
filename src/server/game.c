@@ -1139,10 +1139,10 @@ void SV_InitGameProgs(void)
     if (entry_ex) {
         gex = entry_ex(&game_import_ex);
         if (gex == NULL) {
-            Com_Printf("Failed to get extended game API.\n");
+            Com_Printf("Disabled: Failed to get extended game API.\n");
         } else if (gex->apiversion < GAME_API_VERSION_EX_MINIMUM) {
             gex = NULL;
-            Com_Printf("Extended game API version is too old.\n");
+            Com_Printf("Disabled: Extended game API version is too old.\n");
         } else {
             Com_Printf("Game supports Q2PRO extended API version %d.\n", gex->apiversion);
         }
