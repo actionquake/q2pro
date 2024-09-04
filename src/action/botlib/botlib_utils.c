@@ -1,17 +1,21 @@
 #include "../g_local.h"
 #include "../acesrc/acebot.h"
 #include "botlib.h"
+
+#ifndef _WIN32
 #include <sys/time.h>
+#endif
 
 /*
 This file is for common utilties that are used by the botlib functions
 */
 void seed_random_number_generator(void) {
-#if defined(_WIN32) || defined(_WIN64)
+#if _MSC_VER >= 1920 && !__INTEL_COMPILER
     LARGE_INTEGER li;
     QueryPerformanceCounter(&li);
     srand((unsigned int)(li.QuadPart));
 #else
+    #include <sys/time.h>
     struct timeval tv;
     gettimeofday(&tv, NULL);
     srand(tv.tv_usec * tv.tv_sec);

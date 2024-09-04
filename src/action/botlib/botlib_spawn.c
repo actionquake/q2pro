@@ -1,7 +1,6 @@
 #include "../g_local.h"
 #include "../acesrc/acebot.h"
 #include "botlib.h"
-#include <sys/time.h>
 
 int	dc_total_male_names;		// Total male names
 int	dc_total_female_names;		// Total female names
