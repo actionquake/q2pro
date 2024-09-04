@@ -1,6 +1,7 @@
 #include "../g_local.h"
 #include "../acesrc/acebot.h"
 #include "botlib.h"
+#include <sys/time.h>
 
 int	dc_total_male_names;		// Total male names
 int	dc_total_female_names;		// Total female names
@@ -68,8 +69,17 @@ qboolean BOTLIB_GetRandomBotFileLine(const char* file, char* buffer)
 		line_num++;
 	}
 	fclose(f);
+
+	// Seed the random number generator with a high-resolution timestamp
+	// so that we don't get accidental repeats of random bot names
+	struct timeval tv;
+	gettimeofday(&tv, NULL);
+	srand(tv.tv_usec * tv.tv_sec);
+
 	random_line = rand() % line_num + 1;
-	//random_line = 13;
+
+	if(bot_debug->value)
+		gi.dprintf("%s %s random_line[%d]\n", __func__, filename, random_line);
 
 	//Com_Printf("%s %s random_line[%d]\n", __func__, filename, random_line);
 

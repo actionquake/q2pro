@@ -800,3 +800,29 @@ void WriteLevel (const char *filename)
 void ReadLevel (const char *filename)
 {
 }
+
+void *GetExtension(const char *name)
+{
+	gi.dprintf("GetExtension: %s\n", name);
+	return NULL;
+}
+
+qboolean CanSave(void)
+{
+	return false;
+}
+
+void PrepFrame(void)
+{
+}
+void RestartFilesystem(void) // called when fs_restart is issued
+{
+}
+qboolean CustomizeEntityToClient(edict_t *client, edict_t *ent, customize_entity_t *temp)
+{
+	return false;
+}
+qboolean EntityVisibleToClient(edict_t *client, edict_t *ent)
+{
+	return false;
+}

@@ -25,34 +25,22 @@ env:
     -Dsdl2=disabled
     -Dx11=disabled
     -Dwayland=disabled
+    -Dwindows-egl=true
     -Dwrap_mode=forcefallback
 
-  MESON_ARGS_WIN_EGL: >-
-    -Dsdl2=disabled
-    -Dx11=disabled
-    -Dwayland=disabled
-    -Dwindows-egl=enabled
-    -Dwrap_mode=forcefallback
-
-  MESON_ARGS_LINUX_WAYLAND: >-
-    -Dx11=disabled
+  MESON_ARGS_LINUX: >-
+    -Dx11=enabled
     -Dwayland=enabled
     -Dsdl2=enabled
     -Dwindows-crash-dumps=disabled
     -Dwrap_mode=nofallback
 
-  MESON_ARGS_LINUX_X11: >-
-    -Dx11=disabled
+  MESON_ARGS_MAC: >-
     -Dwayland=disabled
+    -Dx11=disabled
     -Dsdl2=enabled
     -Dwindows-crash-dumps=disabled
     -Dwrap_mode=nofallback
-
-  MESON_ARGS_MAC: >-
-    -Dwindows-crash-dumps=disabled
-    -Dwrap_mode=nofallback
-    -Dwayland=disabled
-    -Dx11=disabled
     -Dicmp-errors=disabled
 
 jobs:
@@ -128,88 +116,7 @@ jobs:
             builddir/q2proded.exe
             builddir/gamex86_64.dll
 
-  msvc-egl:
-    runs-on: windows-latest
-    strategy:
-      matrix:
-        #arch: ["x86", "x64"]
-        arch: ["x64"]
-    steps:
-      - uses: actions/checkout@v4
-
-      - uses: actions/cache@v4
-        with:
-          path: subprojects/packagecache
-          key: ${{ hashFiles('subprojects/*.wrap') }}
-
-      - uses: ilammy/msvc-dev-cmd@v1
-        with:
-          arch: ${{ matrix.arch }}
-
-      - uses: ilammy/setup-nasm@v1
-
-      - name: Install dependencies
-        run: pip3 install --no-input meson ninja
-
-      - name: Build
-        run: |
-          meson setup ${{ env.MESON_ARGS }} ${{ env.MESON_ARGS_WIN_EGL }} builddir
-          meson compile -C builddir
-
-      - name: Generate Win MSVC archives
-        uses: actions/upload-artifact@v4
-        with:
-          name: q2pro-msvc-egl-${{ matrix.arch }}
-          path: |
-            builddir/q2pro.exe
-            builddir/q2proded.exe
-            builddir/gamex86_64.dll
-
-  linux64-x11:
-    runs-on: ubuntu-20.04
-    #runs-on: [self-hosted, x86]
-    strategy:
-      matrix:
-        cc: [gcc, clang]
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Install dependencies
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y python3 python3-pip libsdl2-dev libopenal-dev \
-          libpng-dev libjpeg-dev zlib1g-dev mesa-common-dev \
-          libcurl4-openssl-dev libx11-dev libxi-dev \
-          libavcodec-dev libavformat-dev libavutil-dev \
-          libswresample-dev libswscale-dev \
-          uuid-dev patchelf libjansson-dev
-          pip3 install meson ninja
-
-      - name: Build
-        run: |
-          meson setup ${{ env.MESON_ARGS }} ${{ env.MESON_ARGS_LINUX_X11 }} builddir
-          meson compile -C builddir
-        env:
-          CC: ${{ matrix.cc }}
-
-      - name: patchelf path to discord_game_sdk.so
-        run: |
-          patchelf --replace-needed /home/runner/work/q2pro/q2pro/extern/discord/lib/x86_64/discord_game_sdk.so ./discord_game_sdk.so builddir/q2pro
-
-      - name: Set binaries as executable
-        run: |
-          chmod +x builddir/q2pro*
-          
-      - name: Generate Linux x64 archives
-        uses: actions/upload-artifact@v4
-        with:
-          name: q2pro-lin-${{ matrix.cc }}-x86_64
-          path: |
-            builddir/q2pro
-            builddir/q2proded
-            builddir/gamex86_64.so
-
-  linux64-wayland:
+  linux64:
     runs-on: ubuntu-22.04
     #runs-on: [self-hosted, x86]
     strategy:
@@ -231,7 +138,7 @@ jobs:
 
       - name: Build
         run: |
-          meson setup ${{ env.MESON_ARGS }} ${{ env.MESON_ARGS_LINUX_WAYLAND }} builddir
+          meson setup ${{ env.MESON_ARGS }} ${{ env.MESON_ARGS_LINUX }} builddir
           meson compile -C builddir
         env:
           CC: ${{ matrix.cc }}
@@ -272,7 +179,7 @@ jobs:
 
       - name: Build
         run: |
-          meson setup ${{ env.MESON_ARGS }} ${{ env.MESON_ARGS_LINUX_X11 }} builddir
+          meson setup ${{ env.MESON_ARGS }} ${{ env.MESON_ARGS_LINUX }} builddir
           meson compile -vC builddir
         env:
           CC: ${{ matrix.cc }}
