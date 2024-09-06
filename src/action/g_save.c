@@ -336,6 +336,8 @@ void InitGame( void )
 	ReadConfigFile();
 	ReadMOTDFile();
 
+	whatever_init_function();
+
 	gun_x = gi.cvar( "gun_x", "0", 0 );
 	gun_y = gi.cvar( "gun_y", "0", 0 );
 	gun_z = gi.cvar( "gun_z", "0", 0 );

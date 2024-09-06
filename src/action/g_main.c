@@ -698,13 +698,24 @@ q_exported game_export_t *GetGameAPI(game_import_t *import)
 	return &globals;
 }
 
+
+
+static void* GetExtension(const char* extensionname)
+{
+    if (!strcmp("EntityZarking", extensionname))
+    {
+        return &zarkext;
+    }
+    return NULL;
+}
+
 const game_export_ex_t gex = {
     .apiversion = GAME_API_VERSION_EX,
     // .structsize = sizeof(game_export_ex_t);
 
 	// // Functionality examples?
 	// // https://github.com/skullernet/q2pro/issues/294#issuecomment-1476818818
-    // .GetExtension = GetExtension;
+    .GetExtension = GetExtension,
     // .CanSave = CanSave;
     // .PrepFrame = PrepFrame;
     // .RestartFilesystem = RestartFilesystem;

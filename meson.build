@@ -179,6 +179,7 @@ action_src = [
   'src/action/a_xmenu.c',
   'src/action/a_xvote.c',
   'src/action/cgf_sfx_glass.c',
+  'src/action/e_lrcon.c',
   'src/action/g_chase.c',
   'src/action/g_cmds.c',
   'src/action/g_combat.c',

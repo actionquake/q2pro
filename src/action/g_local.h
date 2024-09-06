@@ -2899,3 +2899,12 @@ extern Message *timedMessages;
 
 void addTimedMessage(int teamNum, edict_t *ent, int seconds, char *msg);
 void FireTimedMessages(void);
+
+// Extension support
+typedef struct{
+    void (*zark_ent)(edict_t* ent);
+} zarkext_t;
+
+extern zarkext_t zarkext;
+void P_ZarkEnt(edict_t* ent);
+void whatever_init_function(void);

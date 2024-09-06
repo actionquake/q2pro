@@ -8,6 +8,9 @@ bot_names_t bot_male[MAX_BOT_NAMES];	// Cached copy
 bot_names_t bot_female[MAX_BOT_NAMES];	// Cached copy
 bot_connections_t bot_connections;
 
+// prototype
+void BOTLIB_GetTotalPlayers(bot_connections_t* bc);
+
 // Find a free entity for the bot to use
 edict_t* BOTLIB_FindFreeEntity(void)
 {
