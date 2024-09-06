@@ -875,13 +875,13 @@ CVARS (console variables)
                                 // but can be set from the command line
 #define CVAR_LATCH      BIT(4)  // save changes until server restart
 
-#if USE_CLIENT || USE_SERVER
+//#if USE_CLIENT || USE_SERVER
 struct cvar_s;
 struct genctx_s;
 
 typedef void (*xchanged_t)(struct cvar_s *);
 typedef void (*xgenerator_t)(struct genctx_s *);
-#endif
+//#endif
 
 // nothing outside the cvar.*() functions should modify these fields!
 typedef struct cvar_s {
@@ -894,7 +894,7 @@ typedef struct cvar_s {
     struct cvar_s *next;
 
 // ------ new stuff ------
-#if USE_CLIENT || USE_SERVER
+//#if USE_CLIENT || USE_SERVER
 #if AQTION_EXTENSION
 	int			sync_index;
 #endif
@@ -903,7 +903,7 @@ typedef struct cvar_s {
     xchanged_t      changed;
     xgenerator_t    generator;
     struct cvar_s   *hashNext;
-#endif
+//#endif
 } cvar_t;
 
 #endif      // CVAR

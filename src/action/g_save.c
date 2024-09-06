@@ -691,7 +691,7 @@ void InitGame( void )
 	bot_reaction = gi.cvar("bot_reaction", "0.5", 0); // How long (in seconds) until the bot reacts to an enemy in sight
 	bot_showpath = gi.cvar("bot_showpath", "0", 0);
 	bot_maxteam = gi.cvar("bot_maxteam", "10", 0);
-	bot_playercount = gi.cvar("bot_playercount", "0", 0);
+	bot_playercount = gi.cvar("bot_playercount", "0", 0);  // If changing from a positive integer to 0, bots will not be removed.  Use `sv bots` to remove them.
 	bot_rush = gi.cvar("bot_rush", "0", 0);
 	bot_randvoice = gi.cvar("bot_randvoice", "5", 0);
 	bot_randskill = gi.cvar("bot_randskill", "10", 0);
