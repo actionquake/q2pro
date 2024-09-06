@@ -61,3 +61,4 @@ void Cmd_AbortCube_f (edict_t *);
 //AQ2:TNG END
 
 void Cmd_Lens_f (edict_t *);
+void Cmd_Lrcon_f (edict_t* self);

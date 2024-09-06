@@ -3711,6 +3711,10 @@ void ClientDisconnect(edict_t * ent)
 	TourneyRemovePlayer(ent);
 	vClientDisconnect(ent);	// client voting disconnect
 
+	// Release lrcon claim
+	if (game.lrcon_claimer == ent)
+		game.lrcon_claimer = NULL;
+
 	if (ctf->value)
 		CTFDeadDropFlag(ent);
 

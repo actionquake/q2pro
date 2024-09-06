@@ -446,3 +446,161 @@ void Cmd_FlashGrenade_f(edict_t *ent)
     ent->client->grenadeType = GRENADE_NORMAL;
   }
 }*/
+
+// static void SV_AddLrconCmd_f(void)
+// {
+//     if (Cmd_Argc() < 2) {
+//         Com_Printf("Usage: %s <command>\n", Cmd_Argv(0));
+//         return;
+//     }
+
+//     SV_AddStuffCmd(&sv_lrconlist, 1, "Lrcon");
+// }
+
+// static void SV_DelLrconCmd_f(void)
+// {
+//     if (Cmd_Argc() < 2) {
+//         Com_Printf("Usage: %s <id|cmd|all>\n", Cmd_Argv(0));
+//         return;
+//     }
+
+//     SV_DelStuffCmd(&sv_lrconlist, 1, "lrcon");
+// }
+
+// static void SV_ListLrconCmds_f(void)
+// {
+//     SV_ListStuffCmds(&sv_lrconlist, "lrcon");
+// }
+
+// Assuming each node in the list contains a command string
+typedef struct command_node_s {
+    list_t sv_lrconlist;
+    char *command;
+} command_node_t;
+
+// Function to check if a command is in the list of lrcon commands
+static qboolean SV_IsLrconCommand(const char* cmd) {
+    list_t *node;
+    for (node = sv_lrconlist.next; node != &sv_lrconlist; node = node->next) {
+        command_node_t *cmd_node = (command_node_t *)node;
+        if (strcmp(cmd_node->command, cmd) == 0) {
+            return true;
+        }
+    }
+    return false;
+}
+
+void Cmd_Lrcon_f (edict_t* self)
+{
+	char* cmd = gi.args();
+	if (!*cmd)
+	{
+		gi.cprintf(self, PRINT_HIGH, "Usage: lrcon <command> [parameters]\nType \"lrcon help\" for more information.\n");
+		return;
+	}
+	if (strcmp(cmd, "help") == 0)
+	{
+		gi.cprintf(self, PRINT_HIGH, 
+			"Limited rcon usage:\n"
+			"lrcon claim             - claim the server\n"
+			"lrcon release           - release the server to be re-claimed\n"
+			"lrcon <cvar>            - query cvar value\n"
+			"lrcon <cvar> <value>    - set cvar value\n"
+			"lrcon status            - get client status information\n"
+			"lrcon kick <id>         - kick a player\n"
+			"lrcon map <mapname>     - change map\n");
+		return;
+	}
+	// The following requires the server to be claimed
+
+	// Check if we have a claimer
+	if (game.lrcon_claimer != self) {
+			// Check if the claimer is the one who is trying to use lrcon
+			gi.cprintf(self, PRINT_HIGH, "Server is already claimed by %s\n", game.lrcon_claimer->client->pers.netname);
+			return;
+	} else if (game.lrcon_claimer == NULL){
+		// Check if the claimer is the one who is trying to use lrcon
+		if (strcmp(cmd, "claim") == 0)
+		{
+			game.lrcon_claimer = self;
+			gi.cprintf(self, PRINT_HIGH, "You have claimed the server! Type lrcon <command> to set appropriate settings.\n");
+			gi.bprintf(PRINT_HIGH, "Server claimed by %s\n", self->client->pers.netname);
+			return;
+		}
+	}
+
+	// If you haven't claimed, you can go no further
+	if (game.lrcon_claimer != self) {
+		gi.cprintf(self, PRINT_HIGH, "You have not claimed the server.\n");
+		return;
+	}
+
+	if (strcmp(cmd, "release") == 0)
+	{
+		if (game.lrcon_claimer == NULL) {
+			gi.cprintf(self, PRINT_HIGH, "You released the server.\n");
+			gi.bprintf(PRINT_HIGH, "%s released the server, use \"lrcon claim\" to re-claim.\n", self->client->pers.netname);
+			return;
+		}
+	} else if (strcmp(cmd, "status") == 0) {
+		if (game.lrcon_claimer != self) {
+			gi.cprintf(self, PRINT_HIGH, "You have not claimed the server.\n");
+			return;
+		} else {
+			SV_Status_f(); 
+			return;
+		}
+	} else if (strcmp(cmd, "kick") == 0) {
+		char* id = gi.args();
+		if (!*id)
+		{
+			gi.cprintf(self, PRINT_HIGH, "Usage: kick <id>\n");
+			return;
+		}
+
+		// Check if the id is a valid number
+		char* endptr;
+		int playerID = strtol(id, &endptr, 10);
+		if (*endptr != '\0' || playerID < 0)
+		{
+			gi.cprintf(self, PRINT_HIGH, "Invalid player ID: %s\n", id);
+			return;
+		}
+
+		// Check if playerID is within a valid range
+		if (playerID >= maxclients->value)
+		{
+			gi.cprintf(self, PRINT_HIGH, "Player ID out of range: %d\n", playerID);
+			return;
+		}
+
+		// Kick player with id
+		Kick_Client(playerID);
+		return;
+	} else if (strcmp(cmd, "map") == 0) {
+		char* mapname = gi.args();
+		if (!*mapname)
+		{
+			gi.cprintf(self, PRINT_HIGH, "Usage: map <mapname>\n");
+			return;
+		}
+
+		// Set the command arguments
+		char command[256];
+		snprintf(command, sizeof(command), "map %s", mapname);
+		Cmd_SetArgs(command);
+
+		// Call SV_Map_f function
+		SV_Map_f();
+		return;
+	}
+
+
+
+
+	else { // Unknown command
+		gi.cprintf(self, PRINT_HIGH, "Unknown or disallowed lrcon command: %s\n", cmd);
+		return;
+	}
+
+}

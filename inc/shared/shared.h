@@ -66,6 +66,7 @@ with this program; if not, write to the Free Software Foundation, Inc.,
 //FIREBLADE
 
 #include "shared/platform.h"
+#include "shared/list.h"
 
 #define q_countof(a)        (sizeof(a) / sizeof(a[0]))
 
@@ -1700,3 +1701,6 @@ typedef struct {
 } entity_state_extension_t;
 
 #endif
+
+// Expose lrcon list
+extern list_t       sv_lrconlist;

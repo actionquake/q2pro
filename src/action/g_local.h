@@ -783,6 +783,9 @@ typedef struct
   char* bot_file_path[MAX_QPATH];
   int used_bot_personalities;
   #endif
+
+  // lrcon claimer
+  edict_t* lrcon_claimer;
 }
 game_locals_t;
 
