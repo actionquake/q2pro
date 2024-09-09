@@ -3640,8 +3640,6 @@ qboolean ClientConnect(edict_t * ent, char *userinfo)
 	if(bot_chat->value)
 		BOTLIB_Chat(ent, CHAT_WELCOME);
 	#endif
-
-	P_ZarkEnt(ent);
 	return true;
 }
 

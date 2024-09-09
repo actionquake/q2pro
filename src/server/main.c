@@ -1332,9 +1332,6 @@ static void SVC_DirectConnect(void)
     newcl->lastmessage = svs.realtime;    // don't timeout
     newcl->lastactivity = svs.realtime;
     newcl->min_ping = 9999;
-
-    P_ZarkEnt(newcl->mapname);
-
 }
 
 typedef enum {
