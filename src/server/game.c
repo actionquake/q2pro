@@ -853,12 +853,26 @@ static const filesystem_api_v1_t filesystem_api_v1 = {
     .ErrorString = Q_ErrorString,
 };
 
+static const rektek_bots_api_v1 rektek_bots_v1 = {
+    .Bsp = SV_BSP,
+    .Nav = CS_NAV,
+#if DEBUG_DRAWING
+    .Draw = CS_DebugDraw,
+#endif
+    .SV_BotUpdateInfo = SV_BotUpdateInfo,
+    .SV_BotConnect = SV_BotConnect,
+    .SV_BotDisconnect = SV_BotDisconnect,
+    .SV_BotClearClients = SV_BotClearClients,
+};
+
 static void *PF_GetExtension(const char *name)
 {
     if (!name)
         return NULL;
-    if (!strcmp(name, "FILESYSTEM_API_V1"))
+    if (!strcmp(name, FILESYSTEM_API_V1))
         return (void *)&filesystem_api_v1;
+    if (!strcmp(name, REKTEK_BOTS))
+        return (void *)&rektek_bots_v1;
 
     Com_Printf("Extension loaded: '%s'\n", name);
     return NULL;
@@ -875,16 +889,6 @@ static const game_import_ex_t game_import_ex = {
 
     .GetExtension = PF_GetExtension,
     .TagRealloc = PF_TagRealloc,
-    .Bsp = SV_BSP,
-    .Nav = CS_NAV,
-#if DEBUG_DRAWING
-    .Draw = CS_DebugDraw,
-
-#endif
-    .SV_BotUpdateInfo = SV_BotUpdateInfo,
-    .SV_BotConnect = SV_BotConnect,
-    .SV_BotDisconnect = SV_BotDisconnect,
-    .SV_BotClearClients = SV_BotClearClients,
 };
 
 static void *game_library;

@@ -320,53 +320,5 @@ typedef game_export_t *(*game_entry_t)(game_import_t *);
 #define GAME_API_VERSION_EX_REKTEK_BOTS         400
 #define GAME_API_VERSION_EX                     400
 
-typedef enum {
-    VIS_PVS     = 0,
-    VIS_PHS     = 1,
-    VIS_NOAREAS = 2     // can be OR'ed with one of above
-} vis_t;
 
-typedef struct {
-    entity_state_t s;
-#if USE_PROTOCOL_EXTENSIONS
-    entity_state_extension_t x;
-#endif
-} customize_entity_t;
 
-typedef struct {
-    uint32_t    apiversion;
-    uint32_t    structsize;
-
-    void        (*local_sound)(edict_t *target, const vec3_t origin, edict_t *ent, int channel, int soundindex, float volume, float attenuation, float timeofs);
-    const char  *(*get_configstring)(int index);
-    trace_t     (*q_gameabi clip)(const vec3_t start, const vec3_t mins, const vec3_t maxs, const vec3_t end, edict_t *clip, int contentmask);
-    qboolean    (*inVIS)(const vec3_t p1, const vec3_t p2, vis_t vis);
-
-    void        *(*GetExtension)(const char *name);
-    void        *(*TagRealloc)(void *ptr, size_t size);
-    bsp_t       *(*Bsp)(void);
-    nav_t       *(*Nav)(void);
-#if DEBUG_DRAWING
-    debug_draw_t    *(*Draw)(void);
-#endif
-    surface_data_t  *(*SurfaceData)(void);
-
-    void        (*SV_BotUpdateInfo)(char* name, int ping, int score);
-    void        (*SV_BotConnect)(char* name);
-    void        (*SV_BotDisconnect)(char* name);
-    void        (*SV_BotClearClients)(void);
-} game_import_ex_t;
-
-typedef struct {
-    uint32_t    apiversion;
-    uint32_t    structsize;
-
-    void        *(*GetExtension)(const char *name);
-    qboolean    (*CanSave)(void);
-    void        (*PrepFrame)(void);
-    void        (*RestartFilesystem)(void); // called when fs_restart is issued
-    qboolean    (*CustomizeEntityToClient)(edict_t *client, edict_t *ent, customize_entity_t *temp); // if true is returned, `temp' must be initialized
-    qboolean    (*EntityVisibleToClient)(edict_t *client, edict_t *ent);
-} game_export_ex_t;
-
-typedef const game_export_ex_t *(*game_entry_ex_t)(const game_import_ex_t *);

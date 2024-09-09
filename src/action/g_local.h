@@ -272,6 +272,7 @@
 // because we define the full size ones in this file
 #define		GAME_INCLUDE
 #include	"shared/game.h"
+#include	"shared/gameext.h"
 
 #include	"a_team.h"
 #include	"a_game.h"

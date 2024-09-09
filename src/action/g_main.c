@@ -699,6 +699,18 @@ q_exported game_export_t *GetGameAPI(game_import_t *import)
 	return &globals;
 }
 
+// static qboolean G_Ext_FilesystemAPI(void)
+// {
+// 	return true;
+// }
+
+// static void *GetExtension(const char *name)
+// {
+// 	if (!Q_strcmp(name, FILESYSTEM_API))
+// 		return G_Ext_FilesystemAPI;
+// 	return NULL;
+// }
+
 const game_export_ex_t gex = {
     .apiversion = GAME_API_VERSION_EX,
     // .structsize = sizeof(game_export_ex_t);
@@ -716,9 +728,9 @@ const game_export_ex_t gex = {
 q_exported const game_export_ex_t *GetGameAPIEx(game_import_ex_t *importx)
 {
     gix = importx;   // assign pointer, don't copy!
-	gex.apiversion = GAME_API_VERSION_EX;
-	gex.structsize = sizeof(game_export_ex_t);
-	gex.GetExtension = GetExtension;
+    gex.apiversion = GAME_API_VERSION_EX;
+    gex.structsize = sizeof(game_export_ex_t);
+    gex.GetExtension = GetExtension;
 
     return &gex;
 }
