@@ -597,13 +597,21 @@ trace_t q_gameabi SV_Trace(const vec3_t start, const vec3_t mins,
 //=============
 bsp_t* SV_BSP(void)
 {
-    bsp_t* bsp = sv.cm.cache;
-    if (!bsp) {
+    rektek_bots_api_v1_t *bsp_api = gex->GetExtension(REKTEK_BOTS_API_V1);
+
+    if (!bsp_api) {
         Com_Error(ERR_DROP, "%s: no map loaded", __func__);
         return NULL;
     }
 
-    return bsp;
+    // Ensure that bsp_api->Bsp is a function that returns bsp_t*
+    if (bsp_api->Bsp == NULL) {
+        Com_Error(ERR_DROP, "%s: Bsp function not set", __func__);
+        return NULL;
+    }
+
+    // Call the Bsp function and return its result
+    return bsp_api->Bsp();
 }
 //#endif
 //rekkie -- BSP -- e
@@ -612,13 +620,21 @@ bsp_t* SV_BSP(void)
 // Share surface data with game library
 nav_t* CS_NAV(void)
 {
-    nav_t* nav = sv.cm.nav;
-    if (!nav) {
+    rektek_bots_api_v1_t *nav_api = gex->GetExtension(REKTEK_BOTS_API_V1);
+
+    if (!nav_api) {
         //Com_Error(ERR_DROP, "%s: no nav data loaded", __func__);
         return NULL;
     }
 
-    return nav;
+    // Ensure that nav_api->Nav is a function that returns nav_t*
+    if (nav_api->Nav == NULL) {
+        //Com_Error(ERR_DROP, "%s: Nav function not set", __func__);
+        return NULL;
+    }
+
+    // Call the Nav function and return its result
+    return nav_api->Nav();
 }
 
 //rekkie -- debug drawing -- s

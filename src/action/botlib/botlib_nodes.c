@@ -3038,15 +3038,6 @@ void BOTLIB_LoadNavCompressed(void)
 			fclose(fIn); // Close the file
 			return;
 		}
-		/*
-		bsp_t* bsp = gi.Bsp();
-		fileSize += sizeof(unsigned) * fread(&bsp_checksum, sizeof(unsigned), 1, fIn); // Map checksum
-		if (bsp_checksum != bsp->checksum)
-		{
-			fclose(fIn); // Close the file
-			return;
-		}
-		*/
 	}
 
 	// Init Nodes
@@ -3591,15 +3582,6 @@ void BOTLIB_LoadNav(void)
 			fclose(fIn); // Close the file
 			return;
 		}
-		/*
-		bsp_t* bsp = gi.Bsp();
-		fileSize += sizeof(unsigned) * fread(&bsp_checksum, sizeof(unsigned), 1, fIn); // Map checksum
-		if (bsp_checksum != bsp->checksum)
-		{
-			fclose(fIn); // Close the file
-			return;
-		}
-		*/
 	}
 
 	// Init
@@ -3915,7 +3897,8 @@ void ACEND_LoadAAS(qboolean force)
 			fclose(fIn); // Close the file
 		}
 
-		bsp_t* bsp = gi.Bsp();
+		rektek_bots_api_v1_t *bsp_api = gex.GetExtension(REKTEK_BOTS_API_V1);
+		bsp_t* bsp = bsp_api->Bsp();
 		fileSize += sizeof(unsigned) * fread(&bsp_checksum, sizeof(unsigned), 1, fIn); // Map checksum
 		if (bsp_checksum != bsp->checksum)
 		{
@@ -5345,7 +5328,8 @@ qboolean BOTLIB_InsideFace(vec3_t *verts, int num_verts, vec3_t point, vec3_t no
 
 void BOTLIB_InitNavigation(edict_t* ent)
 {
-	bsp_t* bsp = gi.Bsp();
+	rektek_bots_api_v1_t *bsp_api = gex.GetExtension(REKTEK_BOTS_API_V1);
+	bsp_t* bsp = bsp_api->Bsp();
 	if (bsp == NULL)
 	{
 		gi.dprintf("%s failed to import BSP data\n", __func__);
@@ -5374,7 +5358,8 @@ void BOTLIB_InitNavigation(edict_t* ent)
 
 void ACEND_BSP(edict_t* ent)
 {
-	bsp_t* bsp = gi.Bsp();
+	rektek_bots_api_v1_t *bsp_api = gex.GetExtension(REKTEK_BOTS_API_V1);
+	bsp_t* bsp = bsp_api->Bsp();
 	if (bsp == NULL)
 	{
 		gi.dprintf("%s failed to import BSP data\n", __func__);
@@ -5411,7 +5396,9 @@ void ACEND_BSP(edict_t* ent)
 
 	if (1)
 	{
-		ent->nav = gi.Nav(); // Grant access to navigation data
+		rektek_bots_api_v1_t *nav_api = gex.GetExtension(REKTEK_BOTS_API_V1);
+		nav_t* nav = nav_api->Nav();
+		//ent->nav = gi.Nav(); // Grant access to navigation data
 		if (ent->nav)
 		{
 			for (int f = 0; f < ent->nav->faces_total; f++)

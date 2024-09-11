@@ -875,7 +875,7 @@ static const debug_draw_api_v1_t debug_draw_api_v1 = {
 };
 #endif
 
-static const rektek_bots_api_v1 rektek_bots_v1 = {
+static const rektek_bots_api_v1_t rektek_bots_v1 = {
     .Bsp = SV_BSP,
     .Nav = CS_NAV,
 #if DEBUG_DRAWING

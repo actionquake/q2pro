@@ -48,7 +48,6 @@ with this program; if not, write to the Free Software Foundation, Inc.,
 #define GAME_API_VERSION_EX_MINIMUM             1
 #define GAME_API_VERSION_EX_CUSTOMIZE_ENTITY    2
 #define GAME_API_VERSION_EX_ENTITY_VISIBLE      3
-#define GAME_API_VERSION_EX                     3
 #define GAME_API_VERSION_EX_REKTEK_BOTS         400
 #define GAME_API_VERSION_EX                     400
 
@@ -141,3 +140,17 @@ typedef struct {
 } debug_draw_api_v1_t;
 
 #define REKTEK_BOTS_API_V1 "REKTEK_BOTS_API_V1"
+typedef struct {
+    bsp_t* (*Bsp)(void);
+    nav_t* (*Nav)(void);
+#if DEBUG_DRAWING
+    debug_draw_t* (*Draw)(void);
+#endif
+    surface_data_t* (*SurfaceData)(void);
+
+    void (*SV_BotUpdateInfo)(char* name, int ping, int score);
+    void (*SV_BotConnect)(char* name);
+    void (*SV_BotDisconnect)(char* name);
+    void (*SV_BotClearClients)(void);
+} rektek_bots_api_v1_t;
+extern rektek_bots_api_v1_t rektek_bots_api_v1;
