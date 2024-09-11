@@ -602,6 +602,7 @@ edict_t *ACESP_SpawnBot( char *team_str, char *name, char *skin, char *userinfo 
 {
 	int team = 0;
 	edict_t	*bot = ACESP_FindFreeClient();
+
 	if( ! bot )
 	{
 		gi.bprintf( PRINT_MEDIUM, "Server is full, increase Maxclients.\n" );
@@ -637,7 +638,10 @@ edict_t *ACESP_SpawnBot( char *team_str, char *name, char *skin, char *userinfo 
 		bot->bot.bot_baseline_ping = (int)(3 + (random() * 60)); // Country ping
 	else
 		bot->bot.bot_baseline_ping = (int)(7 + (random() * 227)); // Country + overseas ping
-	gi.SV_BotConnect(bot->client->pers.netname); // So the server can fake the bot as a 'client'
+
+	rektek_bots_api_v1_t *bot_api = gex.GetExtension(REKTEK_BOTS_API_V1);
+	bot_api->SV_BotConnect(bot->client->pers.netname); // So the server can fake the bot as a 'client'
+	//gi.SV_BotConnect(bot->client->pers.netname); // So the server can fake the bot as a 'client'
 	game.bot_count++;
 	//rekkie -- Fake Bot Client -- e
 	
@@ -695,7 +699,9 @@ void ACESP_RemoveBot(char *name)
 			if( bot->is_bot && (remove_all || !strlen(name) || Q_stricmp(bot->client->pers.netname,name)==0 || (find_team && bot->client->resp.team==find_team)) )
 			{
 				//rekkie -- Fake Bot Client -- s
-				gi.SV_BotDisconnect(bot->client->pers.netname); // So the server can remove the fake client
+				rektek_bots_api_v1_t *bot_api = gex.GetExtension(REKTEK_BOTS_API_V1);
+				bot_api->SV_BotDisconnect(bot->client->pers.netname); // So the server can fake the bot as a 'client'
+				//gi.SV_BotDisconnect(bot->client->pers.netname); // So the server can remove the fake client
 				//rekkie -- Fake Bot Client -- e
 				
 				bot->health = 0;
@@ -766,7 +772,9 @@ void ACESP_RemoveTeamplayBot(int team)
 					if (random() < 0.20) // Randomly kick a bot
 					{
 						//rekkie -- Fake Bot Client -- s
-						gi.SV_BotDisconnect(bot->client->pers.netname); // So the server can remove the fake client
+						rektek_bots_api_v1_t *bot_api = gex.GetExtension(REKTEK_BOTS_API_V1);
+						bot_api->SV_BotDisconnect(bot->client->pers.netname); // So the server can fake the bot as a 'client'
+						//gi.SV_BotDisconnect(bot->client->pers.netname); // So the server can remove the fake client
 						//rekkie -- Fake Bot Client -- e
 						game.bot_count--;
 
