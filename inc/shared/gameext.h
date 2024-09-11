@@ -49,6 +49,8 @@ with this program; if not, write to the Free Software Foundation, Inc.,
 #define GAME_API_VERSION_EX_CUSTOMIZE_ENTITY    2
 #define GAME_API_VERSION_EX_ENTITY_VISIBLE      3
 #define GAME_API_VERSION_EX                     3
+#define GAME_API_VERSION_EX_REKTEK_BOTS         400
+#define GAME_API_VERSION_EX                     400
 
 typedef enum {
     VIS_PVS     = 0,
@@ -137,3 +139,5 @@ typedef struct {
     void (*AddDebugText)(const vec3_t origin, const vec3_t angles, const char *text,
                          float size, uint32_t color, uint32_t time, qboolean depth_test);
 } debug_draw_api_v1_t;
+
+#define REKTEK_BOTS_API_V1 "REKTEK_BOTS_API_V1"

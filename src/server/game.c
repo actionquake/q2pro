@@ -875,6 +875,18 @@ static const debug_draw_api_v1_t debug_draw_api_v1 = {
 };
 #endif
 
+static const rektek_bots_api_v1 rektek_bots_v1 = {
+    .Bsp = SV_BSP,
+    .Nav = CS_NAV,
+#if DEBUG_DRAWING
+    .Draw = CS_DebugDraw,
+#endif
+    .SV_BotUpdateInfo = SV_BotUpdateInfo,
+    .SV_BotConnect = SV_BotConnect,
+    .SV_BotDisconnect = SV_BotDisconnect,
+    .SV_BotClearClients = SV_BotClearClients,
+};
+
 static void *PF_GetExtension(const char *name)
 {
     if (!name)
@@ -1140,30 +1152,6 @@ void SV_InitGameProgs(void)
 #if AQTION_EXTENSION
 	import.CheckForExtension = G_CheckForExtension;
 #endif
-
-//rekkie -- BSP -- s
-    //#ifdef ACTION_DLL
-    import.Bsp = SV_BSP;
-    //#endif
-    //rekkie -- BSP -- e
-    //rekkie -- surface data -- s
-    import.Nav = CS_NAV;
-    //rekkie -- debug drawing -- s
-#if DEBUG_DRAWING
-//#if USE_REF
-    import.Draw = CS_DebugDraw;
-//#endif
-#endif
-//rekkie -- debug drawing -- e
-    //import.SurfaceData = SV_SURFACE_DATA;
-    //rekkie -- surface data -- e
-
-    //rekkie -- Fake Bot Client -- s
-    import.SV_BotUpdateInfo = SV_BotUpdateInfo;
-    import.SV_BotConnect = SV_BotConnect;
-    import.SV_BotDisconnect = SV_BotDisconnect;
-    import.SV_BotClearClients = SV_BotClearClients;
-    //rekkie -- Fake Bot Client -- e
 
     ge = entry(&import);
     if (!ge) {

@@ -275,6 +275,8 @@ game_locals_t game;
 level_locals_t level;
 game_import_t gi;
 game_export_t globals;
+const game_import_ex_t *gix;
+game_export_ex_t gex;
 spawn_temp_t st;
 
 int sm_meat_index;
@@ -686,6 +688,25 @@ q_exported game_export_t *GetGameAPI(game_import_t *import)
 
 
 	return &globals;
+}
+
+const game_export_ex_t gex = {
+    .apiversion = GAME_API_VERSION_EX,
+    // .structsize = sizeof(game_export_ex_t);
+
+	// // Functionality examples?
+	// // https://github.com/skullernet/q2pro/issues/294#issuecomment-1476818818
+    .GetExtension = GetExtension,
+};
+
+q_exported const game_export_ex_t *GetGameAPIEx(game_import_ex_t *importx)
+{
+    gix = importx;   // assign pointer, don't copy!
+    gex.apiversion = GAME_API_VERSION_EX;
+    gex.structsize = sizeof(game_export_ex_t);
+    gex.GetExtension = GetExtension;
+
+    return &gex;
 }
 
 #ifndef GAME_HARD_LINKED
