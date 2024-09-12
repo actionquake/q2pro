@@ -140,6 +140,7 @@ typedef struct {
 } debug_draw_api_v1_t;
 
 #define REKTEK_BOTS_API_V1 "REKTEK_BOTS_API_V1"
+
 typedef struct {
     bsp_t* (*Bsp)(void);
     nav_t* (*Nav)(void);
@@ -153,4 +154,3 @@ typedef struct {
     void (*SV_BotDisconnect)(char* name);
     void (*SV_BotClearClients)(void);
 } rektek_bots_api_v1_t;
-extern rektek_bots_api_v1_t rektek_bots_api_v1;

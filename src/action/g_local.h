@@ -2891,6 +2891,7 @@ typedef enum {
 
 #ifndef NO_BOTS
 #include "acesrc/acebot.h"
+
 #endif
 
 typedef struct {

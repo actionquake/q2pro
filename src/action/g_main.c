@@ -689,25 +689,20 @@ q_exported game_export_t *GetGameAPI(game_import_t *import)
 	return &globals;
 }
 
-static void *GetExtension(const char *name)
-{
-	if (!Q_stricmp(name, REKTEK_BOTS_API_V1))
-		return (void *)&rektek_bots_api_v1;
-	return NULL;
-}
-
-const game_export_ex_t gex = {
+static const game_export_ex_t gex = {
     .apiversion = GAME_API_VERSION_EX,
-    // .structsize = sizeof(game_export_ex_t);
+    .structsize = sizeof(game_export_ex_t),
 
 	// // Functionality examples?
 	// // https://github.com/skullernet/q2pro/issues/294#issuecomment-1476818818
-    .GetExtension = GetExtension,
+    //.GetExtension = GetExtension,
+
 };
 
 q_exported const game_export_ex_t *GetGameAPIEx(game_import_ex_t *importx)
 {
     gix = importx;   // assign pointer, don't copy!
+	
     return &gex;
 }
 

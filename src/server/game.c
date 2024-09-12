@@ -875,7 +875,7 @@ static const debug_draw_api_v1_t debug_draw_api_v1 = {
 };
 #endif
 
-static const rektek_bots_api_v1_t rektek_bots_v1 = {
+static const rektek_bots_api_v1_t rektek_bots_api_v1 = {
     .Bsp = SV_BSP,
     .Nav = CS_NAV,
 #if DEBUG_DRAWING
@@ -894,6 +894,12 @@ static void *PF_GetExtension(const char *name)
 
     if (!strcmp(name, FILESYSTEM_API_V1))
         return (void *)&filesystem_api_v1;
+
+#ifdef AQTION_EXTENSION
+	if (!strcmp(name, REKTEK_BOTS_API_V1))
+		return (void *)&rektek_bots_api_v1;
+#endif
+
 
 #if USE_REF && USE_DEBUG
     if (!strcmp(name, DEBUG_DRAW_API_V1) && !dedicated->integer)
@@ -1167,12 +1173,17 @@ void SV_InitGameProgs(void)
 
     // get extended api if present
     game_entry_ex_t entry_ex = Sys_GetProcAddress(game_library, "GetGameAPIEx");
+    Com_Printf("==== Extended Protocol ====\n");
     if (entry_ex) {
         gex = entry_ex(&game_import_ex);
-        if (gex && gex->apiversion >= GAME_API_VERSION_EX_MINIMUM)
-            Com_DPrintf("Game supports Q2PRO extended API version %d.\n", gex->apiversion);
-        else
+        if (gex == NULL) {
+            Com_Printf("Disabled: Failed to get extended game API.\n");
+        } else if (gex->apiversion < GAME_API_VERSION_EX_MINIMUM) {
             gex = NULL;
+            Com_Printf("Disabled: Extended game API version is too old.\n");
+        } else {
+            Com_Printf("Game supports Q2PRO extended API version %d.\n", gex->apiversion);
+        }
     }
 
     // initialize
