@@ -1733,7 +1733,7 @@ static void SV_Stop_f(void)
 SV_ListSounds_f
 Lists all loaded sounds, good for debugging PF_SoundIndex overflows
 */
-void SV_ListSounds_f(void)
+static void SV_ListSounds_f(void)
 {
     int i;
     char *string;
