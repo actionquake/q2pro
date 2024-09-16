@@ -142,6 +142,8 @@ void QAL_Shutdown(void)
 static const char *const al_drivers[] = {
 #ifdef _WIN32
     "soft_oal", "openal32"
+#elif defined(__APPLE__)
+    "libopenal.dylib.1", "libopenal.dylib"
 #else
     "libopenal.so.1", "libopenal.so"
 #endif

@@ -338,7 +338,7 @@ void Draw_Stats(void)
     int x = 10, y = 10;
 
     R_SetScale(1.0f / get_auto_scale());
-    R_DrawFill8(8, 8, 24*8, 20*10+2, 4);
+    R_DrawFill8(8, 8, 25*8, 21*10+2, 4);
 
     Draw_Stringf(x, y, "Nodes visible  : %i", c.nodesVisible); y += 10;
     Draw_Stringf(x, y, "Nodes culled   : %i", c.nodesCulled); y += 10;
@@ -352,6 +352,7 @@ void Draw_Stats(void)
     Draw_Stringf(x, y, "Tris drawn     : %i", c.trisDrawn); y += 10;
     Draw_Stringf(x, y, "Tex switches   : %i", c.texSwitches); y += 10;
     Draw_Stringf(x, y, "Tex uploads    : %i", c.texUploads); y += 10;
+    Draw_Stringf(x, y, "LM texels      : %i", c.lightTexels); y += 10;
     Draw_Stringf(x, y, "Batches drawn  : %i", c.batchesDrawn); y += 10;
     Draw_Stringf(x, y, "Faces / batch  : %.1f", c.batchesDrawn ? (float)c.facesDrawn / c.batchesDrawn : 0.0f); y += 10;
     Draw_Stringf(x, y, "Tris / batch   : %.1f", c.batchesDrawn ? (float)c.facesTris / c.batchesDrawn : 0.0f); y += 10;
@@ -366,13 +367,24 @@ void Draw_Stats(void)
 
 void Draw_Lightmaps(void)
 {
-    int i, x, y;
+    int block = lm.block_size;
+    int rows = 0, cols = 0;
 
-    for (i = 0; i < lm.nummaps; i++) {
-        x = i & 1;
-        y = i >> 1;
-        _GL_StretchPic(256 * x, 256 * y, 256, 256,
-                       0, 0, 1, 1, U32_WHITE, lm.texnums[i], 0);
+    while (block) {
+        rows = max(r_config.height / block, 1);
+        cols = max(lm.nummaps / rows, 1);
+        if (cols * block <= r_config.width)
+            break;
+        block >>= 1;
+    }
+
+    for (int i = 0; i < cols; i++) {
+        for (int j = 0; j < rows; j++) {
+            int k = j * cols + i;
+            if (k < lm.nummaps)
+                _GL_StretchPic(block * i, block * j, block, block,
+                               0, 0, 1, 1, U32_WHITE, lm.texnums[k], 0);
+        }
     }
 }
 

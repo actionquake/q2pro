@@ -66,13 +66,14 @@ SV_CheckVelocity
 */
 void SV_CheckVelocity(edict_t *ent)
 {
-    int     i;
+    float speed = sv_maxvelocity->value;
 
 //
 // bound velocity
 //
-    for (i = 0; i < 3; i++)
-        clamp(ent->velocity[i], -sv_maxvelocity->value, sv_maxvelocity->value);
+    ent->velocity[0] = Q_clipf(ent->velocity[0], -speed, speed);
+    ent->velocity[1] = Q_clipf(ent->velocity[1], -speed, speed);
+    ent->velocity[2] = Q_clipf(ent->velocity[2], -speed, speed);
 }
 
 /*
@@ -418,7 +419,7 @@ bool SV_Push(edict_t *pusher, vec3_t move, vec3_t amove)
             || check->movetype == MOVETYPE_NOCLIP)
             continue;
 
-        if (!check->area.prev)
+        if (!check->area.next)
             continue;       // not linked in anywhere
 
         // if the entity is standing on the pusher, it will definitely be moved

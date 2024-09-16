@@ -27,6 +27,8 @@ with this program; if not, write to the Free Software Foundation, Inc.,
 #include "client/sound/dma.h"
 #endif
 
+#define MAX_SFX_SAMPLES     ((1 << 23) - 1)
+
 typedef struct sfxcache_s {
     int         length;
     int         loopstart;
@@ -115,12 +117,13 @@ typedef struct {
     void (*delete_sfx)(sfx_t *s);
     void (*page_in_sfx)(sfx_t *s);
     bool (*raw_samples)(int samples, int rate, int width, int channels, const byte *data, float volume);
-    bool (*need_raw_samples)(void);
+    int (*need_raw_samples)(void);
     void (*drop_raw_samples)(void);
     int (*get_begin_ofs)(float timeofs);
     void (*play_channel)(channel_t *ch);
     void (*stop_channel)(channel_t *ch);
     void (*stop_all_sounds)(void);
+    int (*get_sample_rate)(void);
 } sndapi_t;
 
 #if USE_SNDDMA
@@ -164,12 +167,6 @@ extern cvar_t       *s_show;
 extern cvar_t       *s_underwater;
 extern cvar_t       *s_underwater_gain_hf;
 
-// clip integer to [-0x8000, 0x7FFF] range (stolen from FFmpeg)
-static inline int clip16(int v)
-{
-    return ((v + 0x8000U) & ~0xFFFF) ? (v >> 31) ^ 0x7FFF : v;
-}
-
 #define S_IsFullVolume(ch) \
     ((ch)->entnum == -1 || (ch)->entnum == listener_entnum || (ch)->dist_mult == 0)
 
@@ -187,6 +184,6 @@ void S_BuildSoundList(int *sounds);
 float S_GetEntityLoopVolume(const centity_state_t *ent);
 float S_GetEntityLoopDistMult(const centity_state_t *ent);
 
-#if USE_OGG
+#if USE_AVCODEC
 bool OGG_Load(sizebuf_t *sz);
 #endif

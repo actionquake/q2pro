@@ -1753,8 +1753,7 @@ static void CL_FollowIP_f(void)
 
     if (Cmd_Argc() > 1) {
         // optional second argument references less recent address
-        j = atoi(Cmd_Argv(1)) + 1;
-        clamp(j, 1, RECENT_ADDR);
+        j = Q_clip(Q_atoi(Cmd_Argv(1)), 0, RECENT_ADDR - 1) + 1;
     } else {
         j = 1;
     }
@@ -1865,6 +1864,7 @@ void CL_ClearState(void)
     S_StopAllSounds();
     OGG_Stop();
     SCR_StopCinematic();
+    SCR_ClearCenterPrints();
     CL_ClearEffects();
     CL_ClearTEnts();
 #ifdef AQTION_EXTENSION
@@ -1931,7 +1931,7 @@ void CL_Disconnect(error_type_t type)
         MSG_WriteByte(clc_stringcmd);
         MSG_WriteData("disconnect", 11);
 
-        cls.netchan.Transmit(&cls.netchan, msg_write.cursize, msg_write.data, 3);
+        Netchan_Transmit(&cls.netchan, msg_write.cursize, msg_write.data, 3);
 
         SZ_Clear(&msg_write);
 
@@ -2023,7 +2023,11 @@ static int SortPlayers(const void *v1, const void *v2)
     const playerStatus_t *p1 = (const playerStatus_t *)v1;
     const playerStatus_t *p2 = (const playerStatus_t *)v2;
 
-    return p2->score - p1->score;
+    if (p1->score < p2->score)
+        return 1;
+    if (p1->score > p2->score)
+        return -1;
+    return 0;
 }
 
 /*
@@ -2058,8 +2062,8 @@ static void CL_ParseStatusResponse(serverStatus_t *status, const char *string)
     status->numPlayers = 0;
     while (status->numPlayers < MAX_STATUS_PLAYERS) {
         player = &status->players[status->numPlayers];
-        player->score = atoi(COM_Parse(&s));
-        player->ping = atoi(COM_Parse(&s));
+        player->score = Q_atoi(COM_Parse(&s));
+        player->ping = Q_atoi(COM_Parse(&s));
         Q_strlcpy(player->name, COM_Parse(&s), sizeof(player->name));
         if (!s)
             break;
@@ -2454,7 +2458,7 @@ static void CL_ConnectionlessPacket(void)
             return;
         }
 
-        cls.challenge = atoi(Cmd_Argv(1));
+        cls.challenge = Q_atoi(Cmd_Argv(1));
         cls.state = ca_connecting;
         cls.connect_time -= CONNECT_INSTANT; // fire immediately
         //cls.connect_count = 0;
@@ -2551,12 +2555,12 @@ static void CL_ConnectionlessPacket(void)
             if (!strncmp(s, "ac=", 3)) {
                 s += 3;
                 if (*s) {
-                    anticheat = atoi(s);
+                    anticheat = Q_atoi(s);
                 }
             } else if (!strncmp(s, "nc=", 3)) {
                 s += 3;
                 if (*s) {
-                    type = atoi(s);
+                    type = Q_atoi(s);
                     if (type != NETCHAN_OLD && type != NETCHAN_NEW) {
                         Com_Error(ERR_DISCONNECT,
                                   "Server returned invalid netchan type");
@@ -2586,7 +2590,7 @@ static void CL_ConnectionlessPacket(void)
         if (anticheat) {
             MSG_WriteByte(clc_nop);
             MSG_FlushTo(&cls.netchan.message);
-            cls.netchan.Transmit(&cls.netchan, 0, "", 3);
+            Netchan_Transmit(&cls.netchan, 0, NULL, 3);
             S_StopAllSounds();
             cls.connect_count = -1;
             Com_Printf("Loading anticheat, this may take a few moments...\n");
@@ -2594,7 +2598,7 @@ static void CL_ConnectionlessPacket(void)
             if (!Sys_GetAntiCheatAPI()) {
                 Com_Printf("Trying to connect without anticheat.\n");
             } else {
-                Com_LPrintf(PRINT_NOTICE, "Anticheat loaded successfully.\n");
+                Com_NPrintf("Anticheat loaded successfully.\n");
             }
         }
 #else
@@ -2608,6 +2612,7 @@ static void CL_ConnectionlessPacket(void)
         cls.state = ca_connected;
         cls.connect_count = 0;
         Q_strlcpy(cl.mapname, mapname, sizeof(cl.mapname)); // for levelshot screen
+        cl.csr = cs_remap_old;
         return;
     }
 
@@ -2688,7 +2693,7 @@ static void CL_PacketEvent(void)
         return;
     }
 
-    if (!cls.netchan.Process(&cls.netchan))
+    if (!Netchan_Process(&cls.netchan))
         return;     // wasn't accepted for some reason
 
 #if USE_ICMP
@@ -2940,7 +2945,7 @@ static void CL_Precache_f(void)
         return;
     }
 
-    precache_spawncount = atoi(Cmd_Argv(1));
+    precache_spawncount = Q_atoi(Cmd_Argv(1));
 
     CL_ResetPrecacheCheck();
     CL_RequestNextDownload();
@@ -4631,7 +4636,9 @@ void CL_Init(void)
     Q_assert(inflateInit2(&cls.z, -MAX_WBITS) == Z_OK);
 #endif
 
+    SCR_InitCinematics();
     OGG_Init();
+
     CL_LoadDownloadIgnores();
     CL_LoadStuffTextWhiteList();
 

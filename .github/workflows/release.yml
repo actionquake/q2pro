@@ -11,7 +11,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
         with:
           repository: actionquake/q2pro
           ref: ${{ github.ref }}
@@ -101,6 +101,13 @@ jobs:
           name: q2pro-darwin-x86_64
           skip_unpack: true
 
+      - name: Download Darwin arm64 build artifacts
+        uses: dawidd6/action-download-artifact@v2
+        with:
+          workflow: build.yml
+          name: q2pro-darwin-arm64
+          skip_unpack: true
+
       - name: Upload dist tarball to release
         uses: softprops/action-gh-release@v1
         env:
@@ -117,6 +124,7 @@ jobs:
             q2pro-lin-wayland-gcc.zip
             q2pro-lin-wayland-clang.zip
             q2pro-darwin-x86_64.zip
+            q2pro-darwin-arm64.zip
 
 
 

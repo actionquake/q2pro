@@ -18,8 +18,6 @@ with this program; if not, write to the Free Software Foundation, Inc.,
 
 #include "gl.h"
 
-typedef void (*tessfunc_t)(const maliasmesh_t *);
-
 static int      oldframenum;
 static int      newframenum;
 static float    frontlerp;
@@ -29,7 +27,6 @@ static vec3_t   oldscale;
 static vec3_t   newscale;
 static vec3_t   translate;
 static vec_t    shellscale;
-static tessfunc_t tessfunc;
 static vec4_t   color;
 
 static vec3_t   shadedir;
@@ -389,9 +386,9 @@ static void setup_color(void)
             }
         }
 
-        for (i = 0; i < 3; i++) {
-            clamp(color[i], 0, 1);
-        }
+        color[0] = Q_clipf(color[0], 0, 1);
+        color[1] = Q_clipf(color[1], 0, 1);
+        color[2] = Q_clipf(color[2], 0, 1);
     }
 
     if (flags & RF_TRANSLUCENT) {
@@ -419,7 +416,7 @@ static void setup_celshading(void)
     celscale = 1.0f - Distance(origin, glr.fd.vieworg) / 700.0f;
 }
 
-static void draw_celshading(QGL_INDEX_TYPE *indices, int num_indices)
+static void draw_celshading(const QGL_INDEX_TYPE *indices, int num_indices)
 {
     if (celscale < 0.01f || celscale > 1)
         return;
@@ -492,7 +489,7 @@ static void setup_shadow(void)
     GL_MultMatrix(shadowmatrix, tmp, matrix);
 }
 
-static void draw_shadow(QGL_INDEX_TYPE *indices, int num_indices)
+static void draw_shadow(const QGL_INDEX_TYPE *indices, int num_indices)
 {
     if (shadowmatrix[15] < 0.5f)
         return;
@@ -553,22 +550,32 @@ static image_t *skin_for_mesh(image_t **skins, int num_skins)
     return skins[ent->skinnum];
 }
 
-static void draw_alias_mesh(const maliasmesh_t *mesh)
+static void draw_alias_mesh(const QGL_INDEX_TYPE *indices, int num_indices,
+                            const maliastc_t *tcoords, int num_verts,
+                            image_t **skins, int num_skins)
 {
     glStateBits_t state = GLS_INTENSITY_ENABLE;
-    image_t *skin = skin_for_mesh(mesh->skins, mesh->numskins);
+    image_t *skin = skin_for_mesh(skins, num_skins);
 
     // fall back to entity matrix
     GL_LoadMatrix(glr.entmatrix);
+
+    // avoid drawing hidden faces for transparent gun
+    if ((glr.ent->flags & (RF_TRANSLUCENT | RF_WEAPONMODEL | RF_FULLBRIGHT)) == (RF_TRANSLUCENT | RF_WEAPONMODEL)) {
+        GL_StateBits(GLS_DEFAULT);
+        GL_ArrayBits(GLA_VERTEX);
+        GL_BindTexture(0, TEXNUM_WHITE);
+        GL_VertexPointer(3, dotshading ? VERTEX_SIZE : 4, tess.vertices);
+        qglColorMask(0, 0, 0, 0);
+        qglDrawElements(GL_TRIANGLES, num_indices, QGL_INDEX_ENUM, indices);
+        qglColorMask(1, 1, 1, 1);
+    }
 
     if (dotshading)
         state |= GLS_SHADE_SMOOTH;
 
     if (glr.ent->flags & RF_TRANSLUCENT)
-        state |= GLS_BLEND_BLEND;
-
-    if ((glr.ent->flags & (RF_TRANSLUCENT | RF_WEAPONMODEL)) == RF_TRANSLUCENT)
-        state |= GLS_DEPTHMASK_FALSE;
+        state |= GLS_BLEND_BLEND | GLS_DEPTHMASK_FALSE;
 
     if (skin->glow_texnum)
         state |= GLS_GLOWMAP_ENABLE;
@@ -580,9 +587,6 @@ static void draw_alias_mesh(const maliasmesh_t *mesh)
     if (skin->glow_texnum)
         GL_BindTexture(2, skin->glow_texnum);
 
-    (*tessfunc)(mesh);
-    c.trisDrawn += mesh->numtris;
-
     if (dotshading) {
         GL_ArrayBits(GLA_VERTEX | GLA_TC | GLA_COLOR);
         GL_VertexPointer(3, VERTEX_SIZE, tess.vertices);
@@ -593,21 +597,21 @@ static void draw_alias_mesh(const maliasmesh_t *mesh)
         GL_Color(color[0], color[1], color[2], color[3]);
     }
 
-    GL_TexCoordPointer(2, 0, (GLfloat *)mesh->tcoords);
+    GL_TexCoordPointer(2, 0, tcoords->st);
 
-    GL_LockArrays(mesh->numverts);
+    GL_LockArrays(num_verts);
 
-    qglDrawElements(GL_TRIANGLES, mesh->numindices, QGL_INDEX_ENUM,
-                    mesh->indices);
+    qglDrawElements(GL_TRIANGLES, num_indices, QGL_INDEX_ENUM, indices);
+    c.trisDrawn += num_indices / 3;
 
-    draw_celshading(mesh->indices, mesh->numindices);
+    draw_celshading(indices, num_indices);
 
-    if (gl_showtris->integer) {
-        GL_DrawOutlines(mesh->numindices, mesh->indices);
+    if (gl_showtris->integer & BIT(1)) {
+        GL_DrawOutlines(num_indices, indices);
     }
 
     // FIXME: unlock arrays before changing matrix?
-    draw_shadow(mesh->indices, mesh->numindices);
+    draw_shadow(indices, num_indices);
 
     GL_UnlockArrays();
 }
@@ -699,31 +703,6 @@ static void lerp_alias_skeleton(const md5_model_t *model)
 
 static void draw_skeleton_mesh(const md5_model_t *model, const md5_mesh_t *mesh, const md5_joint_t *skel)
 {
-    glStateBits_t state = GLS_INTENSITY_ENABLE;
-    image_t *skin = skin_for_mesh(model->skins, model->num_skins);
-
-    // fall back to entity matrix
-    GL_LoadMatrix(glr.entmatrix);
-
-    if (dotshading)
-        state |= GLS_SHADE_SMOOTH;
-
-    if (glr.ent->flags & RF_TRANSLUCENT)
-        state |= GLS_BLEND_BLEND;
-
-    if ((glr.ent->flags & (RF_TRANSLUCENT | RF_WEAPONMODEL)) == RF_TRANSLUCENT)
-        state |= GLS_DEPTHMASK_FALSE;
-
-    if (skin->glow_texnum)
-        state |= GLS_GLOWMAP_ENABLE;
-
-    GL_StateBits(state);
-
-    GL_BindTexture(0, skin->texnum);
-
-    if (skin->glow_texnum)
-        GL_BindTexture(2, skin->glow_texnum);
-
     if (glr.ent->flags & RF_SHELL_MASK)
         tess_shell_skel(mesh, skel);
     else if (dotshading)
@@ -731,34 +710,9 @@ static void draw_skeleton_mesh(const md5_model_t *model, const md5_mesh_t *mesh,
     else
         tess_plain_skel(mesh, skel);
 
-    c.trisDrawn += mesh->num_indices / 3;
-
-    if (dotshading) {
-        GL_ArrayBits(GLA_VERTEX | GLA_TC | GLA_COLOR);
-        GL_VertexPointer(3, VERTEX_SIZE, tess.vertices);
-        GL_ColorFloatPointer(4, VERTEX_SIZE, tess.vertices + 4);
-    } else {
-        GL_ArrayBits(GLA_VERTEX | GLA_TC);
-        GL_VertexPointer(3, 4, tess.vertices);
-        GL_Color(color[0], color[1], color[2], color[3]);
-    }
-
-    GL_TexCoordPointer(2, sizeof(mesh->vertices[0]) / sizeof(float), mesh->vertices->st);
-
-    GL_LockArrays(mesh->num_verts);
-
-    qglDrawElements(GL_TRIANGLES, mesh->num_indices, QGL_INDEX_ENUM, mesh->indices);
-
-    draw_celshading(mesh->indices, mesh->num_indices);
-
-    if (gl_showtris->integer) {
-        GL_DrawOutlines(mesh->num_indices, mesh->indices);
-    }
-
-    // FIXME: unlock arrays before changing matrix?
-    draw_shadow(mesh->indices, mesh->num_indices);
-
-    GL_UnlockArrays();
+    draw_alias_mesh(mesh->indices, mesh->num_indices,
+                    mesh->tcoords, mesh->num_verts,
+                    model->skins, model->num_skins);
 }
 
 static void draw_alias_skeleton(const md5_model_t *model)
@@ -812,6 +766,7 @@ void GL_DrawAliasModel(const model_t *model)
 {
     const entity_t *ent = glr.ent;
     glCullResult_t cull;
+    void (*tessfunc)(const maliasmesh_t *);
     int i;
 
     newframenum = ent->frame;
@@ -877,8 +832,13 @@ void GL_DrawAliasModel(const model_t *model)
         draw_alias_skeleton(model->skeleton);
     else
 #endif
-    for (i = 0; i < model->nummeshes; i++)
-        draw_alias_mesh(&model->meshes[i]);
+    for (i = 0; i < model->nummeshes; i++) {
+        const maliasmesh_t *mesh = &model->meshes[i];
+        (*tessfunc)(mesh);
+        draw_alias_mesh(mesh->indices, mesh->numindices,
+                        mesh->tcoords, mesh->numverts,
+                        mesh->skins, mesh->numskins);
+    }
 
     if (ent->flags & RF_DEPTHHACK)
         GL_DepthRange(0, 1);

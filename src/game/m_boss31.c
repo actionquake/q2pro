@@ -374,14 +374,14 @@ const mmove_t jorg_move_end_attack1 = {FRAME_attak115, FRAME_attak118, jorg_fram
 
 void jorg_reattack1(edict_t *self)
 {
-    if (visible(self, self->enemy))
+    if (visible(self, self->enemy)) {
         if (random() < 0.9f)
             self->monsterinfo.currentmove = &jorg_move_attack1;
         else {
             self->s.sound = 0;
             self->monsterinfo.currentmove = &jorg_move_end_attack1;
         }
-    else {
+    } else {
         self->s.sound = 0;
         self->monsterinfo.currentmove = &jorg_move_end_attack1;
     }
@@ -394,7 +394,6 @@ void jorg_attack1(edict_t *self)
 
 void jorg_pain(edict_t *self, edict_t *other, float kick, int damage)
 {
-
     if (self->health < (self->max_health / 2))
         self->s.skinnum = 1;
 
@@ -603,15 +602,8 @@ bool Jorg_CheckAttack(edict_t *self)
 
 void MakronPrecache(void);
 
-/*QUAKED monster_jorg (1 .5 0) (-80 -80 0) (90 90 140) Ambush Trigger_Spawn Sight
-*/
-void SP_monster_jorg(edict_t *self)
+static void jorg_precache(void)
 {
-    if (deathmatch->value) {
-        G_FreeEdict(self);
-        return;
-    }
-
     sound_pain1 = gi.soundindex("boss3/bs3pain1.wav");
     sound_pain2 = gi.soundindex("boss3/bs3pain2.wav");
     sound_pain3 = gi.soundindex("boss3/bs3pain3.wav");
@@ -628,6 +620,18 @@ void SP_monster_jorg(edict_t *self)
     sound_death_hit = gi.soundindex("boss3/d_hit.wav");
 
     MakronPrecache();
+}
+
+/*QUAKED monster_jorg (1 .5 0) (-80 -80 0) (90 90 140) Ambush Trigger_Spawn Sight
+*/
+void SP_monster_jorg(edict_t *self)
+{
+    if (deathmatch->value) {
+        G_FreeEdict(self);
+        return;
+    }
+
+    G_AddPrecache(jorg_precache);
 
     self->movetype = MOVETYPE_STEP;
     self->solid = SOLID_BBOX;

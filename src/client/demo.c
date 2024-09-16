@@ -61,7 +61,7 @@ bool CL_WriteDemoMessage(sizebuf_t *buf)
     if (ret != buf->cursize)
         goto fail;
 
-    Com_DDPrintf("%s: wrote %zu bytes\n", __func__, buf->cursize);
+    Com_DDPrintf("%s: wrote %u bytes\n", __func__, buf->cursize);
 
     SZ_Clear(buf);
     return true;
@@ -104,7 +104,7 @@ static void emit_packet_entities(server_frame_t *from, server_frame_t *to)
     oldent = newent = NULL;
     while (newindex < to->numEntities || oldindex < from_num_entities) {
         if (newindex >= to->numEntities) {
-            newnum = 9999;
+            newnum = MAX_EDICTS;
         } else {
             i = (to->firstEntity + newindex) & PARSE_ENTITIES_MASK;
             newent = &cl.entityStates[i];
@@ -112,7 +112,7 @@ static void emit_packet_entities(server_frame_t *from, server_frame_t *to)
         }
 
         if (oldindex >= from_num_entities) {
-            oldnum = 9999;
+            oldnum = MAX_EDICTS;
         } else {
             i = (from->firstEntity + oldindex) & PARSE_ENTITIES_MASK;
             oldent = &cl.entityStates[i];
@@ -225,13 +225,13 @@ void CL_EmitDemoFrame(void)
     emit_delta_frame(oldframe, &cl.frame, lastframe, FRAME_CUR);
 
     if (cls.demo.buffer.cursize + msg_write.cursize > cls.demo.buffer.maxsize) {
-        Com_DPrintf("Demo frame overflowed (%zu + %zu > %zu)\n",
+        Com_DPrintf("Demo frame overflowed (%u + %u > %u)\n",
                     cls.demo.buffer.cursize, msg_write.cursize, cls.demo.buffer.maxsize);
         cls.demo.frames_dropped++;
 
         // warn the user if drop rate is too high
         if (cls.demo.frames_written < 10 && cls.demo.frames_dropped == 50)
-            Com_WPrintf("Too many demo frames don't fit into %zu bytes.\n"
+            Com_WPrintf("Too many demo frames don't fit into %u bytes.\n"
                         "Try to increase 'cl_demomsglen' value and restart recording.\n",
                         cls.demo.buffer.maxsize);
     } else {
@@ -755,6 +755,7 @@ static void CL_PlayDemo_f(void)
     cls.state = ca_connected;
     Q_strlcpy(cls.servername, COM_SkipPath(name), sizeof(cls.servername));
     cls.serverAddress.type = NA_LOOPBACK;
+    cl.csr = cs_remap_old;
 
     Con_Popup(true);
     SCR_UpdateScreen();
@@ -857,10 +858,10 @@ void CL_EmitDemoSnapshot(void)
     snap->msglen = msg_write.cursize;
     memcpy(snap->data, msg_write.data, msg_write.cursize);
 
-    cls.demo.snapshots = Z_Realloc(cls.demo.snapshots, sizeof(snap) * ALIGN(cls.demo.numsnapshots + 1, MIN_SNAPSHOTS));
+    cls.demo.snapshots = Z_Realloc(cls.demo.snapshots, sizeof(cls.demo.snapshots[0]) * ALIGN(cls.demo.numsnapshots + 1, MIN_SNAPSHOTS));
     cls.demo.snapshots[cls.demo.numsnapshots++] = snap;
 
-    Com_DPrintf("[%d] snaplen %zu\n", cls.demo.frames_read, msg_write.cursize);
+    Com_DPrintf("[%d] snaplen %u\n", cls.demo.frames_read, msg_write.cursize);
 
     SZ_Clear(&msg_write);
 
@@ -983,7 +984,7 @@ static void CL_Seek_f(void)
             return;
         }
 
-        clamp(percent, 0, 100);
+        percent = Q_clipf(percent, 0, 100);
         dest = cls.demo.file_offset + cls.demo.file_size * percent / 100;
 
         byte_seek = true;

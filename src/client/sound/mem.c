@@ -62,7 +62,7 @@ static bool GetWavinfo(sizebuf_t *sz)
 
     tag = SZ_ReadLong(sz);
 
-#if USE_OGG
+#if USE_AVCODEC
     if (tag == MakeLittleLong('O','g','g','S') || !COM_CompareExtension(s_info.name, ".ogg")) {
         sz->readcount = 0;
         return OGG_Load(sz);
@@ -135,8 +135,8 @@ static bool GetWavinfo(sizebuf_t *sz)
 
 // calculate length in samples
     s_info.samples = chunk_len / (s_info.width * s_info.channels);
-    if (!s_info.samples) {
-        Com_DPrintf("%s has zero length\n", s_info.name);
+    if (s_info.samples < 1 || s_info.samples > MAX_SFX_SAMPLES) {
+        Com_DPrintf("%s has bad number of samples\n", s_info.name);
         return false;
     }
 
@@ -258,7 +258,7 @@ sfxcache_t *S_LoadSound(sfx_t *s)
 
     sc = s_api.upload_sfx(s);
 
-#if USE_OGG
+#if USE_AVCODEC
     if (s_info.format != FORMAT_PCM)
         FS_FreeTempMem(s_info.data);
 #endif

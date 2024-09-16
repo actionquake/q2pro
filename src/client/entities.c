@@ -79,7 +79,7 @@ entity_update_old(centity_t *ent, const centity_state_t *state, const vec_t *ori
     // check for new event
     if (state->event != ent->current.event)
         ent->event_frame = cl.frame.number; // new
-    else if (cl.frame.number - ent->event_frame >= cl.framediv)
+    else if (cl.frame.number - ent->event_frame >= cl.frametime.div)
         ent->event_frame = cl.frame.number; // refreshed
     else
         event = 0; // duplicated
@@ -113,7 +113,7 @@ entity_update_old(centity_t *ent, const centity_state_t *state, const vec_t *ori
     // start alias model animation
     if (state->frame != ent->current.frame) {
         ent->prev_frame = ent->current.frame;
-        ent->anim_start = cl.servertime - cl.frametime;
+        ent->anim_start = cl.servertime - cl.frametime.time;
     }
 #endif
 
@@ -160,9 +160,11 @@ static void parse_entity_update(const centity_state_t *state)
             MSG_UnpackSolid32_Ver1(state->solid, ent->mins, ent->maxs);
         else
             MSG_UnpackSolid16(state->solid, ent->mins, ent->maxs);
+        ent->radius = Distance(ent->maxs, ent->mins) * 0.5f;
     } else {
         VectorClear(ent->mins);
         VectorClear(ent->maxs);
+        ent->radius = 0;
     }
 
     // work around Q2PRO server bandwidth optimization
@@ -222,22 +224,6 @@ static void parse_entity_event(int number)
         break;
     case EV_FOOTSTEP:
         if (cl_footsteps->integer) {
-            if (strcmp(cl_enhanced_footsteps->string, "0") == 0) {
-                CL_PlayFootstepSfx(-1, number, 1.0f, ATTN_NORM);
-                //S_StartSound(NULL, number, CHAN_BODY, cl_sfx_footsteps[Q_rand() & 3], 1, ATTN_NORM, 0);
-            } else {
-                int r = Q_rand() % 12;
-                if ( r == cl_laststep ) {
-                    if ( r < 11) {
-                        r++; //use next step if same as last time was generated
-                    } else {
-                        r = 0; //use first stepsound if 12 where used twice
-                    }
-                }
-                CL_PlayFootstepSfx(-1, number, 1.0f, ATTN_NORM);
-                //S_StartSound(NULL, number, CHAN_BODY, cl_sfx_footsteps[r], 1, ATTN_NORM, 0);
-                cl_laststep = r;
-            }
             CL_PlayFootstepSfx(-1, number, 1.0f, ATTN_NORM);
         }
         break;
@@ -311,6 +297,8 @@ static void set_active_state(void)
     CL_CheckForPause();
 
     CL_UpdateFrameTimes();
+
+    IN_Activate();
 
     if (!cls.demo.playback) {
         EXEC_TRIGGER(cl_beginmapcmd);
@@ -401,7 +389,7 @@ void CL_DeltaFrame(void)
     framenum = cl.frame.number - cl.serverdelta;
     cl.servertime = framenum * CL_FRAMETIME;
 #if USE_FPS
-    cl.keyservertime = (framenum / cl.framediv) * BASE_FRAMETIME;
+    cl.keyservertime = (framenum / cl.frametime.div) * BASE_FRAMETIME;
 #endif
 
     // rebuild the list of solid entities for this frame
@@ -448,7 +436,7 @@ void CL_DeltaFrame(void)
 
 #if USE_FPS
     if (CL_FRAMESYNC)
-        check_player_lerp(&cl.oldkeyframe, &cl.keyframe, cl.framediv);
+        check_player_lerp(&cl.oldkeyframe, &cl.keyframe, cl.frametime.div);
 #endif
 
     CL_CheckPredictionError();
@@ -623,9 +611,9 @@ static void CL_AddPacketEntities(void)
         }
 
 #if USE_AQTION
-		if (IS_INDICATOR(renderfx) && !cl_indicators->integer && cls.demo.playback) {
-			goto skip;
-		}
+        if (IS_INDICATOR(renderfx) && !cl_indicators->integer && cls.demo.playback) {
+            goto skip;
+        }
 #endif
         if ((effects & EF_GIB) && !cl_gibs->integer)
             goto skip;
@@ -933,14 +921,13 @@ static void CL_AddPacketEntities(void)
 
             // remaster powerscreen is tiny and needs scaling
             if (cl.need_powerscreen_scale) {
-                vec3_t forward, mid, size, tmp;
+                vec3_t forward, mid, tmp;
                 VectorCopy(ent.origin, tmp);
-                VectorSubtract(cent->maxs, cent->mins, size);
                 VectorAvg(cent->mins, cent->maxs, mid);
                 VectorAdd(ent.origin, mid, ent.origin);
                 AngleVectors(ent.angles, forward, NULL, NULL);
-                VectorMA(ent.origin, size[1] * 0.5f, forward, ent.origin);
-                ent.scale = VectorLength(size) * 0.4f;
+                VectorMA(ent.origin, cent->maxs[0], forward, ent.origin);
+                ent.scale = cent->radius * 0.8f;
                 ent.flags |= RF_FULLBRIGHT;
                 V_AddEntity(&ent);
                 VectorCopy(tmp, ent.origin);
@@ -1012,7 +999,7 @@ static void CL_AddPacketEntities(void)
                 float intensity = 50 + (500 * (sin(cl.time / 500.0f) + 1.0f));
                 V_AddLight(ent.origin, intensity, -1.0f, -1.0f, -1.0f);
             } else {
-                CL_Tracker_Shell(cent->lerp_origin);
+                CL_Tracker_Shell(cent, ent.origin);
                 V_AddLight(ent.origin, 155, -1.0f, -1.0f, -1.0f);
             }
         } else if (effects & EF_TRACKER) {
@@ -1141,6 +1128,35 @@ static void CL_AddViewWeapon(void)
         gun.flags |= flags | RF_TRANSLUCENT;
         V_AddEntity(&gun);
     }
+
+    // add muzzle flash
+    if (!cl.weapon.muzzle.model)
+        return;
+
+    if (cl.time - cl.weapon.muzzle.time > 50) {
+        cl.weapon.muzzle.model = 0;
+        return;
+    }
+
+    gun.flags = RF_FULLBRIGHT | RF_DEPTHHACK | RF_WEAPONMODEL | RF_TRANSLUCENT;
+    gun.alpha = 1.0f;
+    gun.model = cl.weapon.muzzle.model;
+    gun.skinnum = 0;
+    gun.scale = cl.weapon.muzzle.scale;
+    gun.backlerp = 0.0f;
+    gun.frame = gun.oldframe = 0;
+
+    vec3_t forward, right, up;
+    AngleVectors(gun.angles, forward, right, up);
+
+    VectorMA(gun.origin, cl.weapon.muzzle.offset[0], forward, gun.origin);
+    VectorMA(gun.origin, cl.weapon.muzzle.offset[1], right, gun.origin);
+    VectorMA(gun.origin, cl.weapon.muzzle.offset[2], up, gun.origin);
+
+    VectorCopy(cl.refdef.viewangles, gun.angles);
+    gun.angles[2] += cl.weapon.muzzle.roll;
+
+    V_AddEntity(&gun);
 }
 
 static void CL_SetupFirstPersonView(void)
@@ -1291,7 +1307,7 @@ void CL_CalcViewValues(void)
         float backlerp = lerp - 1.0f;
 
         VectorMA(cl.predicted_origin, backlerp, cl.prediction_error, cl.refdef.vieworg);
-		LerpVector(ops->viewoffset, ps->viewoffset, lerp, viewoffset);
+        LerpVector(ops->viewoffset, ps->viewoffset, lerp, viewoffset);
 
         // smooth out stair climbing
         if (cl.predicted_step < 127 * 0.125f) {
@@ -1301,16 +1317,16 @@ void CL_CalcViewValues(void)
             cl.refdef.vieworg[2] -= cl.predicted_step * (100 - delta) * 0.01f;
         }
 
-		if (cl_predict_crouch->integer == 2 || (cl_predict_crouch->integer && cl.view_predict))
-		{
+        if (cl_predict_crouch->integer == 2 || (cl_predict_crouch->integer && cl.view_predict))
+        {
 #if USE_FPS
-			viewoffset[2] = cl.predicted_viewheight[1];
-			viewoffset[2] -= (cl.predicted_viewheight[1] - cl.predicted_viewheight[0]) * cl.keylerpfrac;
+            viewoffset[2] = cl.predicted_viewheight[1];
+            viewoffset[2] -= (cl.predicted_viewheight[1] - cl.predicted_viewheight[0]) * cl.keylerpfrac;
 #else
-			viewoffset[2] = cl.predicted_viewheight[1];
-			viewoffset[2] -= (cl.predicted_viewheight[1] - cl.predicted_viewheight[0]) * lerp;
+            viewoffset[2] = cl.predicted_viewheight[1];
+            viewoffset[2] -= (cl.predicted_viewheight[1] - cl.predicted_viewheight[0]) * lerp;
 #endif
-		}
+        }
 
     } else {
         int i;
@@ -1321,7 +1337,7 @@ void CL_CalcViewValues(void)
                 lerp * (ps->pmove.origin[i] - ops->pmove.origin[i]));
         }
 
-		LerpVector(ops->viewoffset, ps->viewoffset, lerp, viewoffset);
+        LerpVector(ops->viewoffset, ps->viewoffset, lerp, viewoffset);
     }
 
     // if not running a demo or on a locked frame, add the local angle movement

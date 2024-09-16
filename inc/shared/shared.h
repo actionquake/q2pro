@@ -228,7 +228,7 @@ void Q_strncatz (char *dest, const char *src, size_t size );
 void    Com_LPrintf(print_type_t type, const char *fmt, ...)
 q_printf(2, 3);
 void    Com_Error(error_type_t code, const char *fmt, ...)
-q_noreturn q_printf(2, 3);
+q_cold q_noreturn q_printf(2, 3);
 
 #define Com_Printf(...) Com_LPrintf(PRINT_ALL, __VA_ARGS__)
 #define Com_WPrintf(...) Com_LPrintf(PRINT_WARNING, __VA_ARGS__)
@@ -239,10 +239,16 @@ q_noreturn q_printf(2, 3);
     do { if (!(expr)) Com_Error(ERR_FATAL, "%s: assertion `%s' failed", __func__, #expr); } while (0)
 
 // game print flags
-#define PRINT_LOW           0       // pickup messages
-#define PRINT_MEDIUM        1       // death messages
-#define PRINT_HIGH          2       // critical messages
-#define PRINT_CHAT          3       // chat messages    
+enum {
+    PRINT_LOW,          // pickup messages
+    PRINT_MEDIUM,       // death messages
+    PRINT_HIGH,         // critical messages
+    PRINT_CHAT,         // chat messages
+// KEX
+    PRINT_TYPEWRITER,
+    PRINT_CENTER,
+// KEX
+};
 
 // destination class for gi.multicast()
 typedef enum {
@@ -449,12 +455,65 @@ void Q_srand(uint32_t seed);
 uint32_t Q_rand(void);
 uint32_t Q_rand_uniform(uint32_t n);
 
-#define clamp(a,b,c)    ((a)<(b)?(a)=(b):(a)>(c)?(a)=(c):(a))
-#define cclamp(a,b,c)   ((b)>(c)?clamp(a,c,b):clamp(a,b,c))
-
 static inline int Q_clip(int a, int b, int c)
 {
-    return clamp(a, b, c);
+    if (a < b)
+        return b;
+    if (a > c)
+        return c;
+    return a;
+}
+
+static inline float Q_clipf(float a, float b, float c)
+{
+#if defined(__GNUC__) && defined(__SSE__)
+    __asm__("maxss %1, %0 \n\t"
+            "minss %2, %0 \n\t"
+            : "+&x"(a) : "xm"(b), "xm"(c));
+    return a;
+#else
+    if (a < b)
+        return b;
+    if (a > c)
+        return c;
+    return a;
+#endif
+}
+
+static inline float Q_circ_clipf(float a, float b, float c)
+{
+    return b > c ? Q_clipf(a, c, b) : Q_clipf(a, b, c);
+}
+
+static inline int8_t Q_clip_int8(int a)
+{
+    return ((a + 0x80U) & ~0xFF) ? (a >> 31) ^ 0x7F : a;
+}
+
+static inline int16_t Q_clip_int16(int a)
+{
+    return ((a + 0x8000U) & ~0xFFFF) ? (a >> 31) ^ 0x7FFF : a;
+}
+
+static inline int32_t Q_clip_int32(int64_t a)
+{
+    return ((a + 0x80000000ULL) & ~0xFFFFFFFFULL) ? (a >> 63) ^ 0x7FFFFFFF : a;
+}
+
+#ifdef _LP64
+#define Q_clipl_int32(a)    Q_clip_int32(a)
+#else
+#define Q_clipl_int32(a)    (a)
+#endif
+
+static inline uint8_t Q_clip_uint8(int a)
+{
+    return (a & ~0xFF) ? ~a >> 31 : a;
+}
+
+static inline uint16_t Q_clip_uint16(int a)
+{
+    return (a & ~0xFFFF) ? ~a >> 31 : a;
 }
 
 #ifndef max
@@ -577,9 +636,29 @@ char *Q_strcasestr(const char *s1, const char *s2);
 #define Q_stricmpn  Q_strncasecmp
 #define Q_stristr   Q_strcasestr
 
+#ifdef HAVE_STRCHRNUL
+#define Q_strchrnul strchrnul
+#else
 char *Q_strchrnul(const char *s, int c);
+#endif
+
+#ifdef HAVE_MEMCCPY
+#define Q_memccpy memccpy
+#else
 void *Q_memccpy(void *dst, const void *src, int c, size_t size);
+#endif
+
+#ifdef HAVE_STRNLEN
+#define Q_strnlen strnlen
+#else
 size_t Q_strnlen(const char *s, size_t maxlen);
+#endif
+
+#ifdef _WIN32
+#define Q_atoi(s) atoi(s)
+#else
+int Q_atoi(const char *s);
+#endif
 
 char *COM_SkipPath(const char *pathname);
 size_t COM_StripExtension(char *out, const char *in, size_t size);
@@ -661,6 +740,11 @@ static inline float LongToFloat(uint32_t l)
 
     dat.l = l;
     return dat.f;
+}
+
+static inline int32_t SignExtend(uint32_t v, int bits)
+{
+    return (int32_t)(v << (32 - bits)) >> (32 - bits);
 }
 
 #if USE_LITTLE_ENDIAN
@@ -1110,10 +1194,14 @@ enum {
     MZ_BLUEHYPERBLASTER,
     MZ_PHALANX,
 
+// KEX
+    MZ_BFG2,
+    MZ_PHALANX2,
+
 //ROGUE
     MZ_ETF_RIFLE = 30,
-    MZ_UNUSED,
-    MZ_SHOTGUN2,
+    MZ_PROX,        // KEX
+    MZ_SHOTGUN2,    // MZ_ETF_RIFLE_2 in KEX
     MZ_HEATBEAM,
     MZ_BLASTER2,
     MZ_TRACKER,

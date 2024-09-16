@@ -72,7 +72,7 @@ findradius (origin, radius)
 edict_t *findradius(edict_t *from, vec3_t org, float rad)
 {
     vec3_t  eorg;
-    int     j;
+    vec3_t  mid;
 
     if (!from)
         from = g_edicts;
@@ -83,9 +83,9 @@ edict_t *findradius(edict_t *from, vec3_t org, float rad)
             continue;
         if (from->solid == SOLID_NOT)
             continue;
-        for (j = 0; j < 3; j++)
-            eorg[j] = org[j] - (from->s.origin[j] + (from->mins[j] + from->maxs[j]) * 0.5f);
-        if (VectorLength(eorg) > rad)
+        VectorAvg(from->mins, from->maxs, mid);
+        VectorAdd(from->s.origin, mid, eorg);
+        if (Distance(eorg, org) > rad)
             continue;
         return from;
     }
@@ -236,13 +236,12 @@ static const vec3_t MOVEDIR_DOWN = { 0,  0, -1 };
 
 void G_SetMovedir(vec3_t angles, vec3_t movedir)
 {
-    if (VectorCompare(angles, VEC_UP)) {
+    if (VectorCompare(angles, VEC_UP))
         VectorCopy(MOVEDIR_UP, movedir);
-    } else if (VectorCompare(angles, VEC_DOWN)) {
+    else if (VectorCompare(angles, VEC_DOWN))
         VectorCopy(MOVEDIR_DOWN, movedir);
-    } else {
+    else
         AngleVectors(angles, movedir, NULL, NULL);
-    }
 
     VectorClear(angles);
 }
@@ -360,7 +359,7 @@ void G_FreeEdict(edict_t *ed)
 {
     gi.unlinkentity(ed);        // unlink from world
 
-    if ((ed - g_edicts) <= (maxclients->value + BODY_QUEUE_SIZE)) {
+    if ((ed - g_edicts) <= (game.maxclients + BODY_QUEUE_SIZE)) {
 //      gi.dprintf("tried to free special edict\n");
         return;
     }
@@ -380,13 +379,13 @@ G_TouchTriggers
 void G_TouchTriggers(edict_t *ent)
 {
     int         i, num;
-    edict_t     *touch[MAX_EDICTS], *hit;
+    edict_t     *touch[MAX_EDICTS_OLD], *hit;
 
     // dead things don't activate triggers!
     if ((ent->client || (ent->svflags & SVF_MONSTER)) && (ent->health <= 0))
         return;
 
-    num = gi.BoxEdicts(ent->absmin, ent->absmax, touch, MAX_EDICTS, AREA_TRIGGERS);
+    num = gi.BoxEdicts(ent->absmin, ent->absmax, touch, q_countof(touch), AREA_TRIGGERS);
 
     // be careful, it is possible to have an entity in this
     // list removed before we get to it (killtriggered)
@@ -411,9 +410,9 @@ to force all entities it covers to immediately touch it
 void G_TouchSolids(edict_t *ent)
 {
     int         i, num;
-    edict_t     *touch[MAX_EDICTS], *hit;
+    edict_t     *touch[MAX_EDICTS_OLD], *hit;
 
-    num = gi.BoxEdicts(ent->absmin, ent->absmax, touch, MAX_EDICTS, AREA_SOLID);
+    num = gi.BoxEdicts(ent->absmin, ent->absmax, touch, q_countof(touch), AREA_SOLID);
 
     // be careful, it is possible to have an entity in this
     // list removed before we get to it (killtriggered)

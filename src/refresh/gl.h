@@ -178,6 +178,7 @@ typedef struct {
     int facesTris;
     int texSwitches;
     int texUploads;
+    int lightTexels;
     int trisDrawn;
     int batchesDrawn;
     int nodesCulled;
@@ -222,7 +223,6 @@ extern cvar_t *gl_nobind;
 extern cvar_t *gl_test;
 #endif
 extern cvar_t *gl_cull_nodes;
-extern cvar_t *gl_hash_faces;
 extern cvar_t *gl_clear;
 extern cvar_t *gl_novis;
 extern cvar_t *gl_lockpvs;
@@ -321,17 +321,11 @@ typedef struct {
 
 /* Vertex */
 typedef struct {
-    vec2_t st;
     vec3_t normal;
 
     uint32_t start; /* start weight */
     uint32_t count; /* weight count */
 } md5_vertex_t;
-
-/* Triangle */
-typedef struct {
-    int index[3];
-} md5_triangle_t;
 
 /* Weight */
 typedef struct {
@@ -348,6 +342,7 @@ typedef struct {
     int num_weights;
 
     md5_vertex_t *vertices;
+    maliastc_t *tcoords;
     QGL_INDEX_TYPE *indices;
     md5_weight_t *weights;
 } md5_mesh_t;
@@ -414,23 +409,30 @@ qhandle_t R_RegisterModel(const char *name);
     &glr.fd.lightstyles[gl_static.lightstylemap[(i)]]
 
 #define LM_MAX_LIGHTMAPS    32
-#define LM_BLOCK_WIDTH      512
-#define LM_BLOCK_HEIGHT     512
+#define LM_BLOCK_WIDTH      (1 << 10)
+
+typedef struct lightmap_s {
+    int         mins[2];
+    int         maxs[2];
+    byte        *buffer;
+} lightmap_t;
 
 typedef struct {
-    int         inuse[LM_BLOCK_WIDTH];
-    byte        buffer[LM_BLOCK_WIDTH * LM_BLOCK_HEIGHT * 4];
     bool        dirty;
-    int         comp;
+    int         comp, block_size, block_shift;
     float       add, modulate, scale;
-    int         nummaps;
+    int         nummaps, maxmaps;
+    int         inuse[LM_BLOCK_WIDTH];
     GLuint      texnums[LM_MAX_LIGHTMAPS];
+    lightmap_t  lightmaps[LM_MAX_LIGHTMAPS];
+    byte        buffer[0x4000000];
 } lightmap_builder_t;
 
 extern lightmap_builder_t lm;
 
 void GL_AdjustColor(vec3_t color);
 void GL_PushLights(mface_t *surf);
+void GL_UploadLightmaps(void);
 
 void GL_RebuildLighting(void);
 void GL_FreeWorld(void);
@@ -587,7 +589,7 @@ void GL_ForceTexture(GLuint tmu, GLuint texnum);
 void GL_BindTexture(GLuint tmu, GLuint texnum);
 void GL_CommonStateBits(GLbitfield bits);
 void GL_ScrollSpeed(vec2_t scroll, GLbitfield bits);
-void GL_DrawOutlines(GLsizei count, QGL_INDEX_TYPE *indices);
+void GL_DrawOutlines(GLsizei count, const QGL_INDEX_TYPE *indices);
 void GL_Ortho(GLfloat xmin, GLfloat xmax, GLfloat ymin, GLfloat ymax, GLfloat znear, GLfloat zfar);
 void GL_Frustum(GLfloat fov_x, GLfloat fov_y, GLfloat reflect_x);
 void GL_Setup2D(void);
@@ -671,7 +673,6 @@ void GL_DrawBeams(void);
 
 void GL_BindArrays(void);
 void GL_Flush3D(void);
-void GL_DrawFace(mface_t *surf);
 
 void GL_AddAlphaFace(mface_t *face, entity_t *ent);
 void GL_AddSolidFace(mface_t *face);

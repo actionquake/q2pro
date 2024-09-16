@@ -76,7 +76,6 @@ cvar_t *gl_cull_nodes;
 cvar_t *gl_cull_models;
 cvar_t *gl_clear;
 cvar_t *gl_finish;
-cvar_t *gl_hash_faces;
 cvar_t *gl_novis;
 cvar_t *gl_lockpvs;
 cvar_t *gl_lightmap;
@@ -434,8 +433,7 @@ static void GL_OccludeFlares(void)
     GL_StateBits(GLS_DEPTHMASK_FALSE);
     GL_ArrayBits(GLA_VERTEX);
     qglColorMask(0, 0, 0, 0);
-    GL_ActiveTexture(0);
-    qglDisable(GL_TEXTURE_2D);
+    GL_BindTexture(0, TEXNUM_WHITE);
     GL_VertexPointer(3, 0, &points[0][0]);
 
     for (i = 0, e = glr.fd.entities; i < glr.fd.num_entities; i++, e++) {
@@ -462,7 +460,6 @@ static void GL_OccludeFlares(void)
         q->pending = true;
     }
 
-    qglEnable(GL_TEXTURE_2D);
     qglColorMask(1, 1, 1, 1);
 }
 
@@ -938,7 +935,6 @@ static void GL_Register(void)
 #endif
     gl_cull_nodes = Cvar_Get("gl_cull_nodes", "1", 0);
     gl_cull_models = Cvar_Get("gl_cull_models", "1", 0);
-    gl_hash_faces = Cvar_Get("gl_hash_faces", "1", 0);
     gl_clear = Cvar_Get("gl_clear", "0", 0);
     gl_finish = Cvar_Get("gl_finish", "0", 0);
     gl_novis = Cvar_Get("gl_novis", "0", 0);

@@ -326,7 +326,7 @@ LOAD(Edges)
                 DEBUG("bad vertnum");
                 return Q_ERR_INVALID_FORMAT;
             }
-            out->v[j] = bsp->vertices + vertnum;
+            out->v[j] = vertnum;
         }
     }
 
@@ -357,7 +357,7 @@ LOAD(SurfEdges)
             return Q_ERR_INVALID_FORMAT;
         }
 
-        out->edge = bsp->edges + index;
+        out->edge = index;
         out->vert = vert;
     }
 
@@ -1305,6 +1305,8 @@ static size_t BSP_ParseExtensionHeader(bsp_t *bsp, lump_t *out, const byte *buf,
                 break;
             }
 
+            Com_DDPrintf("Found %s lump\n", e->name);
+
             if (e->parse_header)
                 extrasize += e->parse_header(bsp, buf + ofs, len);
 
@@ -1407,6 +1409,10 @@ int BSP_Load(const char *name, bsp_t **bsp_p)
         lump_ofs[i] = ofs;
         lump_count[i] = count;
 
+        // account for terminating NUL for EntString lump
+        if (!info->lump)
+            count++;
+
         // round to cacheline
         memsize += ALIGN(count * info->memsize, 64);
         maxpos = max(maxpos, end);
@@ -1495,8 +1501,9 @@ HELPER FUNCTIONS
 #if USE_REF
 
 static lightpoint_t *light_point;
+static int          light_mask;
 
-static bool BSP_RecursiveLightPoint(mnode_t *node, float p1f, float p2f, const vec3_t p1, const vec3_t p2, int nolm_mask)
+static bool BSP_RecursiveLightPoint(mnode_t *node, float p1f, float p2f, const vec3_t p1, const vec3_t p2)
 {
     vec_t d1, d2, frac, midf, s, t;
     vec3_t mid;
@@ -1521,13 +1528,13 @@ static bool BSP_RecursiveLightPoint(mnode_t *node, float p1f, float p2f, const v
         LerpVector(p1, p2, frac, mid);
 
         // check near side
-        if (BSP_RecursiveLightPoint(node->children[side], p1f, midf, p1, mid, nolm_mask))
+        if (BSP_RecursiveLightPoint(node->children[side], p1f, midf, p1, mid))
             return true;
 
         for (i = 0, surf = node->firstface; i < node->numfaces; i++, surf++) {
             if (!surf->lightmap)
                 continue;
-            if (surf->drawflags & nolm_mask)
+            if (surf->drawflags & light_mask)
                 continue;
 
             s = DotProduct(surf->lm_axis[0], mid) + surf->lm_offset[0];
@@ -1546,7 +1553,7 @@ static bool BSP_RecursiveLightPoint(mnode_t *node, float p1f, float p2f, const v
         }
 
         // check far side
-        return BSP_RecursiveLightPoint(node->children[side ^ 1], midf, p2f, mid, p2, nolm_mask);
+        return BSP_RecursiveLightPoint(node->children[side ^ 1], midf, p2f, mid, p2);
     }
 
     return false;
@@ -1557,8 +1564,9 @@ void BSP_LightPoint(lightpoint_t *point, const vec3_t start, const vec3_t end, m
     light_point = point;
     light_point->surf = NULL;
     light_point->fraction = 1;
+    light_mask = nolm_mask;
 
-    BSP_RecursiveLightPoint(headnode, 0, 1, start, end, nolm_mask);
+    BSP_RecursiveLightPoint(headnode, 0, 1, start, end);
 }
 
 void BSP_TransformedLightPoint(lightpoint_t *point, const vec3_t start, const vec3_t end,
@@ -1570,6 +1578,7 @@ void BSP_TransformedLightPoint(lightpoint_t *point, const vec3_t start, const ve
     light_point = point;
     light_point->surf = NULL;
     light_point->fraction = 1;
+    light_mask = nolm_mask;
 
     // subtract origin offset
     VectorSubtract(start, origin, start_l);
@@ -1583,7 +1592,7 @@ void BSP_TransformedLightPoint(lightpoint_t *point, const vec3_t start, const ve
     }
 
     // sweep the line through the model
-    if (!BSP_RecursiveLightPoint(headnode, 0, 1, start_l, end_l, nolm_mask))
+    if (!BSP_RecursiveLightPoint(headnode, 0, 1, start_l, end_l))
         return;
 
     // rotate plane normal into the worlds frame of reference
@@ -1711,7 +1720,7 @@ mmodel_t *BSP_InlineModel(bsp_t *bsp, const char *name)
     Q_assert(name);
     Q_assert(name[0] == '*');
 
-    num = atoi(name + 1);
+    num = Q_atoi(name + 1);
     if (num < 1 || num >= bsp->nummodels) {
         Com_Error(ERR_DROP, "%s: bad number: %d", __func__, num);
     }

@@ -25,7 +25,6 @@ game_export_t   globals;
 spawn_temp_t    st;
 
 int sm_meat_index;
-int snd_fry;
 int meansOfDeath;
 
 edict_t     *g_edicts;
@@ -99,6 +98,8 @@ void ShutdownGame(void)
 {
     gi.dprintf("==== ShutdownGame ====\n");
 
+    memset(&game, 0, sizeof(game));
+
     gi.FreeTags(TAG_LEVEL);
     gi.FreeTags(TAG_GAME);
 }
@@ -140,8 +141,8 @@ void InitGame(void)
 
     // latched vars
     sv_cheats = gi.cvar("cheats", "0", CVAR_SERVERINFO | CVAR_LATCH);
-    gi.cvar("gamename", GAMEVERSION , CVAR_SERVERINFO | CVAR_LATCH);
-    gi.cvar("gamedate", __DATE__ , CVAR_SERVERINFO | CVAR_LATCH);
+    gi.cvar("gamename", GAMEVERSION, CVAR_SERVERINFO | CVAR_LATCH);
+    gi.cvar("gamedate", __DATE__, CVAR_SERVERINFO | CVAR_LATCH);
 
     maxclients = gi.cvar("maxclients", "4", CVAR_SERVERINFO | CVAR_LATCH);
     maxspectators = gi.cvar("maxspectators", "4", CVAR_SERVERINFO);
@@ -200,8 +201,7 @@ void InitGame(void)
     game.helpmessage2[0] = 0;
 
     // initialize all entities for this game
-    game.maxentities = maxentities->value;
-    clamp(game.maxentities, (int)maxclients->value + 1, game.csr.max_edicts);
+    game.maxentities = Q_clip(maxentities->value, (int)maxclients->value + 1, game.csr.max_edicts);
     g_edicts = gi.TagMalloc(game.maxentities * sizeof(g_edicts[0]), TAG_GAME);
     globals.edicts = g_edicts;
     globals.max_edicts = game.maxentities;
@@ -295,7 +295,7 @@ void ClientEndServerFrames(void)
 
     // calc the player views now that all pushing
     // and damage has been added
-    for (i = 0; i < maxclients->value; i++) {
+    for (i = 0; i < game.maxclients; i++) {
         ent = g_edicts + 1 + i;
         if (!ent->inuse || !ent->client)
             continue;
@@ -431,7 +431,7 @@ void CheckDMRules(void)
     }
 
     if (fraglimit->value) {
-        for (i = 0; i < maxclients->value; i++) {
+        for (i = 0; i < game.maxclients; i++) {
             cl = game.clients + i;
             if (!g_edicts[i + 1].inuse)
                 continue;
@@ -463,7 +463,7 @@ void ExitLevel(void)
     level.intermission_framenum = 0;
 
     // clear some things before going to next level
-    for (i = 0; i < maxclients->value; i++) {
+    for (i = 0; i < game.maxclients; i++) {
         ent = g_edicts + 1 + i;
         if (!ent->inuse)
             continue;
@@ -519,7 +519,7 @@ void G_RunFrame(void)
             }
         }
 
-        if (i > 0 && i <= maxclients->value) {
+        if (i > 0 && i <= game.maxclients) {
             ClientBeginServerFrame(ent);
             continue;
         }

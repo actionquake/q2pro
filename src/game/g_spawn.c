@@ -346,6 +346,7 @@ void ED_CallSpawn(edict_t *ent)
 
     if (!ent->classname) {
         gi.dprintf("ED_CallSpawn: NULL classname\n");
+        G_FreeEdict(ent);
         return;
     }
 
@@ -368,7 +369,9 @@ void ED_CallSpawn(edict_t *ent)
             return;
         }
     }
+
     gi.dprintf("%s doesn't have a spawn function\n", ent->classname);
+    G_FreeEdict(ent);
 }
 
 /*
@@ -432,7 +435,7 @@ static bool ED_ParseField(const spawn_field_t *fields, const char *key, const ch
                 ((float *)(b + f->ofs))[2] = vec[2];
                 break;
             case F_INT:
-                *(int *)(b + f->ofs) = atoi(value);
+                *(int *)(b + f->ofs) = Q_atoi(value);
                 break;
             case F_FLOAT:
                 *(float *)(b + f->ofs) = atof(value);
@@ -556,6 +559,64 @@ void G_FindTeams(void)
 
 /*
 ==============
+G_AddPrecache
+
+Register new global precache function and call it (once).
+==============
+*/
+void G_AddPrecache(void (*func)(void))
+{
+    precache_t *prec;
+
+    for (prec = game.precaches; prec; prec = prec->next)
+        if (prec->func == func)
+            return;
+
+    prec = gi.TagMalloc(sizeof(*prec), TAG_GAME);
+    prec->func = func;
+    prec->next = game.precaches;
+    game.precaches = prec;
+
+    prec->func();
+}
+
+/*
+==============
+G_RefreshPrecaches
+
+Called from ReadLevel() to refresh all global precache indices registered by
+spawn functions.
+==============
+*/
+void G_RefreshPrecaches(void)
+{
+    precache_t *prec;
+
+    for (prec = game.precaches; prec; prec = prec->next)
+        prec->func();
+}
+
+/*
+==============
+G_FreePrecaches
+
+Free precache functions from previous level.
+==============
+*/
+static void G_FreePrecaches(void)
+{
+    precache_t *prec, *next;
+
+    for (prec = game.precaches; prec; prec = next) {
+        next = prec->next;
+        gi.TagFree(prec);
+    }
+
+    game.precaches = NULL;
+}
+
+/*
+==============
 SpawnEntities
 
 Creates a server's entity / program execution context by
@@ -568,16 +629,17 @@ void SpawnEntities(const char *mapname, const char *entities, const char *spawnp
     int         inhibit;
     char        *com_token;
     int         i;
-    float       skill_level;
+    int         skill_level;
 
-    skill_level = floor(skill->value);
-    clamp(skill_level, 0, 3);
+    skill_level = Q_clip(skill->value, 0, 3);
     if (skill->value != skill_level)
-        gi.cvar_forceset("skill", va("%f", skill_level));
+        gi.cvar_forceset("skill", va("%d", skill_level));
 
     SaveClientData();
 
     gi.FreeTags(TAG_LEVEL);
+
+    G_FreePrecaches();
 
     memset(&level, 0, sizeof(level));
     memset(g_edicts, 0, game.maxentities * sizeof(g_edicts[0]));
@@ -808,6 +870,11 @@ static const char *const lightstyles[] = {
     "abcdefghijklmnopqrrqponmlkjihgfedcba",
 };
 
+static void worldspawn_precache(void)
+{
+    sm_meat_index = gi.modelindex("models/objects/gibs/sm_meat/tris.md2");
+}
+
 /*QUAKED worldspawn (0 0 0) ?
 
 Only used for the world.
@@ -859,7 +926,7 @@ void SP_worldspawn(edict_t *ent)
     else
         gi.configstring(CS_CDTRACK, va("%i", ent->sounds));
 
-    gi.configstring(game.csr.maxclients, va("%i", (int)(maxclients->value)));
+    gi.configstring(game.csr.maxclients, va("%i", game.maxclients));
 
     // status bar program
     if (deathmatch->value)
@@ -880,8 +947,7 @@ void SP_worldspawn(edict_t *ent)
     else
         gi.cvar_set("sv_gravity", st.gravity);
 
-    snd_fry = gi.soundindex("player/fry.wav");  // standing in lava / slime
-
+    gi.soundindex("player/fry.wav");  // standing in lava / slime
     gi.soundindex("player/lava_in.wav");
     gi.soundindex("player/burn1.wav");
     gi.soundindex("player/burn2.wav");
@@ -959,13 +1025,15 @@ void SP_worldspawn(edict_t *ent)
 
     gi.soundindex("infantry/inflies1.wav");
 
-    sm_meat_index = gi.modelindex("models/objects/gibs/sm_meat/tris.md2");
+    gi.modelindex("models/objects/gibs/sm_meat/tris.md2");
     gi.modelindex("models/objects/gibs/arm/tris.md2");
     gi.modelindex("models/objects/gibs/bone/tris.md2");
     gi.modelindex("models/objects/gibs/bone2/tris.md2");
     gi.modelindex("models/objects/gibs/chest/tris.md2");
     gi.modelindex("models/objects/gibs/skull/tris.md2");
     gi.modelindex("models/objects/gibs/head2/tris.md2");
+
+    G_AddPrecache(worldspawn_precache);
 
 //
 // Setup light animation tables. 'a' is total darkness, 'z' is doublebright.

@@ -89,11 +89,15 @@ static void MOD_List_f(void)
             continue;
         }
         size_t model_size = model->hunk.mapped;
+        int flag = ' ';
 #if USE_MD5
-        model_size += model->skeleton_hunk.mapped;
+        if (model->skeleton) {
+            model_size += model->skeleton_hunk.mapped;
+            flag = '*';
+        }
 #endif
-        Com_Printf("%c %8zu : %s\n", types[model->type],
-                   model_size, model->name);
+        Com_Printf("%c%c %8zu : %s\n", types[model->type],
+                   flag, model_size, model->name);
         bytes += model_size;
         count++;
     }
@@ -233,10 +237,10 @@ static const char *MOD_ValidateMD2(const dmd2header_t *header, size_t length)
     ENSURE(header->framesize >= sizeof(dmd2frame_t) + (header->num_xyz - 1) * sizeof(dmd2trivertx_t), "too small frame size");
     ENSURE(header->framesize <= MD2_MAX_FRAMESIZE, "too big frame size");
 
-    ENSURE(header->ofs_tris + (uint64_t)header->num_tris * sizeof(dmd2triangle_t) <= length, "bad tris offset");
-    ENSURE(header->ofs_st + (uint64_t)header->num_st * sizeof(dmd2stvert_t) <= length, "bad st offset");
-    ENSURE(header->ofs_frames + (uint64_t)header->num_frames * header->framesize <= length, "bad frames offset");
-    ENSURE(header->ofs_skins + (uint64_t)MD2_MAX_SKINNAME * header->num_skins <= length, "bad skins offset");
+    ENSURE((uint64_t)header->ofs_tris + header->num_tris * sizeof(dmd2triangle_t) <= length, "bad tris offset");
+    ENSURE((uint64_t)header->ofs_st + header->num_st * sizeof(dmd2stvert_t) <= length, "bad st offset");
+    ENSURE((uint64_t)header->ofs_frames + header->num_frames * header->framesize <= length, "bad frames offset");
+    ENSURE((uint64_t)header->ofs_skins + MD2_MAX_SKINNAME * header->num_skins <= length, "bad skins offset");
 
     ENSURE(!(header->ofs_tris % q_alignof(dmd2triangle_t)), "odd tris offset");
     ENSURE(!(header->ofs_st % q_alignof(dmd2stvert_t)), "odd st offset");
@@ -487,10 +491,10 @@ static const char *MOD_ValidateMD3Mesh(const model_t *model, const dmd3mesh_t *h
     ENSURE(header->num_tris <= TESS_MAX_INDICES / 3, "too many tris");
     ENSURE(header->num_skins <= MD3_MAX_SKINS, "too many skins");
 
-    ENSURE(header->ofs_skins + (uint64_t)header->num_skins * sizeof(dmd3skin_t) <= length, "bad skins offset");
-    ENSURE(header->ofs_verts + (uint64_t)header->num_verts * model->numframes * sizeof(dmd3vertex_t) <= length, "bad verts offset");
-    ENSURE(header->ofs_tcs + (uint64_t)header->num_verts * sizeof(dmd3coord_t) <= length, "bad tcs offset");
-    ENSURE(header->ofs_indexes + (uint64_t)header->num_tris * 3 * sizeof(uint32_t) <= length, "bad indexes offset");
+    ENSURE((uint64_t)header->ofs_skins + header->num_skins * sizeof(dmd3skin_t) <= length, "bad skins offset");
+    ENSURE((uint64_t)header->ofs_verts + header->num_verts * model->numframes * sizeof(dmd3vertex_t) <= length, "bad verts offset");
+    ENSURE((uint64_t)header->ofs_tcs + header->num_verts * sizeof(dmd3coord_t) <= length, "bad tcs offset");
+    ENSURE((uint64_t)header->ofs_indexes + header->num_tris * 3 * sizeof(uint32_t) <= length, "bad indexes offset");
 
     ENSURE(!(header->ofs_skins % q_alignof(dmd3skin_t)), "odd skins offset");
     ENSURE(!(header->ofs_verts % q_alignof(dmd3vertex_t)), "odd verts offset");
@@ -609,7 +613,7 @@ static const char *MOD_ValidateMD3(const dmd3header_t *header, size_t length)
 {
     ENSURE(header->num_frames >= 1, "too few frames");
     ENSURE(header->num_frames <= MD3_MAX_FRAMES, "too many frames");
-    ENSURE(header->ofs_frames + (uint64_t)header->num_frames * sizeof(dmd3frame_t) <= length, "bad frames offset");
+    ENSURE((uint64_t)header->ofs_frames + header->num_frames * sizeof(dmd3frame_t) <= length, "bad frames offset");
     ENSURE(!(header->ofs_frames % q_alignof(dmd3frame_t)), "odd frames offset");
     ENSURE(header->num_meshes >= 1, "too few meshes");
     ENSURE(header->num_meshes <= MD3_MAX_MESHES, "too many meshes");
@@ -931,6 +935,7 @@ static bool MOD_LoadMD5Mesh(model_t *model, const char *path)
         MD5_UINT(&num_verts);
         MD5_ENSURE(num_verts <= TESS_MAX_VERTICES, "too many verts");
         OOM_CHECK(mesh->vertices = MD5_Malloc(num_verts * sizeof(mesh->vertices[0])));
+        OOM_CHECK(mesh->tcoords = MD5_Malloc(num_verts * sizeof(mesh->tcoords[0])));
         mesh->num_verts = num_verts;
 
         for (j = 0; j < num_verts; j++) {
@@ -940,13 +945,13 @@ static bool MOD_LoadMD5Mesh(model_t *model, const char *path)
             MD5_UINT(&vert_index);
             MD5_ENSURE(vert_index < num_verts, "bad vert index");
 
-            md5_vertex_t *vert = &mesh->vertices[vert_index];
-
+            maliastc_t *tc = &mesh->tcoords[vert_index];
             MD5_EXPECT("(");
-            MD5_FLOAT(&vert->st[0]);
-            MD5_FLOAT(&vert->st[1]);
+            MD5_FLOAT(&tc->st[0]);
+            MD5_FLOAT(&tc->st[1]);
             MD5_EXPECT(")");
 
+            md5_vertex_t *vert = &mesh->vertices[vert_index];
             MD5_UINT(&vert->start);
             MD5_UINT(&vert->count);
         }
@@ -1317,8 +1322,12 @@ static void MOD_LoadMD5(model_t *model)
 
         // build md5 path
         if (Q_strlcat(skin_path, "md5/", sizeof(skin_path)) < sizeof(skin_path) &&
-            Q_strlcat(skin_path, skin_name, sizeof(skin_path)) < sizeof(skin_path))
+            Q_strlcat(skin_path, skin_name, sizeof(skin_path)) < sizeof(skin_path)) {
             model->skeleton->skins[i] = IMG_Find(skin_path, IT_SKIN, IF_NONE);
+        } else {
+            Com_WPrintf("MD5 skin path too long: %s\n", skin_path);
+            model->skeleton->skins[i] = R_NOTEXTURE;
+        }
     }
 
     Hunk_End(&model->skeleton_hunk);
@@ -1390,7 +1399,7 @@ qhandle_t R_RegisterModel(const char *name)
 
     if (*name == '*') {
         // inline bsp model
-        index = atoi(name + 1);
+        index = Q_atoi(name + 1);
         return ~index;
     }
 

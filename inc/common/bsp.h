@@ -64,12 +64,12 @@ typedef struct {
 } mvertex_t;
 
 typedef struct {
-    mvertex_t   *v[2];
+    uint32_t    v[2];
 } medge_t;
 
 typedef struct {
-    medge_t     *edge;
-    int         vert;
+    uint32_t    edge: 31;
+    uint32_t    vert:  1;
 } msurfedge_t;
 
 #define SURF_TRANS_MASK (SURF_TRANS33 | SURF_TRANS66)
@@ -110,6 +110,7 @@ typedef struct mface_s {
     unsigned        dlightframe;
     uint64_t        dlightbits;
 
+    struct lightmap_s   *light_m;
     struct entity_s     *entity;
     struct mface_s      *next;
 } mface_t;

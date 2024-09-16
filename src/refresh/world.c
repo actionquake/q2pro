@@ -331,13 +331,11 @@ void GL_LightPoint(const vec3_t origin, vec3_t color)
 
 void R_LightPoint(const vec3_t origin, vec3_t color)
 {
-    int i;
-
     GL_LightPoint(origin, color);
 
-    for (i = 0; i < 3; i++) {
-        clamp(color[i], 0, 1);
-    }
+    color[0] = Q_clipf(color[0], 0, 1);
+    color[1] = Q_clipf(color[1], 0, 1);
+    color[2] = Q_clipf(color[2], 0, 1);
 }
 
 static void GL_MarkLeaves(void)
@@ -481,6 +479,8 @@ void GL_DrawBspModel(mmodel_t *model)
 
     GL_BindArrays();
 
+    GL_ClearSolidFaces();
+
     // draw visible faces
     last = model->firstface + model->numfaces;
     for (face = model->firstface; face < last; face++) {
@@ -495,18 +495,24 @@ void GL_DrawBspModel(mmodel_t *model)
             continue;
         }
 
+        if (gl_dynamic->integer) {
+            GL_PushLights(face);
+        }
+
         if (face->drawflags & SURF_TRANS_MASK) {
             if (model->drawframe != glr.drawframe)
                 GL_AddAlphaFace(face, ent);
             continue;
         }
 
-        if (gl_dynamic->integer) {
-            GL_PushLights(face);
-        }
-
-        GL_DrawFace(face);
+        GL_AddSolidFace(face);
     }
+
+    if (gl_dynamic->integer) {
+        GL_UploadLightmaps();
+    }
+
+    GL_DrawSolidFaces();
 
     GL_Flush3D();
 
@@ -582,20 +588,16 @@ static inline void GL_DrawNode(mnode_t *node)
             continue;
         }
 
+        if (gl_dynamic->integer) {
+            GL_PushLights(face);
+        }
+
         if (face->drawflags & SURF_TRANS_MASK) {
             GL_AddAlphaFace(face, &gl_world);
             continue;
         }
 
-        if (gl_dynamic->integer) {
-            GL_PushLights(face);
-        }
-
-        if (gl_hash_faces->integer) {
-            GL_AddSolidFace(face);
-        } else {
-            GL_DrawFace(face);
-        }
+        GL_AddSolidFace(face);
     }
 
     c.nodesDrawn++;
@@ -645,14 +647,16 @@ void GL_DrawWorld(void)
 
     GL_BindArrays();
 
-    if (gl_hash_faces->integer)
-        GL_ClearSolidFaces();
+    GL_ClearSolidFaces();
 
     GL_WorldNode_r(gl_static.world.cache->nodes,
                    gl_cull_nodes->integer ? NODE_CLIPPED : NODE_UNCLIPPED);
 
-    if (gl_hash_faces->integer)
-        GL_DrawSolidFaces();
+    if (gl_dynamic->integer) {
+        GL_UploadLightmaps();
+    }
+
+    GL_DrawSolidFaces();
 
     GL_Flush3D();
 

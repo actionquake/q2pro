@@ -656,7 +656,7 @@ float   PlayersRangeFromSpot(edict_t *spot)
 
     bestplayerdistance = 9999999;
 
-    for (n = 1; n <= maxclients->value; n++) {
+    for (n = 1; n <= game.maxclients; n++) {
         player = &g_edicts[n];
 
         if (!player->inuse)
@@ -974,7 +974,7 @@ void spectator_respawn(edict_t *ent)
         }
 
         // count spectators
-        for (i = 1, numspec = 0; i <= maxclients->value; i++)
+        for (i = 1, numspec = 0; i <= game.maxclients; i++)
             if (g_edicts[i].inuse && g_edicts[i].client->pers.spectator)
                 numspec++;
 
@@ -1130,7 +1130,7 @@ void PutClientInServer(edict_t *ent)
     if (deathmatch->value && ((int)dmflags->value & DF_FIXED_FOV)) {
         client->ps.fov = 90;
     } else {
-        client->ps.fov = atoi(Info_ValueForKey(client->pers.userinfo, "fov"));
+        client->ps.fov = Q_atoi(Info_ValueForKey(client->pers.userinfo, "fov"));
         if (client->ps.fov < 1)
             client->ps.fov = 90;
         else if (client->ps.fov > 160)
@@ -1349,7 +1349,7 @@ void ClientUserinfoChanged(edict_t *ent, char *userinfo)
     if (deathmatch->value && ((int)dmflags->value & DF_FIXED_FOV)) {
         ent->client->ps.fov = 90;
     } else {
-        ent->client->ps.fov = atoi(Info_ValueForKey(userinfo, "fov"));
+        ent->client->ps.fov = Q_atoi(Info_ValueForKey(userinfo, "fov"));
         if (ent->client->ps.fov < 1)
             ent->client->ps.fov = 90;
         else if (ent->client->ps.fov > 160)
@@ -1359,7 +1359,7 @@ void ClientUserinfoChanged(edict_t *ent, char *userinfo)
     // handedness
     s = Info_ValueForKey(userinfo, "hand");
     if (strlen(s)) {
-        ent->client->pers.hand = atoi(s);
+        ent->client->pers.hand = Q_atoi(s);
     }
 
     // save off the userinfo in case we want to check something later
@@ -1402,7 +1402,7 @@ qboolean ClientConnect(edict_t *ent, char *userinfo)
         }
 
         // count spectators
-        for (i = numspec = 0; i < maxclients->value; i++)
+        for (i = numspec = 0; i < game.maxclients; i++)
             if (g_edicts[i + 1].inuse && g_edicts[i + 1].client->pers.spectator)
                 numspec++;
 
@@ -1665,7 +1665,7 @@ void ClientThink(edict_t *ent, usercmd_t *ucmd)
     }
 
     // update chase cam if being followed
-    for (i = 1; i <= maxclients->value; i++) {
+    for (i = 1; i <= game.maxclients; i++) {
         other = g_edicts + i;
         if (other->inuse && other->client->chase_target == ent)
             UpdateChaseCam(other);

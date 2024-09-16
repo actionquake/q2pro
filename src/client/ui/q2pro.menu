@@ -163,6 +163,7 @@ begin screen
     pairs "HUD scale" scr_scale auto 0 1x 1 2x 2 4x 4
     pairs "console scale" con_scale auto 0 1x 1 2x 2 4x 4
     pairs "menu scale" ui_scale auto 0 1x 1 2x 2 4x 4
+    pairs "Lag graph scale" scr_lag_draw_scale default 1 2x 2 3x 3
     blank
     action --align "crosshair setup..." pushmenu crosshair
 end

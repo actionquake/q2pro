@@ -118,9 +118,8 @@ void gladiator_run(edict_t *self)
 
 void GaldiatorMelee(edict_t *self)
 {
-    vec3_t  aim;
+    vec3_t  aim = { MELEE_DISTANCE, self->mins[0], -4 };
 
-    VectorSet(aim, MELEE_DISTANCE, self->mins[0], -4);
     if (fire_hit(self, aim, (20 + (Q_rand() % 5)), 300))
         gi.sound(self, CHAN_AUTO, sound_cleaver_hit, 1, ATTN_NORM, 0);
     else
@@ -313,15 +312,8 @@ void gladiator_die(edict_t *self, edict_t *inflictor, edict_t *attacker, int dam
     self->monsterinfo.currentmove = &gladiator_move_death;
 }
 
-/*QUAKED monster_gladiator (1 .5 0) (-32 -32 -24) (32 32 64) Ambush Trigger_Spawn Sight
-*/
-void SP_monster_gladiator(edict_t *self)
+static void gladiator_precache(void)
 {
-    if (deathmatch->value) {
-        G_FreeEdict(self);
-        return;
-    }
-
     sound_pain1 = gi.soundindex("gladiator/pain.wav");
     sound_pain2 = gi.soundindex("gladiator/gldpain2.wav");
     sound_die = gi.soundindex("gladiator/glddeth2.wav");
@@ -332,6 +324,18 @@ void SP_monster_gladiator(edict_t *self)
     sound_idle = gi.soundindex("gladiator/gldidle1.wav");
     sound_search = gi.soundindex("gladiator/gldsrch1.wav");
     sound_sight = gi.soundindex("gladiator/sight.wav");
+}
+
+/*QUAKED monster_gladiator (1 .5 0) (-32 -32 -24) (32 32 64) Ambush Trigger_Spawn Sight
+*/
+void SP_monster_gladiator(edict_t *self)
+{
+    if (deathmatch->value) {
+        G_FreeEdict(self);
+        return;
+    }
+
+    G_AddPrecache(gladiator_precache);
 
     self->movetype = MOVETYPE_STEP;
     self->solid = SOLID_BBOX;

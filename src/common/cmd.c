@@ -56,7 +56,7 @@ bind g "impulse 5 ; +attack ; wait ; -attack ; impulse 2"
 */
 static void Cmd_Wait_f(void)
 {
-    int count = atoi(Cmd_Argv(1));
+    int count = Q_atoi(Cmd_Argv(1));
     cmd_current->waitCount += max(count, 1);
 }
 
@@ -1752,7 +1752,7 @@ static char *unescape_string(char *dst, const char *src)
                 src += 2;
                 break;
             default:
-                if (src[0] >= '0' && src[1] <= '7') {
+                if (src[1] >= '0' && src[1] <= '7') {
                     *p++ = strtoul(&src[1], (char **)&src, 8);
                     src -= 2;
                 } else {

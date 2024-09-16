@@ -22,8 +22,6 @@ with this program; if not, write to the Free Software Foundation, Inc.,
 
 #define PAINTBUFFER_SIZE    2048
 
-#define MAX_RAW_SAMPLES     8192
-
 typedef struct {
     float   left;
     float   right;
@@ -74,13 +72,15 @@ static sfxcache_t *DMA_UploadSfx(sfx_t *sfx)
     sc->channels = s_info.channels;
     sc->size = size;
 
+    Q_assert(stepscale == 1 || s_info.samples <= MAX_SFX_SAMPLES);
+
 // resample / decimate to the current source rate
     if (stepscale == 1) // fast special case
         memcpy(sc->data, s_info.data, size);
     else if (sc->width == 1 && sc->channels == 1)
         RESAMPLE sc->data[i] = s_info.data[j];
     else if (sc->width == 2 && sc->channels == 2)
-        RESAMPLE WL32(sc->data + i * 4, RL32(s_info.data + j * 4));
+        RESAMPLE memcpy(sc->data + i * 4, s_info.data + j * 4, 4);
     else
         RESAMPLE ((uint16_t *)sc->data)[i] = ((uint16_t *)s_info.data)[j];
 
@@ -154,9 +154,11 @@ static bool DMA_RawSamples(int samples, int rate, int width, int channels, const
 
 #undef RESAMPLE
 
-static bool DMA_NeedRawSamples(void)
+static int DMA_NeedRawSamples(void)
 {
-    return s_rawend - s_paintedtime < MAX_RAW_SAMPLES - 2048;
+    int avail = MAX_RAW_SAMPLES - (s_rawend - s_paintedtime);
+    avail = Q_clip(avail, 0, MAX_RAW_SAMPLES);
+    return avail & ~127;
 }
 
 static void DMA_DropRawSamples(void)
@@ -187,8 +189,8 @@ static void TransferStereo16(samplepair_t *samp, int endtime)
         // write a linear blast of samples
         int16_t *out = (int16_t *)dma.buffer + (lpos << 1);
         for (int i = 0; i < count; i++, samp++, out += 2) {
-            out[0] = clip16(samp->left);
-            out[1] = clip16(samp->right);
+            out[0] = Q_clip_int16(samp->left);
+            out[1] = Q_clip_int16(samp->right);
         }
 
         ltime += count;
@@ -209,7 +211,7 @@ static void TransferStereo(samplepair_t *samp, int endtime)
         while (count--) {
             val = *p;
             p += step;
-            out[out_idx] = clip16(val);
+            out[out_idx] = Q_clip_int16(val);
             out_idx = (out_idx + 1) & out_mask;
         }
     } else if (dma.samplebits == 8) {
@@ -217,7 +219,7 @@ static void TransferStereo(samplepair_t *samp, int endtime)
         while (count--) {
             val = *p;
             p += step;
-            out[out_idx] = (clip16(val) >> 8) + 128;
+            out[out_idx] = (Q_clip_int16(val) >> 8) + 128;
             out_idx = (out_idx + 1) & out_mask;
         }
     }
@@ -804,7 +806,7 @@ static int DMA_GetTime(void)
         if (s_paintedtime > 0x40000000) {
             // time to chop things off to avoid 32 bit limits
             buffers = 0;
-            s_paintedtime = fullsamples;
+            s_rawend = s_paintedtime = fullsamples;
             S_StopAllSounds();
         }
     }
@@ -818,6 +820,7 @@ static void DMA_Update(void)
     int         i;
     channel_t   *ch;
     int         samples, soundtime, endtime;
+    float       sec;
 
     // update spatialization for dynamic sounds
     for (i = 0, ch = s_channels; i < s_numchannels; i++, ch++) {
@@ -870,7 +873,10 @@ static void DMA_Update(void)
     }
 
     // mix ahead of current position
-    endtime = soundtime + Cvar_ClampValue(s_mixahead, 0, 1) * dma.speed;
+    sec = Cvar_ClampValue(s_mixahead, 0, 1);
+    if (!cls.active)
+        sec = max(sec, 0.125f);
+    endtime = soundtime + sec * dma.speed;
 
     // mix to an even submission block size
     endtime = ALIGN(endtime, dma.submission_chunk);
@@ -880,6 +886,11 @@ static void DMA_Update(void)
     PaintChannels(endtime);
 
     snddma.submit();
+}
+
+static int DMA_GetSampleRate(void)
+{
+    return dma.speed;
 }
 
 const sndapi_t snd_dma = {
@@ -896,4 +907,5 @@ const sndapi_t snd_dma = {
     .get_begin_ofs = DMA_DriftBeginofs,
     .play_channel = DMA_Spatialize,
     .stop_all_sounds = DMA_ClearBuffer,
+    .get_sample_rate = DMA_GetSampleRate,
 };

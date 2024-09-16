@@ -72,8 +72,8 @@ void SelectNextItem(edict_t *ent, int itflags)
     }
 
     // scan  for the next valid one
-    for (i = 1; i <= MAX_ITEMS; i++) {
-        index = (cl->pers.selected_item + i) % MAX_ITEMS;
+    for (i = 1; i <= game.num_items; i++) {
+        index = (cl->pers.selected_item + i) % game.num_items;
         if (!cl->pers.inventory[index])
             continue;
         it = &itemlist[index];
@@ -103,8 +103,8 @@ void SelectPrevItem(edict_t *ent, int itflags)
     }
 
     // scan  for the next valid one
-    for (i = 1; i <= MAX_ITEMS; i++) {
-        index = (cl->pers.selected_item + MAX_ITEMS - i) % MAX_ITEMS;
+    for (i = 1; i <= game.num_items; i++) {
+        index = (cl->pers.selected_item + game.num_items - i) % game.num_items;
         if (!cl->pers.inventory[index])
             continue;
         it = &itemlist[index];
@@ -164,7 +164,7 @@ void Cmd_Give_f(edict_t *ent)
 
     if (give_all || Q_stricmp(gi.argv(1), "health") == 0) {
         if (gi.argc() == 3)
-            ent->health = atoi(gi.argv(2));
+            ent->health = Q_atoi(gi.argv(2));
         else
             ent->health = ent->max_health;
         if (!give_all)
@@ -258,7 +258,7 @@ void Cmd_Give_f(edict_t *ent)
 
     if (it->flags & IT_AMMO) {
         if (gi.argc() == 3)
-            ent->client->pers.inventory[index] = atoi(gi.argv(2));
+            ent->client->pers.inventory[index] = Q_atoi(gi.argv(2));
         else
             ent->client->pers.inventory[index] += it->quantity;
     } else {
@@ -477,8 +477,8 @@ void Cmd_WeapPrev_f(edict_t *ent)
     selected_weapon = ITEM_INDEX(cl->pers.weapon);
 
     // scan  for the next valid one
-    for (i = 1; i <= MAX_ITEMS; i++) {
-        index = (selected_weapon + i) % MAX_ITEMS;
+    for (i = 1; i <= game.num_items; i++) {
+        index = (selected_weapon + i) % game.num_items;
         if (!cl->pers.inventory[index])
             continue;
         it = &itemlist[index];
@@ -512,8 +512,8 @@ void Cmd_WeapNext_f(edict_t *ent)
     selected_weapon = ITEM_INDEX(cl->pers.weapon);
 
     // scan  for the next valid one
-    for (i = 1; i <= MAX_ITEMS; i++) {
-        index = (selected_weapon + MAX_ITEMS - i) % MAX_ITEMS;
+    for (i = 1; i <= game.num_items; i++) {
+        index = (selected_weapon + game.num_items - i) % game.num_items;
         if (!cl->pers.inventory[index])
             continue;
         it = &itemlist[index];
@@ -633,10 +633,10 @@ void Cmd_Players_f(edict_t *ent)
     int     count;
     char    small[64];
     char    large[1280];
-    int     index[256];
+    int     index[MAX_CLIENTS];
 
     count = 0;
-    for (i = 0; i < maxclients->value; i++)
+    for (i = 0; i < game.maxclients; i++)
         if (game.clients[i].pers.connected) {
             index[count] = i;
             count++;
@@ -672,7 +672,7 @@ void Cmd_Wave_f(edict_t *ent)
 {
     int     i;
 
-    i = atoi(gi.argv(1));
+    i = Q_atoi(gi.argv(1));
 
     // can't wave when ducked
     if (ent->client->ps.pmove.pm_flags & PMF_DUCKED)
@@ -808,7 +808,7 @@ void Cmd_PlayerList_f(edict_t *ent)
 
     // connect time, ping, score, name
     *text = 0;
-    for (i = 0, e2 = g_edicts + 1; i < maxclients->value; i++, e2++) {
+    for (i = 0, e2 = g_edicts + 1; i < game.maxclients; i++, e2++) {
         if (!e2->inuse)
             continue;
 

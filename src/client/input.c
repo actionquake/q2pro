@@ -45,6 +45,7 @@ static cvar_t    *freelook;
 static cvar_t    *lookspring;
 static cvar_t    *lookstrafe;
 static cvar_t    *sensitivity;
+static cvar_t    *oldsens;
 
 static cvar_t    *m_pitch;
 static cvar_t    *m_yaw;
@@ -251,7 +252,7 @@ static void KeyDown(kbutton_t *b)
 
     c = Cmd_Argv(1);
     if (c[0])
-        k = atoi(c);
+        k = Q_atoi(c);
     else
         k = -1;        // typed manually at the console for continuous down
 
@@ -272,7 +273,7 @@ static void KeyDown(kbutton_t *b)
 
     // save timestamp
     c = Cmd_Argv(2);
-    b->downtime = atoi(c);
+    b->downtime = Q_atoi(c);
     if (!b->downtime) {
         b->downtime = com_eventTime - 100;
     }
@@ -288,7 +289,7 @@ static void KeyUp(kbutton_t *b)
 
     c = Cmd_Argv(1);
     if (c[0])
-        k = atoi(c);
+        k = Q_atoi(c);
     else {
         // typed manually at the console, assume for unsticking, so clear all
         b->down[0] = b->down[1] = 0;
@@ -310,7 +311,7 @@ static void KeyUp(kbutton_t *b)
 
     // save timestamp
     c = Cmd_Argv(2);
-    uptime = atoi(c);
+    uptime = Q_atoi(c);
     if (!uptime) {
         b->msec += 10;
     } else if (uptime > b->downtime) {
@@ -386,7 +387,7 @@ static void IN_UseUp(void)
 
 static void IN_Impulse(void)
 {
-    in_impulse = atoi(Cmd_Argv(1));
+    in_impulse = Q_atoi(Cmd_Argv(1));
 }
 
 static void IN_CenterView(void)
@@ -417,7 +418,6 @@ Returns the fraction of the frame that the key was down
 static float CL_KeyState(kbutton_t *key)
 {
     unsigned msec = key->msec;
-    float val;
 
     if (key->state & 1) {
         // still down
@@ -431,9 +431,7 @@ static float CL_KeyState(kbutton_t *key)
         return (float)(key->state & 1);
     }
 
-    val = (float)msec / cl.cmd.msec;
-
-    return clamp(val, 0, 1);
+    return Q_clipf((float)msec / cl.cmd.msec, 0, 1);
 }
 
 //==========================================================================
@@ -567,11 +565,11 @@ static void CL_BaseMove(vec3_t move)
 
 static void CL_ClampSpeed(vec3_t move)
 {
-    float speed = 400;  // default (maximum) running speed
+    const float speed = 400;    // default (maximum) running speed
 
-    clamp(move[0], -speed, speed);
-    clamp(move[1], -speed, speed);
-    clamp(move[2], -speed, speed);
+    move[0] = Q_clipf(move[0], -speed, speed);
+    move[1] = Q_clipf(move[1], -speed, speed);
+    move[2] = Q_clipf(move[2], -speed, speed);
 }
 
 static void CL_ClampPitch(void)
@@ -586,7 +584,7 @@ static void CL_ClampPitch(void)
     if (angle > 180)
         angle -= 360; // wrapped
 
-    clamp(angle, -89, 89);
+    angle = Q_clipf(angle, -89, 89);
     cl.viewangles[PITCH] = angle - pitch;
 }
 
@@ -715,6 +713,7 @@ void CL_RegisterInput(void)
     lookspring = Cvar_Get("lookspring", "0", CVAR_ARCHIVE);
     lookstrafe = Cvar_Get("lookstrafe", "0", CVAR_ARCHIVE);
     sensitivity = Cvar_Get("sensitivity", "3", CVAR_ARCHIVE);
+    oldsens = Cvar_Get("oldsens", sensitivity->string, CVAR_NOARCHIVE);
 
     m_pitch = Cvar_Get("m_pitch", "0.022", CVAR_ARCHIVE);
     m_yaw = Cvar_Get("m_yaw", "0.022", 0);
@@ -869,7 +868,8 @@ CL_SendDefaultCmd
 */
 static void CL_SendDefaultCmd(void)
 {
-    size_t cursize q_unused, checksumIndex;
+    int cursize q_unused;
+    uint32_t checksumIndex;
     usercmd_t *cmd, *oldcmd;
     client_history_t *history;
     int version;
@@ -941,10 +941,10 @@ static void CL_SendDefaultCmd(void)
     //
     // deliver the message
     //
-    cursize = cls.netchan.Transmit(&cls.netchan, msg_write.cursize, msg_write.data, 1);
+    cursize = Netchan_Transmit(&cls.netchan, msg_write.cursize, msg_write.data, 1);
 #if USE_DEBUG
     if (cl_showpackets->integer) {
-        Com_Printf("%zu ", cursize);
+        Com_Printf("%i ", cursize);
     }
 #endif
 
@@ -961,7 +961,7 @@ static void CL_SendBatchedCmd(void)
     int i, j, seq, bits q_unused;
     int numCmds, numDups;
     int totalCmds, totalMsec;
-    size_t cursize q_unused;
+    int cursize q_unused;
     usercmd_t *cmd, *oldcmd;
     client_history_t *history, *oldest;
     byte *patch;
@@ -1041,12 +1041,12 @@ static void CL_SendBatchedCmd(void)
     //
     // deliver the message
     //
-    cursize = cls.netchan.Transmit(&cls.netchan, msg_write.cursize, msg_write.data, 1);
+    cursize = Netchan_Transmit(&cls.netchan, msg_write.cursize, msg_write.data, 1);
 #if USE_DEBUG
     if (cl_showpackets->integer == 1) {
-        Com_Printf("%zu(%i) ", cursize, totalCmds);
+        Com_Printf("%i(%i) ", cursize, totalCmds);
     } else if (cl_showpackets->integer == 2) {
-        Com_Printf("%zu(%i) ", cursize, totalMsec);
+        Com_Printf("%i(%i) ", cursize, totalMsec);
     } else if (cl_showpackets->integer == 3) {
         Com_Printf(" | ");
     }
@@ -1058,7 +1058,7 @@ static void CL_SendBatchedCmd(void)
 static void CL_SendKeepAlive(void)
 {
     client_history_t *history;
-    size_t cursize q_unused;
+    int cursize q_unused;
 
     // archive this packet
     history = &cl.history[cls.netchan.outgoing_sequence & CMD_MASK];
@@ -1070,10 +1070,10 @@ static void CL_SendKeepAlive(void)
     cl.lastTransmitCmdNumber = cl.cmdNumber;
     cl.lastTransmitCmdNumberReal = cl.cmdNumber;
 
-    cursize = cls.netchan.Transmit(&cls.netchan, 0, "", 1);
+    cursize = Netchan_Transmit(&cls.netchan, 0, NULL, 1);
 #if USE_DEBUG
     if (cl_showpackets->integer) {
-        Com_Printf("%zu ", cursize);
+        Com_Printf("%i ", cursize);
     }
 #endif
 }
@@ -1140,7 +1140,7 @@ void CL_SendCmd(void)
         CL_SendReliable();
 
         // just keepalive or update reliable
-        if (cls.netchan.ShouldUpdate(&cls.netchan)) {
+        if (Netchan_ShouldUpdate(&cls.netchan)) {
             CL_SendKeepAlive();
         }
 

@@ -62,8 +62,8 @@ with this program; if not, write to the Free Software Foundation, Inc.,
 
 #if USE_DEBUG
 #define SV_DPrintf(level,...) \
-    if (sv_debug && sv_debug->integer > level) \
-        Com_LPrintf(PRINT_DEVELOPER, __VA_ARGS__)
+    do { if (sv_debug && sv_debug->integer > level) \
+        Com_LPrintf(PRINT_DEVELOPER, __VA_ARGS__); } while (0)
 #else
 #define SV_DPrintf(...)
 #endif
@@ -138,9 +138,9 @@ typedef struct {
 // variable server FPS
 #if USE_FPS
 #define SV_FRAMERATE        sv.framerate
-#define SV_FRAMETIME        sv.frametime
-#define SV_FRAMEDIV         sv.framediv
-#define SV_FRAMESYNC        !(sv.framenum % sv.framediv)
+#define SV_FRAMETIME        sv.frametime.time
+#define SV_FRAMEDIV         sv.frametime.div
+#define SV_FRAMESYNC        !(sv.framenum % sv.frametime.div)
 #define SV_CLIENTSYNC(cl)   !(sv.framenum % (cl)->framediv)
 #else
 #define SV_FRAMERATE        BASE_FRAMERATE
@@ -160,8 +160,7 @@ typedef struct {
 
 #if USE_FPS
     int         framerate;
-    int         frametime;
-    int         framediv;
+    frametime_t frametime;
 #endif
 
     int         framenum;
@@ -225,10 +224,10 @@ typedef enum {
 #define MSG_POOLSIZE        1024
 #define MSG_TRESHOLD        (62 - sizeof(list_t))   // keep message_packet_t 64 bytes aligned
 
-#define MSG_RELIABLE        1
-#define MSG_CLEAR           2
-#define MSG_COMPRESS        4
-#define MSG_COMPRESS_AUTO   8
+#define MSG_RELIABLE        BIT(0)
+#define MSG_CLEAR           BIT(1)
+#define MSG_COMPRESS        BIT(2)
+#define MSG_COMPRESS_AUTO   BIT(3)
 
 #define ZPACKET_HEADER      5
 
@@ -490,7 +489,7 @@ typedef struct server_static_s {
 #if USE_ZLIB
     z_stream        z;  // for compressing messages at once
     byte            *z_buffer;
-    size_t          z_buffer_size;
+    unsigned        z_buffer_size;
 #endif
 
     cs_remap_t      csr;
@@ -679,6 +678,7 @@ void SV_MvdStartSound(int entnum, int channel, int flags,
 
 void SV_MvdRecord_f(void);
 void SV_MvdStop_f(void);
+void SV_ListSounds_f(void);
 #else
 #define SV_MvdRegister()            (void)0
 #define SV_MvdPreInit()             (void)0

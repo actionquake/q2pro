@@ -3,7 +3,7 @@ project('q2pro', 'c',
   version: run_command(find_program('python3'), 'version.py', check: true).stdout().strip(),
   meson_version: '>= 0.59.0',
   default_options: [
-    'c_std=gnu99',
+    meson.version().version_compare('>=1.3.0') ? 'c_std=gnu11,c11' : 'c_std=gnu11',
     'buildtype=debugoptimized',
   ],
 )
@@ -324,7 +324,7 @@ fallback_opt = ['default_library=static']
 
 zlib = dependency('zlib',
   required:        get_option('zlib'),
-  default_options: fallback_opt,
+  default_options: fallback_opt + [ 'tests=disabled' ],
 )
 
 if not zlib.found()
@@ -364,7 +364,7 @@ game_deps = [zlib]
 
 jpeg = dependency('libjpeg',
   required:        get_option('libjpeg'),
-  default_options: fallback_opt,
+  default_options: fallback_opt + [ 'jpeg-turbo=disabled', 'tests=disabled' ]
 )
 
 if jpeg.found()
@@ -409,21 +409,6 @@ if host_machine.system() == 'darwin'
   client_deps += opengl
 endif
 
-ogg = dependency('ogg',
-  required:        get_option('ogg'),
-  default_options: fallback_opt,
-)
-vorbisfile = dependency('vorbisfile',
-  required:        get_option('ogg'),
-  default_options: fallback_opt,
-)
-if ogg.found() and vorbisfile.found()
-  client_src += 'src/client/sound/ogg.c'
-  client_deps += ogg.partial_dependency(compile_args: true, includes: true)
-  client_deps += vorbisfile
-  config.set10('USE_OGG', true)
-endif
-
 # require FFmpeg >= 5.1.3
 avcodec_opt = get_option('avcodec')
 avcodec = dependency('libavcodec', version: '>= 59.37.100', required: avcodec_opt)
@@ -432,7 +417,7 @@ avutil = dependency('libavutil', version: '>= 57.28.100', required: avcodec_opt)
 swresample = dependency('libswresample', version: '>= 4.7.100', required: avcodec_opt)
 swscale = dependency('libswscale', version: '>= 6.7.100', required: avcodec_opt)
 if avcodec.found() and avformat.found() and avutil.found() and swresample.found() and swscale.found()
-  client_src += 'src/client/ffcin.c'
+  client_src += ['src/client/ffcin.c', 'src/client/sound/ogg.c']
   client_deps += [avcodec, avformat, avutil, swresample, swscale]
   config.set10('USE_AVCODEC', true)
 else
@@ -616,7 +601,6 @@ summary({
   'md5'                : config.get('USE_MD5', 0) != 0,
   'mvd-client'         : config.get('USE_MVD_CLIENT', 0) != 0,
   'mvd-server'         : config.get('USE_MVD_SERVER', 0) != 0,
-  'ogg'                : config.get('USE_OGG', 0) != 0,
   'openal'             : config.get('USE_OPENAL', 0) != 0,
   'packetdup-hack'     : config.get('USE_PACKETDUP', 0) != 0,
   'save-games'         : config.get('USE_SAVEGAMES', 0) != 0,

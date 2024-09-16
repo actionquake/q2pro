@@ -241,9 +241,8 @@ void mutant_run(edict_t *self)
 
 void mutant_hit_left(edict_t *self)
 {
-    vec3_t  aim;
+    vec3_t  aim = { MELEE_DISTANCE, self->mins[0], 8 };
 
-    VectorSet(aim, MELEE_DISTANCE, self->mins[0], 8);
     if (fire_hit(self, aim, (10 + (Q_rand() % 5)), 100))
         gi.sound(self, CHAN_WEAPON, sound_hit, 1, ATTN_NORM, 0);
     else
@@ -252,9 +251,8 @@ void mutant_hit_left(edict_t *self)
 
 void mutant_hit_right(edict_t *self)
 {
-    vec3_t  aim;
+    vec3_t  aim = { MELEE_DISTANCE, self->maxs[0], 8 };
 
-    VectorSet(aim, MELEE_DISTANCE, self->maxs[0], 8);
     if (fire_hit(self, aim, (10 + (Q_rand() % 5)), 100))
         gi.sound(self, CHAN_WEAPON, sound_hit2, 1, ATTN_NORM, 0);
     else
@@ -566,15 +564,8 @@ void mutant_die(edict_t *self, edict_t *inflictor, edict_t *attacker, int damage
 // SPAWN
 //
 
-/*QUAKED monster_mutant (1 .5 0) (-32 -32 -24) (32 32 32) Ambush Trigger_Spawn Sight
-*/
-void SP_monster_mutant(edict_t *self)
+static void mutant_precache(void)
 {
-    if (deathmatch->value) {
-        G_FreeEdict(self);
-        return;
-    }
-
     sound_swing = gi.soundindex("mutant/mutatck1.wav");
     sound_hit = gi.soundindex("mutant/mutatck2.wav");
     sound_hit2 = gi.soundindex("mutant/mutatck3.wav");
@@ -588,6 +579,18 @@ void SP_monster_mutant(edict_t *self)
     sound_step2 = gi.soundindex("mutant/step2.wav");
     sound_step3 = gi.soundindex("mutant/step3.wav");
     sound_thud = gi.soundindex("mutant/thud1.wav");
+}
+
+/*QUAKED monster_mutant (1 .5 0) (-32 -32 -24) (32 32 32) Ambush Trigger_Spawn Sight
+*/
+void SP_monster_mutant(edict_t *self)
+{
+    if (deathmatch->value) {
+        G_FreeEdict(self);
+        return;
+    }
+
+    G_AddPrecache(mutant_precache);
 
     self->movetype = MOVETYPE_STEP;
     self->solid = SOLID_BBOX;

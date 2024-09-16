@@ -125,7 +125,7 @@ client_t *SV_GetPlayer(const char *s, bool partial)
 
     // numeric values are just slot numbers
     if (COM_IsUint(s)) {
-        i = atoi(s);
+        i = Q_atoi(s);
         if (i < 0 || i >= sv_maxclients->integer) {
             Com_Printf("Bad client slot number: %d\n", i);
             return NULL;
@@ -631,7 +631,7 @@ static void dump_protocols(void)
         "--- --------------- ----- ----- ------ ---- ----\n");
 
     FOR_EACH_CLIENT(cl) {
-        Com_Printf("%3i %-15.15s %5d %5d %6zu  %s  %s\n",
+        Com_Printf("%3i %-15.15s %5d %5d %6u  %s  %s\n",
                    cl->number, cl->name, cl->protocol, cl->version,
                    cl->netchan.maxpacketlen,
                    cl->has_zlib ? "yes" : "no ",
@@ -773,7 +773,7 @@ void SV_PrintMiscInfo(void)
                sv_client->version_string ? sv_client->version_string : "-");
     Com_Printf("protocol (maj/min)   %d/%d\n",
                sv_client->protocol, sv_client->version);
-    Com_Printf("maxmsglen            %zu\n", sv_client->netchan.maxpacketlen);
+    Com_Printf("maxmsglen            %u\n", sv_client->netchan.maxpacketlen);
     Com_Printf("zlib support         %s\n", sv_client->has_zlib ? "yes" : "no");
     Com_Printf("netchan type         %s\n", sv_client->netchan.type ? "new" : "old");
     Com_Printf("ping                 %d\n", sv_client->ping);
@@ -1046,7 +1046,7 @@ static bool parse_mask(char *s, netadr_t *addr, netadr_t *mask)
             Com_Printf("Please specify a mask after '/'.\n");
             return false;
         }
-        bits = atoi(p);
+        bits = Q_atoi(p);
     } else {
         bits = -1;
     }
@@ -1144,7 +1144,7 @@ void SV_DelMatch_f(list_t *list)
 
     // numeric values are just slot numbers
     if (COM_IsUint(s)) {
-        i = atoi(s);
+        i = Q_atoi(s);
         match = LIST_INDEX(addrmatch_t, i - 1, list, entry);
         if (match) {
             goto remove;
@@ -1271,7 +1271,7 @@ static void SV_DelStuffCmd(list_t *list, int arg, const char *what)
     }
 
     if (COM_IsUint(s)) {
-        i = atoi(s);
+        i = Q_atoi(s);
         stuff = LIST_INDEX(stuffcmd_t, i - 1, list, entry);
         if (!stuff) {
             Com_Printf("No such %scmd index: %d\n", what, i);
@@ -1469,7 +1469,7 @@ static void SV_DelFilterCmd_f(void)
     }
 
     if (COM_IsUint(s)) {
-        i = atoi(s);
+        i = Q_atoi(s);
         filter = LIST_INDEX(filtercmd_t, i - 1, &sv_filterlist, entry);
         if (!filter) {
             Com_Printf("No such filtercmd index: %d\n", i);
@@ -1591,7 +1591,7 @@ static void SV_DelCvarBan(list_t *list, const char *what)
     }
 
     if (COM_IsUint(s)) {
-        i = atoi(s);
+        i = Q_atoi(s);
         ban = LIST_INDEX(cvarban_t, i - 1, list, entry);
         if (!ban) {
             Com_Printf("No such %sban index: %d\n", what, i);

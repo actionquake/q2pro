@@ -178,7 +178,7 @@ static void write_configstring_stream(void)
         length = Q_strnlen(string, MAX_QPATH);
 
         // check if this configstring will overflow
-        if (msg_write.cursize + length + 4 > msg_write.maxsize) {
+        if (msg_write.cursize + length + 5 > msg_write.maxsize) {
             MSG_WriteShort(sv_client->csr->end);
             SV_ClientAddMessage(sv_client, MSG_GAMESTATE);
             MSG_WriteByte(svc_configstringstream);
@@ -472,16 +472,14 @@ void SV_New_f(void)
         return;
 
     // send gamestate
-    if (sv_client->netchan.type == NETCHAN_NEW) {
-        if (sv_client->version >= PROTOCOL_VERSION_Q2PRO_EXTENDED_LIMITS) {
-            write_configstring_stream();
-            write_baseline_stream();
-        } else {
-            write_gamestate();
-        }
-    } else {
+    if (sv_client->netchan.type == NETCHAN_OLD) {
         write_configstrings();
         write_baselines();
+    } else if (sv_client->version >= PROTOCOL_VERSION_Q2PRO_EXTENDED_LIMITS) {
+        write_configstring_stream();
+        write_baseline_stream();
+    } else {
+        write_gamestate();
     }
 
     // send next command
@@ -645,7 +643,7 @@ static void SV_BeginDownload_f(void)
     len = FS_NormalizePath(name);
 
     if (Cmd_Argc() > 2)
-        offset = atoi(Cmd_Argv(2));     // downloaded offset
+        offset = Q_atoi(Cmd_Argv(2));   // downloaded offset
 
     // hacked by zoid to allow more conrol over download
     // first off, no .. or global allow check
@@ -813,7 +811,7 @@ static void SV_NextServer_f(void)
     if (sv.state == ss_pic && !Cvar_VariableInteger("coop"))
         return;     // ss_pic can be nextserver'd in coop mode
 
-    if (atoi(Cmd_Argv(1)) != sv.spawncount)
+    if (Q_atoi(Cmd_Argv(1)) != sv.spawncount)
         return;     // leftover from last server
 
     sv.spawncount ^= 1;     // make sure another doesn't sneak in
@@ -893,7 +891,7 @@ static void SV_PacketdupHack_f(void)
     int numdups = sv_client->numpackets - 1;
 
     if (Cmd_Argc() > 1) {
-        numdups = atoi(Cmd_Argv(1));
+        numdups = Q_atoi(Cmd_Argv(1));
         if (numdups < 0 || numdups > sv_packetdup_hack->integer) {
             SV_ClientPrintf(sv_client, PRINT_HIGH,
                             "Packetdup of %d is not allowed on this server.\n", numdups);
@@ -1590,7 +1588,7 @@ static void SV_ParseDeltaUserinfo(void)
 #if USE_FPS
 void SV_AlignKeyFrames(client_t *client)
 {
-    int framediv = sv.framediv / client->framediv;
+    int framediv = sv.frametime.div / client->framediv;
     int framenum = sv.framenum / client->framediv;
     int frameofs = framenum % framediv;
     int newnum = frameofs + Q_align(client->framenum, framediv);
@@ -1608,15 +1606,12 @@ static void set_client_fps(int value)
     if (!value)
         value = sv.framerate;
 
-    framediv = value / BASE_FRAMERATE;
-
-    clamp(framediv, 1, MAX_FRAMEDIV);
-
-    framediv = sv.framediv / Q_gcd(sv.framediv, framediv);
+    framediv = Q_clip(value / BASE_FRAMERATE, 1, MAX_FRAMEDIV);
+    framediv = sv.frametime.div / Q_gcd(sv.frametime.div, framediv);
     framerate = sv.framerate / framediv;
 
     Com_DDPrintf("[%d] client div=%d, server div=%d, rate=%d\n",
-                 sv.framenum, framediv, sv.framediv, framerate);
+                 sv.framenum, framediv, sv.frametime.div, framerate);
 
     sv_client->framediv = framediv;
 

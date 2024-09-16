@@ -495,7 +495,8 @@ void floater_walk(edict_t *self)
 
 void floater_wham(edict_t *self)
 {
-    vec3_t aim = {MELEE_DISTANCE, 0, 0};
+    vec3_t aim = { MELEE_DISTANCE, 0, 0 };
+
     gi.sound(self, CHAN_WEAPON, sound_attack3, 1, ATTN_NORM, 0);
     fire_hit(self, aim, 5 + Q_rand() % 6, -50);
 }
@@ -582,6 +583,17 @@ void floater_die(edict_t *self, edict_t *inflictor, edict_t *attacker, int damag
     BecomeExplosion1(self);
 }
 
+static void floater_precache(void)
+{
+    sound_attack2 = gi.soundindex("floater/fltatck2.wav");
+    sound_attack3 = gi.soundindex("floater/fltatck3.wav");
+    sound_death1 = gi.soundindex("floater/fltdeth1.wav");
+    sound_idle = gi.soundindex("floater/fltidle1.wav");
+    sound_pain1 = gi.soundindex("floater/fltpain1.wav");
+    sound_pain2 = gi.soundindex("floater/fltpain2.wav");
+    sound_sight = gi.soundindex("floater/fltsght1.wav");
+}
+
 /*QUAKED monster_floater (1 .5 0) (-16 -16 -24) (16 16 32) Ambush Trigger_Spawn Sight
 */
 void SP_monster_floater(edict_t *self)
@@ -591,13 +603,7 @@ void SP_monster_floater(edict_t *self)
         return;
     }
 
-    sound_attack2 = gi.soundindex("floater/fltatck2.wav");
-    sound_attack3 = gi.soundindex("floater/fltatck3.wav");
-    sound_death1 = gi.soundindex("floater/fltdeth1.wav");
-    sound_idle = gi.soundindex("floater/fltidle1.wav");
-    sound_pain1 = gi.soundindex("floater/fltpain1.wav");
-    sound_pain2 = gi.soundindex("floater/fltpain2.wav");
-    sound_sight = gi.soundindex("floater/fltsght1.wav");
+    G_AddPrecache(floater_precache);
 
     gi.soundindex("floater/fltatck1.wav");
 

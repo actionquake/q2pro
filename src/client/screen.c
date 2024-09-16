@@ -59,10 +59,12 @@ static struct {
 	int			hud_x, hud_y;
     int         hud_width, hud_height;
     float       hud_scale;
+    int         lag_draw_scale;
 } scr;
 
 static cvar_t   *scr_viewsize;
 static cvar_t   *scr_centertime;
+static cvar_t   *scr_printspeed;
 static cvar_t   *scr_showpause;
 #if USE_DEBUG
 static cvar_t   *scr_showstats;
@@ -76,6 +78,7 @@ static cvar_t   *scr_lag_y;
 static cvar_t   *scr_lag_draw;
 static cvar_t   *scr_lag_min;
 static cvar_t   *scr_lag_max;
+static cvar_t   *scr_lag_draw_scale;
 static cvar_t   *scr_alpha;
 
 static cvar_t   *scr_hudborder_x;
@@ -191,18 +194,16 @@ void SCR_DrawStringMulti(int x, int y, int flags, size_t maxlen,
     char    *p;
     size_t  len;
 
-    while (*s) {
+    while (*s && maxlen) {
         p = strchr(s, '\n');
         if (!p) {
             SCR_DrawStringEx(x, y, flags, maxlen, s, font);
             break;
         }
 
-        len = p - s;
-        if (len > maxlen) {
-            len = maxlen;
-        }
+        len = min(p - s, maxlen);
         SCR_DrawStringEx(x, y, flags, len, s, font);
+        maxlen -= len;
 
         y += CHAR_HEIGHT;
         s = p + 1;
@@ -402,9 +403,24 @@ CENTER PRINTING
 ===============================================================================
 */
 
-static char     scr_centerstring[MAX_STRING_CHARS];
-static unsigned scr_centertime_start;   // for slow victory printing
-static int      scr_center_lines;
+#define MAX_CENTERPRINTS_REAL   4
+#define MAX_CENTERPRINTS        (cl.csr.extended ? MAX_CENTERPRINTS_REAL : 1)
+
+typedef struct {
+    char        string[MAX_STRING_CHARS - 8];
+    uint32_t    start;
+    uint16_t    lines;
+    uint16_t    typewrite;  // msec to typewrite (0 if instant)
+} centerprint_t;
+
+static centerprint_t    scr_centerprints[MAX_CENTERPRINTS_REAL];
+static unsigned         scr_centerhead, scr_centertail;
+
+void SCR_ClearCenterPrints(void)
+{
+    memset(scr_centerprints, 0, sizeof(scr_centerprints));
+    scr_centerhead = scr_centertail = 0;
+}
 
 /*
 ==============
@@ -414,51 +430,97 @@ Called for important messages that should stay in the center of the screen
 for a few moments
 ==============
 */
-void SCR_CenterPrint(const char *str)
+void SCR_CenterPrint(const char *str, bool typewrite)
 {
-    const char  *s;
+    centerprint_t *cp;
+    const char *s;
 
-    scr_centertime_start = cls.realtime;
-    if (!strcmp(scr_centerstring, str)) {
+    // refresh duplicate message
+    cp = &scr_centerprints[(scr_centerhead - 1) & (MAX_CENTERPRINTS - 1)];
+    if (!strcmp(cp->string, str)) {
+        if (cp->start)
+            cp->start = cls.realtime;
+        if (scr_centertail == scr_centerhead)
+            scr_centertail--;
         return;
     }
 
-    Q_strlcpy(scr_centerstring, str, sizeof(scr_centerstring));
+    cp = &scr_centerprints[scr_centerhead & (MAX_CENTERPRINTS - 1)];
+    Q_strlcpy(cp->string, str, sizeof(cp->string));
 
     // count the number of lines for centering
-    scr_center_lines = 1;
-    s = str;
+    cp->lines = 1;
+    s = cp->string;
     while (*s) {
         if (*s == '\n')
-            scr_center_lines++;
+            cp->lines++;
         s++;
     }
 
+    cp->start = 0;  // not yet displayed
+    cp->typewrite = 0;
+
+    // for typewritten strings set minimum display time,
+    // but no longer than 30 sec
+    if (typewrite && scr_printspeed->value > 0) {
+        size_t nb_chars = strlen(cp->string) - cp->lines + 2;
+        cp->typewrite = min(nb_chars * 1000 / scr_printspeed->value + 300, 30000);
+    }
+
     // echo it to the console
-    Com_Printf("%s\n", scr_centerstring);
+    Com_Printf("%s\n", cp->string);
     Con_ClearNotify_f();
+
+    scr_centerhead++;
+    if (scr_centerhead - scr_centertail > MAX_CENTERPRINTS)
+        scr_centertail++;
 }
 
 static void SCR_DrawCenterString(void)
 {
+    centerprint_t *cp;
     int y;
     float alpha;
+    size_t maxlen;
 
-    Cvar_ClampValue(scr_centertime, 0.3f, 10.0f);
-
-    alpha = SCR_FadeAlpha(scr_centertime_start, scr_centertime->value * 1000, 300);
-    if (!alpha) {
+    if (!scr_centertime->integer) {
+        scr_centertail = scr_centerhead;
         return;
+    }
+
+    while (1) {
+        if (scr_centertail == scr_centerhead)
+            return;
+        cp = &scr_centerprints[scr_centertail & (MAX_CENTERPRINTS - 1)];
+        if (!cp->start)
+            cp->start = cls.realtime;
+        alpha = SCR_FadeAlpha(cp->start, scr_centertime->integer + cp->typewrite, 300);
+        if (alpha > 0)
+            break;
+        scr_centertail++;
     }
 
     R_SetAlpha(alpha * scr_alpha->value);
 
-    y = scr.hud_y + (scr.hud_height / 4 - scr_center_lines * 8 / 2);
+    y = scr.hud_height / 4 - cp->lines * CHAR_HEIGHT / 2;
 
-    SCR_DrawStringMulti(scr.hud_x + (scr.hud_width / 2), y, UI_CENTER,
-                        MAX_STRING_CHARS, scr_centerstring, scr.font_pic);
+    if (cp->typewrite)
+        maxlen = scr_printspeed->value * 0.001f * (cls.realtime - cp->start);
+    else
+        maxlen = MAX_STRING_CHARS;
+
+    SCR_DrawStringMulti(scr.hud_width / 2, y, UI_CENTER,
+                        maxlen, cp->string, scr.font_pic);
 
     R_SetAlpha(scr_alpha->value);
+}
+
+static void scr_centertime_changed(cvar_t *self)
+{
+    if (self->value > 0)
+        self->integer = 1000 * Cvar_ClampValue(self, 1.0f, 30.0f);
+    else
+        self->integer = 0;
 }
 
 /*
@@ -469,8 +531,15 @@ LAGOMETER
 ===============================================================================
 */
 
-#define LAG_WIDTH   48
-#define LAG_HEIGHT  48
+#define LAG_WIDTH 48
+#define LAG_HEIGHT 48
+int DRAW_LAG_WIDTH;
+int DRAW_LAG_HEIGHT;
+// Scaling support for lag graph
+void init_lag_graph_dimensions(void) {
+    DRAW_LAG_WIDTH = LAG_WIDTH * scr_lag_draw_scale->integer;
+    DRAW_LAG_HEIGHT = LAG_HEIGHT * scr_lag_draw_scale->integer;
+}
 
 #define LAG_WARN_BIT    BIT(30)
 #define LAG_CRIT_BIT    BIT(31)
@@ -524,13 +593,13 @@ static void SCR_LagDraw(int x, int y)
     if (v_range < 1)
         return;
 
-    for (i = 0; i < LAG_WIDTH; i++) {
+    for (i = 0; i < DRAW_LAG_WIDTH; i++) {
         j = lag.head - i - 1;
         if (j < 0) {
             break;
         }
 
-        v = lag.samples[j % LAG_WIDTH];
+        v = lag.samples[j % DRAW_LAG_WIDTH];
 
         if (v & LAG_CRIT_BIT) {
             c = LAG_CRIT;
@@ -541,10 +610,9 @@ static void SCR_LagDraw(int x, int y)
         }
 
         v &= ~(LAG_WARN_BIT | LAG_CRIT_BIT);
-        v = (v - v_min) * LAG_HEIGHT / v_range;
-        clamp(v, 0, LAG_HEIGHT);
+        v = Q_clip((v - v_min) * LAG_HEIGHT / v_range, 0, LAG_HEIGHT);
 
-        R_DrawFill8(x + LAG_WIDTH - i - 1, y + LAG_HEIGHT - v, 1, v, c);
+        R_DrawFill8(x + DRAW_LAG_WIDTH - i - 1, y + DRAW_LAG_HEIGHT - v, 1, v, c);
     }
 }
 
@@ -553,17 +621,19 @@ static void SCR_DrawNet(void)
     int x = scr_lag_x->integer + scr.hud_x;
     int y = scr_lag_y->integer + scr.hud_y;
 
+    init_lag_graph_dimensions();
+
     if (scr_lag_x->integer < 0) {
-        x += scr.hud_width - LAG_WIDTH + 1;
+        x += scr.hud_width - DRAW_LAG_WIDTH + 1;
     }
     if (scr_lag_y->integer < 0) {
-        y += scr.hud_height - LAG_HEIGHT + 1;
+        y += scr.hud_height - DRAW_LAG_HEIGHT + 1;
     }
 
     // draw ping graph
     if (scr_lag_draw->integer) {
         if (scr_lag_draw->integer > 1) {
-            R_DrawFill8(x, y, LAG_WIDTH, LAG_HEIGHT, 4);
+            R_DrawFill8(x, y, DRAW_LAG_WIDTH, DRAW_LAG_HEIGHT, 4);
         }
         SCR_LagDraw(x, y);
     }
@@ -571,7 +641,7 @@ static void SCR_DrawNet(void)
     // draw phone jack
     if (cls.netchan.outgoing_sequence - cls.netchan.incoming_acknowledged >= CMD_BACKUP) {
         if ((cls.realtime >> 8) & 3) {
-            R_DrawStretchPic(x, y, LAG_WIDTH, LAG_HEIGHT, scr.net_pic);
+            R_DrawStretchPic(x, y, DRAW_LAG_WIDTH, DRAW_LAG_HEIGHT, scr.net_pic);
         }
     }
 }
@@ -654,8 +724,8 @@ static void SCR_Draw_f(void)
     flags = UI_IGNORECOLOR;
 
     s = Cmd_Argv(1);
-    x = atoi(Cmd_Argv(2));
-    y = atoi(Cmd_Argv(3));
+    x = Q_atoi(Cmd_Argv(2));
+    y = Q_atoi(Cmd_Argv(3));
 
     if (x < 0) {
         flags |= UI_RIGHT;
@@ -1266,6 +1336,13 @@ static void scr_scale_changed(cvar_t *self)
 
     scr_crosshair_changed(scr_crosshair);
 }
+static void scr_lag_draw_scale_changed(cvar_t *self)
+{
+    scr.lag_draw_scale = R_ClampScale(self);
+
+    DRAW_LAG_WIDTH = LAG_WIDTH * scr_lag_draw_scale->value;
+    DRAW_LAG_HEIGHT = LAG_HEIGHT * scr_lag_draw_scale->value;
+}
 
 static const cmdreg_t scr_cmds[] = {
     { "timerefresh", SCR_TimeRefresh_f },
@@ -1288,6 +1365,9 @@ void SCR_Init(void)
     scr_viewsize = Cvar_Get("viewsize", "100", CVAR_ARCHIVE);
     scr_showpause = Cvar_Get("scr_showpause", "1", 0);
     scr_centertime = Cvar_Get("scr_centertime", "2.5", 0);
+    scr_centertime->changed = scr_centertime_changed;
+    scr_centertime->changed(scr_centertime);
+    scr_printspeed = Cvar_Get("scr_printspeed", "16", 0);
     scr_demobar = Cvar_Get("scr_demobar", "1", 0);
     scr_font = Cvar_Get("scr_font", "conchars", 0);
     scr_font->changed = scr_font_changed;
@@ -1303,6 +1383,9 @@ void SCR_Init(void)
     scr_chathud_time->changed(scr_chathud_time);
     scr_chathud_x = Cvar_Get("scr_chathud_x", "8", 0);
     scr_chathud_y = Cvar_Get("scr_chathud_y", "-64", 0);
+
+    scr_lag_draw_scale = Cvar_Get("scr_lag_draw_scale", "1", 0);
+    scr_lag_draw_scale->changed = scr_lag_draw_scale_changed;
 
     xhair_dot = Cvar_Get("xhair_dot", "1",0);
     xhair_length = Cvar_Get("xhair_length","4",0);
@@ -1355,6 +1438,7 @@ void SCR_Init(void)
 
     scr_scale_changed(scr_scale);
     scr_crosshair_changed(scr_crosshair);
+    scr_lag_draw_scale_changed(scr_lag_draw_scale);
 
     scr.initialized = true;
 }
@@ -1658,19 +1742,19 @@ static void SCR_ExecuteLayoutString(const char *s)
             if (token[0] == 'x') {
                 if (token[1] == 'l') {
                     token = COM_Parse(&s);
-                    x = scr.hud_x + atoi(token);
+                    x = Q_atoi(token);
                     continue;
                 }
 
                 if (token[1] == 'r') {
                     token = COM_Parse(&s);
-                    x = scr.hud_x + scr.hud_width + atoi(token);
+                    x = scr.hud_width + Q_atoi(token);
                     continue;
                 }
 
                 if (token[1] == 'v') {
                     token = COM_Parse(&s);
-                    x = scr.hud_x + scr.hud_width / 2 - 160 + atoi(token);
+                    x = scr.hud_width / 2 - 160 + Q_atoi(token);
                     continue;
                 }
             }
@@ -1678,19 +1762,19 @@ static void SCR_ExecuteLayoutString(const char *s)
             if (token[0] == 'y') {
                 if (token[1] == 't') {
                     token = COM_Parse(&s);
-                    y = scr.hud_y + atoi(token);
+                    y = Q_atoi(token);
                     continue;
                 }
 
                 if (token[1] == 'b') {
                     token = COM_Parse(&s);
-                    y = scr.hud_y + scr.hud_height + atoi(token);
+                    y = scr.hud_height + Q_atoi(token);
                     continue;
                 }
 
                 if (token[1] == 'v') {
                     token = COM_Parse(&s);
-                    y = scr.hud_y + scr.hud_height / 2 - 120 + atoi(token);
+                    y = scr.hud_height / 2 - 120 + Q_atoi(token);
                     continue;
                 }
             }
@@ -1699,19 +1783,19 @@ static void SCR_ExecuteLayoutString(const char *s)
         if (!strcmp(token, "pic")) {
             // draw a pic from a stat number
             token = COM_Parse(&s);
-            value = atoi(token);
+            value = Q_atoi(token);
             if (value < 0 || value >= MAX_STATS) {
-                Com_Error(ERR_DROP, "%s: invalid stat index", __func__);
+                Com_Error(ERR_DROP, "%s: invalid stat index for pic: %i", __func__, value);
             }
             value = cl.frame.ps.stats[value];
             if (value < 0 || value >= cl.csr.max_images) {
-                Com_Error(ERR_DROP, "%s: invalid pic index", __func__);
+                Com_Error(ERR_DROP, "%s: invalid pic index for pic: %i", __func__, value);
             }
             token = cl.configstrings[cl.csr.images + value];
             if (token[0]) {
                 qhandle_t pic = cl.image_precache[value];
                 // hack for action mod scope scaling
-                if (Com_WildCmp("scope?x", token)) {
+                if (Com_WildCmp("scope?x", token) || Com_WildCmp("scopes/*/scope?x", token)) {
                     int x = scr.hud_x + (scr.hud_width - scr.scope_width) / 2;
                     int y = scr.hud_y + (scr.hud_height - scr.scope_height) / 2;
 
@@ -1732,25 +1816,25 @@ static void SCR_ExecuteLayoutString(const char *s)
             int     score, ping, time;
 
             token = COM_Parse(&s);
-            x = scr.hud_x + scr.hud_width / 2 - 160 + atoi(token);
+            x = scr.hud_width / 2 - 160 + Q_atoi(token);
             token = COM_Parse(&s);
-            y = scr.hud_y + scr.hud_height / 2 - 120 + atoi(token);
+            y = scr.hud_height / 2 - 120 + Q_atoi(token);
 
             token = COM_Parse(&s);
-            value = atoi(token);
+            value = Q_atoi(token);
             if (value < 0 || value >= MAX_CLIENTS) {
                 Com_Error(ERR_DROP, "%s: invalid client index", __func__);
             }
             ci = &cl.clientinfo[value];
 
             token = COM_Parse(&s);
-            score = atoi(token);
+            score = Q_atoi(token);
 
             token = COM_Parse(&s);
-            ping = atoi(token);
+            ping = Q_atoi(token);
 
             token = COM_Parse(&s);
-            time = atoi(token);
+            time = Q_atoi(token);
 
             HUD_DrawAltString(x + 32, y, ci->name);
             HUD_DrawString(x + 32, y + CHAR_HEIGHT, "Score: ");
@@ -1773,22 +1857,22 @@ static void SCR_ExecuteLayoutString(const char *s)
             int     score, ping;
 
             token = COM_Parse(&s);
-            x = scr.hud_x + scr.hud_width / 2 - 160 + atoi(token);
+            x = scr.hud_width / 2 - 160 + Q_atoi(token);
             token = COM_Parse(&s);
-            y = scr.hud_y + scr.hud_height / 2 - 120 + atoi(token);
+            y = scr.hud_height / 2 - 120 + Q_atoi(token);
 
             token = COM_Parse(&s);
-            value = atoi(token);
+            value = Q_atoi(token);
             if (value < 0 || value >= MAX_CLIENTS) {
                 Com_Error(ERR_DROP, "%s: invalid client index", __func__);
             }
             ci = &cl.clientinfo[value];
 
             token = COM_Parse(&s);
-            score = atoi(token);
+            score = Q_atoi(token);
 
             token = COM_Parse(&s);
-            ping = atoi(token);
+            ping = Q_atoi(token);
             if (ping > 999)
                 ping = 999;
 
@@ -1812,11 +1896,11 @@ static void SCR_ExecuteLayoutString(const char *s)
         if (!strcmp(token, "num")) {
             // draw a number
             token = COM_Parse(&s);
-            width = atoi(token);
+            width = Q_atoi(token);
             token = COM_Parse(&s);
-            value = atoi(token);
+            value = Q_atoi(token);
             if (value < 0 || value >= MAX_STATS) {
-                Com_Error(ERR_DROP, "%s: invalid stat index", __func__);
+                Com_Error(ERR_DROP, "%s: invalid stat index for num: %i", __func__, value);
             }
             value = cl.frame.ps.stats[value];
             HUD_DrawNumber(x, y, 0, width, value);
@@ -1884,13 +1968,13 @@ static void SCR_ExecuteLayoutString(const char *s)
         if (!strncmp(token, "stat_", 5)) {
             char *cmd = token + 5;
             token = COM_Parse(&s);
-            index = atoi(token);
+            index = Q_atoi(token);
             if (index < 0 || index >= MAX_STATS) {
-                Com_Error(ERR_DROP, "%s: invalid stat index", __func__);
+                Com_Error(ERR_DROP, "%s: invalid stat index for stat_: %i", __func__, index);
             }
             index = cl.frame.ps.stats[index];
             if (index < 0 || index >= cl.csr.end) {
-                Com_Error(ERR_DROP, "%s: invalid string index", __func__);
+                Com_Error(ERR_DROP, "%s: invalid string index for stat_: %i", __func__, index);
             }
             token = cl.configstrings[index];
             if (!strcmp(cmd, "string"))
@@ -1946,9 +2030,9 @@ static void SCR_ExecuteLayoutString(const char *s)
 
         if (!strcmp(token, "if")) {
             token = COM_Parse(&s);
-            value = atoi(token);
+            value = Q_atoi(token);
             if (value < 0 || value >= MAX_STATS) {
-                Com_Error(ERR_DROP, "%s: invalid stat index", __func__);
+                Com_Error(ERR_DROP, "%s: invalid stat index for if: %i", __func__, value);
             }
             value = cl.frame.ps.stats[value];
             if (!value) {   // skip to endif
@@ -2343,7 +2427,7 @@ static void SCR_DrawGhud(void)
 			//
 
 			float mult = 300 / link->distance;
-			clamp(mult, 0.25, 5);
+			Q_clip(mult, 0.25, 5);
 
 			int sizex = element->size[0] * mult;
 			int sizey = element->size[1] * mult;

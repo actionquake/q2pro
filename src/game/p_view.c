@@ -138,10 +138,7 @@ void P_DamageFeedback(edict_t *player)
     if (client->damage_alpha < 0)
         client->damage_alpha = 0;
     client->damage_alpha += count * 0.01f;
-    if (client->damage_alpha < 0.2f)
-        client->damage_alpha = 0.2f;
-    if (client->damage_alpha > 0.6f)
-        client->damage_alpha = 0.6f;    // don't go too saturated
+    client->damage_alpha = Q_clipf(client->damage_alpha, 0.2f, 0.6f);   // don't go too saturated
 
     // the color of the blend will vary based on how much was absorbed
     // by different armors
@@ -149,9 +146,9 @@ void P_DamageFeedback(edict_t *player)
     if (client->damage_parmor)
         VectorMA(v, (float)client->damage_parmor / realcount, power_color, v);
     if (client->damage_armor)
-        VectorMA(v, (float)client->damage_armor / realcount,  acolor, v);
+        VectorMA(v, (float)client->damage_armor / realcount, acolor, v);
     if (client->damage_blood)
-        VectorMA(v, (float)client->damage_blood / realcount,  bcolor, v);
+        VectorMA(v, (float)client->damage_blood / realcount, bcolor, v);
     VectorCopy(v, client->damage_blend);
 
     //
@@ -300,11 +297,9 @@ void SV_CalcViewOffset(edict_t *ent)
     // absolutely bound offsets
     // so the view can never be outside the player box
 
-    clamp(v[0], -14, 14);
-    clamp(v[1], -14, 14);
-    clamp(v[2], -22, 30);
-
-    VectorCopy(v, ent->client->ps.viewoffset);
+    ent->client->ps.viewoffset[0] = Q_clipf(v[0], -14, 14);
+    ent->client->ps.viewoffset[1] = Q_clipf(v[1], -14, 14);
+    ent->client->ps.viewoffset[2] = Q_clipf(v[2], -22, 30);
 }
 
 /*
@@ -334,7 +329,7 @@ void SV_CalcGunOffset(edict_t *ent)
             delta -= 360;
         if (delta < -180)
             delta += 360;
-        clamp(delta, -45, 45);
+        delta = Q_clipf(delta, -45, 45);
         if (i == YAW)
             ent->client->ps.gunangles[ROLL] += 0.1f * delta;
         ent->client->ps.gunangles[i] += 0.2f * delta;
@@ -750,7 +745,7 @@ void G_SetClientSound(edict_t *ent)
         weap = "";
 
     if (ent->waterlevel && (ent->watertype & (CONTENTS_LAVA | CONTENTS_SLIME)))
-        ent->s.sound = snd_fry;
+        ent->s.sound = gi.soundindex("player/fry.wav");
     else if (strcmp(weap, "weapon_railgun") == 0)
         ent->s.sound = gi.soundindex("weapons/rg_hum.wav");
     else if (strcmp(weap, "weapon_bfg") == 0)

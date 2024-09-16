@@ -34,9 +34,6 @@ qhandle_t   cl_sfx_watrexp;
 qhandle_t   cl_sfx_footsteps[12];
 qhandle_t   cl_sfx_landing[8];
 
-qhandle_t   cl_sfx_lightning;
-qhandle_t   cl_sfx_disrexp;
-
 //qhandle_t   cl_mod_explode;
 qhandle_t   cl_mod_smoke;
 qhandle_t   cl_mod_flash;
@@ -52,7 +49,11 @@ qhandle_t   cl_mod_lightning;
 qhandle_t   cl_mod_heatbeam;
 qhandle_t   cl_mod_explo4_big;
 
+qhandle_t   cl_mod_muzzles[MFLASH_TOTAL];
+
 qhandle_t   cl_img_flare;
+
+static cvar_t   *cl_muzzleflashes;
 
 #define MAX_FOOTSTEP_SFX    9
 
@@ -79,6 +80,10 @@ static int CL_FindFootstepSurface(int entnum)
 
     // skip if no materials loaded
     if (cl_num_footsteps <= FOOTSTEP_RESERVED_COUNT)
+        return footstep_id;
+
+    // allow custom footsteps to be disabled
+    if (cl_footsteps->integer >= 2)
         return footstep_id;
 
     // use an X/Y only mins/maxs copy of the entity,
@@ -156,8 +161,15 @@ void CL_PlayFootstepSfx(int step_id, int entnum, float volume, float attenuation
     if (!sfx->num_sfx)
         return; // no footsteps, not even fallbacks
 
-    // pick a random footstep sound, but avoid playing the same one twice in a row
-    sfx_num = Q_rand_uniform(sfx->num_sfx);
+    // check if cl_enhanced_footsteps->string is "0" and sfx->num_sfx has more than four items
+    if (strcmp(cl_enhanced_footsteps->string, "0") == 0 && sfx->num_sfx > 4) {
+        // pick a random footstep sound from the first four items, important for compatibility with players using the old four stepsounds
+        sfx_num = Q_rand_uniform(4);
+    } else {
+        // pick a random footstep sound
+        sfx_num = Q_rand_uniform(sfx->num_sfx);
+    }
+    // avoid playing the same one twice in a row
     footstep_sfx = sfx->sfx[sfx_num];
     if (footstep_sfx == cl_last_footstep)
         footstep_sfx = sfx->sfx[(sfx_num + 1) % sfx->num_sfx];
@@ -230,6 +242,36 @@ static void CL_RegisterFootsteps(void)
     }
 }
 
+static void CL_RegisterAQtionSounds(void)
+{
+    int i;
+    char    name[MAX_QPATH];
+
+    // Register all AQtion gun sounds
+    char gunsounds[][64] = {"mk23fire", "mp5fire", "m4a1fire", "shotgf1b", "cannon_fire", "ssgfire"};
+    size_t guncount = sizeof(gunsounds) / sizeof(gunsounds[0]);
+
+    for (size_t j = 0; j < guncount; j++) {
+        Q_snprintf(name, sizeof(name), "weapons/%s.wav", gunsounds[j]);
+        S_RegisterSound(name);
+        for (i = MIN_WEAPON_SOUND; i < MAX_WEAPON_SOUND; i++) {
+            Q_snprintf(name, sizeof(name), "weapons/%s%i.wav", gunsounds[j], i + 1);
+            S_RegisterSound(name);
+        }
+    }
+    Com_DPrintf("%s: All gun sounds precached\n", __func__);
+
+    // Register all AQtion hit sounds
+    char hitsounds[][64] = {"aphelmet", "apvest", "body", "chest", "headshot", "leg", "stomach", "vest"};
+    size_t hitsoundcount = sizeof(hitsounds) / sizeof(hitsounds[0]);
+
+    for (size_t j = 0; j < hitsoundcount; j++) {
+        Q_snprintf(name, sizeof(name), "hitsounds/%s.wav", hitsounds[j]);
+        S_RegisterSound(name);
+    }
+    Com_DPrintf("%s: All hit sounds precached\n", __func__);
+}
+
 /*
 =================
 CL_RegisterTEntSounds
@@ -263,22 +305,7 @@ void CL_RegisterTEntSounds(void)
     }
 
     CL_RegisterFootsteps();
-
-    cl_sfx_lightning = S_RegisterSound("weapons/tesla.wav");
-    cl_sfx_disrexp = S_RegisterSound("weapons/disrupthit.wav");
-
-    // Register all AQtion gun sounds
-    char gunsounds[][64] = {"mk23fire", "mp5fire", "m4a1fire", "shotgf1b", "cannon_fire", "ssgfire"};
-    size_t guncount = sizeof(gunsounds) / sizeof(gunsounds[0]);
-
-    for (size_t j = 0; j < guncount; j++) {
-        Q_snprintf(name, sizeof(name), "weapons/%s.wav", gunsounds[j]);
-        S_RegisterSound(name);
-        for (i = MIN_WEAPON_SOUND; i < MAX_WEAPON_SOUND; i++) {
-            Q_snprintf(name, sizeof(name), "weapons/%s%i.wav", gunsounds[j], i + 1);
-            S_RegisterSound(name);
-        }
-    }
+    CL_RegisterAQtionSounds();
 }
 
 /*
@@ -307,6 +334,19 @@ void CL_RegisterTEntModels(void)
     cl_mod_heatbeam = R_RegisterModel("models/proj/beam/tris.md2");
     cl_mod_explo4_big = R_RegisterModel("models/objects/r_explode2/tris.md2");
 
+    cl_mod_muzzles[MFLASH_MACHN] = R_RegisterModel("models/weapons/v_machn/flash/tris.md2");
+    cl_mod_muzzles[MFLASH_SHOTG2] = R_RegisterModel("models/weapons/v_shotg2/flash/tris.md2");
+    cl_mod_muzzles[MFLASH_SHOTG] = R_RegisterModel("models/weapons/v_shotg/flash/tris.md2");
+    cl_mod_muzzles[MFLASH_ROCKET] = R_RegisterModel("models/weapons/v_rocket/flash/tris.md2");
+    cl_mod_muzzles[MFLASH_RAIL] = R_RegisterModel("models/weapons/v_rail/flash/tris.md2");
+    cl_mod_muzzles[MFLASH_LAUNCH] = R_RegisterModel("models/weapons/v_launch/flash/tris.md2");
+    cl_mod_muzzles[MFLASH_ETF_RIFLE] = R_RegisterModel("models/weapons/v_etf_rifle/flash/tris.md2");
+    cl_mod_muzzles[MFLASH_DIST] = R_RegisterModel("models/weapons/v_dist/flash/tris.md2");
+    cl_mod_muzzles[MFLASH_BOOMER] = R_RegisterModel("models/weapons/v_boomer/flash/tris.md2");
+    cl_mod_muzzles[MFLASH_BLAST] = R_RegisterModel("models/weapons/v_blast/flash/tris.md2");
+    cl_mod_muzzles[MFLASH_BFG] = R_RegisterModel("models/weapons/v_bfg/flash/tris.md2");
+    cl_mod_muzzles[MFLASH_BEAMER] = R_RegisterModel("models/weapons/v_beamer/flash/tris.md2");
+
     cl_img_flare = R_RegisterSprite("misc/flare.tga");
 
     // check for remaster powerscreen model (ugly!)
@@ -328,7 +368,6 @@ EXPLOSION MANAGEMENT
 typedef struct {
     enum {
         ex_free,
-        ex_explosion,
         ex_misc,
         ex_flash,
         ex_mflash,
@@ -414,6 +453,54 @@ static void CL_BFGExplosion(const vec3_t pos)
     ex->frames = 4;
 }
 
+void CL_AddWeaponMuzzleFX(cl_muzzlefx_t fx, const vec3_t offset, float scale)
+{
+    if (!cl_muzzleflashes->integer)
+        return;
+    if (mz.entity != cl.frame.clientNum + 1)
+        return;
+
+    Q_assert(fx < q_countof(cl_mod_muzzles));
+
+    if (!cl_mod_muzzles[fx])
+        return;
+
+    cl.weapon.muzzle.model = cl_mod_muzzles[fx];
+    cl.weapon.muzzle.scale = scale;
+    if (fx == MFLASH_MACHN || fx == MFLASH_BEAMER)
+        cl.weapon.muzzle.roll = Q_rand() % 360;
+    else
+        cl.weapon.muzzle.roll = 0;
+    VectorCopy(offset, cl.weapon.muzzle.offset);
+    cl.weapon.muzzle.time = cl.servertime - CL_FRAMETIME;
+}
+
+void CL_AddMuzzleFX(const vec3_t origin, const vec3_t angles, cl_muzzlefx_t fx, int skin, float scale)
+{
+    explosion_t *ex;
+
+    if (!cl_muzzleflashes->integer)
+        return;
+
+    Q_assert(fx < q_countof(cl_mod_muzzles));
+
+    if (!cl_mod_muzzles[fx])
+        return;
+
+    ex = CL_AllocExplosion();
+    VectorCopy(origin, ex->ent.origin);
+    VectorCopy(angles, ex->ent.angles);
+    ex->type = ex_mflash;
+    ex->ent.flags = RF_TRANSLUCENT | RF_NOSHADOW | RF_FULLBRIGHT;
+    ex->ent.alpha = 1.0f;
+    ex->start = cl.servertime - CL_FRAMETIME;
+    ex->ent.model = cl_mod_muzzles[fx];
+    ex->ent.skinnum = skin;
+    ex->ent.scale = scale;
+    if (fx != MFLASH_BOOMER)
+        ex->ent.angles[2] = Q_rand() % 360;
+}
+
 /*
 =================
 CL_SmokeAndFlash
@@ -451,16 +538,21 @@ static void CL_AddExplosions(void)
     for (i = 0, ex = cl_explosions; i < MAX_EXPLOSIONS; i++, ex++) {
         if (ex->type == ex_free)
             continue;
+
+        if (ex->type == ex_mflash) {
+            if (cl.time - ex->start > 50)
+                ex->type = ex_free;
+            else
+                V_AddEntity(&ex->ent);
+            continue;
+        }
+
         frac = (cl.time - ex->start) * BASE_1_FRAMETIME;
         f = floor(frac);
 
         ent = &ex->ent;
 
         switch (ex->type) {
-        case ex_mflash:
-            if (f >= ex->frames - 1)
-                ex->type = ex_free;
-            break;
         case ex_misc:
         case ex_light:
             if (f >= ex->frames - 1) {
@@ -507,7 +599,7 @@ static void CL_AddExplosions(void)
             ent->flags |= RF_TRANSLUCENT;
             break;
         default:
-            break;
+            Q_assert(!"bad type");
         }
 
         if (ex->type == ex_free)
@@ -1429,7 +1521,7 @@ void CL_ParseTEnt(void)
         break;
 
     case TE_LIGHTNING:
-        S_StartSound(NULL, te.entity1, CHAN_WEAPON, cl_sfx_lightning, 1, ATTN_NORM, 0);
+        //S_StartSound(NULL, te.entity1, CHAN_WEAPON, NULL, 1, ATTN_NORM, 0);
         VectorClear(te.offset);
         CL_ParseBeam(cl_mod_lightning);
         break;
@@ -1497,7 +1589,7 @@ void CL_ParseTEnt(void)
     case TE_TRACKER_EXPLOSION:
         CL_ColorFlash(te.pos1, 0, 150, -1, -1, -1);
         CL_ColorExplosionParticles(te.pos1, 0, 1);
-        S_StartSound(te.pos1, 0, 0, cl_sfx_disrexp, 1, ATTN_NORM, 0);
+        //S_StartSound(te.pos1, 0, 0, NULL, 1, ATTN_NORM, 0);
         break;
 
     case TE_TELEPORT_EFFECT:
@@ -1582,6 +1674,7 @@ void CL_ClearTEnts(void)
 
 void CL_InitTEnts(void)
 {
+    cl_muzzleflashes = Cvar_Get("cl_muzzleflashes", "1", 0);
     cl_railtrail_type = Cvar_Get("cl_railtrail_type", "0", 0);
     cl_railtrail_time = Cvar_Get("cl_railtrail_time", "1.0", 0);
     cl_railtrail_time->changed = cl_timeout_changed;

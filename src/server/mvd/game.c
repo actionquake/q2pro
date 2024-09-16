@@ -1028,7 +1028,7 @@ static mvd_player_t *MVD_SetPlayer(mvd_client_t *client, const char *s)
 
     // numeric values are just slot numbers
     if (COM_IsUint(s)) {
-        i = atoi(s);
+        i = Q_atoi(s);
         if (i < 0 || i >= mvd->maxclients) {
             SV_ClientPrintf(client->cl, PRINT_HIGH,
                             "[MVD] Player slot number %d is invalid.\n", i);
@@ -1231,7 +1231,7 @@ static void MVD_AutoFollow_f(mvd_client_t *client)
         memset(client->chase_bitmap, 0, sizeof(client->chase_bitmap));
 
         for (i = 2; i < argc; i++) {
-            j = atoi(Cmd_Argv(i));
+            j = Q_atoi(Cmd_Argv(i));
             if (j >= 0 && j < mvd->maxclients)
                 Q_SetBit(client->chase_bitmap, j);
         }
@@ -1785,8 +1785,8 @@ static void MVD_GameInit(void)
         Com_EPrintf("Couldn't load %s for the Waiting Room: %s\n",
                     buffer, BSP_ErrorString(ret));
         Cvar_Reset(mvd_default_map);
-        strcpy(buffer, "maps/q2dm1.bsp");
-        checksum = 80717714;
+        strcpy(buffer, "maps/wfall.bsp");
+        checksum = 917713192;
         VectorSet(mvd->spawnOrigin, 984, 192, 784);
         VectorSet(mvd->spawnAngles, 25, 72, 0);
     } else {
@@ -1947,9 +1947,9 @@ static void MVD_GameClientUserinfoChanged(edict_t *ent, char *userinfo)
     mvd_client_t *client = EDICT_MVDCL(ent);
     int fov;
 
-    client->uf = atoi(Info_ValueForKey(userinfo, "uf"));
+    client->uf = Q_atoi(Info_ValueForKey(userinfo, "uf"));
 
-    fov = atoi(Info_ValueForKey(userinfo, "fov"));
+    fov = Q_atoi(Info_ValueForKey(userinfo, "fov"));
     if (fov < 1) {
         fov = 90;
     } else if (fov > 160) {

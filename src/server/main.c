@@ -533,7 +533,7 @@ static void SVC_Info(void)
     if (sv_maxclients->integer == 1)
         return; // ignore in single player
 
-    version = atoi(Cmd_Argv(1));
+    version = Q_atoi(Cmd_Argv(1));
     if (version < PROTOCOL_VERSION_DEFAULT || version > PROTOCOL_VERSION_AQTION)
         return; // ignore invalid versions
 
@@ -638,9 +638,9 @@ typedef struct {
 
 static bool parse_basic_params(conn_params_t *p)
 {
-    p->protocol = atoi(Cmd_Argv(1));
-    p->qport = atoi(Cmd_Argv(2)) ;
-    p->challenge = atoi(Cmd_Argv(3));
+    p->protocol = Q_atoi(Cmd_Argv(1));
+    p->qport = Q_atoi(Cmd_Argv(2)) ;
+    p->challenge = Q_atoi(Cmd_Argv(3));
 
     // check for invalid protocol version
     if (p->protocol < PROTOCOL_VERSION_OLD ||
@@ -738,7 +738,7 @@ static bool parse_packet_length(conn_params_t *p)
     if (p->protocol >= PROTOCOL_VERSION_R1Q2) {
         s = Cmd_Argv(5);
         if (*s) {
-            p->maxlength = atoi(s);
+            p->maxlength = Q_atoi(s);
             if (p->maxlength < 0 || p->maxlength > MAX_PACKETLEN_WRITABLE)
                 return reject("Invalid maximum message length.\n");
 
@@ -769,10 +769,9 @@ static bool parse_enhanced_params(conn_params_t *p)
         // set minor protocol version
         s = Cmd_Argv(6);
         if (*s) {
-            p->version = atoi(s);
-            clamp(p->version,
-                  PROTOCOL_VERSION_R1Q2_MINIMUM,
-                  PROTOCOL_VERSION_R1Q2_CURRENT);
+            p->version = Q_clip(Q_atoi(s),
+                PROTOCOL_VERSION_R1Q2_MINIMUM,
+                PROTOCOL_VERSION_R1Q2_CURRENT);
         } else {
             p->version = PROTOCOL_VERSION_R1Q2_MINIMUM;
         }
@@ -782,7 +781,7 @@ static bool parse_enhanced_params(conn_params_t *p)
         // set netchan type
         s = Cmd_Argv(6);
         if (*s) {
-            p->nctype = atoi(s);
+            p->nctype = Q_atoi(s);
             if (p->nctype < NETCHAN_OLD || p->nctype > NETCHAN_NEW)
                 return reject("Invalid netchan type.\n");
         } else {
@@ -791,15 +790,14 @@ static bool parse_enhanced_params(conn_params_t *p)
 
         // set zlib
         s = Cmd_Argv(7);
-        p->has_zlib = !*s || atoi(s);
+        p->has_zlib = !*s || Q_atoi(s);
 
         // set minor protocol version
         s = Cmd_Argv(8);
         if (*s) {
-            p->version = atoi(s);
-            clamp(p->version,
-                  PROTOCOL_VERSION_Q2PRO_MINIMUM,
-                  PROTOCOL_VERSION_Q2PRO_CURRENT);
+            p->version = Q_clip(Q_atoi(s),
+                PROTOCOL_VERSION_Q2PRO_MINIMUM,
+                PROTOCOL_VERSION_Q2PRO_CURRENT);
             if (p->version == PROTOCOL_VERSION_Q2PRO_RESERVED) {
                 p->version--; // never use this version
             }
@@ -811,7 +809,7 @@ static bool parse_enhanced_params(conn_params_t *p)
 		// set netchan type
 		s = Cmd_Argv(6);
 		if (*s) {
-			p->nctype = atoi(s);
+			p->nctype = Q_atoi(s);
 			if (p->nctype < NETCHAN_OLD || p->nctype > NETCHAN_NEW)
 				return reject("Invalid netchan type.\n");
 		}
@@ -826,8 +824,7 @@ static bool parse_enhanced_params(conn_params_t *p)
 		// set minor protocol version
 		s = Cmd_Argv(8);
 		if (*s) {
-			p->version = atoi(s);
-			clamp(p->version,
+			p->version = Q_clip(Q_atoi(s),
 				PROTOCOL_VERSION_AQTION_MINIMUM,
 				PROTOCOL_VERSION_AQTION_CURRENT);
 		}
@@ -1154,7 +1151,7 @@ static void SVC_DirectConnect(void)
     Q_strlcpy(newcl->reconnect_var, params.reconnect_var, sizeof(newcl->reconnect_var));
     Q_strlcpy(newcl->reconnect_val, params.reconnect_val, sizeof(newcl->reconnect_val));
 #if USE_FPS
-    newcl->framediv = sv.framediv;
+    newcl->framediv = sv.frametime.div;
     newcl->settings[CLS_FPS] = BASE_FRAMERATE;
 #endif
 
@@ -1586,7 +1583,7 @@ static void SV_PacketEvent(void)
             netchan->remote_address.port = net_from.port;
         }
 
-        if (!netchan->Process(netchan))
+        if (!Netchan_Process(netchan))
             break;
 
         if (client->state == cs_zombie)
@@ -1612,7 +1609,7 @@ static void SV_PacketEvent(void)
 static void update_client_mtu(client_t *client, int ee_info)
 {
     netchan_t *netchan = &client->netchan;
-    size_t newpacketlen;
+    unsigned newpacketlen;
 
     // sanity check discovered MTU
     if (ee_info < 576 || ee_info > 4096)
@@ -1632,7 +1629,7 @@ static void update_client_mtu(client_t *client, int ee_info)
     if (newpacketlen >= netchan->maxpacketlen)
         return;
 
-    Com_Printf("Fixing up maxmsglen for %s: %zu --> %zu\n",
+    Com_Printf("Fixing up maxmsglen for %s: %u --> %u\n",
                client->name, netchan->maxpacketlen, newpacketlen);
     netchan->maxpacketlen = newpacketlen;
 }
@@ -1836,7 +1833,7 @@ static void SV_RunGameFrame(void)
 #endif
 
     if (msg_write.cursize) {
-        Com_WPrintf("Game left %zu bytes "
+        Com_WPrintf("Game left %u bytes "
                     "in multicast buffer, cleared.\n",
                     msg_write.cursize);
         SZ_Clear(&msg_write);
@@ -2075,8 +2072,7 @@ void SV_UserinfoChanged(client_t *cl)
     // rate command
     val = Info_ValueForKey(cl->userinfo, "rate");
     if (*val) {
-        cl->rate = atoi(val);
-        clamp(cl->rate, sv_min_rate->integer, sv_max_rate->integer);
+        cl->rate = Q_clip(Q_atoi(val), sv_min_rate->integer, sv_max_rate->integer);
     } else {
         cl->rate = 5000;
     }
@@ -2095,8 +2091,7 @@ void SV_UserinfoChanged(client_t *cl)
     // msg command
     val = Info_ValueForKey(cl->userinfo, "msg");
     if (*val) {
-        cl->messagelevel = atoi(val);
-        clamp(cl->messagelevel, PRINT_LOW, PRINT_CHAT + 1);
+        cl->messagelevel = Q_clip(Q_atoi(val), PRINT_LOW, 256);
     }
 }
 
@@ -2317,7 +2312,8 @@ void SV_Init(void)
 
 #if USE_FPS
     // set up default frametime for main loop
-    sv.frametime = BASE_FRAMETIME;
+    sv.framerate = BASE_FRAMERATE;
+    sv.frametime = Com_ComputeFrametime(sv.framerate);
 #endif
 
     // set up default pmove parameters
@@ -2371,9 +2367,9 @@ static void SV_FinalMessage(const char *message, error_type_t type)
             }
             netchan = &client->netchan;
             while (netchan->fragment_pending) {
-                netchan->TransmitNextFragment(netchan);
+                Netchan_TransmitNextFragment(netchan);
             }
-            netchan->Transmit(netchan, msg_write.cursize, msg_write.data, 1);
+            Netchan_Transmit(netchan, msg_write.cursize, msg_write.data, 1);
         }
     }
 
@@ -2438,7 +2434,8 @@ void SV_Shutdown(const char *finalmsg, error_type_t type)
 
 #if USE_FPS
     // set up default frametime for main loop
-    sv.frametime = BASE_FRAMETIME;
+    sv.framerate = BASE_FRAMERATE;
+    sv.frametime = Com_ComputeFrametime(sv.framerate);
 #endif
 
     sv_client = NULL;

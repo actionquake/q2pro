@@ -22,17 +22,15 @@ with this program; if not, write to the Free Software Foundation, Inc.,
 #include "common/net/net.h"
 #include "common/sizebuf.h"
 
-typedef enum netchan_type_e {
+typedef enum {
     NETCHAN_OLD,
     NETCHAN_NEW
 } netchan_type_t;
 
-typedef struct netchan_s {
+typedef struct {
     netchan_type_t  type;
     int         protocol;
-    size_t      maxpacketlen;
-
-    bool        fatal_error;
+    unsigned    maxpacketlen;
 
     netsrc_t    sock;
 
@@ -43,12 +41,12 @@ typedef struct netchan_s {
     unsigned    last_received;      // for timeouts
     unsigned    last_sent;          // for retransmits
 
-    netadr_t    remote_address;
     int         qport;              // qport value to write when transmitting
+    netadr_t    remote_address;
 
     sizebuf_t   message;            // writing buffer for reliable data
 
-    size_t      reliable_length;
+    unsigned    reliable_length;
 
     bool        reliable_ack_pending;   // set to true each time reliable is received
     bool        fragment_pending;
@@ -64,22 +62,11 @@ typedef struct netchan_s {
     int         last_reliable_sequence;     // sequence number of last send
     int         fragment_sequence;
 
-    byte        *message_buf;       // leave space for header
-
     // message is copied to this buffer when it is first transfered
     byte        *reliable_buf;      // unacked reliable message
 
     sizebuf_t   fragment_in;
-    byte        *fragment_in_buf;
-
     sizebuf_t   fragment_out;
-    byte        *fragment_out_buf;
-
-    // common methods
-    size_t      (*Transmit)(struct netchan_s *, size_t, const void *, int);
-    size_t      (*TransmitNextFragment)(struct netchan_s *);
-    bool        (*Process)(struct netchan_s *);
-    bool        (*ShouldUpdate)(struct netchan_s *);
 } netchan_t;
 
 extern cvar_t       *net_qport;
@@ -89,9 +76,13 @@ extern cvar_t       *net_chantype;
 void Netchan_Init(void);
 void Netchan_OutOfBand(netsrc_t sock, const netadr_t *adr,
                        const char *format, ...) q_printf(3, 4);
-void Netchan_Setup(netchan_t *netchan, netsrc_t sock, netchan_type_t type,
+void Netchan_Setup(netchan_t *chan, netsrc_t sock, netchan_type_t type,
                    const netadr_t *adr, int qport, size_t maxpacketlen, int protocol);
-void Netchan_Close(netchan_t *netchan);
+int Netchan_Transmit(netchan_t *chan, size_t length, const void *data, int numpackets);
+int Netchan_TransmitNextFragment(netchan_t *chan);
+bool Netchan_Process(netchan_t *chan);
+bool Netchan_ShouldUpdate(netchan_t *chan);
+void Netchan_Close(netchan_t *chan);
 
 #define OOB_PRINT(sock, addr, data) \
     NET_SendPacket(sock, CONST_STR_LEN("\xff\xff\xff\xff" data), addr)

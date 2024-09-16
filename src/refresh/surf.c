@@ -94,16 +94,16 @@ DYNAMIC BLOCKLIGHTS
 =============================================================================
 */
 
-#define MAX_SURFACE_EXTENTS     2048
-#define MAX_LIGHTMAP_EXTENTS    ((MAX_SURFACE_EXTENTS >> 4) + 1)
+#define MAX_LIGHTMAP_EXTENTS    513
 #define MAX_BLOCKLIGHTS         (MAX_LIGHTMAP_EXTENTS * MAX_LIGHTMAP_EXTENTS)
 
 static float blocklights[MAX_BLOCKLIGHTS * 3];
 
-static void put_blocklights(byte *out, int smax, int tmax, int stride)
+static void put_blocklights(mface_t *surf)
 {
     float *bl, add, modulate, scale = lm.scale;
-    int i, j;
+    int i, j, smax, tmax, stride = 1 << lm.block_shift;
+    byte *out;
 
     if (gl_static.use_shaders) {
         add = 0;
@@ -112,6 +112,11 @@ static void put_blocklights(byte *out, int smax, int tmax, int stride)
         add = lm.add;
         modulate = lm.modulate;
     }
+
+    smax = surf->lm_width;
+    tmax = surf->lm_height;
+
+    out = surf->light_m->buffer + (surf->light_t << lm.block_shift) + surf->light_s * 4;
 
     for (i = 0, bl = blocklights; i < tmax; i++, out += stride) {
         byte *dst;
@@ -185,12 +190,12 @@ static void add_dynamic_lights(mface_t *surf)
     }
 }
 
-static void add_light_styles(mface_t *surf, int size)
+static void add_light_styles(mface_t *surf)
 {
     lightstyle_t *style;
     byte *src;
     float *bl;
-    int i, j;
+    int i, j, size = surf->lm_width * surf->lm_height;
 
     if (!surf->numstyles) {
         // should this ever happen?
@@ -236,15 +241,10 @@ static void add_light_styles(mface_t *surf, int size)
 
 static void update_dynamic_lightmap(mface_t *surf)
 {
-    byte temp[MAX_BLOCKLIGHTS * 4];
-    int smax, tmax, size;
-
-    smax = surf->lm_width;
-    tmax = surf->lm_height;
-    size = smax * tmax;
+    int s0, t0, s1, t1;
 
     // add all the lightmaps
-    add_light_styles(surf, size);
+    add_light_styles(surf);
 
     // add all the dynamic lights
     if (surf->dlightframe == glr.dlightframe) {
@@ -254,29 +254,31 @@ static void update_dynamic_lightmap(mface_t *surf)
     }
 
     // put into texture format
-    put_blocklights(temp, smax, tmax, smax * 4);
+    put_blocklights(surf);
 
-    // upload lightmap subimage
-    GL_ForceTexture(1, surf->texnum[1]);
-    qglTexSubImage2D(GL_TEXTURE_2D, 0,
-                     surf->light_s, surf->light_t, smax, tmax,
-                     GL_RGBA, GL_UNSIGNED_BYTE, temp);
+    // add to dirty region
+    s0 = surf->light_s;
+    t0 = surf->light_t;
 
-    c.texUploads++;
+    s1 = s0 + surf->lm_width;
+    t1 = t0 + surf->lm_height;
+
+    lightmap_t *m = surf->light_m;
+
+    m->mins[0] = min(m->mins[0], s0);
+    m->mins[1] = min(m->mins[1], t0);
+
+    m->maxs[0] = max(m->maxs[0], s1);
+    m->maxs[1] = max(m->maxs[1], t1);
 }
 
+// updates lightmaps in RAM
 void GL_PushLights(mface_t *surf)
 {
     lightstyle_t *style;
     int i;
 
-    if (!surf->lightmap) {
-        return;
-    }
-    if (surf->drawflags & gl_static.nolm_mask) {
-        return;
-    }
-    if (!surf->texnum[1]) {
+    if (!surf->light_m) {
         return;
     }
 
@@ -296,6 +298,51 @@ void GL_PushLights(mface_t *surf)
     }
 }
 
+static void clear_dirty_region(lightmap_t *m)
+{
+    m->mins[0] = lm.block_size;
+    m->mins[1] = lm.block_size;
+    m->maxs[0] = 0;
+    m->maxs[1] = 0;
+}
+
+// uploads dirty lightmap regions to GL
+void GL_UploadLightmaps(void)
+{
+    lightmap_t *m;
+    bool set = false;
+    int i;
+
+    for (i = 0, m = lm.lightmaps; i < lm.nummaps; i++, m++) {
+        int x, y, w, h;
+
+        if (m->mins[0] >= m->maxs[0] || m->mins[1] >= m->maxs[1])
+            continue;
+
+        x = m->mins[0];
+        y = m->mins[1];
+        w = m->maxs[0] - x;
+        h = m->maxs[1] - y;
+
+        if (!set) {
+            qglPixelStorei(GL_UNPACK_ROW_LENGTH, lm.block_size);
+            set = true;
+        }
+
+        // upload lightmap subimage
+        GL_ForceTexture(1, lm.texnums[i]);
+        qglTexSubImage2D(GL_TEXTURE_2D, 0, x, y, w, h,
+                         GL_RGBA, GL_UNSIGNED_BYTE,
+                         m->buffer + (y << lm.block_shift) + x * 4);
+        clear_dirty_region(m);
+        c.texUploads++;
+        c.lightTexels += w * h;
+    }
+
+    if (set)
+        qglPixelStorei(GL_UNPACK_ROW_LENGTH, 0);
+}
+
 /*
 =============================================================================
 
@@ -305,17 +352,11 @@ LIGHTMAPS BUILDING
 */
 
 #define LM_AllocBlock(w, h, s, t) \
-    GL_AllocBlock(LM_BLOCK_WIDTH, LM_BLOCK_HEIGHT, lm.inuse, w, h, s, t)
+    GL_AllocBlock(lm.block_size, lm.block_size, lm.inuse, w, h, s, t)
 
 static void LM_InitBlock(void)
 {
-    int i;
-
-    for (i = 0; i < LM_BLOCK_WIDTH; i++) {
-        lm.inuse[i] = 0;
-    }
-
-    lm.dirty = false;
+    memset(lm.inuse, 0, sizeof(lm.inuse));
 }
 
 static void LM_UploadBlock(void)
@@ -324,21 +365,28 @@ static void LM_UploadBlock(void)
         return;
     }
 
-    GL_ForceTexture(1, lm.texnums[lm.nummaps++]);
-    qglTexImage2D(GL_TEXTURE_2D, 0, lm.comp, LM_BLOCK_WIDTH, LM_BLOCK_HEIGHT, 0,
-                  GL_RGBA, GL_UNSIGNED_BYTE, lm.buffer);
+    Q_assert(lm.nummaps < lm.maxmaps);
+
+    lightmap_t *m = &lm.lightmaps[lm.nummaps];
+    clear_dirty_region(m);
+
+    GL_ForceTexture(1, lm.texnums[lm.nummaps]);
+    qglTexImage2D(GL_TEXTURE_2D, 0, lm.comp,
+                  lm.block_size, lm.block_size, 0,
+                  GL_RGBA, GL_UNSIGNED_BYTE, m->buffer);
     qglTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
     qglTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+
+    lm.nummaps++;
+    lm.dirty = false;
 }
 
 static void build_style_map(int dynamic)
 {
-    static const lightstyle_t fake = { 1 };
     int i;
 
     if (!dynamic) {
         // make all styles fullbright
-        glr.fd.lightstyles = (lightstyle_t *)&fake;
         memset(gl_static.lightstylemap, 0, sizeof(gl_static.lightstylemap));
         return;
     }
@@ -355,27 +403,53 @@ static void build_style_map(int dynamic)
     }
 }
 
+static bool no_lightmaps(void)
+{
+    return gl_fullbright->integer || gl_vertexlight->integer;
+}
+
 static void LM_BeginBuilding(void)
 {
-    // lightmap textures are not deleted from memory when changing maps,
-    // they are merely reused
-    lm.nummaps = 0;
-
-    LM_InitBlock();
+    bsp_t *bsp = gl_static.world.cache;
+    int size_shift, bits;
 
     // start up with fullbright styles
     build_style_map(0);
+
+    // lightmap textures are not deleted from memory when changing maps,
+    // they are merely reused
+    lm.nummaps = lm.maxmaps = 0;
+    lm.dirty = false;
+
+    if (no_lightmaps())
+        return;
+
+    // use larger lightmaps for DECOUPLED_LM maps
+    bits = 8 + bsp->lm_decoupled * 2;
+
+    lm.block_size = 1 << bits;
+    lm.block_shift = bits + 2;
+
+    size_shift = bits * 2 + 2;
+    lm.maxmaps = min(sizeof(lm.buffer) >> size_shift, LM_MAX_LIGHTMAPS);
+
+    for (int i = 0; i < lm.maxmaps; i++)
+        lm.lightmaps[i].buffer = lm.buffer + (i << size_shift);
+
+    Com_DDPrintf("%s: %d lightmaps, %d block size\n", __func__, lm.maxmaps, lm.block_size);
+
+    LM_InitBlock();
 }
 
 static void LM_EndBuilding(void)
 {
+    // vertex lighting implies fullbright styles
+    if (no_lightmaps())
+        return;
+
     // upload the last lightmap
     LM_UploadBlock();
     LM_InitBlock();
-
-    // vertex lighting implies fullbright styles
-    if (gl_fullbright->integer || gl_vertexlight->integer)
-        return;
 
     // now build the real lightstyle map
     build_style_map(gl_dynamic->integer);
@@ -385,33 +459,29 @@ static void LM_EndBuilding(void)
 
 static void build_primary_lightmap(mface_t *surf)
 {
-    int smax, tmax, size;
-
-    smax = surf->lm_width;
-    tmax = surf->lm_height;
-    size = smax * tmax;
-
     // add all the lightmaps
-    add_light_styles(surf, size);
+    add_light_styles(surf);
 
     surf->dlightframe = 0;
 
     // put into texture format
-    put_blocklights(lm.buffer + surf->light_t * LM_BLOCK_WIDTH * 4 + surf->light_s * 4,
-                    smax, tmax, LM_BLOCK_WIDTH * 4);
+    put_blocklights(surf);
 }
 
 static void LM_BuildSurface(mface_t *surf, vec_t *vbo)
 {
     int smax, tmax, s, t;
 
+    if (lm.nummaps >= lm.maxmaps)
+        return;     // can't have any more
+
     smax = surf->lm_width;
     tmax = surf->lm_height;
 
     if (!LM_AllocBlock(smax, tmax, &s, &t)) {
         LM_UploadBlock();
-        if (lm.nummaps == LM_MAX_LIGHTMAPS) {
-            Com_EPrintf("%s: LM_MAX_LIGHTMAPS exceeded\n", __func__);
+        if (lm.nummaps >= lm.maxmaps) {
+            Com_EPrintf("%s: too many lightmaps\n", __func__);
             return;
         }
         LM_InitBlock();
@@ -427,6 +497,7 @@ static void LM_BuildSurface(mface_t *surf, vec_t *vbo)
     // store the surface lightmap parameters
     surf->light_s = s;
     surf->light_t = t;
+    surf->light_m = &lm.lightmaps[lm.nummaps];
     surf->texnum[1] = lm.texnums[lm.nummaps];
 
     // build the primary lightmap
@@ -437,7 +508,8 @@ static void LM_RebuildSurfaces(void)
 {
     bsp_t *bsp = gl_static.world.cache;
     mface_t *surf;
-    int i, texnum;
+    lightmap_t *m;
+    int i;
 
     build_style_map(gl_dynamic->integer);
 
@@ -445,40 +517,21 @@ static void LM_RebuildSurfaces(void)
         return;
     }
 
-    GL_ForceTexture(1, lm.texnums[0]);
-    texnum = lm.texnums[0];
-
     for (i = 0, surf = bsp->faces; i < bsp->numfaces; i++, surf++) {
-        if (!surf->lightmap) {
-            continue;
+        if (surf->light_m) {
+            build_primary_lightmap(surf);
         }
-        if (surf->drawflags & gl_static.nolm_mask) {
-            continue;
-        }
-        if (!surf->texnum[1]) {
-            continue;
-        }
-
-        if (surf->texnum[1] != texnum) {
-            // done with previous lightmap
-            qglTexImage2D(GL_TEXTURE_2D, 0, lm.comp,
-                          LM_BLOCK_WIDTH, LM_BLOCK_HEIGHT, 0,
-                          GL_RGBA, GL_UNSIGNED_BYTE, lm.buffer);
-            GL_ForceTexture(1, surf->texnum[1]);
-            texnum = surf->texnum[1];
-
-            c.texUploads++;
-        }
-
-        build_primary_lightmap(surf);
     }
 
-    // upload the last lightmap
-    qglTexImage2D(GL_TEXTURE_2D, 0, lm.comp,
-                  LM_BLOCK_WIDTH, LM_BLOCK_HEIGHT, 0,
-                  GL_RGBA, GL_UNSIGNED_BYTE, lm.buffer);
-
-    c.texUploads++;
+    // upload all lightmaps
+    for (i = 0, m = lm.lightmaps; i < lm.nummaps; i++, m++) {
+        GL_ForceTexture(1, lm.texnums[i]);
+        qglTexImage2D(GL_TEXTURE_2D, 0, lm.comp,
+                      lm.block_size, lm.block_size, 0,
+                      GL_RGBA, GL_UNSIGNED_BYTE, m->buffer);
+        clear_dirty_region(m);
+        c.texUploads++;
+    }
 }
 
 
@@ -584,8 +637,8 @@ static void build_surface_poly(mface_t *surf, vec_t *vbo)
 
     src_surfedge = surf->firstsurfedge;
     for (i = 0; i < surf->numsurfedges; i++) {
-        src_edge = src_surfedge->edge;
-        src_vert = src_edge->v[src_surfedge->vert];
+        src_edge = bsp->edges + src_surfedge->edge;
+        src_vert = bsp->vertices + src_edge->v[src_surfedge->vert];
         src_surfedge++;
 
         // vertex coordinates
@@ -654,6 +707,9 @@ static void sample_surface_verts(mface_t *surf, vec_t *vbo)
     vec3_t  color;
     byte    *dst;
 
+    if (surf->drawflags & SURF_COLOR_MASK)
+        return;
+
     glr.lightpoint.surf = surf;
 
     for (i = 0; i < surf->numsurfedges; i++) {
@@ -696,7 +752,7 @@ static void build_surface_light(mface_t *surf, vec_t *vbo)
 
     // validate lightmap extents
     if (smax < 1 || tmax < 1 || smax > MAX_LIGHTMAP_EXTENTS || tmax > MAX_LIGHTMAP_EXTENTS) {
-        Com_EPrintf("%s: bad lightmap extents\n", __func__);
+        Com_WPrintf("Bad lightmap extents: %d x %d\n", smax, tmax);
         surf->lightmap = NULL;  // don't use this lightmap
         return;
     }
@@ -705,7 +761,7 @@ static void build_surface_light(mface_t *surf, vec_t *vbo)
     size = smax * tmax;
     ofs = surf->lightmap - bsp->lightmap;
     if (surf->numstyles * size * 3 > bsp->numlightmapbytes - ofs) {
-        Com_EPrintf("%s: bad surface lightmap\n", __func__);
+        Com_WPrintf("Bad surface lightmap\n");
         surf->lightmap = NULL;  // don't use this lightmap
         return;
     }
@@ -728,8 +784,8 @@ static void normalize_surface_lmtc(mface_t *surf, vec_t *vbo)
     for (i = 0; i < surf->numsurfedges; i++) {
         vbo[6] += s;
         vbo[7] += t;
-        vbo[6] *= 1.0f / LM_BLOCK_WIDTH;
-        vbo[7] *= 1.0f / LM_BLOCK_HEIGHT;
+        vbo[6] *= 1.0f / lm.block_size;
+        vbo[7] *= 1.0f / lm.block_size;
 
         vbo += VERTEX_SIZE;
     }
@@ -817,6 +873,9 @@ static void upload_world_surfaces(void)
     if (!qglActiveTexture || (!qglClientActiveTexture && !gl_static.use_shaders))
         Cvar_Set("gl_vertexlight", "1");
 
+    // begin building lightmaps
+    LM_BeginBuilding();
+
     if (!gl_static.world.vertices)
         qglBindBuffer(GL_ARRAY_BUFFER, gl_static.world.bufnum);
 
@@ -841,11 +900,12 @@ static void upload_world_surfaces(void)
             tess.numverts += surf->numsurfedges;
         }
 
+        surf->light_m = NULL;   // start with no lightmap
         surf->firstvert = currvert;
         build_surface_poly(surf, vbo);
         build_surface_light(surf, vbo);
 
-        if (surf->texnum[1])
+        if (surf->light_m)
             normalize_surface_lmtc(surf, vbo);
         else
             duplicate_surface_lmtc(surf, vbo);
@@ -860,6 +920,9 @@ static void upload_world_surfaces(void)
         upload_surface_vbo(lastvert);
         qglBindBuffer(GL_ARRAY_BUFFER, 0);
     }
+
+    // end building lightmaps
+    LM_EndBuilding();
 
     gl_fullbright->modified = false;
     gl_vertexlight->modified = false;
@@ -891,17 +954,18 @@ void GL_RebuildLighting(void)
     if (!gl_static.world.cache)
         return;
 
-    // if doing vertex lighting, rebuild all surfaces
-    if (gl_fullbright->integer || gl_vertexlight->integer) {
+    // rebuild all surfaces if toggling lightmaps off/on
+    if (gl_fullbright->modified || gl_vertexlight->modified) {
         upload_world_surfaces();
         return;
     }
 
-    // if did vertex lighting previously, rebuild all surfaces and lightmaps
-    if (gl_fullbright->modified || gl_vertexlight->modified) {
-        LM_BeginBuilding();
+    if (gl_fullbright->integer)
+        return;
+
+    // rebuild all surfaces if doing vertex lighting (and not fullbright)
+    if (gl_vertexlight->integer) {
         upload_world_surfaces();
-        LM_EndBuilding();
         return;
     }
 
@@ -933,7 +997,7 @@ void GL_LoadWorld(const char *name)
     bsp_t *bsp;
     mtexinfo_t *info;
     mface_t *surf;
-    int i, ret;
+    int i, n64surfs, ret;
 
     ret = BSP_Load(name, &bsp);
     if (!bsp) {
@@ -975,13 +1039,15 @@ void GL_LoadWorld(const char *name)
 
     // calculate vertex buffer size in bytes
     size = 0;
-    for (i = 0, surf = bsp->faces; i < bsp->numfaces; i++, surf++) {
+    for (i = n64surfs = 0, surf = bsp->faces; i < bsp->numfaces; i++, surf++) {
         // hack surface flags into drawflags for faster access
         surf->drawflags |= surf->texinfo->c.flags & ~DSURF_PLANEBACK;
 
         // don't count sky surfaces
         if (surf->drawflags & (SURF_SKY | SURF_NODRAW))
             continue;
+        if (surf->drawflags & SURF_N64_UV)
+            n64surfs++;
 
         size += surf->numsurfedges * VERTEX_SIZE * sizeof(vec_t);
     }
@@ -1002,18 +1068,16 @@ void GL_LoadWorld(const char *name)
     // only supported in DECOUPLED_LM maps because vanilla maps have broken
     // lightofs for liquids/alphas. legacy renderer doesn't support lightmapped
     // liquids too.
-    if (bsp->lm_decoupled && gl_static.use_shaders) {
+    if ((bsp->lm_decoupled || n64surfs > 100) && gl_static.use_shaders) {
         gl_static.nolm_mask = SURF_NOLM_MASK_REMASTER;
     }
 
-    // begin building lightmaps
-    LM_BeginBuilding();
+    glr.fd.lightstyles = &(lightstyle_t){ 1 };
 
     // post process all surfaces
     upload_world_surfaces();
 
-    // end building lightmaps
-    LM_EndBuilding();
+    glr.fd.lightstyles = NULL;
 
     GL_ShowErrors(__func__);
 }

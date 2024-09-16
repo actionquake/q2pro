@@ -58,11 +58,24 @@ static cinematic_t  cin;
 
 /*
 ==================
+SCR_InitCinematics
+==================
+*/
+void SCR_InitCinematics(void)
+{
+    // nothing to do here
+}
+
+/*
+==================
 SCR_StopCinematic
 ==================
 */
 void SCR_StopCinematic(void)
 {
+    if (cin.pic)
+        R_UpdateRawPic(0, 0, NULL);
+
     Z_Free(cin.pic);
     FS_CloseFile(cin.file);
     memset(&cin, 0, sizeof(cin));
@@ -444,4 +457,22 @@ void SCR_PlayCinematic(const char *name)
 
 finish:
     SCR_FinishCinematic();
+}
+
+/*
+==================
+SCR_CheckForCinematic
+
+Called by the server to check for cinematic existence.
+Name should be in format "video/<something>.cin".
+==================
+*/
+int SCR_CheckForCinematic(const char *name)
+{
+    int ret = FS_LoadFile(name, NULL);
+
+    if (ret == Q_ERR(EFBIG))
+        ret = Q_ERR_SUCCESS;
+
+    return ret;
 }

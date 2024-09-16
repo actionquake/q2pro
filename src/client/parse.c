@@ -87,10 +87,10 @@ static void CL_ParsePacketEntities(server_frame_t *oldframe,
     oldindex = 0;
     oldstate = NULL;
     if (!oldframe) {
-        oldnum = 99999;
+        oldnum = MAX_EDICTS;
     } else {
         if (oldindex >= oldframe->numEntities) {
-            oldnum = 99999;
+            oldnum = MAX_EDICTS;
         } else {
             i = oldframe->firstEntity + oldindex;
             oldstate = &cl.entityStates[i & PARSE_ENTITIES_MASK];
@@ -116,7 +116,7 @@ static void CL_ParsePacketEntities(server_frame_t *oldframe,
             oldindex++;
 
             if (oldindex >= oldframe->numEntities) {
-                oldnum = 99999;
+                oldnum = MAX_EDICTS;
             } else {
                 i = oldframe->firstEntity + oldindex;
                 oldstate = &cl.entityStates[i & PARSE_ENTITIES_MASK];
@@ -137,7 +137,7 @@ static void CL_ParsePacketEntities(server_frame_t *oldframe,
             oldindex++;
 
             if (oldindex >= oldframe->numEntities) {
-                oldnum = 99999;
+                oldnum = MAX_EDICTS;
             } else {
                 i = oldframe->firstEntity + oldindex;
                 oldstate = &cl.entityStates[i & PARSE_ENTITIES_MASK];
@@ -157,7 +157,7 @@ static void CL_ParsePacketEntities(server_frame_t *oldframe,
             oldindex++;
 
             if (oldindex >= oldframe->numEntities) {
-                oldnum = 99999;
+                oldnum = MAX_EDICTS;
             } else {
                 i = oldframe->firstEntity + oldindex;
                 oldstate = &cl.entityStates[i & PARSE_ENTITIES_MASK];
@@ -179,7 +179,7 @@ static void CL_ParsePacketEntities(server_frame_t *oldframe,
     }
 
     // any remaining entities in the old frame are copied over
-    while (oldnum != 99999) {
+    while (oldnum != MAX_EDICTS) {
         // one or more entities from the old packet are unchanged
         SHOWNET(3, "   unchanged: %i\n", oldnum);
         CL_ParseDeltaEntity(frame, oldnum, oldstate, 0);
@@ -187,7 +187,7 @@ static void CL_ParsePacketEntities(server_frame_t *oldframe,
         oldindex++;
 
         if (oldindex >= oldframe->numEntities) {
-            oldnum = 99999;
+            oldnum = MAX_EDICTS;
         } else {
             i = oldframe->firstEntity + oldindex;
             oldstate = &cl.entityStates[i & PARSE_ENTITIES_MASK];
@@ -335,7 +335,7 @@ static void CL_ParseFrame(int extrabits)
         }
     }
 
-    SHOWNET(2, "%3zu:playerinfo\n", msg_read.readcount - 1);
+    SHOWNET(2, "%3u:playerinfo\n", msg_read.readcount - 1);
 
     // parse playerstate
 	bits = MSG_ReadWord();
@@ -399,7 +399,7 @@ static void CL_ParseFrame(int extrabits)
         }
     }
 
-    SHOWNET(2, "%3zu:packetentities\n", msg_read.readcount - 1);
+    SHOWNET(2, "%3u:packetentities\n", msg_read.readcount - 1);
 
     CL_ParsePacketEntities(oldframe, &frame);
 
@@ -410,7 +410,7 @@ static void CL_ParseFrame(int extrabits)
     if (cl_shownet->integer > 2) {
         int seq = cls.netchan.incoming_acknowledged & CMD_MASK;
         int rtt = cls.demo.playback ? 0 : cls.realtime - cl.history[seq].sent;
-        Com_LPrintf(PRINT_DEVELOPER, "%3zu:frame:%d  delta:%d  rtt:%d\n",
+        Com_LPrintf(PRINT_DEVELOPER, "%3u:frame:%d  delta:%d  rtt:%d\n",
                     msg_read.readcount - 1, frame.number, frame.delta, rtt);
     }
 #endif
@@ -604,9 +604,8 @@ static void CL_ParseServerData(void)
 
 #if USE_FPS
     // setup default frame times
-    cl.frametime = BASE_FRAMETIME;
-    cl.frametime_inv = BASE_1_FRAMETIME;
-    cl.framediv = 1;
+    cl.frametime = Com_ComputeFrametime(BASE_FRAMERATE);
+    cl.frametime_inv = cl.frametime.div * BASE_1_FRAMETIME;
 #endif
 
     // setup default server state
@@ -627,7 +626,7 @@ static void CL_ParseServerData(void)
                 "R1Q2 server reports unsupported protocol version %d.\n"
                 "Assuming it really uses our current client version %d.\n"
                 "Things will break if it does not!\n", i, PROTOCOL_VERSION_R1Q2_CURRENT);
-            clamp(i, PROTOCOL_VERSION_R1Q2_MINIMUM, PROTOCOL_VERSION_R1Q2_CURRENT);
+            i = Q_clip(i, PROTOCOL_VERSION_R1Q2_MINIMUM, PROTOCOL_VERSION_R1Q2_CURRENT);
         }
         Com_DPrintf("Using minor R1Q2 protocol version %d\n", i);
         cls.protocolVersion = i;
@@ -1083,7 +1082,10 @@ static void CL_ParsePrint(void)
     SHOWNET(2, "    %i \"%s\"\n", level, Com_MakePrintable(s));
 
     if (level != PRINT_CHAT) {
-        Com_Printf("%s", s);
+        if (cl.csr.extended && (level == PRINT_TYPEWRITER || level == PRINT_CENTER))
+            SCR_CenterPrint(s, level == PRINT_TYPEWRITER);
+        else
+            Com_Printf("%s", s);
         if (!cls.demo.playback && cl.serverstate != ss_broadcast) {
             COM_strclr(s);
             Cmd_ExecTrigger(s);
@@ -1139,7 +1141,7 @@ static void CL_ParseCenterPrint(void)
 
     MSG_ReadString(s, sizeof(s));
     SHOWNET(2, "    \"%s\"\n", Com_MakePrintable(s));
-    SCR_CenterPrint(s);
+    SCR_CenterPrint(s, false);
 
     if (!cls.demo.playback && cl.serverstate != ss_broadcast) {
         COM_strclr(s);
@@ -1215,7 +1217,8 @@ static void CL_ParseZPacket(void)
 #if USE_ZLIB
     sizebuf_t   temp;
     byte        buffer[MAX_MSGLEN];
-    int         ret, inlen, outlen;
+    uInt        inlen, outlen;
+    int         ret;
 
     if (msg_read.data != msg_read_buffer) {
         Com_Error(ERR_DROP, "%s: recursively entered", __func__);
@@ -1230,9 +1233,9 @@ static void CL_ParseZPacket(void)
     inflateReset(&cls.z);
 
     cls.z.next_in = MSG_ReadData(inlen);
-    cls.z.avail_in = (uInt)inlen;
+    cls.z.avail_in = inlen;
     cls.z.next_out = buffer;
-    cls.z.avail_out = (uInt)outlen;
+    cls.z.avail_out = outlen;
     ret = inflate(&cls.z, Z_FINISH);
     if (ret != Z_STREAM_END) {
         Com_Error(ERR_DROP, "%s: inflate() failed with error %d", __func__, ret);
@@ -1254,22 +1257,17 @@ static void CL_ParseZPacket(void)
 #if USE_FPS
 static void set_server_fps(int value)
 {
-    int framediv = value / BASE_FRAMERATE;
-
-    clamp(framediv, 1, MAX_FRAMEDIV);
-
-    cl.frametime = BASE_FRAMETIME / framediv;
-    cl.frametime_inv = framediv * BASE_1_FRAMETIME;
-    cl.framediv = framediv;
+    cl.frametime = Com_ComputeFrametime(value);
+    cl.frametime_inv = cl.frametime.div * BASE_1_FRAMETIME;
 
     // fix time delta
     if (cls.state == ca_active) {
-        int delta = cl.frame.number - cl.servertime / cl.frametime;
-        cl.serverdelta = Q_align(delta, framediv);
+        int delta = cl.frame.number - cl.servertime / cl.frametime.time;
+        cl.serverdelta = Q_align(delta, cl.frametime.div);
     }
 
     Com_DPrintf("client framediv=%d time=%d delta=%d\n",
-                framediv, cl.servertime, cl.serverdelta);
+                cl.frametime.div, cl.servertime, cl.serverdelta);
 }
 #endif
 
@@ -1379,12 +1377,12 @@ CL_ParseServerMessage
 void CL_ParseServerMessage(void)
 {
     int         cmd, index, extrabits;
-    size_t      readcount;
+    uint32_t    readcount;
     uint64_t    bits;
 
 #if USE_DEBUG
     if (cl_shownet->integer == 1) {
-        Com_LPrintf(PRINT_DEVELOPER, "%zu ", msg_read.cursize);
+        Com_LPrintf(PRINT_DEVELOPER, "%u ", msg_read.cursize);
     } else if (cl_shownet->integer > 1) {
         Com_LPrintf(PRINT_DEVELOPER, "------------------\n");
     }
@@ -1398,7 +1396,7 @@ void CL_ParseServerMessage(void)
     while (1) {
         readcount = msg_read.readcount;
         if (readcount == msg_read.cursize) {
-            SHOWNET(1, "%3zu:END OF MESSAGE\n", readcount);
+            SHOWNET(1, "%3u:END OF MESSAGE\n", readcount);
             break;
         }
 
@@ -1409,16 +1407,19 @@ void CL_ParseServerMessage(void)
         extrabits = cmd >> SVCMD_BITS;
         cmd &= SVCMD_MASK;
 
-		if (cmd == svc_extend)
+        if (cmd == svc_extend)
 			cmd = MSG_ReadByte();
 
-        SHOWNET(1, "%3zu:%s\n", msg_read.readcount - 1, MSG_ServerCommandString(cmd));
+        SHOWNET(1, "%3u:%s\n", msg_read.readcount - 1, MSG_ServerCommandString(cmd));
 
         // other commands
 		switch (cmd) {
 		default:
 		badbyte:
-			Com_Error(ERR_DROP, "%s: illegible server message: %d", __func__, cmd);
+            Com_Error(ERR_DROP, "%s: illegible server message: %d", __func__, cmd);
+            #if USE_AQTION
+            Com_Printf("Please update your AQtion client to the latest version in Steam\n");
+            #endif
 			break;
 
 		case svc_nop:
@@ -1570,7 +1571,7 @@ void CL_ParseServerMessage(void)
 
         // if recording demos, copy off protocol invariant stuff
         if (cls.demo.recording && !cls.demo.paused) {
-            size_t len = msg_read.readcount - readcount;
+            uint32_t len = msg_read.readcount - readcount;
 
             // it is very easy to overflow standard 1390 bytes
             // demo frame with modern servers... attempt to preserve
@@ -1604,7 +1605,7 @@ bool CL_SeekDemoMessage(void)
 
 #if USE_DEBUG
     if (cl_shownet->integer == 1) {
-        Com_LPrintf(PRINT_DEVELOPER, "%zu ", msg_read.cursize);
+        Com_LPrintf(PRINT_DEVELOPER, "%u ", msg_read.cursize);
     } else if (cl_shownet->integer > 1) {
         Com_LPrintf(PRINT_DEVELOPER, "------------------\n");
     }
@@ -1617,12 +1618,12 @@ bool CL_SeekDemoMessage(void)
 //
     while (1) {
         if (msg_read.readcount == msg_read.cursize) {
-            SHOWNET(1, "%3zu:END OF MESSAGE\n", msg_read.readcount);
+            SHOWNET(1, "%3u:END OF MESSAGE\n", msg_read.readcount);
             break;
         }
 
         cmd = MSG_ReadByte();
-        SHOWNET(1, "%3zu:%s\n", msg_read.readcount - 1, MSG_ServerCommandString(cmd));
+        SHOWNET(1, "%3u:%s\n", msg_read.readcount - 1, MSG_ServerCommandString(cmd));
 
         // other commands
         switch (cmd) {

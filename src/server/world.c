@@ -115,7 +115,7 @@ void SV_ClearWorld(void)
     // make sure all entities are unlinked
     for (i = 0; i < ge->max_edicts; i++) {
         ent = EDICT_NUM(i);
-        ent->area.prev = ent->area.next = NULL;
+        ent->area.next = ent->area.prev = NULL;
     }
 }
 
@@ -228,10 +228,10 @@ void PF_UnlinkEdict(edict_t *ent)
 {
     if (!ent)
         Com_Error(ERR_DROP, "%s: NULL", __func__);
-    if (!ent->area.prev)
+    if (!ent->area.next)
         return;        // not linked in anywhere
     List_Remove(&ent->area);
-    ent->area.prev = ent->area.next = NULL;
+    ent->area.next = ent->area.prev = NULL;
 }
 
 static uint32_t SV_PackSolid32(edict_t *ent)
@@ -276,7 +276,7 @@ void PF_LinkEdict(edict_t *ent)
     if (!ent)
         Com_Error(ERR_DROP, "%s: NULL", __func__);
 
-    if (ent->area.prev)
+    if (ent->area.next)
         PF_UnlinkEdict(ent);     // unlink from old position
 
     if (ent == ge->edicts)
@@ -437,37 +437,22 @@ Returns a headnode that can be used for testing or clipping an
 object of mins/maxs size.
 ================
 */
-static mnode_t *SV_HullForEntity(edict_t *ent)
+static mnode_t *SV_HullForEntity(edict_t *ent, bool triggers)
 {
-    if (ent->solid == SOLID_BSP) {
+    if (ent->solid == SOLID_BSP || (triggers && ent->solid == SOLID_TRIGGER)) {
+        bsp_t *bsp = sv.cm.cache;
         int i = ent->s.modelindex - 1;
 
+        // account for "hole" in configstring namespace
+        if (i >= MODELINDEX_PLAYER && bsp->nummodels >= MODELINDEX_PLAYER)
+            i--;
+
         // explicit hulls in the BSP model
-        if (i <= 0 || i >= sv.cm.cache->nummodels)
+        if (i > 0 && i < bsp->nummodels)
+            return bsp->models[i].headnode;
+
+        if (!triggers)
             Com_Error(ERR_DROP, "%s: inline model %d out of range", __func__, i);
-
-        return sv.cm.cache->models[i].headnode;
-    }
-
-    // create a temp hull from bounding box sizes
-    return CM_HeadnodeForBox(ent->mins, ent->maxs);
-}
-
-/*
-=============
-SV_HullForEntity2
-
-Can be used to clip to SOLID_TRIGGER by its BSP tree
-=============
-*/
-static mnode_t *SV_HullForEntity2(edict_t *ent)
-{
-    if (ent->solid == SOLID_BSP || ent->solid == SOLID_TRIGGER) {
-        int i = ent->s.modelindex - 1;
-
-        // explicit hulls in the BSP model
-        if (i > 0 && i < sv.cm.cache->nummodels)
-            return sv.cm.cache->models[i].headnode;
     }
 
     // create a temp hull from bounding box sizes
@@ -491,7 +476,7 @@ SV_PointContents
 */
 int SV_PointContents(const vec3_t p)
 {
-    edict_t     *touch[MAX_EDICTS], *hit;
+    edict_t     *touch[MAX_EDICTS_OLD], *hit;
     int         i, num;
     int         contents;
 
@@ -499,13 +484,13 @@ int SV_PointContents(const vec3_t p)
     contents = CM_PointContents(p, SV_WorldNodes());
 
     // or in contents from all the other entities
-    num = SV_AreaEdicts(p, p, touch, MAX_EDICTS, AREA_SOLID);
+    num = SV_AreaEdicts(p, p, touch, q_countof(touch), AREA_SOLID);
 
     for (i = 0; i < num; i++) {
         hit = touch[i];
 
         // might intersect, so do an exact clip
-        contents |= CM_TransformedPointContents(p, SV_HullForEntity(hit),
+        contents |= CM_TransformedPointContents(p, SV_HullForEntity(hit, false),
                                                 hit->s.origin, hit->s.angles);
     }
 
@@ -572,7 +557,7 @@ static void SV_ClipMoveToEntities(const vec3_t start, const vec3_t mins,
 
         // might intersect, so do an exact clip
         CM_TransformedBoxTrace(&trace, start, end, mins, maxs,
-                               SV_HullForEntity(touch), contentmask,
+                               SV_HullForEntity(touch, false), contentmask,
                                touch->s.origin, touch->s.angles);
 
         CM_ClipEntity(tr, &trace, touch);
@@ -632,7 +617,7 @@ trace_t q_gameabi SV_Clip(const vec3_t start, const vec3_t mins,
         CM_BoxTrace(&trace, start, end, mins, maxs, SV_WorldNodes(), contentmask);
     else
         CM_TransformedBoxTrace(&trace, start, end, mins, maxs,
-                               SV_HullForEntity2(clip), contentmask,
+                               SV_HullForEntity(clip, true), contentmask,
                                clip->s.origin, clip->s.angles);
     trace.ent = clip;
     return trace;

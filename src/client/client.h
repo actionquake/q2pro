@@ -75,6 +75,7 @@ typedef struct centity_s {
     centity_state_t     prev;           // will always be valid, but might just be a copy of current
 
     vec3_t          mins, maxs;
+    float           radius;             // from mid point
 
     int             serverframe;        // if not current, this ent isn't in the frame
 
@@ -138,10 +139,10 @@ typedef struct {
 
 // variable server FPS
 #if USE_FPS
-#define CL_FRAMETIME    cl.frametime
+#define CL_FRAMETIME    cl.frametime.time
 #define CL_1_FRAMETIME  cl.frametime_inv
-#define CL_FRAMEDIV     cl.framediv
-#define CL_FRAMESYNC    !(cl.frame.number % cl.framediv)
+#define CL_FRAMEDIV     cl.frametime.div
+#define CL_FRAMESYNC    !(cl.frame.number % cl.frametime.div)
 #define CL_KEYPS        &cl.keyframe.ps
 #define CL_OLDKEYPS     &cl.oldkeyframe.ps
 #define CL_KEYLERPFRAC  cl.keylerpfrac
@@ -272,9 +273,8 @@ typedef struct client_state_s {
     pmoveParams_t pmp;
 
 #if USE_FPS
-    int         frametime;      // variable server frame time
+    frametime_t frametime;
     float       frametime_inv;  // 1/frametime
-    int         framediv;       // BASE_FRAMETIME/frametime
 #endif
 
     qboolean	view_predict;
@@ -311,6 +311,17 @@ typedef struct client_state_s {
 
 	cvarsync_t cvarsync[CVARSYNC_MAX];
     bool    need_powerscreen_scale;
+
+    // data for view weapon
+    struct {
+        struct {
+            qhandle_t   model;
+            int         time;
+            float       roll, scale;
+            vec3_t      offset;
+        } muzzle;
+    } weapon;
+
 } client_state_t;
 
 extern client_state_t   cl;
@@ -375,8 +386,8 @@ typedef struct {
 
 typedef struct {
     int         framenum;
+    unsigned    msglen;
     int64_t     filepos;
-    size_t      msglen;
     byte        data[1];
 } demosnap_t;
 
@@ -488,7 +499,7 @@ typedef struct client_static_s {
         connstate_t     state;
 
         netstream_t     stream;
-        size_t          msglen;
+        unsigned        msglen;
 
         player_packed_t     ps;
         entity_packed_t     entities[MAX_EDICTS];
@@ -542,14 +553,14 @@ extern cvar_t   *cl_enhanced_footsteps;
 
 #if USE_DEBUG
 #define SHOWNET(level, ...) \
-    if (cl_shownet->integer > level) \
-        Com_LPrintf(PRINT_DEVELOPER, __VA_ARGS__)
+    do { if (cl_shownet->integer > level) \
+        Com_LPrintf(PRINT_DEVELOPER, __VA_ARGS__); } while (0)
 #define SHOWCLAMP(level, ...) \
-    if (cl_showclamp->integer > level) \
-        Com_LPrintf(PRINT_DEVELOPER, __VA_ARGS__)
+    do { if (cl_showclamp->integer > level) \
+        Com_LPrintf(PRINT_DEVELOPER, __VA_ARGS__); } while (0)
 #define SHOWMISS(...) \
-    if (cl_showmiss->integer) \
-        Com_LPrintf(PRINT_DEVELOPER, __VA_ARGS__)
+    do { if (cl_showmiss->integer) \
+        Com_LPrintf(PRINT_DEVELOPER, __VA_ARGS__); } while (0)
 extern cvar_t   *cl_shownet;
 extern cvar_t   *cl_showmiss;
 extern cvar_t   *cl_showclamp;
@@ -800,6 +811,26 @@ typedef struct cl_sustain_s {
     void    (*think)(struct cl_sustain_s *self);
 } cl_sustain_t;
 
+typedef enum {
+    MFLASH_MACHN,
+    MFLASH_SHOTG2,
+    MFLASH_SHOTG,
+    MFLASH_ROCKET,
+    MFLASH_RAIL,
+    MFLASH_LAUNCH,
+    MFLASH_ETF_RIFLE,
+    MFLASH_DIST,
+    MFLASH_BOOMER,
+    MFLASH_BLAST, // 0 = orange, 1 = blue, 2 = green
+    MFLASH_BFG,
+    MFLASH_BEAMER,
+
+    MFLASH_TOTAL
+} cl_muzzlefx_t;
+
+void CL_AddWeaponMuzzleFX(cl_muzzlefx_t fx, const vec3_t offset, float scale);
+void CL_AddMuzzleFX(const vec3_t origin, const vec3_t angles, cl_muzzlefx_t fx, int skin, float scale);
+
 void CL_SmokeAndFlash(const vec3_t origin);
 void CL_DrawBeam(const vec3_t org, const vec3_t end, qhandle_t model);
 void CL_PlayFootstepSfx(int step_id, int entnum, float volume, float attenuation);
@@ -872,7 +903,6 @@ void CL_TeleportParticles(const vec3_t org);
 void CL_ParticleEffect(const vec3_t org, const vec3_t dir, int color, int count);
 void CL_ParticleEffect2(const vec3_t org, const vec3_t dir, int color, int count);
 cparticle_t *CL_AllocParticle(void);
-void CL_RunParticles(void);
 void CL_AddParticles(void);
 cdlight_t *CL_AllocDlight(int key);
 void CL_AddDLights(void);
@@ -894,7 +924,7 @@ void CL_ParticleSteamEffect(const vec3_t org, const vec3_t dir, int color, int c
 void CL_TrackerTrail(const vec3_t start, const vec3_t end, int particleColor);
 void CL_TagTrail(const vec3_t start, const vec3_t end, int color);
 void CL_ColorFlash(const vec3_t pos, int ent, int intensity, float r, float g, float b);
-void CL_Tracker_Shell(const vec3_t origin);
+void CL_Tracker_Shell(const centity_t *cent, const vec3_t origin);
 void CL_MonsterPlasma_Shell(const vec3_t origin);
 void CL_ColorExplosionParticles(const vec3_t org, int color, int run);
 void CL_ParticleSmokeEffect(const vec3_t org, const vec3_t dir, int color, int count, int magnitude);
@@ -978,16 +1008,15 @@ extern vrect_t      scr_vrect;        // position of render window
 void    SCR_Init(void);
 void    SCR_Shutdown(void);
 void    SCR_UpdateScreen(void);
-void    SCR_SizeUp(void);
-void    SCR_SizeDown(void);
-void    SCR_CenterPrint(const char *str);
+void    SCR_CenterPrint(const char *str, bool typewrite);
+void    SCR_ClearCenterPrints(void);
 void    SCR_BeginLoadingPlaque(void);
 void    SCR_EndLoadingPlaque(void);
-void    SCR_TouchPics(void);
 void    SCR_RegisterMedia(void);
 void    SCR_ModeChanged(void);
 void    SCR_LagSample(void);
 void    SCR_LagClear(void);
+void    init_lag_graph_dimensions(void);
 void    SCR_SetCrosshairColor(void);
 
 float   SCR_FadeAlpha(unsigned startTime, unsigned visTime, unsigned fadeTime);
@@ -1003,6 +1032,18 @@ int     SCR_GetCinematicCrop(unsigned framenum, int64_t filesize);
 //
 // cin.c
 //
+
+#if USE_AVCODEC
+
+typedef struct {
+    const char *ext;
+    const char *fmt;
+    int codec_id;
+} avformat_t;
+
+#endif
+
+void    SCR_InitCinematics(void);
 void    SCR_StopCinematic(void);
 void    SCR_FinishCinematic(void);
 void    SCR_RunCinematic(void);

@@ -60,7 +60,7 @@ typedef struct gtv_s {
     netstream_t stream;
     char        address[MAX_QPATH];
     byte        *data;
-    size_t      msglen;
+    unsigned    msglen;
     unsigned    flags;
 #if USE_ZLIB
     bool        z_act; // true when actively inflating
@@ -255,7 +255,7 @@ mvd_t *MVD_SetChannel(int arg)
     } else
 #endif
         if (COM_IsUint(s)) {
-            id = atoi(s);
+            id = Q_atoi(s);
             FOR_EACH_MVD(mvd) {
                 if (mvd->id == id) {
                     return mvd;
@@ -355,7 +355,7 @@ static gtv_t *gtv_set_conn(int arg)
     }
 
     if (COM_IsUint(s)) {
-        id = atoi(s);
+        id = Q_atoi(s);
         FOR_EACH_GTV(gtv) {
             if (gtv->id == id) {
                 return gtv;
@@ -557,7 +557,7 @@ static void demo_emit_snapshot(mvd_t *mvd)
     int64_t pos;
     char *from, *to;
     size_t len;
-    int i, bits;
+    int i;
 
     if (mvd_snaps->integer <= 0)
         return;
@@ -610,8 +610,7 @@ static void demo_emit_snapshot(mvd_t *mvd)
         for (cs = player->configstrings; cs; cs = cs->next)
             len += 4 + strlen(cs->string);
 
-        bits = (len >> 8) & 7;
-        MSG_WriteByte(mvd_unicast | (bits << SVCMD_BITS));
+        MSG_WriteByte(mvd_unicast | (len >> 8 << SVCMD_BITS));
         MSG_WriteByte(len & 255);
         MSG_WriteByte(i);
         for (cs = player->configstrings; cs; cs = cs->next) {
@@ -624,8 +623,7 @@ static void demo_emit_snapshot(mvd_t *mvd)
     // write layout
     if (mvd->clientNum != -1) {
         len = 2 + strlen(mvd->layout);
-        bits = (len >> 8) & 7;
-        MSG_WriteByte(mvd_unicast | (bits << SVCMD_BITS));
+        MSG_WriteByte(mvd_unicast | (len >> 8 << SVCMD_BITS));
         MSG_WriteByte(len & 255);
         MSG_WriteByte(mvd->clientNum);
         MSG_WriteByte(svc_layout);
@@ -639,12 +637,12 @@ static void demo_emit_snapshot(mvd_t *mvd)
     memcpy(snap->data, msg_write.data, msg_write.cursize);
 
     if (!mvd->snapshots)
-        mvd->snapshots = MVD_Malloc(sizeof(snap) * MIN_SNAPSHOTS);
+        mvd->snapshots = MVD_Malloc(sizeof(mvd->snapshots[0]) * MIN_SNAPSHOTS);
     else
-        mvd->snapshots = Z_Realloc(mvd->snapshots, sizeof(snap) * ALIGN(mvd->numsnapshots + 1, MIN_SNAPSHOTS));
+        mvd->snapshots = Z_Realloc(mvd->snapshots, sizeof(mvd->snapshots[0]) * ALIGN(mvd->numsnapshots + 1, MIN_SNAPSHOTS));
     mvd->snapshots[mvd->numsnapshots++] = snap;
 
-    Com_DPrintf("[%d] snaplen %zu\n", mvd->framenum, msg_write.cursize);
+    Com_DPrintf("[%d] snaplen %u\n", mvd->framenum, msg_write.cursize);
 
     SZ_Clear(&msg_write);
 
@@ -1697,8 +1695,7 @@ void MVD_Spawn(void)
 #if USE_FPS
     // just fixed base FPS
     sv.framerate = BASE_FRAMERATE;
-    sv.frametime = BASE_FRAMETIME;
-    sv.framediv = 1;
+    sv.frametime = Com_ComputeFrametime(sv.framerate);
 #endif
 
     // set externally visible server name
@@ -2203,7 +2200,7 @@ static void MVD_Skip_f(void)
         return;
     }
 
-    count = atoi(Cmd_Argv(2));
+    count = Q_atoi(Cmd_Argv(2));
     if (count < 1) {
         count = 1;
     }
@@ -2265,7 +2262,7 @@ static void MVD_Seek_f(void)
             return;
         }
 
-        clamp(percent, 0, 100);
+        percent = Q_clipf(percent, 0, 100);
         dest = gtv->demoofs + gtv->demosize * percent / 100;
 
         byte_seek = true;
@@ -2458,7 +2455,7 @@ static void MVD_Control_f(void)
             Cmd_PrintHelp(options);
             return;
         case 'l':
-            loop = atoi(cmd_optarg);
+            loop = Q_atoi(cmd_optarg);
             if (loop < 0) {
                 Com_Printf("Invalid value for %s option.\n", cmd_optopt);
                 Cmd_PrintHint();
@@ -2539,7 +2536,7 @@ static void MVD_Play_f(void)
                        "Prepend slash to specify raw path.\n");
             return;
         case 'l':
-            loop = atoi(cmd_optarg);
+            loop = Q_atoi(cmd_optarg);
             if (loop < 0) {
                 Com_Printf("Invalid value for %s option.\n", cmd_optopt);
                 Cmd_PrintHint();
