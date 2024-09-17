@@ -50,6 +50,16 @@ void(*engine_Ghud_SetSize)(edict_t *ent, int i, int x, int y);
 
 void(*engine_CvarSync_Set)(int index, const char *name, const char *val);
 
+// botlib
+bsp_t* (*SV_BSP)(void);
+nav_t* (*CS_NAV)(void);
+debug_draw_t* (*Draw)(void);
+void (*SV_BotUpdateInfo)(char* name, int ping, int score);
+void (*SV_BotConnect)(char* name);
+void (*SV_BotDisconnect)(char* name);
+void (*SV_BotClearClients)(void);
+
+
 //
 // optional new entrypoints the engine may want to call
 edict_t *xerp_ent;
@@ -466,4 +476,5 @@ void CvarSync_Set(int index, const char *name, const char *val)
 
 	engine_CvarSync_Set(index, name, val);
 }
+
 #endif

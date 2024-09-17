@@ -876,11 +876,11 @@ static const debug_draw_api_v1_t debug_draw_api_v1 = {
 #endif
 
 static const rektek_bots_api_v1_t rektek_bots_api_v1 = {
-    .Bsp = SV_BSP,
-    .Nav = CS_NAV,
-#if DEBUG_DRAWING
-    .Draw = CS_DebugDraw,
-#endif
+//     .Bsp = SV_BSP,
+//     .Nav = CS_NAV,
+// #if DEBUG_DRAWING
+//     .Draw = CS_DebugDraw,
+// #endif
     .SV_BotUpdateInfo = SV_BotUpdateInfo,
     .SV_BotConnect = SV_BotConnect,
     .SV_BotDisconnect = SV_BotDisconnect,
@@ -889,21 +889,23 @@ static const rektek_bots_api_v1_t rektek_bots_api_v1 = {
 
 static void *PF_GetExtension(const char *name)
 {
-    if (!name)
+    if (!name){
         return NULL;
+    }
 
-    if (!strcmp(name, FILESYSTEM_API_V1))
+    if (!strcmp(name, FILESYSTEM_API_V1)){
         return (void *)&filesystem_api_v1;
+    }
 
-#ifdef AQTION_EXTENSION
-	if (!strcmp(name, REKTEK_BOTS_API_V1))
+	if (!strcmp(name, REKTEK_BOTS_API_V1)){
 		return (void *)&rektek_bots_api_v1;
-#endif
+    }
 
 
 #if USE_REF && USE_DEBUG
-    if (!strcmp(name, DEBUG_DRAW_API_V1) && !dedicated->integer)
+    if (!strcmp(name, DEBUG_DRAW_API_V1) && !dedicated->integer){
         return (void *)&debug_draw_api_v1;
+    }
 #endif
 
     return NULL;
@@ -1104,6 +1106,15 @@ void G_InitializeExtensions(void)
 
 	// cvar sync
 	g_addextension("CvarSync_Set", G_Ext_CvarSync_Set);
+
+    // botlib
+    g_addextension("Bsp", SV_BSP);
+    g_addextension("Nav", CS_NAV);
+    g_addextension("SV_BotConnect", SV_BotConnect);
+    g_addextension("SV_BotDisconnect", SV_BotDisconnect);
+    g_addextension("SV_BotClearClients", SV_BotClearClients);
+    g_addextension("SV_BotUpdateInfo", SV_BotUpdateInfo);
+
 }
 
 
@@ -1205,9 +1216,4 @@ void SV_InitGameProgs(void)
     if (ge->max_edicts <= sv_maxclients->integer || ge->max_edicts > svs.csr.max_edicts) {
         Com_Error(ERR_DROP, "Game library returned bad number of max_edicts: %i", ge->max_edicts);
     }
-
-#if AQTION_EXTENSION
-	//GE_customizeentityforclient = gex->GetExtension("customizeentityforclient");
-	//GE_CvarSync_Updated = gex->GetExtension("CvarSync_Updated");
-#endif
 }

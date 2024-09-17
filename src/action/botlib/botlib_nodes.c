@@ -3897,8 +3897,7 @@ void ACEND_LoadAAS(qboolean force)
 			fclose(fIn); // Close the file
 		}
 
-		rektek_bots_api_v1_t *bsp_api = gix->GetExtension(REKTEK_BOTS_API_V1);
-		bsp_t* bsp = bsp_api->Bsp();
+		bsp_t* bsp = Bsp();
 		
 		fileSize += sizeof(unsigned) * fread(&bsp_checksum, sizeof(unsigned), 1, fIn); // Map checksum
 		if (bsp_checksum != bsp->checksum)
@@ -5329,9 +5328,8 @@ qboolean BOTLIB_InsideFace(vec3_t *verts, int num_verts, vec3_t point, vec3_t no
 
 void BOTLIB_InitNavigation(edict_t* ent)
 {
-	rektek_bots_api_v1_t *bsp_api = gix->GetExtension(REKTEK_BOTS_API_V1);
-	bsp_t* bsp = bsp_api->Bsp();
-	if (bsp_api->Bsp() == NULL)
+	bsp_t* bsp = Bsp();
+	if (bsp == NULL)
 	{
 		gi.dprintf("%s failed to import BSP data\n", __func__);
 		return;
@@ -5359,8 +5357,7 @@ void BOTLIB_InitNavigation(edict_t* ent)
 
 void ACEND_BSP(edict_t* ent)
 {
-	rektek_bots_api_v1_t *bsp_api = gix->GetExtension(REKTEK_BOTS_API_V1);
-	bsp_t* bsp = bsp_api->Bsp();
+	bsp_t* bsp = Bsp();
 	if (bsp == NULL)
 	{
 		gi.dprintf("%s failed to import BSP data\n", __func__);

@@ -702,6 +702,13 @@ q_exported const game_export_ex_t *GetGameAPIEx(game_import_ex_t *importx)
 
 	engine_CvarSync_Set = gix->CheckForExtension("CvarSync_Set");
 
+	SV_BSP = gix->CheckForExtension("Bsp");
+	CS_NAV = gix->CheckForExtension("Nav");
+	SV_BotConnect = gix->CheckForExtension("SV_BotConnect");
+	SV_BotDisconnect = gix->CheckForExtension("SV_BotDisconnect");
+	SV_BotUpdateInfo = gix->CheckForExtension("SV_BotUpdateInfo");
+	SV_BotClearClients = gix->CheckForExtension("SV_BotClearClients");
+
     return &gex;
 }
 

@@ -640,7 +640,7 @@ edict_t *ACESP_SpawnBot( char *team_str, char *name, char *skin, char *userinfo 
 		bot->bot.bot_baseline_ping = (int)(7 + (random() * 227)); // Country + overseas ping
 
 	rektek_bots_api_v1_t *bot_api = gix->GetExtension(REKTEK_BOTS_API_V1);
-	bot_api->SV_BotConnect(bot->client->pers.netname); // So the server can fake the bot as a 'client'
+	SV_BotConnect(bot->client->pers.netname); // So the server can fake the bot as a 'client'
 	//gi.SV_BotConnect(bot->client->pers.netname); // So the server can fake the bot as a 'client'
 	game.bot_count++;
 	//rekkie -- Fake Bot Client -- e
@@ -700,7 +700,7 @@ void ACESP_RemoveBot(char *name)
 			{
 				//rekkie -- Fake Bot Client -- s
 				rektek_bots_api_v1_t *bot_api = gix->GetExtension(REKTEK_BOTS_API_V1);
-				bot_api->SV_BotDisconnect(bot->client->pers.netname); // So the server can fake the bot as a 'client'
+				SV_BotDisconnect(bot->client->pers.netname); // So the server can fake the bot as a 'client'
 				//gi.SV_BotDisconnect(bot->client->pers.netname); // So the server can remove the fake client
 				//rekkie -- Fake Bot Client -- e
 				
@@ -773,7 +773,7 @@ void ACESP_RemoveTeamplayBot(int team)
 					{
 						//rekkie -- Fake Bot Client -- s
 						rektek_bots_api_v1_t *bot_api = gix->GetExtension(REKTEK_BOTS_API_V1);
-						bot_api->SV_BotDisconnect(bot->client->pers.netname); // So the server can fake the bot as a 'client'
+						SV_BotDisconnect(bot->client->pers.netname); // So the server can fake the bot as a 'client'
 						//gi.SV_BotDisconnect(bot->client->pers.netname); // So the server can remove the fake client
 						//rekkie -- Fake Bot Client -- e
 						game.bot_count--;

@@ -1360,6 +1360,15 @@ extern void(*engine_CvarSync_Set)(int index, const char *name, const char *val);
 void  CvarSync_Set(int index, const char *name, const char *val);
 #endif
 
+//botlib
+extern bsp_t* (*SV_BSP)(void);
+extern nav_t* (CS_NAV)(void);
+extern void (*SV_BotUpdateInfo)(char* name, int ping, int score);
+extern void (*SV_BotConnect)(char* name);
+extern void (*SV_BotDisconnect)(char* name);
+extern void (*SV_BotClearClients)(void);
+
+
 // 2022
 extern cvar_t *sv_limp_highping;
 extern cvar_t *server_id; // Unique server_id
