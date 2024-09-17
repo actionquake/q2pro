@@ -1211,7 +1211,7 @@ void SV_InitGameProgs(void)
     }
 
 #if AQTION_EXTENSION
-	GE_customizeentityforclient = gex->GetExtension("customizeentityforclient");
-	GE_CvarSync_Updated = gex->GetExtension("CvarSync_Updated");
+	//GE_customizeentityforclient = gex->GetExtension("customizeentityforclient");
+	//GE_CvarSync_Updated = gex->GetExtension("CvarSync_Updated");
 #endif
 }
