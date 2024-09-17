@@ -908,6 +908,7 @@ static void *PF_GetExtension(const char *name)
 
     return NULL;
 }
+static void* G_CheckForExtension(char *text);
 
 static const game_import_ex_t game_import_ex = {
     .apiversion = GAME_API_VERSION_EX,
@@ -1210,7 +1211,7 @@ void SV_InitGameProgs(void)
     }
 
 #if AQTION_EXTENSION
-	GE_customizeentityforclient = ge->FetchGameExtension("customizeentityforclient");
-	GE_CvarSync_Updated = ge->FetchGameExtension("CvarSync_Updated");
+	GE_customizeentityforclient = gex->GetExtension("customizeentityforclient");
+	GE_CvarSync_Updated = gex->GetExtension("CvarSync_Updated");
 #endif
 }

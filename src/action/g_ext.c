@@ -303,11 +303,6 @@ void* G_FetchGameExtension(char *name)
 	return NULL;
 }
 
-
-
-
-
-
 // 
 // new engine functions we can call from the game
 

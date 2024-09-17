@@ -684,6 +684,7 @@ q_exported const game_export_ex_t *GetGameAPIEx(game_import_ex_t *importx)
 {
     gix = importx;   // assign pointer, don't copy!
 	
+	//gex.CheckForExtension = G_FetchGameExtension;
 	G_InitExtEntrypoints();
 
 	engine_Client_GetProtocol = gi.CheckForExtension("Client_GetProtocol");
