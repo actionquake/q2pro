@@ -920,6 +920,7 @@ static const game_import_ex_t game_import_ex = {
 
     .GetExtension = PF_GetExtension,
     .TagRealloc = PF_TagRealloc,
+    .CheckForExtension = G_CheckForExtension,
 };
 
 static void *game_library;

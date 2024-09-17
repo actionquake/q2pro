@@ -303,11 +303,6 @@ typedef struct {
     // of the parameters
     void (*ServerCommand)(void);
 
-#if AQTION_EXTENSION
-	void* (*FetchGameExtension)(char *name);
-#endif
-
-
     //
     // global variables shared between game and server
     //

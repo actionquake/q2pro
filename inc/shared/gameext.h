@@ -75,6 +75,7 @@ typedef struct {
 
     void        *(*GetExtension)(const char *name);
     void        *(*TagRealloc)(void *ptr, size_t size);
+    void	    *(*CheckForExtension)(char *text);
 } game_import_ex_t;
 
 typedef struct {
@@ -87,6 +88,7 @@ typedef struct {
     void        (*RestartFilesystem)(void); // called when fs_restart is issued
     qboolean    (*CustomizeEntityToClient)(edict_t *client, edict_t *ent, customize_entity_t *temp); // if true is returned, `temp' must be initialized
     qboolean    (*EntityVisibleToClient)(edict_t *client, edict_t *ent);
+    void	    *(*CheckForExtension)(char *text);
 } game_export_ex_t;
 
 typedef const game_export_ex_t *(*game_entry_ex_t)(const game_import_ex_t *);

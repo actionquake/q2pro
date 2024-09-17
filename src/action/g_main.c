@@ -663,24 +663,7 @@ q_exported game_export_t *GetGameAPI(game_import_t *import)
 
 
 #if AQTION_EXTENSION
-	G_InitExtEntrypoints();
-	globals.FetchGameExtension = G_FetchGameExtension;
-
-	engine_Client_GetProtocol = gi.CheckForExtension("Client_GetProtocol");
-	engine_Client_GetVersion = gi.CheckForExtension("Client_GetVersion");
-
-	engine_Ghud_ClearForClient = gi.CheckForExtension("Ghud_ClearForClient");
-	engine_Ghud_NewElement = gi.CheckForExtension("Ghud_NewElement");
-	engine_Ghud_RemoveElement = gi.CheckForExtension("Ghud_RemoveElement");
-	engine_Ghud_SetFlags = gi.CheckForExtension("Ghud_SetFlags");
-	engine_Ghud_SetInt = gi.CheckForExtension("Ghud_SetInt");
-	engine_Ghud_SetText = gi.CheckForExtension("Ghud_SetText");
-	engine_Ghud_SetPosition = gi.CheckForExtension("Ghud_SetPosition");
-	engine_Ghud_SetAnchor = gi.CheckForExtension("Ghud_SetAnchor");
-	engine_Ghud_SetColor = gi.CheckForExtension("Ghud_SetColor");
-	engine_Ghud_SetSize = gi.CheckForExtension("Ghud_SetSize");
-
-	engine_CvarSync_Set = gi.CheckForExtension("CvarSync_Set");
+	
 #endif
 
 
@@ -701,6 +684,23 @@ q_exported const game_export_ex_t *GetGameAPIEx(game_import_ex_t *importx)
 {
     gix = importx;   // assign pointer, don't copy!
 	
+	G_InitExtEntrypoints();
+
+	engine_Client_GetProtocol = gi.CheckForExtension("Client_GetProtocol");
+	engine_Client_GetVersion = gi.CheckForExtension("Client_GetVersion");
+
+	engine_Ghud_ClearForClient = gi.CheckForExtension("Ghud_ClearForClient");
+	engine_Ghud_NewElement = gi.CheckForExtension("Ghud_NewElement");
+	engine_Ghud_RemoveElement = gi.CheckForExtension("Ghud_RemoveElement");
+	engine_Ghud_SetFlags = gi.CheckForExtension("Ghud_SetFlags");
+	engine_Ghud_SetInt = gi.CheckForExtension("Ghud_SetInt");
+	engine_Ghud_SetText = gi.CheckForExtension("Ghud_SetText");
+	engine_Ghud_SetPosition = gi.CheckForExtension("Ghud_SetPosition");
+	engine_Ghud_SetAnchor = gi.CheckForExtension("Ghud_SetAnchor");
+	engine_Ghud_SetColor = gi.CheckForExtension("Ghud_SetColor");
+	engine_Ghud_SetSize = gi.CheckForExtension("Ghud_SetSize");
+
+	engine_CvarSync_Set = gi.CheckForExtension("CvarSync_Set");
     return &gex;
 }
 
