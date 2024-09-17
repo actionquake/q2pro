@@ -542,10 +542,6 @@ cvar_t *g_spawn_items;
 // 2023
 cvar_t *use_killcounts;  // Display kill counts in console to clients on frag
 cvar_t *am;  // Attract mode toggle
-cvar_t *am_newnames;  // Attract mode new names, use new LTK bot names
-cvar_t *am_botcount;  // Attract mode botcount, how many bots at minimum at all times
-cvar_t *am_delay;  // Attract mode delay, unused at the moment
-cvar_t *am_team;  // Attract mode team, which team do you want the bots to join
 cvar_t *zoom_comp; // Compensates zoom-in frames with ping (high ping = fewer frames)
 cvar_t *item_kit_mode;  // Toggles item kit mode
 cvar_t *gun_dualmk23_enhance; // Enables laser sight for dual mk23 pistols
@@ -559,6 +555,8 @@ cvar_t *warmup_unready; // Toggles warmup if captains unready
 cvar_t *training_mode; // Sets training mode vars
 cvar_t *g_highscores_dir; // Sets the highscores directory
 cvar_t *lca_grenade; // Allows grenade pin pulling during LCA
+cvar_t *breakableglass; // Moved from cgf_sfx_glass, enables breakable glass (0,1,2)
+cvar_t *glassfragmentlimit; // Moved from cgf_sfx_glass, sets glass fragment limit
 
 #if AQTION_EXTENSION
 cvar_t *use_newirvision;

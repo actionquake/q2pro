@@ -536,7 +536,10 @@ void InitGame( void )
 	use_classic = gi.cvar( "use_classic", "0", 0 ); // Reset Grenade Strength to 1.52
 	use_gren_bonk = gi.cvar( "use_gren_bonk", "0", 0 ); // Grenade Bonk
 
-	CGF_SFX_InstallGlassSupport();	// william for CGF (glass fx)
+	//CGF_SFX_InstallGlassSupport();	// william for CGF (glass fx)
+	breakableglass = gi.cvar("breakableglass", "0", 0);
+  	glassfragmentlimit = gi.cvar("glassfragmentlimit", "30", 0);
+	//CGF_SFX_InstallGlassSupport();	// william for CGF (glass fx)
 
 	g_select_empty = gi.cvar( "g_select_empty", "0", CVAR_ARCHIVE );
 	g_protocol_extensions = gi.cvar("g_protocol_extensions", "0", CVAR_LATCH);
@@ -633,13 +636,6 @@ void InitGame( void )
 	// 2023
 	use_killcounts = gi.cvar("use_killcounts", "0", 0);
 	am = gi.cvar("am", "0", CVAR_LATCH | CVAR_SERVERINFO);
-	am_newnames = gi.cvar("am_newnames", "1", CVAR_LATCH);
-	am_botcount = gi.cvar("am_botcount", "6", CVAR_LATCH | CVAR_SERVERINFO);
-	if (am_botcount->value < 0){
-    	gi.cvar_forceset("am_botcount", "0");
-	}
-	am_delay = gi.cvar("am_delay", "30", 0);
-	am_team = gi.cvar("am_team", "0", 0);
 	zoom_comp = gi.cvar("zoom_comp", "1", 0);
 	item_kit_mode = gi.cvar("item_kit_mode", "0", CVAR_LATCH);
 	gun_dualmk23_enhance = gi.cvar("gun_dualmk23_enhance", "0", 0);

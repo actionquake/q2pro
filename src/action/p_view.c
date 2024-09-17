@@ -1693,4 +1693,14 @@ void ClientEndServerFrame (edict_t * ent)
 	*/
 
 	RadioThink(ent);
+
+	// Paril's hit markers (don't draw for bots!)
+	if (ent->client->damage_dealt > 0 && !ent->is_bot)
+	{
+		gi.WriteByte(svc_temp_entity);
+		gi.WriteByte(TE_DAMAGE_DEALT);
+		gi.WriteShort(min(ent->client->damage_dealt, INT16_MAX));
+		gi.unicast(ent, false);
+		ent->client->damage_dealt = 0;
+	}
 }

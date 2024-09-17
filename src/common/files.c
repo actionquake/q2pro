@@ -3559,7 +3559,6 @@ static void setup_game_paths(void)
         if (sys_homedir->string[0]) {
             add_game_dir(FS_PATH_GAME | FS_DIR_HOME, "%s/%s", sys_homedir->string, fs_game->string);
         }
-    }
     // add SteamCloud sync dir to VFS if we are a client, steamcloud is enabled and steamID is found
     #if USE_CLIENT
         if (strcmp(steamid->string, "0") == 0){
@@ -3574,9 +3573,9 @@ static void setup_game_paths(void)
             return;
         }
         // if SteamID, steamcloudappenabled and steamclouduserenabled is not 0, add steamcloud dir as new game_dir
-        add_game_dir(FS_PATH_GAME, "./SteamCloud/%s/%s", steamid->string, fs_game->string);
+        add_game_dir(FS_PATH_GAME | FS_DIR_HOME, "./SteamCloud/%s/%s", steamid->string, fs_game->string);
     #endif
-
+    }
     // this var is set for compatibility with server browsers, etc
     Cvar_FullSet("gamedir", fs_game->string, CVAR_ROM | CVAR_SERVERINFO, FROM_CODE);
 

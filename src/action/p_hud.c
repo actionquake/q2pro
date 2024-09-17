@@ -1087,7 +1087,7 @@ void HUD_SpectatorUpdate(edict_t *clent)
 
 			if (IS_ALIVE(cl_ent) && cl->curr_weap)
 				Ghud_SetInt(clent, hud[h + 4], level.pic_items[cl->curr_weap]);
-			else if (cl->resp.team == TEAM1 && weapNum)
+			else if (cl->resp.team == TEAM2 && weapNum)
 				Ghud_SetInt(clent, hud[h + 4], level.pic_items[weapNum]);
 			else // no weapon, set to mk23
 				Ghud_SetInt(clent, hud[h + 4], level.pic_items[MK23_NUM]);

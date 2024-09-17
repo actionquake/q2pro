@@ -642,19 +642,6 @@ Antilag allows server operator to enable lag-compensation for aiming with hitsca
 ### Force Spawn items
 `g_spawn_items [0/1]` - server cvar, set to "1" to allow for item/ammo/weapon spawns in games that you choose your starting weapon, for example, dm_choose, teamplay, etc. Forced set to "0" for matchmode. Set "0" for classic play.
 
-### Attract Mode
-`am` - server cvar, this will set the server up in 'attract mode', where bots spawn in but are replaced by humans, and vice versa. This is meant to keep a server 'populated' without being overrun by bots, when humans can take their place. It depends on several other cvars for proper operation.
-- `am [0/1/2]`
-  - 0 is disabled, LTK bots will spawn normally from their configs. This is the default value.
-  - 1 is enabled, and human replace bots as they join, and bots replace humans as they leave. Depends on am_botcount for this threshold value
-  - 2 is enabled, and humans will not replace bots until the total number of players (real people + bots) is (maxclients - 2).
-- `am_botcount [#]`
-  - This value is the number of players + bots you want at any given time. Default is 6.
-- `am_team [0/1/2/3]`
-  - This value is which team you want bots to spawn in on. If you only want bots on team 1, set this value to 1. 0 means bots will autojoin teams via the autobalancer. If you try to set this to 3 without use_3teams, they will default to team 1. Default is 0.
-- `am_newnames [0/1]`
-  - This enables new bot names, stemming from the AQ2World team, in case you want to change things up a bit. Default is 1.
-
 ### Zoom Compensation
 `zoom_comp [0/1]` - server cvar, set to "1" to compensate zoom delay based on ping. Every 80ms ping reduces 1 frame, minimum of 1 frame. Default is "0", do not compensate
 

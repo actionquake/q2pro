@@ -45,11 +45,11 @@ extern "C"
 #endif
 
 
-// cvar for breaking glass
-static cvar_t *breakableglass = 0;
+// // cvar for breaking glass
+// static cvar_t *breakableglass = 0;
 
-// cvar for max glass fragment count
-static cvar_t *glassfragmentlimit = 0;
+// // cvar for max glass fragment count
+// static cvar_t *glassfragmentlimit = 0;
 
 static int glassfragmentcount = 0;
 
@@ -257,24 +257,52 @@ CGF_SFX_ShootBreakableGlass (edict_t * aGlassPane, edict_t * anAttacker,
   int destruct;
 
   // depending on mod, destroy window or emit fragments
-  switch (mod)
-    {
-      // break for ap, shotgun, handcannon, and kick, destory window
-    case MOD_M3:
-    case MOD_HC:
-    case MOD_SNIPER:
-    case MOD_KICK:
-    case MOD_GRENADE:
-    case MOD_G_SPLASH:
-    case MOD_HANDGRENADE:
-    case MOD_HG_SPLASH:
-    case MOD_KNIFE:		// slash damage
-      destruct = true;
-      break;
-    default:
-      destruct = (rand () % 3 == 0);
-      break;
-    };
+
+  // Classic behavior
+  if (breakableglass->value == 1) {
+    switch (mod)
+      {
+        // break for ap, shotgun, handcannon, and kick, destory window
+      case MOD_M3:
+      case MOD_HC:
+      case MOD_SNIPER:
+      case MOD_KICK:
+      case MOD_GRENADE:
+      case MOD_G_SPLASH:
+      case MOD_HANDGRENADE:
+      case MOD_HG_SPLASH:
+      case MOD_KNIFE:		// slash damage
+        destruct = true;
+        break;
+      default:
+        destruct = (rand () % 3 == 0);
+        break;
+      };
+  } else if (breakableglass->value == 2) {
+    switch (mod)
+      { // break for all weapons
+      case MOD_MK23:
+      case MOD_DUAL:
+      case MOD_MP5:
+      case MOD_M4:
+      case MOD_M3:
+      case MOD_HC:
+      case MOD_SNIPER:
+      case MOD_KICK:
+      case MOD_GRENADE:
+      case MOD_G_SPLASH:
+      case MOD_HANDGRENADE:
+      case MOD_HG_SPLASH:
+      case MOD_KNIFE:		// slash damage
+        destruct = true;
+        break;
+      default:
+        destruct = (rand () % 3 == 0);
+        break;
+      };
+  } else {
+    destruct = false;
+  }
 
   if (destruct)
     {

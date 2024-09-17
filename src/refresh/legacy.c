@@ -233,6 +233,18 @@ static void legacy_shutdown(void)
     }
 }
 
+// Re-added to support Rektek bot navmesh rendering
+static void legacy_vertex_pointer(GLint size, GLsizei stride, const GLfloat *pointer)
+{
+    qglVertexPointer(size, GL_FLOAT, sizeof(GLfloat) * stride, pointer);
+}
+
+static void legacy_color_byte_pointer(GLint size, GLsizei stride, const GLubyte *pointer)
+{
+    qglColorPointer(size, GL_UNSIGNED_BYTE, sizeof(GLfloat) * stride, pointer);
+}
+// End
+
 const glbackend_t backend_legacy = {
     .name = "legacy",
 
@@ -248,5 +260,9 @@ const glbackend_t backend_legacy = {
     .array_pointers = legacy_array_pointers,
     .tex_coord_pointer = legacy_tex_coord_pointer,
 
+// Re-added to support Rektek bot navmesh rendering
+    .vertex_pointer = legacy_vertex_pointer,
+    .color_byte_pointer = legacy_color_byte_pointer,
+// End
     .color = legacy_color,
 };

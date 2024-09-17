@@ -1107,12 +1107,12 @@ int BOTLIB_GetEquipment(edict_t* self)
 {
 	int primary_weapon = 0;
 	int secondary_weapon = 0;
-	qboolean need_weapon = BOTLIB_Need_Weapons(self, &primary_weapon, &secondary_weapon);
+	//qboolean need_weapon = BOTLIB_Need_Weapons(self, &primary_weapon, &secondary_weapon);
 	int ammo_type = BOTLIB_Need_Ammo(self, &primary_weapon, &secondary_weapon);
 	int special = BOTLIB_Need_Special(self, &primary_weapon, &secondary_weapon);
 	qboolean need_grenades = BOTLIB_Need_Grenades(self);
 	qboolean need_dual_mk23 = BOTLIB_Need_Dual_MK23(self);
-	qboolean need_knives = BOTLIB_Need_Knives(self);
+	//qboolean need_knives = BOTLIB_Need_Knives(self);
 	//Com_Printf("%s wep[%d][%d][%d] gren[%d] knife[%d] dual[%d] ammo[%d] special[%d]\n", __func__, need_weapon, primary_weapon, secondary_weapon, need_grenades, need_knives, need_dual_mk23, ammo_type, special);
 
 	int items_to_get[32];

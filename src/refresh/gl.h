@@ -581,16 +581,19 @@ typedef struct {
 
     void (*array_pointers)(const glVaDesc_t *desc, const GLfloat *ptr);
     void (*tex_coord_pointer)(const GLfloat *ptr);
-
+// Re-added to support Rektek bot navmesh rendering
     void (*vertex_pointer)(GLint size, GLsizei stride, const GLfloat *pointer);
-    void (*light_coord_pointer)(GLint size, GLsizei stride, const GLfloat *pointer);
     void (*color_byte_pointer)(GLint size, GLsizei stride, const GLubyte *pointer);
-    void (*color_float_pointer)(GLint size, GLsizei stride, const GLfloat *pointer);
-
+// End
     void (*color)(GLfloat r, GLfloat g, GLfloat b, GLfloat a);
 } glbackend_t;
 
 extern const glbackend_t *gl_backend;
+
+// Re-added to support Rektek bot navmesh rendering
+#define GL_VertexPointer        gl_backend->vertex_pointer
+#define GL_ColorBytePointer     gl_backend->color_byte_pointer
+// End
 
 static inline void GL_ActiveTexture(glTmu_t tmu)
 {
@@ -677,12 +680,6 @@ typedef enum {
     SHOWTRIS_PIC    = BIT(2),
     SHOWTRIS_FX     = BIT(3),
 } showtris_t;
-
-#define GL_VertexPointer        gl_backend->vertex_pointer
-#define GL_TexCoordPointer      gl_backend->tex_coord_pointer
-#define GL_LightCoordPointer    gl_backend->light_coord_pointer
-#define GL_ColorBytePointer     gl_backend->color_byte_pointer
-#define GL_ColorFloatPointer    gl_backend->color_float_pointer
 
 void GL_ForceTexture(glTmu_t tmu, GLuint texnum);
 void GL_BindTexture(glTmu_t tmu, GLuint texnum);

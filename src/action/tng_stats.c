@@ -115,7 +115,12 @@ void Stats_AddHit( edict_t *ent, int gun, int hitPart )
 		return;
 
 	// Adjusted logic to be inclusive rather than exclusive
-	if (((unsigned)gun <= MAX_GUNSTAT) || ((unsigned)gun == MOD_KICK) || ((unsigned)gun == MOD_PUNCH)) {
+	if (
+	((unsigned)gun <= MAX_GUNSTAT) || 
+	((unsigned)gun == MOD_KICK) || 
+	((unsigned)gun == MOD_PUNCH) || 
+	((unsigned)gun == MOD_GRENADE_IMPACT)
+	) {
 
 		if (!teamplay->value || team_round_going || stats_afterround->value) {
 			ent->client->resp.hitsTotal++;

@@ -2,9 +2,27 @@
 #include "../acesrc/acebot.h"
 #include "botlib.h"
 
+#if defined(_WIN32) || defined(_WIN64)
+#include <windows.h>
+#else
+#include <sys/time.h>
+#endif
+
 /*
 This file is for common utilties that are used by the botlib functions
 */
+
+void seed_random_number_generator(void) {
+#if _MSC_VER >= 1920 && !__INTEL_COMPILER
+    LARGE_INTEGER li;
+    QueryPerformanceCounter(&li);
+    srand((unsigned int)(li.QuadPart));
+#else
+    struct timeval tv;
+    gettimeofday(&tv, NULL);
+    srand(tv.tv_usec * tv.tv_sec);
+#endif
+}
 
 void BOTLIB_SKILL_Init(edict_t* bot)
 {
@@ -50,7 +68,7 @@ qboolean BOTLIB_SkillChance(float skill_level)
 float BOTLIB_SkillMultiplier(float skill_level, bool increase_with_skill)
 {
     // Seed the random number generator
-    srand(time(NULL));
+    seed_random_number_generator();
 
     // Normalize the skill level to be between 0.0 and 1.0
     if (skill_level < -1.0)

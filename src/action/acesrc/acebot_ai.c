@@ -94,11 +94,11 @@ void BOTLIB_PickLongRangeGoal(edict_t* self)
 {
 	int i = 0;
 	int node = 0;
-	float weight = 0.f, best_weight = 0.0;
-	int goal_node = 0;
-	edict_t* goal_ent = NULL;
-	float cost = INVALID;
-	int counter = 0;
+	//float weight = 0.f, best_weight = 0.0;
+	//int goal_node = 0;
+	//edict_t* goal_ent = NULL;
+	//float cost = INVALID;
+	//int counter = 0;
 	int max_random_retries = 10;
 
 	// Clear old Node -> Node movement types
@@ -960,7 +960,6 @@ short BOTLIB_AlliesAlive(edict_t* self)
 short BOTLIB_FindVisibleAllies(edict_t* self)
 {
 	int i;
-	edict_t* bestally = NULL;
 	vec3_t eyes, ally_eyes;
 	VectorCopy(self->s.origin, eyes);
 	eyes[2] += self->viewheight; // Get our eye level (standing and crouching)
@@ -1227,7 +1226,7 @@ qboolean BOTLIB_FindEnemy(edict_t *self)
 		// 1) Target high priority enemies (flag carriers, briefcase, vip, etc)
 		for (i = 0; i < self->bot.enemies_num; i++)
 		{
-			if (self->bot.enemies_weight[i] > 300 && INV_AMMO(players[self->bot.enemies[i]], FLAG_T1_NUM) || INV_AMMO(players[self->bot.enemies[i]], FLAG_T2_NUM))
+			if ((self->bot.enemies_weight[i] > 300 && INV_AMMO(players[self->bot.enemies[i]], FLAG_T1_NUM)) || INV_AMMO(players[self->bot.enemies[i]], FLAG_T2_NUM))
 				bestenemy = players[self->bot.enemies[i]];
 		}
 

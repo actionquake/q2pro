@@ -2314,7 +2314,7 @@ qboolean BOTLIB_DijkstraPath(edict_t* ent, int from, int to, qboolean path_rando
 qboolean	AntFindPath(edict_t* ent, int from, int to)
 {
 	int counter = 0; // Link array counter
-	int link_counter = 0; // Link counter
+	//int link_counter = 0; // Link counter
 	int	newNode = INVALID; // Stores the node being tested
 	int atNode; // Structures for search
 	botlib_sll_t	openList; // Locally declared OPEN list

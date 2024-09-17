@@ -4905,12 +4905,12 @@ void ClientThink(edict_t * ent, usercmd_t * ucmd)
 		int nodes_touched = 0;
 		int node = INVALID;
 		int node_type = INVALID;
-		float node_to_node_dist = 99999;
+		//float node_to_node_dist = 99999;
 		int from, to;
 
 		trace_t tr = gi.trace(ent->s.origin, NULL, NULL, tv(ent->s.origin[0], ent->s.origin[1], ent->s.origin[2] - 25), ent, MASK_PLAYERSOLID);
-		float height_diff = ent->s.origin[2] - tr.endpos[2]; // Height difference between player and ground
-		float distance = VectorDistance(ent->bot.walknode.last_ground_loc, tr.endpos); // Distance between ground touches
+		//float height_diff = ent->s.origin[2] - tr.endpos[2]; // Height difference between player and ground
+		//float distance = VectorDistance(ent->bot.walknode.last_ground_loc, tr.endpos); // Distance between ground touches
 		float speed = VectorLength(ent->velocity); // Player speed
 
 		//Com_Printf("%s height_diff %f\n", __func__, height_diff);

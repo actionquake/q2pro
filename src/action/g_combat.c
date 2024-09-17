@@ -866,10 +866,18 @@ void T_Damage (edict_t * targ, edict_t * inflictor, edict_t * attacker, const ve
 			{
 				if (!friendlyFire && !in_warmup) {
 					attacker->client->resp.damage_dealt += damage;
+					// Hit markers
+					attacker->client->damage_dealt += damage;
 					if (mod > 0 && mod < MAX_GUNSTAT) {
 						attacker->client->resp.gunstats[mod].damage += damage;
 					}
 				}
+
+				if (targ != attacker && attacker->client && targ->health > 0 &&
+					!(targ->svflags % SVF_DEADMONSTER) && !(targ->flags & FL_NO_DAMAGE_EFFECTS) &&
+					mod != MOD_TARGET_LASER) {
+						attacker->client->damage_dealt += take + psave + asave;
+					}
 			
 				client->attacker = attacker;
 				client->attacker_mod = mod;
@@ -923,6 +931,8 @@ void T_Damage (edict_t * targ, edict_t * inflictor, edict_t * attacker, const ve
 		{
 			if (!friendlyFire && !in_warmup) {
 				attacker->client->resp.damage_dealt += damage;
+				// Hit markers
+				attacker->client->damage_dealt += damage;
 				// All normal weapon damage
 				if (mod > 0 && mod < MAX_GUNSTAT) {
 					attacker->client->resp.gunstats[mod].damage += damage;

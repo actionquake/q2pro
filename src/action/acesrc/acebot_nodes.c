@@ -2174,7 +2174,7 @@ int BOTLIB_Reachability(int from, int to)
 
 		// Test if speed is too high
 		qboolean speed_within_spec = false;
-		float required_speed = VectorLength(velocity);
+		//float required_speed = VectorLength(velocity);
 		if (target[2] > origin[2])
 		{
 			//Com_Printf("%s ABOVE speed[%f] jump_height[%f]\n", __func__, required_speed, jump_height);
@@ -2213,7 +2213,7 @@ int BOTLIB_Reachability(int from, int to)
 		//distance *= 1.0; // Increasing this increases the jump height
 		// Calculate the jump height to get to the target
 		float jump_height = sqrt(2 * gravity * xyz_distance);
-		float jump_height_headroom = jump_height / 8; // head space required to make the jump from point to point
+		//float jump_height_headroom = jump_height / 8; // head space required to make the jump from point to point
 
 		// Move the middle point up to the jump height (maximum parabola height)
 		//end_50[2] += NODE_Z_HEIGHT_PLUS_STEPSIZE + jump_height;
@@ -4114,113 +4114,6 @@ void ACEND_ReverseLink( edict_t *self, int from, int to )
 		}
 	}
 }
-//R
-
-/*
-///////////////////////////////////////////////////////////////////////
-// Add/Update node connections (paths)
-///////////////////////////////////////////////////////////////////////
-void ACEND_UpdateNodeEdge(edict_t *self, int from, int to)
-{
-	int i;
-	trace_t	trace;
-	vec3_t	min,max;
-	
-	if(from == INVALID || to == INVALID || from == to)
-		return; // safety
-
-	// Try to stop bots creating impossible links!
-	// If it looks higher than a jump...
-	if(
-		( nodes[to].origin[2] > nodes[from].origin[2]+36)
-		&& self->is_bot
-		)
-	{
-		// If we are coming from a move or jump node
-		if( (nodes[from].type == NODE_MOVE) ||
-			(nodes[from].type == NODE_JUMP)	)
-		{
-			// No if the to node is the same, it's illegal
-			if( (nodes[to].type == NODE_MOVE) ||
-				(nodes[to].type == NODE_JUMP)	)
-			{
-				// Too high - not possible!!
-				return;
-			}
-		}
-	}
-	// Do not allow creation of nodes where the falling distance would kill you!
-	if( (nodes[from].origin[2]) > (nodes[to].origin[2] + 180) )
-		return;
-	
-
-	/*
-	VectorCopy(self->mins, min);
-	// If going up
-//	if( (nodes[from].origin[2]) < (nodes[to].origin[2]) )
-		min[2] = 0;	// Allow for steps up etc.
-	VectorCopy(self->maxs, max);
-	// If going down
-//	if( (nodes[from].origin[2]) > (nodes[to].origin[2]) )
-		max[2] = 0;	// door node linking
-	*/
-
-/*
-	VectorCopy( vec3_origin, min);
-	VectorCopy( vec3_origin, max);
-
-	// Now trace it - more safety stuff!
-	trace = gi.trace( nodes[from].origin, min, max, nodes[to].origin, self, MASK_SOLID);
-
-	if( trace.fraction < 1.0)
-	{
-		// can't do it
-		if(debug_mode)
-			debug_printf("Warning: (NoTrace) Failed to Link %d -> %d\n", from, to);
-		return;
-	}
-	// Add the link
-	path_table[from][to] = to;
-
-	// Checks if the link exists and then may create a new one - RiEvEr
-	for( i=0; i<MAXLINKS; i++)
-	{
-		if ( nodes[from].links[i].targetNode == to)
-			break;
-		if ( nodes[from].links[i].targetNode == INVALID)
-		{
-			// RiEvEr
-			// William uses a time factor here, whereas I use distance
-			// His is possibly more efficient
-			vec3_t	v;
-			float thisCost;
-
-			VectorSubtract(nodes[from].origin, nodes[to].origin, v); // subtract first
-			thisCost = VectorLength(v);
-			nodes[from].links[i].targetNode = to;
-			nodes[from].links[i].cost = thisCost;
-			if(debug_mode)
-				debug_printf("Link %d -> %d\n", from, to);
-			break;
-		}
-	}
-
-	// Now for the self-referencing part, linear time for each link added
-	for(i=0;i<numnodes;i++)
-		if(path_table[i][from] != INVALID)
-		{
-			if(i == to)
-				path_table[i][to] = INVALID; // make sure we terminate
-			else
-				path_table[i][to] = path_table[i][from];
-		}
-        
-	// RiEvEr - check for the link going back the other way
-	// Reverse the input data so it works properly!
-	ACEND_ReverseLink( self, to, from );
-	// R
-}
-*/
 
 ///////////////////////////////////////////////////////////////////////
 // Remove a node edge
