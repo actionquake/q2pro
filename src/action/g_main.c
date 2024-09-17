@@ -687,7 +687,7 @@ q_exported game_export_t *GetGameAPI(game_import_t *import)
 	return &globals;
 }
 
-static const game_export_ex_t gex = {
+const game_export_ex_t gex = {
     .apiversion = GAME_API_VERSION_EX,
     .structsize = sizeof(game_export_ex_t),
 
