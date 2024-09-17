@@ -256,10 +256,6 @@ typedef struct {
 
     void (*DebugGraph)(float value, int color);
 
-#if AQTION_EXTENSION
-	void *(*CheckForExtension)(char *text);
-#endif
-
 } game_import_t;
 //
 // functions exported by the game subsystem

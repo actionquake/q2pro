@@ -1157,10 +1157,6 @@ void SV_InitGameProgs(void)
     // load a new game dll
     import = game_import;
 
-#if AQTION_EXTENSION
-	import.CheckForExtension = G_CheckForExtension;
-#endif
-
     ge = entry(&import);
     if (!ge) {
         Com_Error(ERR_DROP, "Game library returned NULL exports");

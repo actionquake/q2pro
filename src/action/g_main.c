@@ -686,22 +686,22 @@ q_exported const game_export_ex_t *GetGameAPIEx(game_import_ex_t *importx)
 	
 	//gex.CheckForExtension = G_FetchGameExtension;
 	G_InitExtEntrypoints();
+	engine_Client_GetProtocol = gix->CheckForExtension("Client_GetProtocol");
+	engine_Client_GetVersion = gix->CheckForExtension("Client_GetVersion");
 
-	engine_Client_GetProtocol = gi.CheckForExtension("Client_GetProtocol");
-	engine_Client_GetVersion = gi.CheckForExtension("Client_GetVersion");
+	engine_Ghud_ClearForClient = gix->CheckForExtension("Ghud_ClearForClient");
+	engine_Ghud_NewElement = gix->CheckForExtension("Ghud_NewElement");
+	engine_Ghud_RemoveElement = gix->CheckForExtension("Ghud_RemoveElement");
+	engine_Ghud_SetFlags = gix->CheckForExtension("Ghud_SetFlags");
+	engine_Ghud_SetInt = gix->CheckForExtension("Ghud_SetInt");
+	engine_Ghud_SetText = gix->CheckForExtension("Ghud_SetText");
+	engine_Ghud_SetPosition = gix->CheckForExtension("Ghud_SetPosition");
+	engine_Ghud_SetAnchor = gix->CheckForExtension("Ghud_SetAnchor");
+	engine_Ghud_SetColor = gix->CheckForExtension("Ghud_SetColor");
+	engine_Ghud_SetSize = gix->CheckForExtension("Ghud_SetSize");
 
-	engine_Ghud_ClearForClient = gi.CheckForExtension("Ghud_ClearForClient");
-	engine_Ghud_NewElement = gi.CheckForExtension("Ghud_NewElement");
-	engine_Ghud_RemoveElement = gi.CheckForExtension("Ghud_RemoveElement");
-	engine_Ghud_SetFlags = gi.CheckForExtension("Ghud_SetFlags");
-	engine_Ghud_SetInt = gi.CheckForExtension("Ghud_SetInt");
-	engine_Ghud_SetText = gi.CheckForExtension("Ghud_SetText");
-	engine_Ghud_SetPosition = gi.CheckForExtension("Ghud_SetPosition");
-	engine_Ghud_SetAnchor = gi.CheckForExtension("Ghud_SetAnchor");
-	engine_Ghud_SetColor = gi.CheckForExtension("Ghud_SetColor");
-	engine_Ghud_SetSize = gi.CheckForExtension("Ghud_SetSize");
+	engine_CvarSync_Set = gix->CheckForExtension("CvarSync_Set");
 
-	engine_CvarSync_Set = gi.CheckForExtension("CvarSync_Set");
     return &gex;
 }
 
