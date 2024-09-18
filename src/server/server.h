@@ -931,6 +931,8 @@ trace_t q_gameabi SV_Clip(const vec3_t start, const vec3_t mins,
                           edict_t *clip, int contentmask);
 
 bsp_t* SV_BSP(void);
+nav_t* CS_NAV(void);
+debug_draw_t* CS_DebugDraw(void);
 void SV_BotInit(void);
 void SV_BotUpdateInfo(char* name, int ping, int score);
 void SV_BotConnect(char* name);

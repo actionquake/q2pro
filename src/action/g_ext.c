@@ -53,7 +53,7 @@ void(*engine_CvarSync_Set)(int index, const char *name, const char *val);
 // botlib
 bsp_t* (*SV_BSP)(void);
 nav_t* (*CS_NAV)(void);
-debug_draw_t* (*Draw)(void);
+debug_draw_t* (*CS_DebugDraw)(void);
 void (*SV_BotUpdateInfo)(char* name, int ping, int score);
 void (*SV_BotConnect)(char* name);
 void (*SV_BotDisconnect)(char* name);

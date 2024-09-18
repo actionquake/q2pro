@@ -3267,9 +3267,7 @@ void ClientBeginDeathmatch(edict_t * ent)
 
 	//rekkie -- debug drawing -- s
 #if DEBUG_DRAWING
-	rektek_bots_api_v1_t *draw = gix->GetExtension(REKTEK_BOTS_API_V1);
-	
-	ent->client->pers.draw = draw->Draw();
+	ent->client->pers.draw = CS_DebugDraw();
 	//if (ent->client->pers.draw)
 	{
 		// Default all to off state

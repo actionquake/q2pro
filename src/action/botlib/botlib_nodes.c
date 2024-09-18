@@ -3897,7 +3897,7 @@ void ACEND_LoadAAS(qboolean force)
 			fclose(fIn); // Close the file
 		}
 
-		bsp_t* bsp = Bsp();
+		bsp_t* bsp = SV_BSP();
 		
 		fileSize += sizeof(unsigned) * fread(&bsp_checksum, sizeof(unsigned), 1, fIn); // Map checksum
 		if (bsp_checksum != bsp->checksum)
@@ -5394,7 +5394,7 @@ void ACEND_BSP(edict_t* ent)
 
 	if (1)
 	{
-		nav_t* nav = Nav();
+		nav_t* nav = CS_NAV();
 
 		//ent->nav = gi.Nav(); // Grant access to navigation data
 		if (ent->nav)

@@ -876,11 +876,6 @@ static const debug_draw_api_v1_t debug_draw_api_v1 = {
 #endif
 
 static const rektek_bots_api_v1_t rektek_bots_api_v1 = {
-//     .Bsp = SV_BSP,
-//     .Nav = CS_NAV,
-// #if DEBUG_DRAWING
-//     .Draw = CS_DebugDraw,
-// #endif
     .SV_BotUpdateInfo = SV_BotUpdateInfo,
     .SV_BotConnect = SV_BotConnect,
     .SV_BotDisconnect = SV_BotDisconnect,
@@ -1110,6 +1105,7 @@ void G_InitializeExtensions(void)
     // botlib
     g_addextension("Bsp", SV_BSP);
     g_addextension("Nav", CS_NAV);
+    g_addextension("DebugDraw", CS_DebugDraw);
     g_addextension("SV_BotConnect", SV_BotConnect);
     g_addextension("SV_BotDisconnect", SV_BotDisconnect);
     g_addextension("SV_BotClearClients", SV_BotClearClients);

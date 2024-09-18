@@ -704,6 +704,7 @@ q_exported const game_export_ex_t *GetGameAPIEx(game_import_ex_t *importx)
 
 	SV_BSP = gix->CheckForExtension("Bsp");
 	CS_NAV = gix->CheckForExtension("Nav");
+	CS_DebugDraw = gix->CheckForExtension("DebugDraw");
 	SV_BotConnect = gix->CheckForExtension("SV_BotConnect");
 	SV_BotDisconnect = gix->CheckForExtension("SV_BotDisconnect");
 	SV_BotUpdateInfo = gix->CheckForExtension("SV_BotUpdateInfo");
