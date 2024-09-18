@@ -1362,7 +1362,7 @@ void  CvarSync_Set(int index, const char *name, const char *val);
 
 //botlib
 extern bsp_t* (*SV_BSP)(void);
-extern nav_t* (CS_NAV)(void);
+extern nav_t* (*CS_NAV)(void);
 extern void (*SV_BotUpdateInfo)(char* name, int ping, int score);
 extern void (*SV_BotConnect)(char* name);
 extern void (*SV_BotDisconnect)(char* name);

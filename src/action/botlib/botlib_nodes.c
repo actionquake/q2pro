@@ -5328,7 +5328,7 @@ qboolean BOTLIB_InsideFace(vec3_t *verts, int num_verts, vec3_t point, vec3_t no
 
 void BOTLIB_InitNavigation(edict_t* ent)
 {
-	bsp_t* bsp = Bsp();
+	bsp_t* bsp = SV_BSP();
 	if (bsp == NULL)
 	{
 		gi.dprintf("%s failed to import BSP data\n", __func__);
@@ -5357,7 +5357,7 @@ void BOTLIB_InitNavigation(edict_t* ent)
 
 void ACEND_BSP(edict_t* ent)
 {
-	bsp_t* bsp = Bsp();
+	bsp_t* bsp = SV_BSP();
 	if (bsp == NULL)
 	{
 		gi.dprintf("%s failed to import BSP data\n", __func__);
@@ -5394,8 +5394,8 @@ void ACEND_BSP(edict_t* ent)
 
 	if (1)
 	{
-		rektek_bots_api_v1_t *nav_api = gix->GetExtension(REKTEK_BOTS_API_V1);
-		nav_t* nav = nav_api->Nav();
+		nav_t* nav = Nav();
+
 		//ent->nav = gi.Nav(); // Grant access to navigation data
 		if (ent->nav)
 		{
