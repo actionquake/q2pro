@@ -661,12 +661,6 @@ q_exported game_export_t *GetGameAPI(game_import_t *import)
 
 	globals.edict_size = sizeof (edict_t);
 
-
-#if AQTION_EXTENSION
-	
-#endif
-
-
 	return &globals;
 }
 

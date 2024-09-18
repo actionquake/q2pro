@@ -876,6 +876,9 @@ static const debug_draw_api_v1_t debug_draw_api_v1 = {
 #endif
 
 static const rektek_bots_api_v1_t rektek_bots_api_v1 = {
+    .Bsp = SV_BSP,
+    .Nav = CS_NAV,
+    .Draw = CS_DebugDraw,
     .SV_BotUpdateInfo = SV_BotUpdateInfo,
     .SV_BotConnect = SV_BotConnect,
     .SV_BotDisconnect = SV_BotDisconnect,

@@ -650,7 +650,7 @@ void BOTLIB_Think(edict_t* self)
 		if (self->bot.bot_ping < 5) self->bot.bot_ping = 1; // Min ping
 		self->client->ping = self->bot.bot_ping;
 		
-		rektek_bots_api_v1_t *bot_api = gix->GetExtension(REKTEK_BOTS_API_V1);
+		
 		SV_BotUpdateInfo(self->client->pers.netname, self->bot.bot_ping, self->client->resp.score); // So the server can fake the bot as a 'client'
 		//gi.SV_BotUpdateInfo(self->client->pers.netname, self->bot.bot_ping, self->client->resp.score);
 	}
