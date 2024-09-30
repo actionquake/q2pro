@@ -650,8 +650,9 @@ void BOTLIB_Think(edict_t* self)
 		if (self->bot.bot_ping < 5) self->bot.bot_ping = 1; // Min ping
 		self->client->ping = self->bot.bot_ping;
 		
-		
-		SV_BotUpdateInfo(self->client->pers.netname, self->bot.bot_ping, self->client->resp.score); // So the server can fake the bot as a 'client'
+		if (bot_reportasclient->value) {
+			SV_BotUpdateInfo(self->client->pers.netname, self->bot.bot_ping, self->client->resp.score); // So the server can fake the bot as a 'client'
+		}
 		//gi.SV_BotUpdateInfo(self->client->pers.netname, self->bot.bot_ping, self->client->resp.score);
 	}
 	//rekkie -- Fake Bot Client -- e
