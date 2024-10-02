@@ -2148,6 +2148,10 @@ void BOTLIB_DMBotCountManager(void)
 
 void BOTLIB_CheckBotRules(void)
 {
+	// Disable bot logic entirely
+	if (!bot_enable->value)
+		return;
+
 	if (matchmode->value) // Bots never allowed in matchmode
 		return;
 

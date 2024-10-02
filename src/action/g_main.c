@@ -484,6 +484,7 @@ cvar_t *ltk_routing;
 cvar_t *ltk_botfile;
 cvar_t *ltk_loadbots;
 //rekkie -- DEV_1 -- s
+cvar_t* bot_enable;		// Enable/Disable bots
 cvar_t* bot_showpath;
 cvar_t* bot_skill;		// Skill setting for bots, range 0-10. 0 = easy, 10 = aimbot!
 cvar_t* bot_skill_threshold; // Dynamic skill adjustment kicks in if a threshold has been hit
