@@ -321,7 +321,7 @@ void CL_RegisterTEntSounds(void)
     cl_sfx_disrexp = S_RegisterSound("weapons/disrupthit.wav");
 
     cl_sfx_hit_marker = S_RegisterSound("weapons/marker.wav");
-}
+};
 
 static const char *const muzzlenames[MFLASH_TOTAL] = {
     [MFLASH_MACHN]     = "v_machn",
@@ -1705,7 +1705,7 @@ void CL_ClearTEnts(void)
 void CL_InitTEnts(void)
 {
     cl_muzzleflashes = Cvar_Get("cl_muzzleflashes", "1", 0);
-    cl_hit_markers = Cvar_Get("cl_hit_markers", "2", 0);
+    cl_hit_markers = Cvar_Get("cl_hit_markers", "0", 0);
     cl_railtrail_type = Cvar_Get("cl_railtrail_type", "0", 0);
     cl_railtrail_time = Cvar_Get("cl_railtrail_time", "1.0", 0);
     cl_railtrail_time->changed = cl_timeout_changed;
