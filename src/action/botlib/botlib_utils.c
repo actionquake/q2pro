@@ -117,5 +117,5 @@ void BOTLIB_Debug(const char *debugmsg, ...)
 {
     if (!bot_debug->value)
         return;
-    gi.dprintf(debugmsg);
+    gi.dprintf("%s", debugmsg);
 }
