@@ -701,6 +701,7 @@ void InitGame( void )
 	bot_count_max = gi.cvar("bot_count_max", "0", 0);
 	bot_rotate = gi.cvar("bot_rotate", "0", 0);
 	bot_reportasclient = gi.cvar("bot_reportasclient", "0", CVAR_LATCH);
+	bot_navautogen = gi.cvar("bot_navautogen", "0", 0);
 	//bot_randteamskin = gi.cvar("bot_randteamskin", "0", 0);
 	//rekkie -- DEV_1 -- e
 #endif

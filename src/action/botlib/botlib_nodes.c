@@ -3005,6 +3005,7 @@ void BOTLIB_LoadNavCompressed(void)
 	cvar_t* botdir = gi.cvar("botdir", "bots", 0);		// Directory of the bot files in the gamelib
 	const vec3_t mins = { -16, -16, -24 };
 	const vec3_t maxs = { 16, 16, 32 };
+	qboolean navfilefound = true;
 
 #ifdef _WIN32
 	int f;
@@ -3027,7 +3028,12 @@ void BOTLIB_LoadNavCompressed(void)
 
 	if ((fIn = fopen(filename, "rb")) == NULL) // See if .nav file exists
 	{
-		return; // No file
+		Com_Printf("%s WARNING: Failed to read or missing NAV file for %s, bots will not navigate the map properly\n", __func__, level.mapname);
+		navfilefound = false;
+		if (!bot_navautogen->value) {
+			gi.dprintf("%s INFO: No NAV file found and bot_navautogen is disabled\n", __func__);
+			return; // No file and do not auto generate
+		}
 	}
 	else
 	{
@@ -3046,186 +3052,192 @@ void BOTLIB_LoadNavCompressed(void)
 	BOTLIB_FreeAreaNodes(); //Soft map change. Free all area node memory used
 	//memset(&nmesh, 0, sizeof(nmesh_t));
 
+	if (!navfilefound && bot_navautogen->value){
+		BOTLIB_SelfExpandNodesFromSpawnpoints(NULL);
+		BOTLIB_LinkAllNodesTogether(NULL);
+		Com_Printf("%s INFO: No NAV file found, bot_navautogen is enabled; generating nodes from spawnpoints\n", __func__);
+	}
 	// Remove doors
 	Remove_All_Doors();
 	Remove_All_Breakableglass();
 
-	Com_Printf("%s Reading NAV file... detected version [%d]\n", __func__, version);
+	if (navfilefound) {
+		Com_Printf("%s INFO: Reading NAV file... detected version [%d]\n", __func__, version);
 
-	// Read Compressed and uncompressed buffer sizes
-	long uncompressed_buff_len = 0;
-	fileSize += sizeof(int) * fread(&uncompressed_buff_len, sizeof(int), 1, fIn); // Uncompressed buffer size
-	long compressed_buff_len = 0;
-	fileSize += sizeof(int) * fread(&compressed_buff_len, sizeof(int), 1, fIn); // Compressed buffer size
-	
-	// Read compressed buffer
-	char* uncompressed_buff = (char*)malloc(uncompressed_buff_len);
-	char* compressed_buff = (char*)malloc(compressed_buff_len);
-	if (compressed_buff != NULL && uncompressed_buff != NULL)
-	{
-		fileSize += compressed_buff_len * fread(compressed_buff, compressed_buff_len, 1, fIn); // Compressed buffer
+		// Read Compressed and uncompressed buffer sizes
+		long uncompressed_buff_len = 0;
+		fileSize += sizeof(int) * fread(&uncompressed_buff_len, sizeof(int), 1, fIn); // Uncompressed buffer size
+		long compressed_buff_len = 0;
+		fileSize += sizeof(int) * fread(&compressed_buff_len, sizeof(int), 1, fIn); // Compressed buffer size
 
-		BOTLIB_DecompressBuffer(compressed_buff, compressed_buff_len, uncompressed_buff, &uncompressed_buff_len);
-		//Com_Printf("%s compressed_buff_len:%i uncompressed_buff_len:%i\n", __func__, compressed_buff_len, uncompressed_buff_len);
-
-		// Read the uncompressed buffer
+		// Read compressed buffer
+		char* uncompressed_buff = (char*)malloc(uncompressed_buff_len);
+		char* compressed_buff = (char*)malloc(compressed_buff_len);
+		if (compressed_buff != NULL && uncompressed_buff != NULL)
 		{
-			int buff_read = 0;
+			fileSize += compressed_buff_len * fread(compressed_buff, compressed_buff_len, 1, fIn); // Compressed buffer
 
-			// Total nodes
-			memcpy(&numnodes, uncompressed_buff + buff_read, sizeof(unsigned short));
-			buff_read += sizeof(unsigned short);
+			BOTLIB_DecompressBuffer(compressed_buff, compressed_buff_len, uncompressed_buff, &uncompressed_buff_len);
+			//Com_Printf("%s compressed_buff_len:%i uncompressed_buff_len:%i\n", __func__, compressed_buff_len, uncompressed_buff_len);
 
-			if (numnodes + 1 > MAX_PNODES)
+			// Read the uncompressed buffer
 			{
-				Com_Printf("%s ERROR: Too many nodes in NAV file\n", __func__);
-				return;
-			}
+				int buff_read = 0;
 
-			// Alloc nodes
-			nodes = (node_t*)malloc(sizeof(node_t) * (numnodes + 1)); // Alloc memory
-			if (nodes == NULL)
-			{
-				Com_Printf("%s failed to malloc nodes\n", __func__);
-				return;
-			}
+				// Total nodes
+				memcpy(&numnodes, uncompressed_buff + buff_read, sizeof(unsigned short));
+				buff_read += sizeof(unsigned short);
 
-			// Total areas
-			//nav_area.total_areas = 0;
-
-			//Com_Printf("%s buff_version:%i buff_numnodes:%i\n", __func__, version, numnodes);
-
-			// Read node data
-			for (n = 0; n < numnodes; n++)
-			{
-				if (version > BOT_NAV_VERSION_1)
+				if (numnodes + 1 > MAX_PNODES)
 				{
-					// Area/chunk/group this node belongs to -- optimise and diversify bot pathing
-					memcpy(&nodes[n].area, uncompressed_buff + buff_read, sizeof(int));					// Node area
-					buff_read += sizeof(int);
-
-					nodes[n].area_color = 0;
-				}
-				//VectorClear(nodes[n].normal);
-				//if (version > BOT_NAV_VERSION_2)
-				//{
-					//memcpy(&nodes[n].normal, uncompressed_buff + buff_read, sizeof(vec3_t));			// Surface normal
-					//buff_read += sizeof(vec3_t);
-				//}
-
-				nodes[n].weight = 0; // Used to help diversify bot pathing
-
-				memcpy(&nodes[n].origin, uncompressed_buff + buff_read, sizeof(vec3_t));			// Location
-				buff_read += sizeof(vec3_t);
-				memcpy(&nodes[n].type, uncompressed_buff + buff_read, sizeof(byte));				// Node type
-				buff_read += sizeof(byte);
-
-				VectorCopy(mins, nodes[n].mins);		// Box mins
-				VectorCopy(maxs, nodes[n].maxs);		// Box maxs
-				if (nodes[n].type == NODE_CROUCH)
-					nodes[n].maxs[2] = CROUCHING_MAXS2;
-				else if (nodes[n].type == NODE_BOXJUMP)
-				{
-					nodes[n].mins[0] = -8;
-					nodes[n].mins[1] = -8;
-					nodes[n].mins[2] = -12;
-					nodes[n].maxs[0] = 8;
-					nodes[n].maxs[1] = 8;
-					nodes[n].maxs[2] = 16;
-				}
-				VectorAdd(nodes[n].origin, mins, nodes[n].absmin); // Update absolute box min/max in the world
-				VectorAdd(nodes[n].origin, maxs, nodes[n].absmax); // Update absolute box min/max in the world
-
-				memcpy(&nodes[n].nodenum, uncompressed_buff + buff_read, sizeof(short int));		// Node number
-				buff_read += sizeof(short int);
-				memcpy(&nodes[n].inuse, uncompressed_buff + buff_read, sizeof(qboolean));			// Node inuse
-				buff_read += sizeof(qboolean);
-
-				// Init MAXLINKS links
-				for (l = 0; l < MAXLINKS; l++)
-				{
-					nodes[n].links[l].targetNode = INVALID;							// Link
-					nodes[n].links[l].targetNodeType = INVALID;						// Type
-					nodes[n].links[l].cost = INVALID;								// Cost
+					Com_Printf("%s ERROR: Too many nodes in NAV file\n", __func__);
+					return;
 				}
 
-				// Read the num_links
-				memcpy(&nodes[n].num_links, uncompressed_buff + buff_read, sizeof(byte));
-				buff_read += sizeof(byte);
-				//Com_Printf("%s origin:%f %f %f type:%i nodenum:%i inuse:%i num_links:%i\n", __func__, nodes[n].origin[0], nodes[n].origin[1], nodes[n].origin[2], nodes[n].type, nodes[n].nodenum, nodes[n].inuse, nodes[n].num_links);
-
-				for (l = 0; l < nodes[n].num_links; l++) // 
+				// Alloc nodes
+				nodes = (node_t*)malloc(sizeof(node_t) * (numnodes + 1)); // Alloc memory
+				if (nodes == NULL)
 				{
-					memcpy(&nodes[n].links[l].targetNode, uncompressed_buff + buff_read, sizeof(short int));
-					buff_read += sizeof(short int);
-					memcpy(&nodes[n].links[l].targetNodeType, uncompressed_buff + buff_read, sizeof(byte));
+					Com_Printf("%s failed to malloc nodes\n", __func__);
+					return;
+				}
+
+				// Total areas
+				//nav_area.total_areas = 0;
+
+				//Com_Printf("%s buff_version:%i buff_numnodes:%i\n", __func__, version, numnodes);
+
+				// Read node data
+				for (n = 0; n < numnodes; n++)
+				{
+					if (version > BOT_NAV_VERSION_1)
+					{
+						// Area/chunk/group this node belongs to -- optimise and diversify bot pathing
+						memcpy(&nodes[n].area, uncompressed_buff + buff_read, sizeof(int));					// Node area
+						buff_read += sizeof(int);
+
+						nodes[n].area_color = 0;
+					}
+					//VectorClear(nodes[n].normal);
+					//if (version > BOT_NAV_VERSION_2)
+					//{
+						//memcpy(&nodes[n].normal, uncompressed_buff + buff_read, sizeof(vec3_t));			// Surface normal
+						//buff_read += sizeof(vec3_t);
+					//}
+
+					nodes[n].weight = 0; // Used to help diversify bot pathing
+
+					memcpy(&nodes[n].origin, uncompressed_buff + buff_read, sizeof(vec3_t));			// Location
+					buff_read += sizeof(vec3_t);
+					memcpy(&nodes[n].type, uncompressed_buff + buff_read, sizeof(byte));				// Node type
 					buff_read += sizeof(byte);
-					memcpy(&nodes[n].links[l].cost, uncompressed_buff + buff_read, sizeof(float));
-					buff_read += sizeof(float);
-					//Com_Printf("%s targetNode:%i targetNodeType:%i cost:%f\n", __func__, nodes[n].links[l].targetNode, nodes[n].links[l].targetNodeType, nodes[n].links[l].cost);
-				}
 
-				// Paths
-				//for (p = 0; p < numnodes; p++)
-				//{
-					//memcpy(&path_table[n][p], uncompressed_buff + buff_read, sizeof(short int)); // Path table
-					//buff_read += sizeof(short int);
-					//Com_Printf("%s path_table[%i][%i]:%i\n", __func__, n, p, path_table[n][p]);
-				//}
+					VectorCopy(mins, nodes[n].mins);		// Box mins
+					VectorCopy(maxs, nodes[n].maxs);		// Box maxs
+					if (nodes[n].type == NODE_CROUCH)
+						nodes[n].maxs[2] = CROUCHING_MAXS2;
+					else if (nodes[n].type == NODE_BOXJUMP)
+					{
+						nodes[n].mins[0] = -8;
+						nodes[n].mins[1] = -8;
+						nodes[n].mins[2] = -12;
+						nodes[n].maxs[0] = 8;
+						nodes[n].maxs[1] = 8;
+						nodes[n].maxs[2] = 16;
+					}
+					VectorAdd(nodes[n].origin, mins, nodes[n].absmin); // Update absolute box min/max in the world
+					VectorAdd(nodes[n].origin, maxs, nodes[n].absmax); // Update absolute box min/max in the world
+
+					memcpy(&nodes[n].nodenum, uncompressed_buff + buff_read, sizeof(short int));		// Node number
+					buff_read += sizeof(short int);
+					memcpy(&nodes[n].inuse, uncompressed_buff + buff_read, sizeof(qboolean));			// Node inuse
+					buff_read += sizeof(qboolean);
+
+					// Init MAXLINKS links
+					for (l = 0; l < MAXLINKS; l++)
+					{
+						nodes[n].links[l].targetNode = INVALID;							// Link
+						nodes[n].links[l].targetNodeType = INVALID;						// Type
+						nodes[n].links[l].cost = INVALID;								// Cost
+					}
+
+					// Read the num_links
+					memcpy(&nodes[n].num_links, uncompressed_buff + buff_read, sizeof(byte));
+					buff_read += sizeof(byte);
+					//Com_Printf("%s origin:%f %f %f type:%i nodenum:%i inuse:%i num_links:%i\n", __func__, nodes[n].origin[0], nodes[n].origin[1], nodes[n].origin[2], nodes[n].type, nodes[n].nodenum, nodes[n].inuse, nodes[n].num_links);
+
+					for (l = 0; l < nodes[n].num_links; l++) // 
+					{
+						memcpy(&nodes[n].links[l].targetNode, uncompressed_buff + buff_read, sizeof(short int));
+						buff_read += sizeof(short int);
+						memcpy(&nodes[n].links[l].targetNodeType, uncompressed_buff + buff_read, sizeof(byte));
+						buff_read += sizeof(byte);
+						memcpy(&nodes[n].links[l].cost, uncompressed_buff + buff_read, sizeof(float));
+						buff_read += sizeof(float);
+						//Com_Printf("%s targetNode:%i targetNodeType:%i cost:%f\n", __func__, nodes[n].links[l].targetNode, nodes[n].links[l].targetNodeType, nodes[n].links[l].cost);
+					}
+
+					// Paths
+					//for (p = 0; p < numnodes; p++)
+					//{
+						//memcpy(&path_table[n][p], uncompressed_buff + buff_read, sizeof(short int)); // Path table
+						//buff_read += sizeof(short int);
+						//Com_Printf("%s path_table[%i][%i]:%i\n", __func__, n, p, path_table[n][p]);
+					//}
+				}
 			}
 		}
-	}
 
-	// Free memory
-	if (compressed_buff != NULL)
-		free(compressed_buff);
-	if (uncompressed_buff != NULL)
-		free(uncompressed_buff);
+		// Free memory
+		if (compressed_buff != NULL)
+			free(compressed_buff);
+		if (uncompressed_buff != NULL)
+			free(uncompressed_buff);
 
-	// Fix any dangling or unusual links
-	if (numnodes)
-	{
-		for (int i = 0; i < numnodes; i++)
+		// Fix any dangling or unusual links
+		if (numnodes)
 		{
-			if (nodes[i].inuse == false)
-				BOTLIB_RemoveAllNodeLinksFrom(nodes[i].nodenum); // Remove all links to and from this node
-
-			if (nodes[i].origin[0] == 0 && nodes[i].origin[1] == 0 && nodes[i].origin[2] == 0)
-				BOTLIB_RemoveAllNodeLinksFrom(nodes[i].nodenum); // Remove all links to and from this node
-
-			/*
-			for (int l = 0; l < nodes[i].num_links; l++)
+			for (int i = 0; i < numnodes; i++)
 			{
-				int tnode = nodes[i].links[l].targetNode;
+				if (nodes[i].inuse == false)
+					BOTLIB_RemoveAllNodeLinksFrom(nodes[i].nodenum); // Remove all links to and from this node
 
-				if (nodes[tnode].origin[0] == 0 && nodes[tnode].origin[1] == 0 && nodes[tnode].origin[2] == 0)
+				if (nodes[i].origin[0] == 0 && nodes[i].origin[1] == 0 && nodes[i].origin[2] == 0)
+					BOTLIB_RemoveAllNodeLinksFrom(nodes[i].nodenum); // Remove all links to and from this node
+
+				/*
+				for (int l = 0; l < nodes[i].num_links; l++)
 				{
-					BOTLIB_RemoveAllNodeLinksFrom(nodes[tnode].nodenum); // Remove all links to and from this node
+					int tnode = nodes[i].links[l].targetNode;
+
+					if (nodes[tnode].origin[0] == 0 && nodes[tnode].origin[1] == 0 && nodes[tnode].origin[2] == 0)
+					{
+						BOTLIB_RemoveAllNodeLinksFrom(nodes[tnode].nodenum); // Remove all links to and from this node
+					}
 				}
+				*/
 			}
-			*/
 		}
-	}
 
-	fclose(fIn);
+		fclose(fIn);
 
-	Com_Printf("%s loaded %s containing %d nodes.\n", __func__, filename, numnodes);
+		Com_Printf("%s loaded %s containing %d nodes.\n", __func__, filename, numnodes);
 
-	// Update old versions to new format
-	if (version == BOT_NAV_VERSION_1)
-	{
-		for (int i = 0; i < numnodes; i++)
+		// Update old versions to new format
+		if (version == BOT_NAV_VERSION_1)
 		{
-			nodes[i].area = 0;
+			for (int i = 0; i < numnodes; i++)
+			{
+				nodes[i].area = 0;
+			}
+		}
+		// Save changes to file
+		if (version < BOT_NAV_VERSION)
+		{
+			Com_Printf("%s Updating NAV file to new version [%d]\n", __func__, BOT_NAV_VERSION);
+			BOTLIB_SaveNavCompressed();
 		}
 	}
-	// Save changes to file
-	if (version < BOT_NAV_VERSION)
-	{
-		Com_Printf("%s Updating NAV file to new version [%d]\n", __func__, BOT_NAV_VERSION);
-		BOTLIB_SaveNavCompressed();
-	}
-
 	//BOTLIB_SetAllNodeNormals(); // Set all the normals
 
 	// Init Areas (must be done after nodes are loaded)

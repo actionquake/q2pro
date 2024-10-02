@@ -504,6 +504,7 @@ cvar_t* bot_count_min;	// Minimum number of bots to keep on the server (will ran
 cvar_t* bot_count_max;	// Maximum number of bots to keep on the server (will range between this and bot_count_min)
 cvar_t* bot_rotate;		// Disable/enable rotating bots on the server
 cvar_t* bot_reportasclient; // Report bots as clients to the server browser
+cvar_t* bot_navautogen;	// Enable/Disable automatic generation of navigation files
 //cvar_t* bot_randteamskin; // Bots can randomize team skins each map
 //rekkie -- DEV_1 -- e
 #endif

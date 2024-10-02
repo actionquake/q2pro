@@ -2611,7 +2611,7 @@ static qboolean CheckRoundTimeLimit( void )
 			return true;
 		}
 
-		if (use_warnings->value && timewarning < 2)
+		if (use_warnings->value && timewarning < 2 && roundtimelimit->value >= 1)
 		{
 			roundLimitFrames -= current_round_length;
 			
