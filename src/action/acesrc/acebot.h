@@ -118,10 +118,11 @@ typedef enum
 //rekkie -- BSP -- e
 
 #define MAX_BOTSKILL 10
+extern cvar_t *bot_enable; // Enable/disable bots toggle
 extern cvar_t *bot_skill; // Skill setting for bots, range 0-10. 0 = easy, 10 = aimbot!
-extern cvar_t* bot_skill_threshold; // Dynamic skill adjustment kicks in if a threshold has been hit
+extern cvar_t *bot_skill_threshold; // Dynamic skill adjustment kicks in if a threshold has been hit
 extern cvar_t *bot_remember; // How long (in seconds) the bot remembers an enemy after visibility has been lost
-extern cvar_t* bot_reaction; // How long (in seconds) until the bot reacts to an enemy in sight
+extern cvar_t *bot_reaction; // How long (in seconds) until the bot reacts to an enemy in sight
 extern cvar_t *bot_showpath; // Show bot paths
 
 //AQ2 ADD

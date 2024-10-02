@@ -12,6 +12,11 @@ qboolean BOTLIB_SV_Cmds(void)
 	{
 		int cc = gi.argc();
 
+		if (!bot_enable->value) {
+			gi.dprintf("bot_enable is 0; Bots are disabled\n");
+			return true;
+		}
+
 		gi.cvar_set("bot_maxteam", va("%d", 0)); // Override if bots manually added
 
 		// sv bots <num>

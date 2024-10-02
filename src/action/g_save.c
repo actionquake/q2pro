@@ -681,6 +681,7 @@ void InitGame( void )
 	ltk_botfile = gi.cvar( "ltk_botfile", "botdata", 0);
 	ltk_loadbots = gi.cvar( "ltk_loadbots", "1", 0);
 	//rekkie -- DEV_1 -- s
+	bot_enable = gi.cvar("bot_enable", "0", CVAR_LATCH);
 	bot_skill = gi.cvar("bot_skill", "7", 0); // Skill setting for bots, range 0-10. 0 = easy, 10 = aimbot!
 	bot_skill_threshold = gi.cvar("bot_skill_threshold", "0", 0); // Dynamic skill adjustment kicks in if a threshold has been hit
 	bot_remember = gi.cvar("bot_remember", "15", 0); // How long (in seconds) the bot remembers an enemy after visibility has been lost
