@@ -64,6 +64,15 @@ typedef struct {
 #endif
 } customize_entity_t;
 
+/*
+
+game_import_ex_t
+
+These pointer functions exist in the engine (server), and this enables importing them to be available for use by the gamelib
+
+    server->gamedll
+
+*/
 typedef struct {
     uint32_t    apiversion;
     uint32_t    structsize;
@@ -78,6 +87,15 @@ typedef struct {
     void	    *(*CheckForExtension)(char *text);
 } game_import_ex_t;
 
+/*
+
+game_export_ex_t
+
+These pointer functions exist in the gamedll, and this enables importing them to be available for use by the engine (server)
+
+    gamedll->server
+
+*/
 typedef struct {
     uint32_t    apiversion;
     uint32_t    structsize;
