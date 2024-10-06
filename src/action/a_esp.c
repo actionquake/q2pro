@@ -412,7 +412,7 @@ void EspCapturePointThink( edict_t *flag )
 
 			// Escort point captured, end round and start again
 			gi.sound( &g_edicts[0], CHAN_BODY | CHAN_NO_PHS_ADD, gi.soundindex("aqdt/aqg_bosswin.wav"), 1.0, ATTN_NONE, 0.0 );
-			espsettings.escortcap = flag->owner->client->resp.team;
+			// espsettings.escortcap = flag->owner->client->resp.team;
 			if (esp_punish->value) {
 				esp_punishment_phase = true;
 				EspPunishment(OtherTeam(flag->owner->client->resp.team));
@@ -532,7 +532,7 @@ void EspResetCapturePoint(void)
 	edict_t *flag = NULL;
 
 	// Reset escortcap value
-	espsettings.escortcap = false;	
+	espsettings.escortcap = false;
 
 	// Find the flag
 	while ((ent = G_Find(ent, FOFS(classname), "item_flag")) != NULL) {

@@ -18,7 +18,7 @@ int BOTLIB_ESPGetTargetNode(edict_t *ent, edict_t* leader)
 	edict_t *target = NULL;
 
 	// Reset escortcap value
-	espsettings.escortcap = false;	
+	//espsettings.escortcap = false;
 
 	// If leader is null, it means we're looking for an ETV target
 	if(leader == NULL) {
@@ -110,9 +110,9 @@ int BOTLIB_ESPGetTargetNode(edict_t *ent, edict_t* leader)
 	}
 
 	if(leader == NULL)
-		gi.dprintf("%s: there are no nodes near ETV target\n", __func__);
+		BOTLIB_Debug("%s: there are no nodes near ETV target\n", __func__);
 	else
-		gi.dprintf("%s: there are no nodes near the leader\n", __func__);
+		BOTLIB_Debug("%s: there are no nodes near the leader\n", __func__);
 	return INVALID;
 }
 
@@ -266,27 +266,31 @@ int BOTLIB_InterceptLeader_3Team(edict_t* self)
 
 int BOTLIB_InterceptLeader_2Team(edict_t* self)
 {
-	int myTeam = self->client->resp.team;
-	int espMode = EspModeCheck();
+    int myTeam = self->client->resp.team;
+    int espMode = EspModeCheck();
+    edict_t* leader;
 
-	if (espMode == ESPMODE_ATL) {
-		if (myTeam == TEAM1) {
-			if (IS_ALIVE(EspGetLeader(TEAM2))) {
-				return BOTLIB_FindEnemyLeaderNode(self, TEAM2);
-			}
-		} else {
-			if (IS_ALIVE(EspGetLeader(TEAM1))) {
-				return BOTLIB_FindEnemyLeaderNode(self, TEAM1);
-			}
-		}
-	} else if (espMode == ESPMODE_ETV) {
-		if (myTeam == TEAM2) {
-			if (IS_ALIVE(EspGetLeader(TEAM1))) {
-				return BOTLIB_ESPGetTargetNode(self, NULL);
-			}
-		}
-	}
-	return INVALID; // No team leaders are alive, so no node to intercept
+    if (espMode == ESPMODE_ATL) {
+        if (myTeam == TEAM1) {
+            leader = EspGetLeader(TEAM2);
+            if (leader != NULL && IS_ALIVE(leader)) {
+                return BOTLIB_FindEnemyLeaderNode(self, TEAM2);
+            }
+        } else {
+            leader = EspGetLeader(TEAM1);
+            if (leader != NULL && IS_ALIVE(leader)) {
+                return BOTLIB_FindEnemyLeaderNode(self, TEAM1);
+            }
+        }
+    } else if (espMode == ESPMODE_ETV) {
+        if (myTeam == TEAM2) {
+            leader = EspGetLeader(TEAM1);
+            if (leader != NULL && IS_ALIVE(leader)) {
+                return BOTLIB_ESPGetTargetNode(self, NULL);
+            }
+        }
+    }
+    return INVALID; // No team leaders are alive, so no node to intercept
 }
 
 int BOTLIB_InterceptLeader_ETV(edict_t* self)
