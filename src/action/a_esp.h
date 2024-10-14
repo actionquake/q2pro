@@ -9,17 +9,6 @@ extern cvar_t *etv;
 #define	HAVE_LEADER(teamNum) (teams[(teamNum)].leader)
 #define MAX_ESP_STRLEN 32
 
-// Game modes
-#define ESPMODE_ATL					0
-#define ESPMODE_ETV					1
-
-#define ESPMODE_ATL_NAME			"Assassinate the Leader"
-#define ESPMODE_ETV_NAME			"Escort the VIP"
-
-#define ESPMODE_ATL_SNAME			"atl"
-#define ESPMODE_ETV_SNAME			"etv"
-
-
 // Game default settings
 #define ESP_DEFAULT_RESPAWN_TIME	10
 #define ESP_RED_SKIN				"male/ctf_r"
@@ -45,13 +34,26 @@ typedef enum
 {
   ESP_STATE_START,
   ESP_STATE_PLAYING
-}
-espstate_t;
+} espstate_t;
+
+typedef enum
+{
+  ESPMODE_ATL,
+  ESPMODE_ETV,
+  ESPMODE_MAX
+} espmode_t;
+
+#define ESPMODE_ATL_NAME			"Assassinate the Leader"
+#define ESPMODE_ETV_NAME			"Escort the VIP"
+
+#define ESPMODE_ATL_SNAME			"atl"
+#define ESPMODE_ETV_SNAME			"etv"
 
 typedef struct espsettings_s
 {
 	char author[MAX_ESP_STRLEN*3];
 	char name[MAX_ESP_STRLEN];
+	espmode_t esp_mode;
 	edict_t *custom_spawns[TEAM_TOP][MAX_SPAWNS];
 	qboolean custom_skins;
 	int halftime;
@@ -95,9 +97,8 @@ typedef enum {
 #define ESP_ATTACKER_HARASS_RADIUS			400	// the radius around an object being defended where an attacker will get extra frags when assaulting the leader
 #define ESP_BONUS_COOLDOWN					500	// the number of frames after a bonus is awarded before another bonus can be awarded	
 
-int EspModeCheck(void);
 edict_t* EspGetLeader(int teamNum);
-void EspForceEspionage(int espmode);
+void EspForceEspionage(espmode_t espmode);
 void EspSetTeamSpawns(int, char *);
 int EspGetRespawnTime(edict_t *ent);
 

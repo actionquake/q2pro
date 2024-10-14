@@ -431,7 +431,7 @@ char* PrintMatchRules(void)
 	// Espionage rules
 	if (esp->value) {
 		int rndlimit = (int)roundlimit->value;
-		if (atl->value) {
+		if (espsettings.esp_mode == ESPMODE_ATL) {
 			if (!teams[TEAM1].leader && !teams[TEAM2].leader && !teams[TEAM3].leader) {
 				Q_snprintf( rulesmsg, sizeof( rulesmsg ), "Frag the other team's leader to win, but don't forget to protect your own!\n");
 			}
@@ -450,7 +450,7 @@ char* PrintMatchRules(void)
 				Q_snprintf(addmsg, sizeof(addmsg), "\n** The first team to %i points wins! **", (int)rndlimit);
 				Q_strncatz( rulesmsg, addmsg, sizeof( rulesmsg ) );
 
-		} else if (etv->value) {
+		} else if (espsettings.esp_mode == ESPMODE_ETV) {
 				if (!teams[TEAM1].leader)
 					Q_snprintf( rulesmsg, sizeof( rulesmsg ), "\nTeam 1 is trying to escort their leader to the briefcase!\n\nTeam 2 is tasked with preventing that from happening!\n");
 				else if (teams[TEAM1].leader) {
@@ -1259,13 +1259,13 @@ void AssignSkin (edict_t * ent, const char *s, qboolean nickChanged)
 			break;
 		case TEAM2:
 			Q_snprintf(skin, sizeof(skin), "%s\\%s", ent->client->pers.netname, teams[TEAM2].skin);
-			if ((atl->value) && IS_LEADER(ent)){
+			if ((espsettings.esp_mode == ESPMODE_ATL) && IS_LEADER(ent)){
 				Q_snprintf(skin, sizeof(skin), "%s\\%s", ent->client->pers.netname, teams[TEAM2].leader_skin);
 			}
 			break;
 		case TEAM3:
 			Q_snprintf(skin, sizeof(skin), "%s\\%s", ent->client->pers.netname, teams[TEAM3].skin);
-			if ((atl->value) && IS_LEADER(ent)){
+			if ((espsettings.esp_mode == ESPMODE_ATL) && IS_LEADER(ent)){
 				Q_snprintf(skin, sizeof(skin), "%s\\%s", ent->client->pers.netname, teams[TEAM3].leader_skin);
 			}
 			break;
@@ -2091,7 +2091,7 @@ int CheckForWinner(void)
 		return WINNER_NONE;
 
 	if (esp->value){
-		if (atl->value) {
+		if (espsettings.esp_mode == ESPMODE_ATL) {
 			if (teamCount == TEAM2) {
 				if (teams[TEAM1].leader_dead && teams[TEAM2].leader_dead) {
 					return WINNER_TIE;
@@ -2111,7 +2111,7 @@ int CheckForWinner(void)
 					return TEAM1;
 				} 
 			}
-		} else if (etv->value) {
+		} else if (espsettings.esp_mode == ESPMODE_ETV) {
 			// Check if this value is true, which means the escorting team wins
 			// By default it is false
 			if (espsettings.escortcap == true) {
@@ -2147,7 +2147,7 @@ int CheckForForcedWinner(void)
 	not captured the point, the defending team wins
 	*/
 	if (esp->value){
-		if (atl->value){
+		if (espsettings.esp_mode == ESPMODE_ATL){
 			if (teamCount == TEAM2){
 				if (IS_ALIVE(teams[TEAM1].leader) && 
 				IS_ALIVE(teams[TEAM2].leader)){
@@ -2160,7 +2160,7 @@ int CheckForForcedWinner(void)
 					return WINNER_TIE;
 				}
 			}
-		} else if (etv->value){
+		} else if (espsettings.esp_mode == ESPMODE_ETV){
 			if (espsettings.escortcap == false){
 				return TEAM2;
 			}
@@ -2463,7 +2463,7 @@ void MakeAllLivePlayersObservers (void)
 		CTFResetFlags();
 
 	// Reset Espionage flag
-	if (esp->value && etv->value)
+	if (esp->value && espsettings.esp_mode == ESPMODE_ETV)
 		EspResetCapturePoint();
 
 	for (i = 0; i < game.maxclients; i++)
@@ -2835,9 +2835,9 @@ int CheckTeamRules (void)
 			else
 			{
 				if (esp->value && !AllTeamsHaveLeaders()) {
-					if (atl->value){
+					if (espsettings.esp_mode == ESPMODE_ATL){
 						CenterPrintAll ("All Teams Must Have a Leader!\nType 'leader' in console to volunteer!");
-					} else if (etv->value) {
+					} else if (espsettings.esp_mode == ESPMODE_ETV) {
 						CenterPrintTeam(TEAM1, "Team 1 Must Have a Leader!\nType 'leader' in console to volunteer!");
 						CenterPrintTeam(TEAM2, "Waiting on Team 1 to select a leader...");
 					}
@@ -2885,7 +2885,7 @@ int CheckTeamRules (void)
 				}
 
 				// Move spectators to the capturepoint
-				if (esp->value && etv->value) {
+				if (esp->value && espsettings.esp_mode == ESPMODE_ETV) {
 					// find the capturepoint
 					edict_t *capturepoint;
 					edict_t *ent;

@@ -267,10 +267,9 @@ int BOTLIB_InterceptLeader_3Team(edict_t* self)
 int BOTLIB_InterceptLeader_2Team(edict_t* self)
 {
     int myTeam = self->client->resp.team;
-    int espMode = EspModeCheck();
     edict_t* leader;
 
-    if (espMode == ESPMODE_ATL) {
+    if (espsettings.esp_mode == ESPMODE_ATL) {
         if (myTeam == TEAM1) {
             leader = EspGetLeader(TEAM2);
             if (leader != NULL && IS_ALIVE(leader)) {
@@ -282,7 +281,7 @@ int BOTLIB_InterceptLeader_2Team(edict_t* self)
                 return BOTLIB_FindEnemyLeaderNode(self, TEAM1);
             }
         }
-    } else if (espMode == ESPMODE_ETV) {
+    } else if (espsettings.esp_mode == ESPMODE_ETV) {
         if (myTeam == TEAM2) {
             leader = EspGetLeader(TEAM1);
             if (leader != NULL && IS_ALIVE(leader)) {
@@ -303,13 +302,13 @@ int BOTLIB_InterceptLeader_ETV(edict_t* self)
 // Returns the node nearest to the leader
 int BOTLIB_InterceptEnemyLeader(edict_t* self)
 {
-	if (EspModeCheck() == ESPMODE_ATL) {
+	if (espsettings.esp_mode == ESPMODE_ATL) {
 		if (use_3teams->value) {
 			return BOTLIB_InterceptLeader_3Team(self);
 		} else {
 			return BOTLIB_InterceptLeader_2Team(self);
 		}
-	} else if (EspModeCheck() == ESPMODE_ETV) {
+	} else if (espsettings.esp_mode == ESPMODE_ETV) {
 		return BOTLIB_InterceptLeader_ETV(self);
 	} else {
 		return INVALID;
@@ -466,7 +465,6 @@ void BOTLIB_ESP_Goals(edict_t* self)
 {
 	if (!lights_camera_action && !espsettings.esp_live_round) return; // Only allow during a real match (after LCA and before win/loss announcement)
 
-	int espMode = EspModeCheck();
 	// Team related variables
 	int myTeam = self->client->resp.team;
 	int totalTeammates = TotalPlayersOnTeam(myTeam);
@@ -491,7 +489,7 @@ void BOTLIB_ESP_Goals(edict_t* self)
 
 // Logic splits here, between ATL and ETV modes
 bot_leader_think:
-	if (espMode == ESPMODE_ATL) {
+	if (espsettings.esp_mode == ESPMODE_ATL) {
 		// If percentage of teammates alive is < 50% then :
 		if (percentAlive < 50) {
 			// 50% chance to go for the enemy leader
@@ -531,7 +529,7 @@ bot_leader_think:
 				}
 			}
 		}
-	} else if (espMode == ESPMODE_ETV && myTeam == TEAM1) {
+	} else if (espsettings.esp_mode == ESPMODE_ETV && myTeam == TEAM1) {
 		// If percentage of teammates alive is < 50% then :
 		if (percentAlive < 50) {
 			// 50% chance to go for the ETV target
@@ -564,7 +562,7 @@ bot_leader_think:
 // Main difference between crew and leader is that the crew are
 // expendable, protect the leader at all costs!
 bot_crew_think:
-	if (espMode == ESPMODE_ATL) {
+	if (espsettings.esp_mode == ESPMODE_ATL) {
 		// If percentage of teammates alive is < 50% then :
 		if (percentAlive < 50) {
 			// 50% chance to stay with team leader
@@ -598,7 +596,7 @@ bot_crew_think:
 				return;
 			}
 		}
-	} else if (espMode == ESPMODE_ETV && myTeam == TEAM1) {
+	} else if (espsettings.esp_mode == ESPMODE_ETV && myTeam == TEAM1) {
 		// If percentage of teammates alive is < 50% then :
 		if (percentAlive < 50) {
 			// 50% chance to go for the ETV target
@@ -623,7 +621,7 @@ bot_crew_think:
 				return;
 			}
 		}
-	} else if (espMode == ESPMODE_ETV && myTeam == TEAM2) {
+	} else if (espsettings.esp_mode == ESPMODE_ETV && myTeam == TEAM2) {
 		// If percentage of teammates alive is < 50% then :
 		if (percentAlive < 50) {
 			// 50% chance to go for the ETV target

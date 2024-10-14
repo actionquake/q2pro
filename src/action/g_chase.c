@@ -426,7 +426,7 @@ void EspionageChaseCam(edict_t *self, edict_t *attacker)
 	int player_team = self->client->resp.team;
 
 	// ATL is simple, chase your own leader
-	if (atl->value && team_leader != NULL) {
+	if (espsettings.esp_mode == ESPMODE_ATL && team_leader != NULL) {
 		if (IS_ALIVE(team_leader))
 			last_target = team_leader; // Chase cam your own leader
 		else

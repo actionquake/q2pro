@@ -256,10 +256,10 @@ qboolean PrintGameMessage(edict_t *ent)
 	*/
 	if (esp->value) {
 		if (!team_round_going && !AllTeamsHaveLeaders()) {
-			if (atl->value) {
+			if (espsettings.esp_mode == ESPMODE_ATL) {
 				Q_snprintf(msg_buf, sizeof(msg_buf), "Waiting for each team to have a leader\nType 'leader' in console to volunteer for duty.\n");
 				msg_ready = true;
-			} else if (etv->value) {
+			} else if (espsettings.esp_mode == ESPMODE_ETV) {
 				if (ent->client->resp.team == TEAM1)
 					Q_snprintf(msg_buf, sizeof(msg_buf), "Your team needs a leader!\nType 'leader' in console to volunteer for duty.");
 				else
@@ -445,9 +445,9 @@ void PrintMOTD(edict_t * ent)
 			strcat(msg_buf, "\n");
 			lines++;
 
-			if(atl->value)
+			if(espsettings.esp_mode == ESPMODE_ATL)
 				sprintf(msg_buf + strlen(msg_buf), "Espionage Mode: Assassinate the Leader\n");
-			else if(etv->value)
+			else if(espsettings.esp_mode == ESPMODE_ETV)
 				sprintf(msg_buf + strlen(msg_buf), "Espionage Mode: Escort the VIP\n");
 			else
 				strcat(msg_buf, "\n");
@@ -537,7 +537,7 @@ void PrintMOTD(edict_t * ent)
 					strcat(msg_buf, "  Roundtimelimit: none\n");
 			}
 
-			if (esp->value && etv->value) {
+			if (esp->value && espsettings.esp_mode == ESPMODE_ETV) {
 				if ((int) capturelimit->value) // What is the capturelimit?
 					sprintf(msg_buf + strlen(msg_buf), "  Capturelimit: %d\n", (int) capturelimit->value);
 				else

@@ -38,36 +38,16 @@ int esp_leader_pics[ TEAM_TOP ] = {0};
 int esp_last_score = 0;
 qboolean esp_punishment_phase = false;
 
-
-/*
-EspModeCheck
-
-Returns which mode we are running
-*/
-int EspModeCheck(void)
-{
-	if (!esp->value)
-		return -1; // Espionage is disabled
-	if (atl->value)
-		return ESPMODE_ATL; // ATL mode
-	else if (etv->value)
-		return ESPMODE_ETV; // ETV mode
-
-	return -1; // Espionage is disabled
-}
-
 /*
 Toggles between the two game modes
 */
-void EspForceEspionage(int espmode)
+void EspForceEspionage(espmode_t espmode)
 {
 	gi.cvar_forceset("esp", "1");
 	if (espmode == 0 || esp_atl->value) {
-		gi.cvar_forceset("atl", "1");
-		gi.cvar_forceset("etv", "0");
+		espsettings.esp_mode = ESPMODE_ATL;
 	} else if (espmode == 1) {
-		gi.cvar_forceset("etv", "1");
-		gi.cvar_forceset("atl", "0");
+		espsettings.esp_mode = ESPMODE_ETV;
 	}
 
 	//gi.dprintf("Espionage mode set to %s\n", (espmode == 0) ? "ATL" : "ETV");
@@ -128,7 +108,7 @@ void _EspBonusDefendLeader(edict_t *targ, edict_t *attacker)
 	edict_t *leader = NULL;
 
 	// You can't defend a leader on a team that doesn't have one
-	if (attacker->client->resp.team == TEAM2 && etv->value)
+	if (attacker->client->resp.team == TEAM2 && espsettings.esp_mode == ESPMODE_ETV)
 		return;
 
 	if (IS_LEADER(targ))
@@ -165,7 +145,7 @@ void _EspBonusHarassLeader(edict_t *targ, edict_t *attacker)
 	edict_t *leader = NULL;
 
 	// You can't attack a leader on a team that doesn't have one
-	if (attacker->client->resp.team == TEAM1 && etv->value)
+	if (attacker->client->resp.team == TEAM1 && espsettings.esp_mode == ESPMODE_ETV)
 		return;
 
 	if (IS_LEADER(targ))
@@ -292,7 +272,7 @@ Espionage Defender Capture Point Bonus
 void _EspBonusDefendCapture(edict_t *targ, edict_t *attacker)
 {
 	// Only ETV mode, and only for those on TEAM2
-	if (!etv->value)
+	if (!(espsettings.esp_mode == ESPMODE_ETV))
 		return;
 	if (attacker->client->resp.team != TEAM2)
 		return;
@@ -647,7 +627,7 @@ void EspEnforceDefaultSettings(char *defaulttype)
 		gi.dprintf("  Red Team: %s -- Skin: %s\n", ESP_RED_TEAM, ESP_RED_SKIN);
 		gi.dprintf("  Red Leader: %s -- Skin: %s\n", ESP_RED_LEADER_NAME, ESP_RED_LEADER_SKIN);
 		gi.dprintf("  Blue Team: %s -- Skin: %s\n", ESP_BLUE_TEAM, ESP_BLUE_SKIN);
-		if(atl->value)
+		if(espsettings.esp_mode == ESPMODE_ATL)
 			gi.dprintf("  Blue Leader: %s -- Skin: %s\n", ESP_BLUE_LEADER_NAME, ESP_BLUE_LEADER_SKIN);
 		if(teamCount == 3){
 			gi.dprintf("  Green Team: %s -- Skin: %s\n", ESP_GREEN_TEAM, ESP_GREEN_SKIN);
@@ -729,6 +709,7 @@ qboolean EspLoadConfig(const char *mapname)
 			Q_strncpyz(espsettings.name, ptr, sizeof(espsettings.name));
 		}
 
+		// This is where we're setting which Espionage mode we want
 		ptr = INI_Find(fh, "esp", "type");
 		char *gametypename = ESPMODE_ATL_NAME;
 		if(!strcmp(ptr, ESPMODE_ATL_SNAME) && !strcmp(ptr, ESPMODE_ETV_SNAME)){
@@ -754,10 +735,12 @@ qboolean EspLoadConfig(const char *mapname)
 			gi.dprintf("- Game type : %s\n", gametypename);
 		}
 		// Force ATL mode trying to get ETV mode going with 3teams
-		if (etv->value && use_3teams->value){
+		if (espsettings.esp_mode == ESPMODE_ETV && use_3teams->value){
 			gi.dprintf("%s and use_3team are incompatible, defaulting to %s", ESPMODE_ETV_NAME, ESPMODE_ATL_NAME);
 			EspForceEspionage(ESPMODE_ATL);
 		}
+
+		// End of Espionage game mode forced settings
 
 		gi.dprintf("- Respawn times\n");
 		char *r_respawn_time, *b_respawn_time, *g_respawn_time;
@@ -791,7 +774,7 @@ qboolean EspLoadConfig(const char *mapname)
 		}
 
 		// Only set the flag if the scenario is ETV
-		if(etv->value) {
+		if(espsettings.esp_mode == ESPMODE_ETV) {
 			gi.dprintf("- Target\n");
 			ptr = INI_Find(fh, "target", "escort");
 			if(ptr) {
@@ -970,13 +953,13 @@ qboolean EspLoadConfig(const char *mapname)
 		Q_snprintf(teams[TEAM2].skin_index, sizeof(teams[TEAM2].skin_index), "../players/%s_i", teams[TEAM2].skin);
 		Q_snprintf(teams[TEAM3].skin_index, sizeof(teams[TEAM3].skin_index), "../players/%s_i", teams[TEAM3].skin);
 		Q_snprintf(teams[TEAM1].leader_skin_index, sizeof(teams[TEAM1].leader_skin_index), "../players/%s_i", teams[TEAM1].leader_skin);
-		if (atl->value) {
+		if (espsettings.esp_mode == ESPMODE_ATL) {
 			Q_snprintf(teams[TEAM2].leader_skin_index, sizeof(teams[TEAM2].leader_skin_index), "../players/%s_i", teams[TEAM2].leader_skin);
 			Q_snprintf(teams[TEAM3].leader_skin_index, sizeof(teams[TEAM3].leader_skin_index), "../players/%s_i", teams[TEAM3].leader_skin);
 		}
 	}
 
-	if((etv->value) && teamCount == 3){
+	if((espsettings.esp_mode == ESPMODE_ETV) && teamCount == 3){
 		gi.dprintf("Warning: ETV mode requested with use_3teams enabled, forcing ATL mode");
 		EspForceEspionage(ESPMODE_ATL);
 	}
@@ -1072,13 +1055,13 @@ void EspRespawnPlayer(edict_t *ent)
 
 		if (level.framenum > ent->client->respawn_framenum) {
 			if (esp_debug->value) {
-				gi.dprintf("Is it ETV mode? %f\n", etv->value);
+				gi.dprintf("Which mode are we in? ATL:0, ETV:1 :: Mode: %d\n", espsettings.esp_mode);
 				gi.dprintf("Is team 1 leader alive? %d\n", IS_ALIVE(teams[TEAM1].leader));
 				gi.dprintf("Is team 1's leader NULL? %d\n", teams[TEAM1].leader == NULL);
 			}
 
 			// Only respawn if leader(s) are still alive and the round is still going
-			if (atl->value) {
+			if (espsettings.esp_mode == ESPMODE_ATL) {
 				if (teams[ent->client->resp.team].leader != NULL && IS_ALIVE(teams[ent->client->resp.team].leader)) {
 					gi.centerprintf(ent, "ACTION!");
 					unicastSound(ent, gi.soundindex("atl/action.wav"), 1.0);
@@ -1087,7 +1070,7 @@ void EspRespawnPlayer(edict_t *ent)
 					respawn(ent);
 				}
 
-			} else if (etv->value) {
+			} else if (espsettings.esp_mode == ESPMODE_ETV) {
 				if (teams[TEAM1].leader != NULL && IS_ALIVE(teams[TEAM1].leader)) {
 					gi.centerprintf(ent, "ACTION!");
 					unicastSound(ent, gi.soundindex("atl/action.wav"), 1.0);
@@ -1105,17 +1088,17 @@ Internally used only, spot check if leader is alive
 depending on the game mode
 Please run a NULL check on the leader before calling this
 */
-qboolean _EspLeaderAliveCheck(edict_t *ent, edict_t *leader, int espmode)
+qboolean _EspLeaderAliveCheck(edict_t *ent, edict_t *leader)
 {
-	if (espmode < 0) {
-		gi.dprintf("Warning: Invalid espmode returned from EspModeCheck()\n");
+	if (espsettings.esp_mode < 0) {
+		gi.dprintf("%s: Warning: Invalid espsettings.esp_mode returned\n", __func__);
 		return false;
 	}
 
 	if (!leader)
 		return false;
 
-	if (espmode == ESPMODE_ATL) {
+	if (espsettings.esp_mode == ESPMODE_ATL) {
 		if (teams[leader->client->resp.team].leader &&
 		IS_ALIVE(teams[leader->client->resp.team].leader))
 			return true;
@@ -1123,7 +1106,7 @@ qboolean _EspLeaderAliveCheck(edict_t *ent, edict_t *leader, int espmode)
 			return false;
 	}
 
-	if (espmode == ESPMODE_ETV) {
+	if (espsettings.esp_mode == ESPMODE_ETV) {
 		if (ent->client->resp.team == TEAM1 &&
 		IS_ALIVE(teams[TEAM1].leader))
 			return true;
@@ -1196,18 +1179,26 @@ edict_t *EspRespawnOnLeader(edict_t *ent, char *cname)
 	teamLeader = teams[ent->client->resp.team].leader;
 	VectorCopy(teamLeader->s.origin, respawn_coords);
 
-	spawn = G_Spawn();
-	respawn_coords[2] += 9; // So they don't spawn in the floor
-	VectorCopy(respawn_coords, spawn->s.origin);
-	spawn->s.angles[YAW] = teamLeader->s.angles[YAW]; // Facing the same direction as the leader on respawn
-	spawn->classname = ED_NewString(cname);
-	spawn->think = G_FreeEdict;
-	spawn->nextthink = level.framenum + 1;
-	//ED_CallSpawn(spawn);
+	// Perform a trace to check if the spawn point is within a solid brush
+    if (SV_TestEntityPosition(teamLeader)) {
+		gi.dprintf("%s: %s: Team %d leader's spawn point was inside a solid brush, defaulting to original spawnpoint\n", __func__, ent->client->pers.netname, ent->client->resp.team);
+		gi.cprintf(ent, PRINT_HIGH, "Your Leader is in a tight spot, you're unable to spawn near them!\n");
+		return chosenSpawnpoint[ent->client->resp.team];
+	} else {
+		spawn = G_Spawn();
+		respawn_coords[2] += 9; // So they don't spawn in the floor
+		VectorCopy(respawn_coords, spawn->s.origin);
+		spawn->s.angles[YAW] = teamLeader->s.angles[YAW]; // Facing the same direction as the leader on respawn
+		spawn->classname = ED_NewString(cname);
+		spawn->think = G_FreeEdict;
+		spawn->nextthink = level.framenum + 1;
+		//ED_CallSpawn(spawn);
 
-	//gi.dprintf("Respawn coordinates are %f %f %f %f\n", teamLeader->s.origin[0], teamLeader->s.origin[1], teamLeader->s.origin[2], teamLeader->s.angles[YAW]);
+		if (esp_debug->value)
+			gi.dprintf("%s: %s on team %d respawn coordinates are %f %f %f %f\n", __func__, ent->client->pers.netname, ent->client->resp.team, teamLeader->s.origin[0], teamLeader->s.origin[1], teamLeader->s.origin[2], teamLeader->s.angles[YAW]);
 
-	return spawn;
+		return spawn;
+	}
 }
 
 edict_t *SelectEspSpawnPoint(edict_t *ent)
@@ -1259,11 +1250,11 @@ edict_t *SelectEspSpawnPoint(edict_t *ent)
 
 	if (esp_debug->value){
 		gi.dprintf("%s: Is team round going? %d\n", __func__, team_round_going);
-		gi.dprintf("%s: Is the team leader alive? %d\n", __func__, _EspLeaderAliveCheck(ent, teams[ent->client->resp.team].leader, EspModeCheck()));
+		gi.dprintf("%s: Is the team leader alive? %d\n", __func__, _EspLeaderAliveCheck(ent, teams[ent->client->resp.team].leader));
 	}
 
 	// Time to respawn on the leader!
-	if (team_round_going && _EspLeaderAliveCheck(ent, teams[ent->client->resp.team].leader, EspModeCheck())) {
+	if (team_round_going && _EspLeaderAliveCheck(ent, teams[ent->client->resp.team].leader)) {
 		return EspRespawnOnLeader(ent, cname);
 	} else {
 		// Custom spawns take precedence over standard spawns
@@ -1294,7 +1285,7 @@ edict_t *SelectEspSpawnPoint(edict_t *ent)
 	}
 	// All else fails, use deathmatch spawn points
 	if (esp_debug->value)
-		gi.dprintf("%s: Defaulted all the way down here\n", __func__);
+		gi.dprintf("%s: Defaulted all the way to using SelectFarthestDeathmatchSpawnPoint\n", __func__);
 	return SelectFarthestDeathmatchSpawnPoint();
 }
 
@@ -1304,9 +1295,9 @@ void SetEspStats( edict_t *ent )
 
 	// GHUD team icons, ATL gets leader skin indexes, ETV gets team skin indexes
 	for(i = TEAM1; i <= teamCount; i++)
-		if (etv->value)
+		if (espsettings.esp_mode == ESPMODE_ETV)
 			level.pic_teamskin[i] = gi.imageindex(teams[i].skin_index);
-		else if (atl->value)
+		else if (espsettings.esp_mode == ESPMODE_ATL)
 			level.pic_teamskin[i] = gi.imageindex(teams[i].leader_skin_index);
 
 	// Load scoreboard images
@@ -1320,7 +1311,7 @@ void SetEspStats( edict_t *ent )
 	level.pic_esp_leadericon[TEAM2] = gi.imageindex(teams[TEAM2].leader_skin_index);
 	gi.imageindex("sbfctf2");
 
-	if (atl->value && teamCount == 3) {
+	if (espsettings.esp_mode == ESPMODE_ATL && teamCount == 3) {
 		level.pic_esp_teamtag[TEAM3] = gi.imageindex(teams[TEAM3].skin_index);
 		level.pic_esp_teamicon[TEAM3] = gi.imageindex(teams[TEAM3].skin_index);
 		level.pic_esp_leadericon[TEAM3] = gi.imageindex(teams[TEAM3].leader_skin_index);
@@ -1456,7 +1447,7 @@ qboolean EspCheckETVRules(void)
 		gi.dprintf("Team 1 + Team 2 score is %d\n", t1 + t2);
 		gi.dprintf("Roundlimit warning is %d\n", roundlimitwarn);
 		gi.dprintf("Halftime is %d\n", espsettings.halftime);
-		gi.dprintf("ETV is %f\n", etv->value);
+		gi.dprintf("ETV is %d\n", espsettings.esp_mode);
 		gi.dprintf("Use warnings is %f\n", use_warnings->value);
 		gi.dprintf("ETV halftime is %f\n", esp_etv_halftime->value);
 		gi.dprintf("-- Debug end %s --\n", __func__);
@@ -1497,7 +1488,7 @@ qboolean EspCheckETVRules(void)
 qboolean EspCheckRules(void)
 {
 	// Expand if we introduce other Espionage modes
-	if (etv->value)
+	if (espsettings.esp_mode == ESPMODE_ETV)
 		return EspCheckETVRules();
 	
 	return false;
@@ -1565,11 +1556,13 @@ qboolean AllTeamsHaveLeaders(void)
 	}
 
 	// Only Team 1 needs a leader in ETV mode
-	if((etv->value) && HAVE_LEADER(TEAM1)) {
-		//gi.dprintf("ETV team has a leader\n");
+	if((espsettings.esp_mode == ESPMODE_ETV) && HAVE_LEADER(TEAM1)) {
+		if (esp_debug->value)
+		  gi.dprintf("ETV team has a leader\n");
 		return true;
-	} else if(atl->value && (teamsWithLeaders == teamCount)){
-		//gi.dprintf("Teams with leaders is the same as the team count\n");
+	} else if(espsettings.esp_mode == ESPMODE_ATL && (teamsWithLeaders == teamCount)){
+		if (esp_debug->value)
+			gi.dprintf("Teams with leaders is the same as the team count\n");
 		return true;
 	} else {
 		return false;
@@ -1603,7 +1596,7 @@ qboolean EspSetLeader(int teamNum, edict_t *ent)
 		return false;
 	}
 
-	if (etv->value && teamNum != TEAM1) {
+	if (espsettings.esp_mode == ESPMODE_ETV && teamNum != TEAM1) {
 		gi.cprintf(ent, PRINT_MEDIUM, "** Only the Red team (team 1) has a leader in ETV mode **\n");
 		return false;
 	}
@@ -1851,14 +1844,14 @@ int EspReportLeaderDeath(edict_t *ent)
 	teams[dead_leader_team].leader_dead = true;
 
 	// This checks if leader was on TEAM 1 in ETV mode
-	if (etv->value) {
+	if (espsettings.esp_mode == ESPMODE_ETV) {
 		if (dead_leader_team == TEAM1) {
 			winner = TEAM2;
 		}
 	}
 
 	// ATL mode - 2 team winner checks
-	if (atl->value) {
+	if (espsettings.esp_mode == ESPMODE_ATL) {
 		if (teamCount == 2) {
 			if (dead_leader_team == TEAM1)
 				winner = TEAM2;
@@ -1984,9 +1977,9 @@ void EspAnnounceDetails( qboolean timewarning )
 			ent = g_edicts + 1 + i;
 			if (!ent->inuse || ent->is_bot || ent->client->resp.team == NOTEAM)
 				continue;
-			if (atl->value){
+			if (espsettings.esp_mode == ESPMODE_ATL){
 				CenterPrintAll("You're running low on time! Kill the enemy leader!\n");
-			} else if (etv->value){
+			} else if (espsettings.esp_mode == ESPMODE_ETV){
 				CenterPrintTeam(TEAM1, "Capture that briefcase or the other team wins!\n");
 				CenterPrintTeam(TEAM2, "Keep it up! If they can't cap, they can't win!\n");
 			}
@@ -2005,9 +1998,9 @@ void EspAnnounceDetails( qboolean timewarning )
 				gi.cprintf(ent, PRINT_MEDIUM, "Take cover, you're the leader!\n");
 			}
 			if (!IS_LEADER(ent)) {
-				if (atl->value){
+				if (espsettings.esp_mode == ESPMODE_ATL){
 					gi.cprintf(ent, PRINT_MEDIUM, "Defend your leader and attack the other one to win!\n");
-				} else if (etv->value){
+				} else if (espsettings.esp_mode == ESPMODE_ETV){
 					if (ent->client->resp.team == TEAM1)
 						gi.cprintf(ent, PRINT_HIGH, "Escort your leader to the briefcase!\n");
 					else

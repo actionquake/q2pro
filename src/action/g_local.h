@@ -1648,6 +1648,7 @@ void PlayerNoise (edict_t * who, vec3_t where, int type);
 // g_phys.c
 //
 void G_RunEntity (edict_t * ent);
+edict_t *SV_TestEntityPosition (edict_t * ent);
 
 //
 // g_main.c
