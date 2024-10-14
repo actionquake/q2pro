@@ -582,6 +582,7 @@ extern cvar_t       *sv_ghostime;
 extern client_t     *sv_client;
 extern edict_t      *sv_player;
 
+extern cvar_t       *sv_load_ent;
 //===========================================================
 
 //

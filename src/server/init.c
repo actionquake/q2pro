@@ -241,6 +241,7 @@ static server_state_t get_server_state(const char *s)
     return ss_game;
 }
 
+cvar_t  *sv_load_ent;
 static bool parse_and_check_server(mapcmd_t *cmd, const char *server, bool nextserver)
 {
     char    expanded[MAX_QPATH], *ch;
@@ -286,7 +287,8 @@ static bool parse_and_check_server(mapcmd_t *cmd, const char *server, bool nexts
         break;
 
     default:
-        CM_LoadOverrides(&cmd->cm, cmd->server, sizeof(cmd->server));   // may override server!
+        if (sv_load_ent->integer)
+            CM_LoadOverrides(&cmd->cm, cmd->server, sizeof(cmd->server));   // may override server!
         if (Q_concat(expanded, sizeof(expanded), "maps/", cmd->server, ".bsp") < sizeof(expanded))
             ret = CM_LoadMap(&cmd->cm, expanded);
         if (ret < 0)

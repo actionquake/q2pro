@@ -1117,7 +1117,7 @@ SV_MvdMulticast
 */
 void SV_MvdMulticast(const mleaf_t *leaf, multicast_t to, bool reliable)
 {
-    int         leafnum;
+    int         leafnum = 0;
     mvd_ops_t   op;
     sizebuf_t   *buf;
 

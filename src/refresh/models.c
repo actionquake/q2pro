@@ -213,7 +213,6 @@ static int MOD_LoadSP2(model_t *model, const void *rawdata, size_t length)
             Com_WPrintf("%s has bad frame name\n", model->name);
             dst_frame->image = R_NOTEXTURE;
         } else {
-            FS_NormalizePath(buffer);
             dst_frame->image = IMG_Find(buffer, IT_SPRITE, IF_NONE);
         }
 
@@ -395,7 +394,6 @@ static int MOD_LoadMD2(model_t *model, const void *rawdata, size_t length)
             ret = Q_ERR_STRING_TRUNCATED;
             goto fail;
         }
-        FS_NormalizePath(skinname);
         mesh->skins[i] = IMG_Find(skinname, IT_SKIN, IF_NONE);
         src_skin += MD2_MAX_SKINNAME;
     }
@@ -546,7 +544,6 @@ static int MOD_LoadMD3Mesh(model_t *model, maliasmesh_t *mesh,
 #endif
         if (!Q_memccpy(skinname, src_skin->name, 0, sizeof(maliasskinname_t)))
             return Q_ERR_STRING_TRUNCATED;
-        FS_NormalizePath(skinname);
         mesh->skins[i] = IMG_Find(skinname, IT_SKIN, IF_NONE);
         src_skin++;
     }
@@ -706,71 +703,94 @@ static void MOD_PrintError(const char *path, int err)
 
 #if USE_MD5
 
-#define MD5_Malloc(size)    Hunk_TryAlloc(&model->skeleton_hunk, size)
+#include <setjmp.h>
 
-static bool MD5_ParseExpect(const char **buffer, const char *expect)
+#define JSMN_STATIC
+#define JSMN_PARENT_LINKS
+#include "jsmn.h"
+
+static jmp_buf md5_jmpbuf;
+
+q_noreturn
+static void MD5_ParseError(const char *text)
+{
+    Com_SetLastError(va("Line %u: %s", com_linenum, text));
+    longjmp(md5_jmpbuf, -1);
+}
+
+static void *MD5_Malloc(model_t *model, size_t size)
+{
+    void *ptr = Hunk_TryAlloc(&model->skeleton_hunk, size);
+    if (!ptr) {
+        Com_SetLastError("Out of memory");
+        longjmp(md5_jmpbuf, -1);
+    }
+    return ptr;
+}
+
+static void MD5_ParseExpect(const char **buffer, const char *expect)
 {
     char *token = COM_Parse(buffer);
 
-    if (strcmp(token, expect)) {
-        Com_SetLastError(va("Expected %s, got %s", expect, Com_MakePrintable(token)));
-        return false;
-    }
-
-    return true;
+    if (strcmp(token, expect))
+        MD5_ParseError(va("Expected \"%s\", got \"%s\"", expect, Com_MakePrintable(token)));
 }
 
-static bool MD5_ParseFloat(const char **buffer, float *output)
+static float MD5_ParseFloat(const char **buffer)
 {
     char *token = COM_Parse(buffer);
     char *endptr;
 
-    *output = strtof(token, &endptr);
-    if (endptr == token || *endptr) {
-        Com_SetLastError(va("Expected float, got %s", Com_MakePrintable(token)));
-        return false;
-    }
+    float v = strtof(token, &endptr);
+    if (endptr == token || *endptr)
+        MD5_ParseError(va("Expected float, got \"%s\"", Com_MakePrintable(token)));
 
-    return true;
+    return v;
 }
 
-static bool MD5_ParseUint(const char **buffer, uint32_t *output)
+static uint32_t MD5_ParseUint(const char **buffer, uint32_t min_v, uint32_t max_v)
 {
     char *token = COM_Parse(buffer);
     char *endptr;
 
-    *output = strtoul(token, &endptr, 10);
-    if (endptr == token || *endptr) {
-        Com_SetLastError(va("Expected int, got %s", Com_MakePrintable(token)));
-        return false;
-    }
+    unsigned long v = strtoul(token, &endptr, 10);
+    if (endptr == token || *endptr)
+        MD5_ParseError(va("Expected uint, got \"%s\"", Com_MakePrintable(token)));
+    if (v < min_v || v > max_v)
+        MD5_ParseError(va("Value out of range: %lu", v));
 
-    return true;
+    return v;
 }
 
-static bool MD5_ParseVector(const char **buffer, vec3_t output)
+static int32_t MD5_ParseInt(const char **buffer, int32_t min_v, int32_t max_v)
 {
-    return
-        MD5_ParseExpect(buffer, "(") &&
-        MD5_ParseFloat(buffer, &output[0]) &&
-        MD5_ParseFloat(buffer, &output[1]) &&
-        MD5_ParseFloat(buffer, &output[2]) &&
-        MD5_ParseExpect(buffer, ")");
+    char *token = COM_Parse(buffer);
+    char *endptr;
+
+    long v = strtol(token, &endptr, 10);
+    if (endptr == token || *endptr)
+        MD5_ParseError(va("Expected int, got \"%s\"", Com_MakePrintable(token)));
+    if (v < min_v || v > max_v)
+        MD5_ParseError(va("Value out of range: %ld", v));
+
+    return v;
 }
 
-#define MD5_CHECK(x) \
-    do { if (!(x)) { ret = Q_ERR_INVALID_FORMAT; goto fail; } } while (0)
+static void MD5_ParseVector(const char **buffer, vec3_t output)
+{
+    MD5_ParseExpect(buffer, "(");
+    output[0] = MD5_ParseFloat(buffer);
+    output[1] = MD5_ParseFloat(buffer);
+    output[2] = MD5_ParseFloat(buffer);
+    MD5_ParseExpect(buffer, ")");
+}
 
-#define MD5_ENSURE(x, e) \
-    do { if (!(x)) { Com_SetLastError(e); ret = Q_ERR_INVALID_FORMAT; goto fail; } } while (0)
+typedef struct {
+    vec3_t pos;
+    quat_t orient;
+} baseframe_joint_t;
 
-#define MD5_EXPECT(x)   MD5_CHECK(MD5_ParseExpect(&s, x))
-#define MD5_UINT(x)     MD5_CHECK(MD5_ParseUint(&s, &x))
-#define MD5_FLOAT(x)    MD5_CHECK(MD5_ParseFloat(&s, &x))
-#define MD5_VECTOR(x)   MD5_CHECK(MD5_ParseVector(&s, x))
-#define MD5_SKIP()      COM_Parse(&s)
-
-static void MD5_ComputeNormals(md5_mesh_t *mesh, const md5_joint_t *base_skeleton)
+static void MD5_ComputeNormals(md5_mesh_t *mesh, const baseframe_joint_t *base_skeleton)
 {
     vec3_t finalVerts[TESS_MAX_VERTICES];
     md5_vertex_t *vert;
@@ -785,7 +805,7 @@ static void MD5_ComputeNormals(md5_mesh_t *mesh, const md5_joint_t *base_skeleto
 
         for (j = 0; j < vert->count; j++) {
             const md5_weight_t *weight = &mesh->weights[vert->start + j];
-            const md5_joint_t *joint = &base_skeleton[weight->joint];
+            const baseframe_joint_t *joint = &base_skeleton[mesh->jointnums[vert->start + j]];
 
             /* Calculate transformed vertex for this weight */
             vec3_t wv;
@@ -836,11 +856,12 @@ static void MD5_ComputeNormals(md5_mesh_t *mesh, const md5_joint_t *base_skeleto
         vec3_t *norm = HashMap_Lookup(vec3_t, pos_to_normal_map, &finalVerts[i]);
         if (norm) {
             // Put the bind-pose normal into joint-local space
-            // so the animated normal can be computed faster later
-            // Done by transforming the vertex normal by the inverse joint's orientation quaternion of the weight
+            // so the animated normal can be computed faster later.
+            // Done by transforming the vertex normal by the inverse
+            // joint's orientation quaternion of the weight.
             for (j = 0; j < vert->count; j++) {
                 const md5_weight_t *weight = &mesh->weights[vert->start + j];
-                const md5_joint_t *joint = &base_skeleton[weight->joint];
+                const baseframe_joint_t *joint = &base_skeleton[mesh->jointnums[vert->start + j]];
                 vec3_t wv;
                 quat_t orient_inv;
                 Quat_Conjugate(joint->orient, orient_inv);
@@ -853,181 +874,135 @@ static void MD5_ComputeNormals(md5_mesh_t *mesh, const md5_joint_t *base_skeleto
     HashMap_Destroy(pos_to_normal_map);
 }
 
-static bool MOD_LoadMD5Mesh(model_t *model, const char *path)
+static bool MD5_ParseMesh(model_t *model, const char *s, const char *path)
 {
+    baseframe_joint_t base_skeleton[MD5_MAX_JOINTS];
     md5_model_t *mdl;
-    int i, j, k, ret;
-    uint32_t num_joints, num_meshes;
-    void *buffer;
-    const char *s;
+    int i, j, k;
 
-    ret = FS_LoadFile(path, &buffer);
-    if (!buffer)
-        goto fail;
-    s = buffer;
+    if (setjmp(md5_jmpbuf))
+        return false;
+
+    com_linenum = 1;
 
     // parse header
-    MD5_EXPECT("MD5Version");
-    MD5_EXPECT("10");
+    MD5_ParseExpect(&s, "MD5Version");
+    MD5_ParseExpect(&s, "10");
 
     // allocate data storage, now that we're definitely an MD5
     Hunk_Begin(&model->skeleton_hunk, 0x800000);
 
-    OOM_CHECK(model->skeleton = mdl = MD5_Malloc(sizeof(*mdl)));
+    model->skeleton = mdl = MD5_Malloc(model, sizeof(*mdl));
 
-    MD5_EXPECT("commandline");
-    MD5_SKIP();
+    MD5_ParseExpect(&s, "commandline");
+    COM_SkipToken(&s);
 
-    MD5_EXPECT("numJoints");
-    MD5_UINT(num_joints);
-    MD5_ENSURE(num_joints > 0, "No joints");
-    MD5_ENSURE(num_joints <= MD5_MAX_JOINTS, "Too many joints");
-    OOM_CHECK(mdl->base_skeleton = MD5_Malloc(num_joints * sizeof(mdl->base_skeleton[0])));
-    mdl->num_joints = num_joints;
+    MD5_ParseExpect(&s, "numJoints");
+    mdl->num_joints = MD5_ParseUint(&s, 1, MD5_MAX_JOINTS);
 
-    MD5_EXPECT("numMeshes");
-    MD5_UINT(num_meshes);
-    MD5_ENSURE(num_meshes > 0, "No meshes");
-    MD5_ENSURE(num_meshes <= MD5_MAX_MESHES, "Too many meshes");
-    OOM_CHECK(mdl->meshes = MD5_Malloc(num_meshes * sizeof(mdl->meshes[0])));
-    mdl->num_meshes = num_meshes;
+    MD5_ParseExpect(&s, "numMeshes");
+    mdl->num_meshes = MD5_ParseUint(&s, 1, MD5_MAX_MESHES);
 
-    MD5_EXPECT("joints");
-    MD5_EXPECT("{");
+    MD5_ParseExpect(&s, "joints");
+    MD5_ParseExpect(&s, "{");
 
-    for (i = 0; i < num_joints; i++) {
-        md5_joint_t *joint = &mdl->base_skeleton[i];
+    for (i = 0; i < mdl->num_joints; i++) {
+        baseframe_joint_t *joint = &base_skeleton[i];
 
         // skip name
-        MD5_SKIP();
+        COM_SkipToken(&s);
 
-        uint32_t parent;
-        MD5_UINT(parent);
-        MD5_ENSURE(parent == -1 || (parent < num_joints && parent != i), "Bad parent joint");
-        joint->parent = parent;
+        // skip parent
+        COM_SkipToken(&s);
 
-        MD5_VECTOR(joint->pos);
-        MD5_VECTOR(joint->orient);
+        MD5_ParseVector(&s, joint->pos);
+        MD5_ParseVector(&s, joint->orient);
 
         Quat_ComputeW(joint->orient);
-        joint->scale = 1.0f;
     }
 
-    MD5_EXPECT("}");
+    MD5_ParseExpect(&s, "}");
 
-    for (i = 0; i < num_meshes; i++) {
+    mdl->meshes = MD5_Malloc(model, mdl->num_meshes * sizeof(mdl->meshes[0]));
+    for (i = 0; i < mdl->num_meshes; i++) {
         md5_mesh_t *mesh = &mdl->meshes[i];
-        uint32_t num_verts, num_tris, num_weights;
 
-        MD5_EXPECT("mesh");
-        MD5_EXPECT("{");
+        MD5_ParseExpect(&s, "mesh");
+        MD5_ParseExpect(&s, "{");
 
-        MD5_EXPECT("shader");
-        MD5_SKIP();
+        MD5_ParseExpect(&s, "shader");
+        COM_SkipToken(&s);
 
-        MD5_EXPECT("numverts");
-        MD5_UINT(num_verts);
-        MD5_ENSURE(num_verts <= TESS_MAX_VERTICES, "Too many verts");
-        OOM_CHECK(mesh->vertices = MD5_Malloc(num_verts * sizeof(mesh->vertices[0])));
-        OOM_CHECK(mesh->tcoords = MD5_Malloc(num_verts * sizeof(mesh->tcoords[0])));
-        mesh->num_verts = num_verts;
+        MD5_ParseExpect(&s, "numverts");
+        mesh->num_verts = MD5_ParseUint(&s, 0, TESS_MAX_VERTICES);
+        mesh->vertices  = MD5_Malloc(model, mesh->num_verts * sizeof(mesh->vertices[0]));
+        mesh->tcoords   = MD5_Malloc(model, mesh->num_verts * sizeof(mesh->tcoords [0]));
 
-        for (j = 0; j < num_verts; j++) {
-            MD5_EXPECT("vert");
+        for (j = 0; j < mesh->num_verts; j++) {
+            MD5_ParseExpect(&s, "vert");
 
-            uint32_t vert_index;
-            MD5_UINT(vert_index);
-            MD5_ENSURE(vert_index < num_verts, "Bad vert index");
+            uint32_t vert_index = MD5_ParseUint(&s, 0, mesh->num_verts - 1);
 
             maliastc_t *tc = &mesh->tcoords[vert_index];
-            MD5_EXPECT("(");
-            MD5_FLOAT(tc->st[0]);
-            MD5_FLOAT(tc->st[1]);
-            MD5_EXPECT(")");
+            MD5_ParseExpect(&s, "(");
+            tc->st[0] = MD5_ParseFloat(&s);
+            tc->st[1] = MD5_ParseFloat(&s);
+            MD5_ParseExpect(&s, ")");
 
             md5_vertex_t *vert = &mesh->vertices[vert_index];
-            MD5_UINT(vert->start);
-            MD5_UINT(vert->count);
+            vert->start = MD5_ParseUint(&s, 0, UINT16_MAX);
+            vert->count = MD5_ParseUint(&s, 0, UINT16_MAX);
         }
 
-        MD5_EXPECT("numtris");
-        MD5_UINT(num_tris);
-        MD5_ENSURE(num_tris <= TESS_MAX_INDICES / 3, "Too many tris");
-        OOM_CHECK(mesh->indices = MD5_Malloc(num_tris * 3 * sizeof(mesh->indices[0])));
+        MD5_ParseExpect(&s, "numtris");
+        uint32_t num_tris = MD5_ParseUint(&s, 0, TESS_MAX_INDICES / 3);
+        mesh->indices = MD5_Malloc(model, num_tris * 3 * sizeof(mesh->indices[0]));
         mesh->num_indices = num_tris * 3;
 
         for (j = 0; j < num_tris; j++) {
-            MD5_EXPECT("tri");
-
-            uint32_t tri_index;
-            MD5_UINT(tri_index);
-            MD5_ENSURE(tri_index < num_tris, "Bad tri index");
-
-            for (k = 0; k < 3; k++) {
-                uint32_t vert_index;
-                MD5_UINT(vert_index);
-                MD5_ENSURE(vert_index < mesh->num_verts, "Bad tri vert");
-                mesh->indices[tri_index * 3 + k] = vert_index;
-            }
+            MD5_ParseExpect(&s, "tri");
+            uint32_t tri_index = MD5_ParseUint(&s, 0, num_tris - 1);
+            for (k = 0; k < 3; k++)
+                mesh->indices[tri_index * 3 + k] = MD5_ParseUint(&s, 0, mesh->num_verts - 1);
         }
 
-        MD5_EXPECT("numweights");
-        MD5_UINT(num_weights);
-        MD5_ENSURE(num_weights <= MD5_MAX_WEIGHTS, "Too many weights");
-        OOM_CHECK(mesh->weights = MD5_Malloc(num_weights * sizeof(mesh->weights[0])));
-        mesh->num_weights = num_weights;
+        MD5_ParseExpect(&s, "numweights");
+        mesh->num_weights = MD5_ParseUint(&s, 0, MD5_MAX_WEIGHTS);
+        mesh->weights     = MD5_Malloc(model, mesh->num_weights * sizeof(mesh->weights  [0]));
+        mesh->jointnums   = MD5_Malloc(model, mesh->num_weights * sizeof(mesh->jointnums[0]));
 
-        for (j = 0; j < num_weights; j++) {
-            MD5_EXPECT("weight");
+        for (j = 0; j < mesh->num_weights; j++) {
+            MD5_ParseExpect(&s, "weight");
 
-            uint32_t weight_index;
-            MD5_UINT(weight_index);
-            MD5_ENSURE(weight_index < num_weights, "Bad weight index");
+            uint32_t weight_index = MD5_ParseUint(&s, 0, mesh->num_weights - 1);
+            mesh->jointnums[weight_index] = MD5_ParseUint(&s, 0, mdl->num_joints - 1);
 
             md5_weight_t *weight = &mesh->weights[weight_index];
-
-            uint32_t joint;
-            MD5_UINT(joint);
-            MD5_ENSURE(joint < mdl->num_joints, "Bad weight joint");
-            weight->joint = joint;
-
-            MD5_FLOAT(weight->bias);
-            MD5_VECTOR(weight->pos);
+            weight->bias = MD5_ParseFloat(&s);
+            MD5_ParseVector(&s, weight->pos);
         }
 
-        MD5_EXPECT("}");
+        MD5_ParseExpect(&s, "}");
 
         // check integrity of data; this has to be done last
         // because of circular data dependencies
-        for (j = 0; j < num_verts; j++) {
+        for (j = 0; j < mesh->num_verts; j++) {
             md5_vertex_t *vert = &mesh->vertices[j];
-            MD5_ENSURE((uint64_t)vert->start + vert->count <= num_weights, "Bad vert start/count");
+            if (vert->start + vert->count > mesh->num_weights)
+                MD5_ParseError("Bad vert start/count");
         }
 
-        MD5_ComputeNormals(mesh, mdl->base_skeleton);
+        MD5_ComputeNormals(mesh, base_skeleton);
     }
 
-    FS_FreeFile(buffer);
     return true;
-
-fail:
-    MOD_PrintError(path, ret);
-    FS_FreeFile(buffer);
-    return false;
 }
 
 typedef struct {
     char name[MD5_MAX_JOINTNAME];
-    uint32_t parent;
-    uint32_t flags;
-    uint32_t start_index;
+    int parent, flags, start_index;
     bool scale_pos;
 } joint_info_t;
-
-typedef struct {
-    vec3_t pos;
-    quat_t orient;
-} baseframe_joint_t;
 
 #define MD5_NUM_ANIMATED_COMPONENT_BITS 6
 
@@ -1056,21 +1031,22 @@ static void MD5_BuildFrameSkeleton(const joint_info_t *joint_infos,
 
         Quat_ComputeW(animated_quat);
 
-        // parent should already be calculated
         md5_joint_t *thisJoint = &skeleton_frame[i];
 
         if (joint_infos[i].scale_pos)
             VectorScale(animated_position, thisJoint->scale, animated_position);
 
-        int parent = thisJoint->parent = (int32_t)joint_infos[i].parent;
+        int parent = joint_infos[i].parent;
         if (parent < 0) {
             VectorCopy(animated_position, thisJoint->pos);
             Vector4Copy(animated_quat, thisJoint->orient);
+            Quat_ToAxis(thisJoint->orient, thisJoint->axis);
             continue;
         }
 
-        Q_assert(parent < num_joints);
-        md5_joint_t *parentJoint = &skeleton_frame[parent];
+        // parent should already be calculated
+        Q_assert(parent < i);
+        const md5_joint_t *parentJoint = &skeleton_frame[parent];
 
         // add positions
         vec3_t rotated_pos;
@@ -1080,142 +1056,156 @@ static void MD5_BuildFrameSkeleton(const joint_info_t *joint_infos,
         // concat rotations
         Quat_MultiplyQuat(parentJoint->orient, animated_quat, thisJoint->orient);
         Quat_Normalize(thisJoint->orient);
+
+        Quat_ToAxis(thisJoint->orient, thisJoint->axis);
     }
 }
 
 /**
  * Parse some JSON vomit. Don't ask.
  */
-static void MOD_LoadMD5Scale(md5_model_t *model, const char *path, joint_info_t *joint_infos)
+static void MD5_LoadScales(const md5_model_t *model, const char *path, joint_info_t *joint_infos)
 {
-    void *buffer;
-    const char *s;
-    int ret;
+    const jsmntok_t *tok, *end;
+    jsmn_parser parser;
+    jsmntok_t tokens[4096];
+    char *data;
+    int len, ret;
 
-    ret = FS_LoadFile(path, &buffer);
-    if (!buffer)
+    len = FS_LoadFile(path, (void **)&data);
+    if (!data) {
+        if (len != Q_ERR(ENOENT))
+            MOD_PrintError(path, len);
+        return;
+    }
+
+    jsmn_init(&parser);
+    ret = jsmn_parse(&parser, data, len, tokens, q_countof(tokens));
+    if (ret < 0)
         goto fail;
-    s = buffer;
+    if (ret == 0)
+        goto skip;
 
-    MD5_EXPECT("{");
-    while (s) {
+    tok = &tokens[0];
+    if (tok->type != JSMN_OBJECT)
+        goto fail;
+
+    end = tokens + ret;
+    tok++;
+
+    while (tok < end) {
+        if (tok->type != JSMN_STRING)
+            goto fail;
+
         int joint_id = -1;
-        char *tok, *tok2;
+        const char *joint_name = data + tok->start;
 
-        tok = COM_Parse(&s);
-        if (!strcmp(tok, "}"))
-            break;
-
+        data[tok->end] = 0;
         for (int i = 0; i < model->num_joints; i++) {
-            if (!strcmp(tok, joint_infos[i].name)) {
+            if (!strcmp(joint_name, joint_infos[i].name)) {
                 joint_id = i;
                 break;
             }
         }
 
         if (joint_id == -1)
-            Com_WPrintf("No such joint %s in %s\n", Com_MakePrintable(tok), path);
+            Com_WPrintf("No such joint \"%s\" in %s\n", Com_MakePrintable(joint_name), path);
 
-        MD5_EXPECT(":");
-        MD5_EXPECT("{");
+        if (++tok == end || tok->type != JSMN_OBJECT)
+            goto fail;
 
-        while (s) {
-            tok = COM_Parse(&s);
-            if (!strcmp(tok, "}") || !strcmp(tok, "},"))
-                break;
-            MD5_EXPECT(":");
+        int num_keys = tok->size;
+        if (end - ++tok < num_keys * 2)
+            goto fail;
 
-            tok2 = COM_Parse(&s);
+        for (int i = 0; i < num_keys; i++) {
+            const jsmntok_t *key = tok++;
+            const jsmntok_t *val = tok++;
+            if (key->type != JSMN_STRING || val->type != JSMN_PRIMITIVE)
+                goto fail;
+
             if (joint_id == -1)
                 continue;
 
-            if (!strcmp(tok, "scale_positions")) {
-                joint_infos[joint_id].scale_pos = !strncmp(tok2, "true", 4);
-                continue;
+            data[key->end] = 0;
+            if (!strcmp(data + key->start, "scale_positions")) {
+                joint_infos[joint_id].scale_pos = data[val->start] == 't';
+            } else {
+                unsigned frame_id = Q_atoi(data + key->start);
+                if (frame_id < model->num_frames)
+                    model->skeleton_frames[frame_id * model->num_joints + joint_id].scale = Q_atof(data + val->start);
+                else
+                    Com_WPrintf("No such frame %d in %s\n", frame_id, path);
             }
-
-            unsigned frame_id = Q_atoi(tok);
-            if (frame_id >= model->num_frames) {
-                Com_WPrintf("No such frame %d in %s\n", frame_id, path);
-                continue;
-            }
-
-            model->skeleton_frames[frame_id * model->num_joints + joint_id].scale = Q_atof(tok2);
         }
     }
 
-    FS_FreeFile(buffer);
+skip:
+    FS_FreeFile(data);
     return;
 
 fail:
-    if (ret != Q_ERR(ENOENT))
-        MOD_PrintError(path, ret);
-    FS_FreeFile(buffer);
+    Com_EPrintf("Couldn't load %s: Invalid JSON data\n", path);
+    FS_FreeFile(data);
 }
 
 /**
  * Load an MD5 animation from file.
  */
-static bool MOD_LoadMD5Anim(model_t *model, const char *path)
+static bool MD5_ParseAnim(model_t *model, const char *s, const char *path)
 {
     joint_info_t joint_infos[MD5_MAX_JOINTS];
     baseframe_joint_t base_frame[MD5_MAX_JOINTS];
     float anim_frame_data[MD5_MAX_JOINTS * MD5_NUM_ANIMATED_COMPONENT_BITS];
-    uint32_t num_frames, num_joints, num_animated_components;
+    int num_joints, num_animated_components;
     md5_model_t *mdl = model->skeleton;
-    int i, j, ret;
-    void *buffer;
-    const char *s;
+    int i, j;
 
-    ret = FS_LoadFile(path, &buffer);
-    if (!buffer)
-        goto fail;
-    s = buffer;
+    if (setjmp(md5_jmpbuf))
+        return false;
+
+    com_linenum = 1;
 
     // parse header
-    MD5_EXPECT("MD5Version");
-    MD5_EXPECT("10");
+    MD5_ParseExpect(&s, "MD5Version");
+    MD5_ParseExpect(&s, "10");
 
-    MD5_EXPECT("commandline");
-    MD5_SKIP();
+    MD5_ParseExpect(&s, "commandline");
+    COM_SkipToken(&s);
 
-    MD5_EXPECT("numFrames");
-    MD5_UINT(num_frames);
-    // md5 replacements need at least 1 frame, because the
+    MD5_ParseExpect(&s, "numFrames");
+    // MD5 replacements need at least 1 frame, because the
     // pose frame isn't used
-    MD5_ENSURE(num_frames > 0, "No frames");
-    MD5_ENSURE(num_frames <= MD5_MAX_FRAMES, "Too many frames");
-    mdl->num_frames = num_frames;
+    mdl->num_frames = MD5_ParseUint(&s, 1, MD5_MAX_FRAMES);
 
     // warn on mismatched frame counts (not fatal)
-    if (mdl->num_frames != model->numframes)
-        Com_WPrintf("%s doesn't match frame count for %s (%i vs %i)\n",
-                    path, model->name, mdl->num_frames, model->numframes);
+    if (mdl->num_frames < model->numframes)
+        Com_WPrintf("%s has less frames than %s (%i < %i)\n", path,
+                    model->name, mdl->num_frames, model->numframes);
 
-    MD5_EXPECT("numJoints");
-    MD5_UINT(num_joints);
-    MD5_ENSURE(num_joints == mdl->num_joints, "Bad numJoints");
+    MD5_ParseExpect(&s, "numJoints");
+    num_joints = MD5_ParseUint(&s, 1, MD5_MAX_JOINTS);
+    if (num_joints != mdl->num_joints)
+        MD5_ParseError("Bad numJoints");
 
-    MD5_EXPECT("frameRate");
-    MD5_SKIP();
+    MD5_ParseExpect(&s, "frameRate");
+    COM_SkipToken(&s);
 
-    MD5_EXPECT("numAnimatedComponents");
-    MD5_UINT(num_animated_components);
-    MD5_ENSURE(num_animated_components <= q_countof(anim_frame_data), "Bad numAnimatedComponents");
+    MD5_ParseExpect(&s, "numAnimatedComponents");
+    num_animated_components = MD5_ParseUint(&s, 0, q_countof(anim_frame_data));
 
-    MD5_EXPECT("hierarchy");
-    MD5_EXPECT("{");
+    MD5_ParseExpect(&s, "hierarchy");
+    MD5_ParseExpect(&s, "{");
 
     for (i = 0; i < mdl->num_joints; i++) {
         joint_info_t *joint_info = &joint_infos[i];
 
-        Q_strlcpy(joint_info->name, COM_Parse(&s), sizeof(joint_info->name));
+        COM_ParseToken(&s, joint_info->name, sizeof(joint_info->name));
 
-        MD5_UINT(joint_info->parent);
-        MD5_UINT(joint_info->flags);
-        MD5_UINT(joint_info->start_index);
-
-        joint_info->scale_pos = false;
+        joint_info->parent      = MD5_ParseInt (&s, -1, mdl->num_joints - 1);
+        joint_info->flags       = MD5_ParseUint(&s,  0, UINT32_MAX);
+        joint_info->start_index = MD5_ParseUint(&s,  0, num_animated_components);
+        joint_info->scale_pos   = false;
 
         // validate animated components
         int num_components = 0;
@@ -1224,42 +1214,44 @@ static bool MOD_LoadMD5Anim(model_t *model, const char *path)
             if (joint_info->flags & BIT(j))
                 num_components++;
 
-        MD5_ENSURE((uint64_t)joint_info->start_index + num_components <= num_animated_components, "Bad joint info");
+        if (joint_info->start_index + num_components > num_animated_components)
+            MD5_ParseError("Bad joint info");
 
-        // validate parents; they need to match the base skeleton
-        MD5_ENSURE(joint_info->parent == mdl->base_skeleton[i].parent, "Bad parent joint");
+        // parent must be -1 or already processed joint
+        if (joint_info->parent >= i)
+            MD5_ParseError("Bad parent joint");
     }
 
-    MD5_EXPECT("}");
+    MD5_ParseExpect(&s, "}");
 
     // bounds are ignored and are apparently usually wrong anyways
-    // so we'll just rely on them being "replacement" md2s/md3s.
-    // the md2/md3 ones are used instead.
-    MD5_EXPECT("bounds");
-    MD5_EXPECT("{");
+    // so we'll just rely on them being "replacement" MD2s/MD3s.
+    // the MD2/MD3 ones are used instead.
+    MD5_ParseExpect(&s, "bounds");
+    MD5_ParseExpect(&s, "{");
 
     for (i = 0; i < mdl->num_frames * 2; i++) {
         vec3_t dummy;
-        MD5_VECTOR(dummy);
+        MD5_ParseVector(&s, dummy);
     }
 
-    MD5_EXPECT("}");
+    MD5_ParseExpect(&s, "}");
 
-    MD5_EXPECT("baseframe");
-    MD5_EXPECT("{");
+    MD5_ParseExpect(&s, "baseframe");
+    MD5_ParseExpect(&s, "{");
 
     for (i = 0; i < mdl->num_joints; i++) {
         baseframe_joint_t *base_joint = &base_frame[i];
 
-        MD5_VECTOR(base_joint->pos);
-        MD5_VECTOR(base_joint->orient);
+        MD5_ParseVector(&s, base_joint->pos);
+        MD5_ParseVector(&s, base_joint->orient);
 
         Quat_ComputeW(base_joint->orient);
     }
 
-    MD5_EXPECT("}");
+    MD5_ParseExpect(&s, "}");
 
-    OOM_CHECK(mdl->skeleton_frames = MD5_Malloc(sizeof(mdl->skeleton_frames[0]) * mdl->num_frames * mdl->num_joints));
+    mdl->skeleton_frames = MD5_Malloc(model, sizeof(mdl->skeleton_frames[0]) * mdl->num_frames * mdl->num_joints);
 
     // initialize scales
     for (i = 0; i < mdl->num_frames * mdl->num_joints; i++)
@@ -1269,34 +1261,77 @@ static bool MOD_LoadMD5Anim(model_t *model, const char *path)
     char scale_path[MAX_QPATH];
     if (COM_StripExtension(scale_path, path, sizeof(scale_path)) < sizeof(scale_path) &&
         Q_strlcat(scale_path, ".md5scale", sizeof(scale_path)) < sizeof(scale_path))
-        MOD_LoadMD5Scale(model->skeleton, scale_path, joint_infos);
+        MD5_LoadScales(model->skeleton, scale_path, joint_infos);
     else
         Com_WPrintf("MD5 scale path too long: %s\n", scale_path);
 
     for (i = 0; i < mdl->num_frames; i++) {
-        MD5_EXPECT("frame");
+        MD5_ParseExpect(&s, "frame");
 
-        uint32_t frame_index;
-        MD5_UINT(frame_index);
-        MD5_ENSURE(frame_index < mdl->num_frames, "Bad frame index");
+        uint32_t frame_index = MD5_ParseUint(&s, 0, mdl->num_frames - 1);
 
-        MD5_EXPECT("{");
+        MD5_ParseExpect(&s, "{");
         for (j = 0; j < num_animated_components; j++)
-            MD5_FLOAT(anim_frame_data[j]);
-        MD5_EXPECT("}");
+            anim_frame_data[j] = MD5_ParseFloat(&s);
+        MD5_ParseExpect(&s, "}");
 
         /* Build frame skeleton from the collected data */
         MD5_BuildFrameSkeleton(joint_infos, base_frame, anim_frame_data,
                                &mdl->skeleton_frames[frame_index * mdl->num_joints], mdl->num_joints);
     }
 
-    FS_FreeFile(buffer);
     return true;
+}
 
-fail:
-    MOD_PrintError(path, ret);
-    FS_FreeFile(buffer);
-    return false;
+static bool MD5_LoadFile(model_t *model, const char *path, bool (*parse)(model_t *, const char *, const char *))
+{
+    void *data;
+    int ret = FS_LoadFile(path, &data);
+    if (!data) {
+        MOD_PrintError(path, ret);
+        return false;
+    }
+
+    ret = parse(model, data, path);
+    FS_FreeFile(data);
+    if (!ret) {
+        MOD_PrintError(path, Q_ERR_INVALID_FORMAT);
+        return false;
+    }
+
+    return true;
+}
+
+static bool MD5_LoadSkins(model_t *model)
+{
+    md5_model_t *mdl = model->skeleton;
+    const maliasmesh_t *mesh = &model->meshes[0];
+
+    mdl->num_skins = mesh->numskins;
+    mdl->skins = Hunk_TryAlloc(&model->skeleton_hunk, sizeof(mdl->skins[0]) * mdl->num_skins);
+    if (!mdl->skins) {
+        Com_EPrintf("Out of memory for MD5 skins\n");
+        return false;
+    }
+
+    for (int i = 0; i < mesh->numskins; i++) {
+        // because skins are actually absolute and not always relative to the
+        // model being used, we have to stick to the same behavior.
+        char skin_name[MAX_QPATH], skin_path[MAX_QPATH];
+
+        COM_SplitPath(mesh->skinnames[i], skin_name, sizeof(skin_name), skin_path, sizeof(skin_path), false);
+
+        // build MD5 path
+        if (Q_strlcat(skin_path, "md5/", sizeof(skin_path)) < sizeof(skin_path) &&
+            Q_strlcat(skin_path, skin_name, sizeof(skin_path)) < sizeof(skin_path)) {
+            mdl->skins[i] = IMG_Find(skin_path, IT_SKIN, IF_NONE);
+        } else {
+            Com_WPrintf("MD5 skin path too long: %s\n", skin_path);
+            mdl->skins[i] = R_NOTEXTURE;
+        }
+    }
+
+    return true;
 }
 
 static void MOD_LoadMD5(model_t *model)
@@ -1314,32 +1349,12 @@ static void MOD_LoadMD5(model_t *model)
     if (!FS_FileExists(mesh_path) || !FS_FileExists(anim_path))
         return;
 
-    if (!MOD_LoadMD5Mesh(model, mesh_path))
+    if (!MD5_LoadFile(model, mesh_path, MD5_ParseMesh))
         goto fail;
-
-    if (!MOD_LoadMD5Anim(model, anim_path))
+    if (!MD5_LoadFile(model, anim_path, MD5_ParseAnim))
         goto fail;
-
-    model->skeleton->num_skins = model->meshes[0].numskins;
-    if (!(model->skeleton->skins = MD5_Malloc(sizeof(model->skeleton->skins[0]) * model->meshes[0].numskins)))
+    if (!MD5_LoadSkins(model))
         goto fail;
-
-    for (int i = 0; i < model->meshes[0].numskins; i++) {
-        // because skins are actually absolute and not always relative to the
-        // model being used, we have to stick to the same behavior.
-        char skin_name[MAX_QPATH], skin_path[MAX_QPATH];
-
-        COM_SplitPath(model->meshes[0].skinnames[i], skin_name, sizeof(skin_name), skin_path, sizeof(skin_path), false);
-
-        // build md5 path
-        if (Q_strlcat(skin_path, "md5/", sizeof(skin_path)) < sizeof(skin_path) &&
-            Q_strlcat(skin_path, skin_name, sizeof(skin_path)) < sizeof(skin_path)) {
-            model->skeleton->skins[i] = IMG_Find(skin_path, IT_SKIN, IF_NONE);
-        } else {
-            Com_WPrintf("MD5 skin path too long: %s\n", skin_path);
-            model->skeleton->skins[i] = R_NOTEXTURE;
-        }
-    }
 
     Hunk_End(&model->skeleton_hunk);
     return;

@@ -891,7 +891,7 @@ static void CL_ParseStatusResponse(serverStatus_t *status, const char *string)
         player = &status->players[status->numPlayers];
         player->score = Q_atoi(COM_Parse(&s));
         player->ping = Q_atoi(COM_Parse(&s));
-        Q_strlcpy(player->name, COM_Parse(&s), sizeof(player->name));
+        COM_ParseToken(&s, player->name, sizeof(player->name));
         if (!s)
             break;
         status->numPlayers++;
@@ -2329,6 +2329,19 @@ static size_t CL_NumEntities_m(char *buffer, size_t size)
     return Q_snprintf(buffer, size, "%i", cl.frame.numEntities);
 }
 
+static size_t CL_Surface_m(char *buffer, size_t size)
+{
+    trace_t trace;
+    vec3_t end;
+
+    if (cls.state != ca_active)
+        return Q_strlcpy(buffer, "", size);
+
+    VectorMA(cl.refdef.vieworg, 8192, cl.v_forward, end);
+    CL_Trace(&trace, cl.refdef.vieworg, end, vec3_origin, vec3_origin, MASK_SOLID | MASK_WATER);
+    return Q_strlcpy(buffer, trace.surface->name, size);
+}
+
 /*
 ===============
 CL_WriteConfig
@@ -2897,6 +2910,7 @@ static void CL_InitLocal(void)
     Cmd_AddMacro("cl_armor", CL_Armor_m);
     Cmd_AddMacro("cl_weaponmodel", CL_WeaponModel_m);
     Cmd_AddMacro("cl_numentities", CL_NumEntities_m);
+    Cmd_AddMacro("cl_surface", CL_Surface_m);
 }
 
 static const cmdreg_t c_ignores[] = {

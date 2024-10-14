@@ -1945,14 +1945,15 @@ int BOTLIB_TPBotTeamScaling(void)
         if (bot_connections.total_bots == total_bots_needed) {
             return 0; // Each team is populated, return 0
         } else if (bot_connections.total_bots > total_bots_needed) {
-			return -1; // Bots were removed
-		}
+            bot_connections.desire_bots = total_bots_needed;
+            return -1; // Bots were removed
+        }
 
         // Calculate the percentage of bots relative to the max team size
         float percent = (float)bot_connections.total_bots / total_bots_needed;
 
         // Initialize scaling direction if not already set
-        if (bot_connections.scale_dn == false && bot_connections.scale_up == false) {
+        if (!bot_connections.scale_dn && !bot_connections.scale_up) {
             bot_connections.scale_up = true;
         }
 
@@ -1969,56 +1970,56 @@ int BOTLIB_TPBotTeamScaling(void)
             bot_connections.scale_dn = false;
         }
 
-        // Decrease bots
+        // Adjust desire_bots based on scaling direction
         if (bot_connections.scale_dn) {
             bot_connections.desire_bots--;
-        }
-
-        // Increase bots
-        if (bot_connections.scale_up) {
+        } else if (bot_connections.scale_up) {
             bot_connections.desire_bots++;
         }
 
-        // Don't let bots be greater than total_bots_needed
+        // Ensure desire_bots is within valid range
         if (bot_connections.desire_bots > total_bots_needed) {
-            bot_connections.desire_bots--;
+            bot_connections.desire_bots = total_bots_needed;
         }
-
-        // Never go below 1 bot when bot_maxteam is active
         if (bot_connections.desire_bots < 1) {
             bot_connections.desire_bots = 1;
         }
 
-        // Remove excess bots if bot_maxteam is reduced
-        if (bot_connections.total_bots > total_bots_needed) {
-            bot_connections.total_bots = total_bots_needed;
-            return -1; // Bots were removed
+        return 1; // Continue scaling
+    } else { // bot_maxteam 0, just add bots
+        int total_players = bot_connections.total_bots + bot_connections.total_humans;
+        int desired_total_players = (int)bot_playercount->value;
+
+        if (desired_total_players && total_players < desired_total_players) {
+            // Scale up bots when total players are less than desired
+            bot_connections.desire_bots = desired_total_players - bot_connections.total_humans;
+            bot_connections.scale_up = true;
+            bot_connections.scale_dn = false;
+        } else if (total_players > desired_total_players) {
+            // Scale down bots when total players exceed desired
+            bot_connections.desire_bots = desired_total_players - bot_connections.total_humans;
+            bot_connections.scale_up = false;
+            bot_connections.scale_dn = true;
+        } else {
+            // No scaling needed
+            bot_connections.scale_up = false;
+            bot_connections.scale_dn = false;
         }
 
-        return 1; // Continue scaling
-	} else { // bot_maxteam 0, just add bots
-		if (bot_connections.desire_bots != bot_connections.total_bots){
-			if (bot_connections.desire_bots > bot_connections.total_bots) {
-				bot_connections.scale_up = true;
-				bot_connections.scale_dn = false;
-			} else {
-				bot_connections.scale_up = false;
-				bot_connections.scale_dn = true;
-			}
-		} else {
-			bot_connections.scale_up = false;
-			bot_connections.scale_dn = false;
-		}
-	}
-	if (bot_connections.scale_up){
-		return 1;
-	} else if (bot_connections.scale_dn){
-		return -1;
-	} else {
-		return 0;
-	}
-}
+        // Ensure desire_bots is not negative
+        if (bot_connections.desire_bots < 0) {
+            bot_connections.desire_bots = 0;
+        }
+    }
 
+    if (bot_connections.scale_up) {
+        return 1;
+    } else if (bot_connections.scale_dn) {
+        return -1;
+    } else {
+        return 0;
+    }
+}
 void BOTLIB_TPBotCountManual(void)
 {
 	// Sanity check
@@ -2187,7 +2188,8 @@ void BOTLIB_CheckBotRules(void)
 	}
 
 	// Turn on team balance if bot_maxteam is used
-	if (bot_maxteam->value > 0) bot_connections.auto_balance_bots = true;
+	if (bot_maxteam->value > 0 || use_balancer->value) 
+		bot_connections.auto_balance_bots = true;
 
 	if (teamplay->value && !bot_connections.auto_balance_bots) {
 		BOTLIB_TPBotCountManual();

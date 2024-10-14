@@ -828,6 +828,9 @@ also create an alias for the map. How to create such files is out of
 scope of this manual (search the internet for ‘r1q2 map override file
 generator’).
 
+This is togglable with `sv_load_ent` -- default enabled (`1`), a setting of
+`0` will disable loading overrides of either type
+
 ### map\_visibility\_patch  
 Attempt to patch miscalculated visibility data for some well-known maps
 (q2dm1, q2dm3 and q2dm8 are patched so far), fixing disappearing walls

@@ -2455,6 +2455,7 @@ void SV_Init(void)
 	g_view_predict = Cvar_Get("g_view_predict", "0", CVAR_ROM);
 	g_view_low = Cvar_Get("g_view_low", "0", CVAR_ROM);
 	g_view_high = Cvar_Get("g_view_high", "0", CVAR_ROM);
+	sv_load_ent = Cvar_Get("sv_load_ent", "1", CVAR_LATCH);
 
     init_rate_limits();
 

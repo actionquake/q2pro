@@ -50,7 +50,7 @@ typedef GLuint glIndex_t;
 #define TAB_SIN(x)  gl_static.sintab[(x) & 255]
 #define TAB_COS(x)  gl_static.sintab[((x) + 64) & 255]
 
-#define NUM_AUTO_TEXTURES   7
+#define NUM_AUTO_TEXTURES   9
 
 typedef struct {
     GLuint query;
@@ -63,10 +63,13 @@ typedef struct {
 typedef struct {
     bool            registering;
     bool            use_shaders;
+    bool            use_cubemaps;
+    bool            use_bmodel_skies;
     struct {
         bsp_t       *cache;
         vec_t       *vertices;
         GLuint      buffer;
+        size_t      buffer_size;
         vec_t       size;
     } world;
     GLuint          warp_texture;
@@ -90,7 +93,6 @@ typedef struct {
     byte            lightstylemap[MAX_LIGHTSTYLES];
     hash_map_t      *queries;
     hash_map_t      *programs;
-    image_t         *classic_sky;
 } glStatic_t;
 
 typedef struct {
@@ -111,6 +113,7 @@ typedef struct {
     float           entscale;
     vec3_t          entaxis[3];
     GLfloat         entmatrix[16];
+    GLfloat         skymatrix[2][16];
     lightpoint_t    lightpoint;
     int             num_beams;
     int             num_flares;
@@ -245,7 +248,7 @@ bool GL_AllocBlock(int width, int height, uint16_t *inuse,
 void GL_MultMatrix(GLfloat *restrict out, const GLfloat *restrict a, const GLfloat *restrict b);
 void GL_SetEntityAxis(void);
 void GL_RotationMatrix(GLfloat *matrix);
-void GL_RotateForEntity(void);
+void GL_RotateForEntity(bool skies);
 
 void GL_ClearErrors(void);
 bool GL_ShowErrors(const char *func);
@@ -317,34 +320,31 @@ typedef struct {
 
 // the total amount of joints the renderer will bother handling
 #define MD5_MAX_JOINTS      256
-#define MD5_MAX_JOINTNAME   32
+#define MD5_MAX_JOINTNAME   48
 #define MD5_MAX_MESHES      32
 #define MD5_MAX_WEIGHTS     8192
 #define MD5_MAX_FRAMES      1024
 
 /* Joint */
 typedef struct {
-    int parent;
-
     vec3_t pos;
-    quat_t orient;
     float scale;
+    quat_t orient;
+    vec3_t axis[3];
 } md5_joint_t;
 
 /* Vertex */
 typedef struct {
     vec3_t normal;
 
-    uint32_t start; /* start weight */
-    uint32_t count; /* weight count */
+    uint16_t start; /* start weight */
+    uint16_t count; /* weight count */
 } md5_vertex_t;
 
 /* Weight */
 typedef struct {
-    int joint;
-    float bias;
-
     vec3_t pos;
+    float bias;
 } md5_weight_t;
 
 /* Mesh */
@@ -357,6 +357,7 @@ typedef struct {
     maliastc_t *tcoords;
     glIndex_t *indices;
     md5_weight_t *weights;
+    uint8_t *jointnums;
 } md5_mesh_t;
 
 /* MD5 model + animation structure */
@@ -367,7 +368,6 @@ typedef struct {
     int num_skins;
 
     md5_mesh_t *meshes;
-    md5_joint_t *base_skeleton;
     md5_joint_t *skeleton_frames; // [num_joints][num_frames]
     image_t **skins;
 } md5_model_t;
@@ -471,19 +471,21 @@ typedef enum {
     GLS_INTENSITY_ENABLE    = BIT(11),
     GLS_GLOWMAP_ENABLE      = BIT(12),
     GLS_CLASSIC_SKY         = BIT(13),
-    GLS_DEFAULT_FLARE       = BIT(14),
+    GLS_DEFAULT_SKY         = BIT(14),
+    GLS_DEFAULT_FLARE       = BIT(15),
 
-    GLS_SHADE_SMOOTH        = BIT(15),
-    GLS_SCROLL_X            = BIT(16),
-    GLS_SCROLL_Y            = BIT(17),
-    GLS_SCROLL_FLIP         = BIT(18),
-    GLS_SCROLL_SLOW         = BIT(19),
+    GLS_SHADE_SMOOTH        = BIT(16),
+    GLS_SCROLL_X            = BIT(17),
+    GLS_SCROLL_Y            = BIT(18),
+    GLS_SCROLL_FLIP         = BIT(19),
+    GLS_SCROLL_SLOW         = BIT(20),
 
     GLS_BLEND_MASK  = GLS_BLEND_BLEND | GLS_BLEND_ADD | GLS_BLEND_MODULATE,
     GLS_COMMON_MASK = GLS_DEPTHMASK_FALSE | GLS_DEPTHTEST_DISABLE | GLS_CULL_DISABLE | GLS_BLEND_MASK,
+    GLS_SKY_MASK    = GLS_CLASSIC_SKY | GLS_DEFAULT_SKY,
     GLS_SHADER_MASK = GLS_ALPHATEST_ENABLE | GLS_TEXTURE_REPLACE | GLS_SCROLL_ENABLE |
         GLS_LIGHTMAP_ENABLE | GLS_WARP_ENABLE | GLS_INTENSITY_ENABLE | GLS_GLOWMAP_ENABLE |
-        GLS_CLASSIC_SKY | GLS_DEFAULT_FLARE,
+        GLS_SKY_MASK | GLS_DEFAULT_FLARE,
     GLS_SCROLL_MASK = GLS_SCROLL_ENABLE | GLS_SCROLL_X | GLS_SCROLL_Y | GLS_SCROLL_FLIP | GLS_SCROLL_SLOW,
 } glStateBits_t;
 
@@ -529,6 +531,7 @@ typedef enum {
 
 typedef struct {
     GLfloat     mvp[16];
+    GLfloat     msky[2][16];
     GLfloat     time;
     GLfloat     modulate;
     GLfloat     add;
@@ -538,14 +541,13 @@ typedef struct {
     GLfloat     w_amp[2];
     GLfloat     w_phase[2];
     GLfloat     scroll[2];
-    GLfloat     vieworg[3];
-    GLfloat     pad_2;
 } glUniformBlock_t;
 
 typedef struct {
     glTmu_t             client_tmu;
     glTmu_t             server_tmu;
     GLuint              texnums[MAX_TMUS];
+    GLuint              texnumcube;
     glStateBits_t       state_bits;
     glArrayBits_t       array_bits;
     GLuint              currentbuffer[2];
@@ -683,6 +685,8 @@ typedef enum {
 
 void GL_ForceTexture(glTmu_t tmu, GLuint texnum);
 void GL_BindTexture(glTmu_t tmu, GLuint texnum);
+void GL_ForceCubemap(GLuint texnum);
+void GL_BindCubemap(GLuint texnum);
 void GL_CommonStateBits(glStateBits_t bits);
 void GL_ScrollPos(vec2_t scroll, glStateBits_t bits);
 void GL_DrawOutlines(GLsizei count, const glIndex_t *indices, bool indexed);
@@ -723,13 +727,15 @@ void GL_Blend(void);
  */
 
 // auto textures
-#define TEXNUM_DEFAULT  gl_static.texnums[0]
-#define TEXNUM_SCRAP    gl_static.texnums[1]
-#define TEXNUM_PARTICLE gl_static.texnums[2]
-#define TEXNUM_BEAM     gl_static.texnums[3]
-#define TEXNUM_WHITE    gl_static.texnums[4]
-#define TEXNUM_BLACK    gl_static.texnums[5]
-#define TEXNUM_RAW      gl_static.texnums[6]
+#define TEXNUM_DEFAULT          gl_static.texnums[0]
+#define TEXNUM_SCRAP            gl_static.texnums[1]
+#define TEXNUM_PARTICLE         gl_static.texnums[2]
+#define TEXNUM_BEAM             gl_static.texnums[3]
+#define TEXNUM_WHITE            gl_static.texnums[4]
+#define TEXNUM_BLACK            gl_static.texnums[5]
+#define TEXNUM_RAW              gl_static.texnums[6]
+#define TEXNUM_CUBEMAP_DEFAULT  gl_static.texnums[7]
+#define TEXNUM_CUBEMAP_BLACK    gl_static.texnums[8]
 
 void Scrap_Upload(void);
 
@@ -739,8 +745,6 @@ void GL_ShutdownImages(void);
 bool GL_InitWarpTexture(void);
 
 extern cvar_t *gl_intensity;
-
-extern image_t shell_texture;
 
 /*
  * gl_tess.c
@@ -774,7 +778,7 @@ void GL_ShutdownArrays(void);
 
 void GL_Flush3D(void);
 
-void GL_AddAlphaFace(mface_t *face, entity_t *ent);
+void GL_AddAlphaFace(mface_t *face);
 void GL_AddSolidFace(mface_t *face);
 void GL_DrawAlphaFaces(void);
 void GL_DrawSolidFaces(void);
@@ -796,6 +800,7 @@ void GL_LightPoint(const vec3_t origin, vec3_t color);
 void R_AddSkySurface(const mface_t *surf);
 void R_ClearSkyBox(void);
 void R_DrawSkyBox(void);
+void R_RotateForSky(void);
 void R_SetSky(const char *name, float rotate, bool autorotate, const vec3_t axis);
 
 /*

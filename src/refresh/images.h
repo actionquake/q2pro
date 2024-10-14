@@ -38,7 +38,7 @@ with this program; if not, write to the Free Software Foundation, Inc.,
 #define U32_RGB     MakeColor(255, 255, 255,   0)
 
 // absolute limit for OpenGL renderer
-#define MAX_TEXTURE_SIZE    4096
+#define MAX_TEXTURE_SIZE    8192
 
 typedef enum {
     IM_PCX,
@@ -76,7 +76,10 @@ extern int      r_numImages;
 
 extern unsigned r_registration_sequence;
 
-#define R_NOTEXTURE &r_images[0]
+#define R_NUM_AUTO_IMG  3
+#define R_NOTEXTURE     (&r_images[0])
+#define R_SHELLTEXTURE  (&r_images[1])
+#define R_SKYTEXTURE    (&r_images[2])
 
 extern uint32_t d_8to24table[256];
 

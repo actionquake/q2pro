@@ -10,6 +10,11 @@ qboolean BOTLIB_SV_Cmds(void)
 
 	if (Q_stricmp(cmd, "bots") == 0)
 	{
+		if (!bot_enable->value) {
+			gi.dprintf("%s: bot_enable is 0; Bots are disabled\n", __func__);
+			bot_connections.desire_bots = 0;
+		}
+
 		int cc = gi.argc();
 
 		if (!bot_enable->value) {
@@ -269,6 +274,7 @@ qboolean BOTLIB_Commands(edict_t* ent)
 	// 	ACEND_BSP(ent);
 	// 	return true;
 	// }
+
 	if (Q_stricmp(cmd, "randomize_team_names") == 0) // Manually randomize team names
 	{
 		BOTLIB_RandomizeTeamNames(ent);
@@ -497,11 +503,13 @@ qboolean BOTLIB_Commands(edict_t* ent)
 	else if (Q_stricmp(cmd, "nav_load") == 0) // Load bot nav from file
 	{
 #ifdef USE_ZLIB
-		BOTLIB_LoadNavCompressed();
+		if (bot_enable->value) {
+			BOTLIB_LoadNavCompressed();
 #else
-		BOTLIB_LoadNav();
+			BOTLIB_LoadNav();
 #endif
-		return true;
+			return true;
+		}
 	}
 	else if (Q_stricmp(cmd, "nav_save") == 0) // Save bot nav to file
 	{

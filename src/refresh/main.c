@@ -323,11 +323,15 @@ void GL_RotationMatrix(GLfloat *matrix)
     matrix[15] = 1;
 }
 
-void GL_RotateForEntity(void)
+void GL_RotateForEntity(bool skies)
 {
     GLfloat matrix[16];
 
     GL_RotationMatrix(matrix);
+    if (skies) {
+        GL_MultMatrix(gls.u_block.msky[0], glr.skymatrix[0], matrix);
+        GL_MultMatrix(gls.u_block.msky[1], glr.skymatrix[1], matrix);
+    }
     GL_MultMatrix(glr.entmatrix, glr.viewmatrix, matrix);
     GL_ForceMatrix(glr.entmatrix);
 }
@@ -2111,7 +2115,7 @@ void GL_InitQueries(void)
         gl_static.samples_passed = GL_ANY_SAMPLES_PASSED;
 
     Q_assert(!gl_static.queries);
-    gl_static.queries = HashMap_Create(int, glquery_t, HashInt32, NULL);
+    gl_static.queries = HashMap_TagCreate(int, glquery_t, HashInt32, NULL, TAG_RENDERER);
 }
 
 void GL_DeleteQueries(void)
