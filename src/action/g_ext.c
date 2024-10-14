@@ -103,13 +103,13 @@ int G_customizeentityforclient(edict_t *clent, edict_t *ent, entity_state_t *sta
 			return false;
 
 		// Espionage allows indicators for leaders if set to 2
-		if (esp->value && use_indicators->value == 2 && esp_showleader->value && clent->client->resp.team) {
-			// Quad is a blue glow, pent is a red glow
-			if (clent->client->resp.team == TEAM1 && IS_LEADER(clent))
-				ent->s.effects = EF_PENT;
-			else if (clent->client->resp.team == TEAM2 && IS_LEADER(clent))
-				ent->s.effects = EF_QUAD;
-		}
+		// if (esp->value && use_indicators->value == 2 && esp_showleader->value && clent->client->resp.team) {
+		// 	// Quad is a blue glow, pent is a red glow
+		// 	if (clent->client->resp.team == TEAM1 && IS_LEADER(clent))
+		// 		ent->s.effects = EF_PENT;
+		// 	else if (clent->client->resp.team == TEAM2 && IS_LEADER(clent))
+		// 		ent->s.effects = EF_QUAD;
+		// }
 		if ((use_indicators->value == 2 && clent->client->resp.team) || (clent->client->resp.team && clent->client->pers.cl_indicators != 2)) // disallow indicators for players in use_indicators 2, and don't use them for players unless cl_indicators 2
 			return false;
 
