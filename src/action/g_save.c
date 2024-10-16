@@ -704,6 +704,7 @@ void InitGame( void )
 	bot_reportasclient = gi.cvar("bot_reportasclient", "0", CVAR_LATCH);
 	bot_navautogen = gi.cvar("bot_navautogen", "0", 0);
 	//bot_randteamskin = gi.cvar("bot_randteamskin", "0", 0);
+	gl_shaders = gi.cvar("gl_shaders", "0", 0);
 	//rekkie -- DEV_1 -- e
 #endif
 
