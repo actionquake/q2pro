@@ -148,3 +148,13 @@ void MakeAllLivePlayersObservers( void );
 //a_cmds.c
 void Cmd_NextMap_f( edict_t * ent );
 void Cmd_PrintRules_f(edict_t *ent);
+
+//a_game.c
+#if AQTION_CURL
+
+#define MSG_PICKUP_SERVER_ERROR "Unable to send pickup request; contact the server admin\n"
+#define MSG_PICKUP_SERVER_SUCCESS "Pickup request sent\n"
+#define MSG_PICKUP_TOO_EARLY "It is too early to send another request, please wait\n"
+void Cmd_Pickup_f( edict_t * ent );
+#endif
+#define MSG_PICKUP_UNSUPPORTED "This server does not support pickup requests.\n"

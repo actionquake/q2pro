@@ -525,7 +525,7 @@ int BOTLIB_GetEquipment(edict_t* self);
 //rekkie -- collecting weapons, items, ammo -- e
 
 // ===========================================================================
-// botlib_utils.c
+// botlib_utils.c and botlib_win.c
 // ===========================================================================
 void seed_random_number_generator(void);
 void BOTLIB_SKILL_Init(edict_t* bot);

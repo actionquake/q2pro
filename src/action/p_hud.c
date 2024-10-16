@@ -132,13 +132,13 @@ void BeginIntermission(edict_t *targ)
 	} else if (teamplay->value) {
 		TallyEndOfLevelTeamScores();
 	}
-	#if USE_AQTION
+
 	// Generates stats for non-CTF, Teamplay or Matchmode
-	else if (stat_logs->value && !matchmode->value) {
-		LogMatch();
-		LogEndMatchStats(); // Generates end of match logs
+	if (!matchmode->value) {
+		LOG_MATCH(); // Generates end of game stats
+		LOG_END_MATCH_STATS(); // Generates end of match stats
 	}
-	#endif
+	CALL_DISCORD_WEBHOOK(DM_MATCH_END_MSG, MATCH_END_MSG, AWARD_NONE);
 
 	// respawn any dead clients
 	for (i = 0, ent = g_edicts + 1; i < game.maxclients; i++, ent++)

@@ -1454,3 +1454,51 @@ void GetNearbyTeammates( edict_t *self, char *buf )
 		Q_strncatz( buf, nearby_teammates[l]->client->pers.netname, PARSE_BUFSIZE );
 	}
 }
+
+void Cmd_Pickup_f(edict_t* ent)
+{
+	// Check if pickup messaging is enabled first
+
+	if (!use_pickup->value) {
+		gi.cprintf(ent, PRINT_HIGH, MSG_PICKUP_UNSUPPORTED);
+		return;
+	}
+
+	#if AQTION_CURL
+		char msg[256];
+		// Check if msgflags supports this
+		if (!(MSGFLAGS(PICKUP_REQ_MSG))) {
+			gi.cprintf(ent, PRINT_HIGH, MSG_PICKUP_SERVER_ERROR);
+			gi.dprintf("%s: %s attempted to send a pickup request but msgflags needs to be %d (currently %d)\n", __func__, ent->client->pers.netname, PICKUP_REQ_MSG, msgflags->value);
+			return;
+		}
+
+		// Check if we have requisite information to send a pickup request
+		if (hostname->string != NULL && strcmp(server_ip->string, "") != 0 && net_port->string != NULL) {
+			snprintf(msg, sizeof(msg), "**%s** is requesting a pickup match at **%s (%s:%s)**", ent->client->pers.netname, hostname->string, server_ip->string, net_port->string);
+		} else {
+			gi.cprintf(ent, PRINT_HIGH, MSG_PICKUP_SERVER_ERROR);
+			gi.dprintf("%s: %s attempted to send a pickup request but the server is missing hostname, server_ip or net_port\n", __func__, ent->client->pers.netname);
+			return;
+		}
+
+		// Check if we're within the 5 minute timer (spam prevention)
+		if(message_timer_check(300)) {
+			CALL_DISCORD_WEBHOOK(msg, PICKUP_REQ_MSG, AWARD_NONE);
+			gi.bprintf(PRINT_HIGH, MSG_PICKUP_SERVER_SUCCESS);
+			gi.dprintf("** Pickup request sent by %s **\n", ent->client->pers.netname);
+		} else {
+			gi.cprintf(ent, PRINT_HIGH, MSG_PICKUP_TOO_EARLY);
+		}
+	#else
+		gi.cprintf(ent, PRINT_HIGH, MSG_PICKUP_UNSUPPORTED);
+	#endif
+}
+
+// Menu item
+void _PickupRequest (edict_t * ent, pmenu_t * p)
+{
+	PMenu_Close(ent);
+
+	Cmd_Pickup_f(ent);
+}

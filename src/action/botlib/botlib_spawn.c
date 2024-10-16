@@ -2141,13 +2141,20 @@ void BOTLIB_DMBotCountManager(void)
 
 void BOTLIB_CheckBotRules(void)
 {
-	// Disable bot logic entirely
+
+  // Disable bot logic entirely
 	if (!bot_enable->value)
 		return;
 
-	if (matchmode->value) // Bots never allowed in matchmode
+  if (matchmode->value) // Bots never allowed in matchmode
 		return;
-
+  
+	// This is so we automatically report when a server has bots or not
+	if (bot_connections.desire_bots == 0)
+		gi.cvar_forceset("am", "0"); // Turn off attract mode
+	else
+		gi.cvar_forceset("am", "1"); // Turn on attract mode
+	
 	if (ctf->value)
 	{
 		BOTLIB_Update_Flags_Status();
