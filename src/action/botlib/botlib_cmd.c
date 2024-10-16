@@ -326,6 +326,9 @@ qboolean BOTLIB_Commands(edict_t* ent)
 		if (dedicated->value)
 			return true;
 		ent->bot.walknode.enabled = !ent->bot.walknode.enabled;
+		// Turn off limits if we're in edit mode
+		gi.cvar_forceset(timelimit->name, "0");
+		gi.cvar_forceset(fraglimit->name, "0");
 		return true;
 	}
 
