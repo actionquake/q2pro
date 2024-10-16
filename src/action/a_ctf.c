@@ -315,7 +315,7 @@ int CTFOtherTeam(int team)
 
 /*--------------------------------------------------------------------------*/
 
-void ResetPlayers()
+void ResetPlayers(void)
 {
 	edict_t *ent;
 	int i;
@@ -934,7 +934,7 @@ void CTFCalcScores(void)
 	#if USE_AQTION
 	// Needed to add this here because this is called separately from TallyEndOfLevelTeamScores (teamplay)
 		if (stat_logs->value) {
-			LogMatch();  // Generates end of match logs
+			LogMatch();  // Generates end of game stats
 			LogEndMatchStats();  // Generates end of match stats
 		}
 	#endif
@@ -1386,7 +1386,7 @@ void CTFCapReward(edict_t * ent)
 		ReadySpecialWeapon(ent);
 	}
 
-	// give health times cap streak
+	// give health times cap streak and awards
 	ent->health = ent->max_health * (ent->client->resp.ctf_capstreak > 4 ? 4 : ent->client->resp.ctf_capstreak);
 
 	if(ent->client->resp.ctf_capstreak == 2)
@@ -1398,5 +1398,13 @@ void CTFCapReward(edict_t * ent)
 	else if(ent->client->resp.ctf_capstreak > 4)
 		gi.centerprintf(ent, "CAPTURED YET AGAIN!\n\nYou have been rewarded QUAD health and %d times your ammo!\n\nNow go get some more!",
 				ent->client->resp.ctf_capstreak);
-	else	gi.centerprintf(ent, "CAPTURED!\n\nYou have been rewarded.\n\nNow go get some more!");
+	if (use_rewards->value) {
+		if(ent->client->resp.ctf_capstreak == 5)
+			Announce_Reward(ent, DOMINATING);
+		if(ent->client->resp.ctf_capstreak == 10)
+			Announce_Reward(ent, UNSTOPPABLE);
+	}
+	else	gi.cprintf(ent, PRINT_MEDIUM, "CAPTURED!\n\nYou have been rewarded.\n\nNow go get some more!");
+
+	LogCapture(ent);
 }

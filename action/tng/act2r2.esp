@@ -1,0 +1,28 @@
+[esp]
+type=etv
+author=darksaint
+name=Casino Cashout
+
+[respawn]
+red=8
+blue=8
+
+[spawns]
+red=<1160 986 334 -82>,<1058 718 430 -45>,<1558 -234 238 130>,<1157 -216 336 55>
+blue=<-1086 -683 35 -45>,<-444 -778 30 154>,<-107 1461 430 -100>,<-412 942 62 104>
+
+[target]
+escort=<-871 807 174>
+name=Briefcase full of money
+
+[red_team]
+name=Thugs
+leader_name=Pepper Jack
+skin=male/aqgthug
+leader_skin=male/pimp
+
+[blue_team]
+name=Casino Security
+leader_name=Frank The Cop
+skin=male/sabotage
+leader_skin=male/bravo

@@ -1,0 +1,35 @@
+{
+    "name": "Skarlet",
+    "clan_id": null,
+    "skin": "male/rredneck",
+    "weaponPreferences": {
+        "mk23": 0.1,
+        "dual_mk23": 0.0,
+        "mp5": 0.5,
+        "m4": 0.5,
+        "m3": 0.2,
+        "hc": 0.3,
+        "sniper": 0.6,
+        "knives": 0.6,
+        "grenades": 0.2
+    },
+    "itemPreferences": {
+        "vest": 0.6,
+        "helm": 0.2,
+        "laser": 0.2,
+        "silencer": 0.6,
+        "slippers": 0.3,
+        "bandolier": 0.7
+    },
+    "coreTraits": {
+        "aggressiveness": 0.7,
+        "teamwork": 0.6,
+        "curiosity": 0.5,
+        "aimingSkill": 0.4,
+        "reactionTime": 0.5,
+        "communicationFreq": 0.6,
+        "communicationTone": 0.5,
+        "movementStyle": 0.4,
+        "objectiveFocus": 0.7
+    }
+}

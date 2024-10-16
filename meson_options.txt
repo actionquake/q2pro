@@ -59,6 +59,11 @@ option('game-build-options',
   value: [],
   description: 'Custom game build options for LTO, etc')
 
+option('game-new-api',
+  type: 'boolean',
+  value: false,
+  description: 'Build game using new API for big maps support')
+
 option('homedir',
   type: 'string',
   value: '~/.q2pro',
@@ -74,6 +79,11 @@ option('libcurl',
   value: 'auto',
   description: 'libcurl support')
 
+option('jansson',
+  type: 'feature',
+  value: 'auto',
+  description: 'AQtion jansson support')
+  
 option('libjpeg',
   type: 'feature',
   value: 'auto',
@@ -110,6 +120,11 @@ option('openal',
   type: 'feature',
   value: 'auto',
   description: 'OpenAL sound backend')
+
+option('opengl-es1',
+  type: 'boolean',
+  value: false,
+  description: 'Build OpenGL ES 1 compatible renderer')
 
 option('packetdup-hack',
   type: 'boolean',

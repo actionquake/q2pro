@@ -1,0 +1,28 @@
+[esp]
+type=etv
+author=darksaint
+name=Prevent the Picnic!
+
+[respawn]
+red=6
+blue=6
+
+[spawns]
+red=<-2925 -973 -92 40>,<-1611 -336 -148 -90>,<-1037 -942 -156 170>
+blue=<-1844 -2690 -66 -149>,<-2673 -2958 -124 90>,<-1995 -2521 -124 131>
+
+[target]
+escort=<-953 -1781 54>
+name=The Picnic Basketcase
+
+[red_team]
+name=Hungry Reds
+leader_name=Fatty McGee
+skin=male/ctf_r
+leader_skin=male/ctf_vip_r
+
+[blue_team]
+name=Famished Blues
+leader_name=Starvin Marvin
+skin=male/ctf_b
+leader_skin=male/ctf_vip_b

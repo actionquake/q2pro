@@ -1,0 +1,35 @@
+{
+    "name": "Crash",
+    "clan_id": null,
+    "skin": "sas/norse2",
+    "weaponPreferences": {
+        "mk23": 0.2,
+        "dual_mk23": 0.5,
+        "mp5": 0.2,
+        "m4": 0.4,
+        "m3": 0.3,
+        "hc": 0.5,
+        "sniper": 0.4,
+        "knives": 0.2,
+        "grenades": 0.7
+    },
+    "itemPreferences": {
+        "vest": 0.1,
+        "helm": 0.4,
+        "laser": 0.3,
+        "silencer": 0.5,
+        "slippers": 0.4,
+        "bandolier": 0.8
+    },
+    "coreTraits": {
+        "aggressiveness": 0.2,
+        "teamwork": 0.3,
+        "curiosity": 0.8,
+        "aimingSkill": 0.6,
+        "reactionTime": 0.4,
+        "communicationFreq": 0.3,
+        "communicationTone": 0.0,
+        "movementStyle": 0.6,
+        "objectiveFocus": 0.7
+    }
+}

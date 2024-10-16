@@ -1,0 +1,30 @@
+[esp]
+type=etv
+author=darksaint
+name="Show No Mercy"
+
+[respawn]
+red=5
+blue=5
+green=5
+
+[spawns]
+red=<-1087 1552 302 -90>,<8 952 46 -90>,<200 1369 430 -92>
+blue=<-1311 -831 62 0>,<160 -1183 814 135>,<-1445 -1264 494 87>
+green=<-1311 -831 62 0>,<160 -1183 814 135>,<-1445 -1264 494 87>
+
+[teams]
+red_crew=The A-Team
+blue_crew=Peacekeepers
+green_crew=Greenies
+red_leader=B.A. Baracus
+blue_leader=Frank The Cop
+green_leader=The Hulk
+
+[skins]
+red_crew=male/ctf_r
+blue_crew=male/ctf_b
+green_crew=male/ctf_g
+red_leader=male/babarracuda
+blue_leader=male/blues
+green_leader=male/hulk2

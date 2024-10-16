@@ -1,0 +1,36 @@
+[esp]
+type=etv
+author=darksaint
+name=Urban Gang Wars
+
+[respawn]
+red=7
+blue=7
+green=7
+
+[spawns]
+red=<274 1165 446 -148>,<553 -293 277 90>,<-783 -64 444 -60>,<342 632 319 180>
+blue=<-1404 -13 59 90>,<-1548 1077 61 -90>,<-1387 1402 179 0>,<-1601 206 452 0>
+green=<-635 592 65 45>,<-900 573 433 0>,<-660 -112 46 0>,<-904 826 473 -45>
+
+[target]
+escort=<-774 70 814>
+name=Tower Window
+
+[red_team]
+name=The B-Team
+leader_name=Mister Rogers
+skin=male/ctf_r
+leader_skin=male/ctf_vip_r
+
+[blue_team]
+name=Peacekeepers
+leader_name=Mister McFeely
+skin=male/ctf_b
+leader_skin=male/ctf_vip_b
+
+[green_team]
+name=Landscaping Crew
+leader_name=King Friday
+skin=male/ctf_g
+leader_skin=male/ctf_vip_g

@@ -1,0 +1,35 @@
+{
+    "name": "Heljay",
+    "clan_id": 43,
+    "skin": "male/MikeLowry",
+    "weaponPreferences": {
+        "mk23": 0.4,
+        "dual_mk23": 0.3,
+        "mp5": 0.4,
+        "m4": 0.8,
+        "m3": 0.5,
+        "hc": 0.4,
+        "sniper": 0.7,
+        "knives": 0.5,
+        "grenades": 0.9
+    },
+    "itemPreferences": {
+        "vest": 0.7,
+        "helm": 0.7,
+        "laser": 0.6,
+        "silencer": 0.4,
+        "slippers": 0.4,
+        "bandolier": 0.6
+    },
+    "coreTraits": {
+        "aggressiveness": 0.4,
+        "teamwork": 0.6,
+        "curiosity": 0.8,
+        "aimingSkill": 0.8,
+        "reactionTime": 0.6,
+        "communicationFreq": 0.3,
+        "communicationTone": 0.4,
+        "movementStyle": 0.7,
+        "objectiveFocus": 0.6
+    }
+}

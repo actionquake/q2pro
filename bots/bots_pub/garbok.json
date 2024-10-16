@@ -1,0 +1,35 @@
+{
+    "name": "Garbok",
+    "clan_id": null,
+    "skin": "male/blues",
+    "weaponPreferences": {
+        "mk23": 0.7,
+        "dual_mk23": 0.8,
+        "mp5": 0.4,
+        "m4": 0.7,
+        "m3": 0.3,
+        "hc": 0.9,
+        "sniper": 0.3,
+        "knives": 0.2,
+        "grenades": 0.8
+    },
+    "itemPreferences": {
+        "vest": 0.3,
+        "helm": 0.5,
+        "laser": 0.8,
+        "silencer": 0.6,
+        "slippers": 0.2,
+        "bandolier": 0.5
+    },
+    "coreTraits": {
+        "aggressiveness": 0.5,
+        "teamwork": 0.6,
+        "curiosity": 0.8,
+        "aimingSkill": 0.9,
+        "reactionTime": 0.4,
+        "communicationFreq": 0.5,
+        "communicationTone": 0.9,
+        "movementStyle": 0.2,
+        "objectiveFocus": 0.4
+    }
+}

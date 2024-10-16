@@ -269,7 +269,13 @@ cl_gun_z::
     Specifies custom gun model offset. Default value is 0.
 
 cl_muzzleflashes::
-    Specifies if muzzleflash effects are enabled. Default value is 1.
+    Specifies if re-release muzzleflash effects are enabled. Default value is 1.
+
+cl_hit_markers::
+    Specifies if re-release hit marker effects are enabled. Default value is 2.
+      - 0 — hit marker effects disabled
+      - 1 — draw hit marker
+      - 2 — draw hit marker and play hit sound
 
 Sound Subsystem
 ~~~~~~~~~~~~~~~
@@ -380,7 +386,7 @@ con_notifylines::
 con_history::
     Specifies how many lines to save into console history file before exiting
     Q2PRO, to be reloaded on next startup. Maximum number of history lines is 128.
-    Default value is 0.
+    Default value is 128.
 
 con_scroll::
     Controls automatic scrolling of console text when some event occurs. This
@@ -566,6 +572,10 @@ xhair_y::
     the default position in center of the game screen. Default values are 0
     (draw in center).
 
+scr_hit_marker_time::
+    Hit marker visibility time in milliseconds. Hit marker is only visible if
+    crosshair is visible. Default value is 500.
+
 Video Modes
 ~~~~~~~~~~~
 
@@ -697,12 +707,22 @@ gl_downsample_skins::
     Default value is 1 (downsampling enabled).
 
 gl_drawsky::
-    Enable skybox texturing. 0 means to draw sky box in solid black color.
+    Enables skybox texturing. 0 means to draw sky in solid black color.
     Default value is 1 (enabled).
+
+gl_cubemaps::
+    Enables use of cubemaps for skybox drawing. Cubemaps allow multiple skybox
+    textures per map, and help to avoid sky rendering bugs. Also enables N64
+    skies in re-release maps. Only effective if ‘gl_shaders’ is enabled.
+    Default value is 0 (disabled).
 
 gl_waterwarp::
     Enable screen warping effect when underwater. Only effective when using
     GLSL backend. Default value is 0 (disabled).
+
+gl_flarespeed::
+    Specifies flare fading effect speed. Default value is 8. Set this to 0
+    to disable fading.
 
 gl_fontshadow::
     Specifies font shadow width, in pixels, ranging from 0 to 2. Default value
@@ -721,6 +741,11 @@ gl_partshape::
       - 0 — faded circle
       - 1 — square
       - 2 — fuller, less faded circle
+
+gl_beamstyle::
+    Specifies drawing style of laser beams. Default value is 0.
+      - 0 — textured billboard-type beam (Q2PRO style, very fast to draw)
+      - 1 — flat color polygonal beam (original Quake 2 style)
 
 gl_celshading::
     Enables drawing black contour lines around 3D models (aka ‘celshading’).
@@ -758,6 +783,12 @@ gl_coloredlightmaps::
     Enables grayscaling of world lightmaps. 1 keeps original colors, 0 converts
     lightmaps to grayscale format, any value in between reduces colorfulness.
     Default value is 1 (keep original colors).
+
+gl_lightmap_bits::
+    Specifies size of lightmap textures, in base 2 logarithm units. Default
+    value is 0 (auto, typically 8 for regular maps and 10 for re-release maps).
+    Allowed range is 7-10. Older hardware may need this adjusted for optimal
+    dynamic lighting speed.
 
 gl_modulate::
     Specifies a primary modulation factor that each pixel of world lightmaps is
@@ -813,8 +844,7 @@ gl_dlight_falloff::
 gl_shaders::
     Enables GLSL rendering backend. This requires at least OpenGL 3.0 and
     changes how ‘gl_modulate’, ‘gl_brightness’ and ‘intensity’ parameters work
-    to prevent ‘washed out’ colors. Default value is 1 (enabled) on systems
-    that support shaders, 0 otherwise.
+    to prevent ‘washed out’ colors. Default value is 1 (enabled).
 
 gl_colorbits::
     Specifies desired size of color buffer, in bits, requested from OpenGL
@@ -842,6 +872,22 @@ gl_texturebits::
     Specifies number of bits per texel used for internal texture storage
     (should be typically 0, 8, 16 or 32). Default value is 0 (choose the best
     internal format automatically).
+
+gl_debug::
+    Create debug OpenGL context, if supported by OpenGL implementation.
+    This option may hurt performance and is intended for developers only.
+    Default value is 0.
+
+gl_profile::
+    Specifies custom profile and version of OpenGL context to create. Default
+    value is empty string, which means to create highest version compatibility
+    profile context. Can be set to "gl" to create OpenGL core profile context,
+    or "es" to create OpenGL ES context. May be followed by desired minimum
+    OpenGL version number. For example, "gl4.6" or "es3.0". Not all OpenGL
+    implementations support this.
+
+NOTE: Using OpenGL compatibility profile is recommended. Some features may not
+work in more restricted profiles, or performance may be suboptimal.
 
 gl_screenshot_format::
     Specifies image format ‘screenshot’ command uses. Possible values are
@@ -876,6 +922,20 @@ gl_md5_use::
     Enables use of MD5 replacement models as found in re-release. Only
     effective if ‘gl_md5_load’ is enabled. Default value is 1.
 
+gl_md5_distance::
+    Only use MD5 replacement model if entity is closer than this distance to
+    the viewer, otherwise use original model. Default value is 2048. Setting
+    this to 0 disables distance LOD.
+
+gl_gpulerp::
+    Enables alias model interpolation on GPU for potential rendering
+    speedup. Default value is 1 (auto). If using OpenGL core profile, this
+    option is always enabled. If not using GLSL backend, this option is always
+    disabled.
+     - 0 — disabled
+     - 1 — auto (enabled on OpenGL 4.3 and higher)
+     - 2 — force enabled
+
 gl_glowmap_intensity::
     Intensity factor for entity glowmaps. Default value is 0.75.
 
@@ -894,8 +954,7 @@ r_override_textures::
 
 r_texture_formats::
     Specifies the order in which truecolor texture replacements are searched.
-    Default value is "pjt", which means to try ‘.png’ extension first, then
-    ‘.jpg’, then ‘.tga’.
+    Default value is "png jpg tga".
 
 r_texture_overrides::
     Specifies what types of textures are affected by ‘r_override_textures’.
@@ -913,8 +972,8 @@ When Q2PRO attempts to load an alias model from disk, it determines actual
 model format by file contents, rather than by filename extension. Therefore, if
 you wish to override MD2 model with MD3 replacement, simply rename the MD3
 model to ‘tris.md2’ and place it in appropriate packfile to make sure it gets
-loaded first. Note that MD5 models can't be loaded this way, see ‘gl_md5_’
-variables.
+loaded first. MD5 overrides don't work this way, use ‘gl_md5_’ variables to
+control that.
 ********************
 
 
@@ -1275,6 +1334,16 @@ NOTE: By default, during demo playback, Q2PRO overrides FOV value stored in
 demo file with value of local ‘fov’ variable, unless stored FOV value is less
 than 90. This behavior can be changed with ‘uf’ variable (see above).
 
+NOTE: Recommened way to play demos in Q2PRO is the ‘demo’ command, but
+‘demomap’ is still supported for compatibility. Playing demos using ‘demomap’
+enables some compatibility options, such as hiding player gun in wide angle
+view.
+
+WARNING: Unlike ‘demo’ command, ‘demomap’ allows executing stufftext commands
+from demos. Demos may change client settings, trick the client into connecting
+to random servers, and have other security implications. Only play demos from
+trusted sources using ‘demomap’!
+
 seek [+-]<timespec|percent>[%]::
     Seeks the given amount of time during demo playback.  Prepend with ‘+’ to
     seek forward relative to current position, prepend with ‘-’ to seek
@@ -1576,11 +1645,12 @@ remotemode <address> <password>::
     Put client console into rcon mode. All commands entered will be forwarded
     to remove server. Press Ctrl+D or close console to exit this mode.
 
-ogg <info|play|stop>::
+ogg <info|play|stop|next>::
     Execute OGG subcommand. Available subcommands:
     info::: Display information about currently playing background music track.
     play <track>::: Start playing background music track ‘music/_track_.ogg’.
     stop::: Stop playing background music track.
+    next::: Play next track if shuffling is enabled.
 
 whereis <path> [all]::
     Search for _path_ and print the name of packfile or directory where it is
@@ -1622,20 +1692,21 @@ it used to be you know where to look. The following list may be incomplete.
   separate modulation factors for world lightmaps and entities please use
   ‘gl_modulate_world’ and ‘gl_modulate_entities’ variables.
 
-- Default value of R1GL-specific ‘gl_dlight_falloff’ variable has been changed
-  from 0 to 1.
+- R1GL-specific ‘gl_dlight_falloff’ variable is supported, but its default has
+  been changed from 0 to 1.
 
 - ‘gl_particle_*’ series of variables are gone, as well as
-  ‘gl_ext_pointparameters’ and R1GL-specific ‘gl_ext_point_sprite’. For
-  controlling size of particles, which are always drawn as textured triangles,
-  Q2PRO supports its own ‘gl_partscale’ variable.
+  ‘gl_ext_pointparameters’. For controlling size of particles, which are always
+  drawn as textured triangles, Q2PRO supports its own ‘gl_partscale’ variable.
 
 - ‘ip’ variable has been renamed to ‘net_ip’.
 
 - ‘clientport’ variable has been renamed to ‘net_clientport’, and
   ‘ip_clientport’ alias is no longer supported.
 
-- ‘demomap’ command has been removed in favor of ‘demo’ and ‘mvdplay’.
+- ‘demomap’ command is emulated: if filename with ‘.dm2’ extension is specified,
+  client side demo playback is started. Otherwise ‘demomap’ command is equivalent
+  to ‘gamemap’ (attract loop mode is not supported).
 
 - Q2PRO works only with virtual paths constrained to the quake file system.
   All paths are normalized before use so that it is impossible to go past virtual
@@ -1653,5 +1724,5 @@ it used to be you know where to look. The following list may be incomplete.
 - Single player savegame format has been rewritten from scratch for better
   robustness and portability. Only the ‘baseq2’ game library included in Q2PRO
   distribution has been converted to use the new improved savegame format. Q2PRO
-  will refuse to load and save games in old format for security reasons.
-
+  will refuse to load and save games in old format for security reasons, unless
+  ‘sys_allow_unsafe_savegames’ is set to 1 from the command line (not recommended).

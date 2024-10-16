@@ -1,0 +1,35 @@
+{
+    "name": "BigMack",
+    "clan_id": null,
+    "skin": "terror/swat",
+    "weaponPreferences": {
+        "mk23": 0.4,
+        "dual_mk23": 0.6,
+        "mp5": 0.7,
+        "m4": 1.1,
+        "m3": 0.5,
+        "hc": -0.0,
+        "sniper": 0.4,
+        "knives": 0.5,
+        "grenades": 0.2
+    },
+    "itemPreferences": {
+        "vest": 0.3,
+        "helm": 0.8,
+        "laser": 0.2,
+        "silencer": 0.8,
+        "slippers": 0.9,
+        "bandolier": 0.5
+    },
+    "coreTraits": {
+        "aggressiveness": 0.3,
+        "teamwork": 0.5,
+        "curiosity": 0.6,
+        "aimingSkill": 0.4,
+        "reactionTime": 0.9,
+        "communicationFreq": 0.6,
+        "communicationTone": 0.3,
+        "movementStyle": 0.4,
+        "objectiveFocus": -0.1
+    }
+}

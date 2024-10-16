@@ -528,7 +528,7 @@ void VideoCheckClient(edict_t *ent)
 		if (ent->client->resp.gllockpvs != 0) {
 			gi.cprintf(ent, PRINT_HIGH,
 				"This server does not allow using that value for gl_lockpvs, set it to '0'\n");
-			gi.bprintf(PRINT_HIGH, "%s was using an illegal setting\n",
+			gi.bprintf(PRINT_HIGH, "%s was using an illegal gl_lockpvs setting\n",
 				ent->client->pers.netname);
 			Kick_Client(ent);
 			return;
@@ -538,20 +538,38 @@ void VideoCheckClient(edict_t *ent)
 		if (ent->client->resp.glclear != 0) {
 			gi.cprintf(ent, PRINT_HIGH,
 				"This server does not allow using that value for gl_clear, set it to '0'\n");
-			gi.bprintf(PRINT_HIGH, "%s was using an illegal setting\n",
+			gi.bprintf(PRINT_HIGH, "%s was using an illegal gl_clear setting\n",
 				ent->client->pers.netname);
 			Kick_Client(ent);
 			return;
 		}
 	}
-	if (darkmatch->value) {
-		if (ent->client->resp.gldynamic != 1) {
+	if (darkmatch->value && ent->client->resp.gldynamic != 1) {
+		ent->client->resp.gldynamic = 1;
+		stuffcmd (ent, "gl_dynamic 1\n");
+		gi.bprintf(PRINT_HIGH, "%s was using an illegal gl_dynamic setting, forcing it to 1\n",
+				ent->client->pers.netname);
+		// Double check
+		if (ent->client->resp.gldynamic != 1){
 			gi.cprintf(ent, PRINT_HIGH,
 				"This server does not allow using that value for gl_dynamic, set it to '1'\n");
-			gi.bprintf(PRINT_HIGH, "%s was using an illegal setting\n",
+			gi.bprintf(PRINT_HIGH, "%s was using an illegal gl_dynamic setting, kicking\n",
 				ent->client->pers.netname);
 			Kick_Client(ent);
-			return;
+		}
+	}
+	if (darkmatch->value && ent->client->resp.glbrightness != 0) {
+		ent->client->resp.glbrightness = 0;
+		stuffcmd (ent, "gl_brightness 0\n");
+		gi.bprintf(PRINT_HIGH, "%s was using an illegal gl_brightness setting, forcing it to 0\n",
+				ent->client->pers.netname);
+		// Double check
+		if (ent->client->resp.glbrightness != 0){
+			gi.cprintf(ent, PRINT_HIGH,
+				"This server does not allow using that value for gl_brightness, set it to '0'\n");
+			gi.bprintf(PRINT_HIGH, "%s was using an illegal gl_brightness setting, kicking\n",
+				ent->client->pers.netname);
+			Kick_Client(ent);
 		}
 	}
 	//Starting Modulate checks
@@ -620,4 +638,68 @@ void VideoCheckClient(edict_t *ent)
 			return;
 		}
 	}
+}
+
+/*
+	Sends a specified message to all clients at a specified time in the round
+*/
+Message *timedMessages = NULL;
+int numMessages = 0;
+
+qboolean TimedMessageAtTimeAll(void)
+{
+    int crl = (current_round_length / 10);
+    qboolean anyMessageFired = false;
+    int i;
+
+    for (i = 0; i < numMessages; i++) {
+        if (!timedMessages[i].fired && 
+		team_round_going &&
+		crl >= timedMessages[i].seconds && 
+		timedMessages[i].teamNum != -1) {
+            if(timedMessages[i].teamNum == NOTEAM)
+                CenterPrintAll(timedMessages[i].msg);
+            else
+                CenterPrintTeam(timedMessages[i].teamNum, timedMessages[i].msg);
+            timedMessages[i].fired = true;
+            anyMessageFired = true;
+        }
+    }
+
+    return anyMessageFired;
+}
+
+qboolean TimedMessageAtTimeEnt(void)
+{
+    int crl = (current_round_length / 10);
+    qboolean anyMessageFired = false;
+    int i;
+    for (i = 0; i < numMessages; i++) {
+        if (!timedMessages[i].fired && 
+		team_round_going &&
+		crl >= timedMessages[i].seconds && 
+		timedMessages[i].ent != NULL) {
+            gi.centerprintf(timedMessages[i].ent, "%s", timedMessages[i].msg);
+            timedMessages[i].fired = true;
+            anyMessageFired = true;
+        }
+    }
+
+    return anyMessageFired;
+}
+
+void FireTimedMessages(void)
+{
+	TimedMessageAtTimeAll();
+	TimedMessageAtTimeEnt();
+}
+
+void addTimedMessage(int teamNum, edict_t *ent, int seconds, char *msg) {
+    timedMessages = realloc(timedMessages, sizeof(Message) * (numMessages + 1));
+    timedMessages[numMessages].teamNum = teamNum;
+    timedMessages[numMessages].ent = ent;
+    timedMessages[numMessages].seconds = seconds;
+    timedMessages[numMessages].msg = msg;
+    timedMessages[numMessages].fired = false;
+    numMessages++;
 }

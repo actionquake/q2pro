@@ -1,0 +1,1265 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<Project ToolsVersion="4.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <ItemGroup>
+    <Filter Include="inc">
+      <UniqueIdentifier>{c61a0d2c-553c-4c30-99fc-d4b4a48d3430}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="inc\shared">
+      <UniqueIdentifier>{16604d31-c8bd-4600-bb35-e75932148736}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="inc\client">
+      <UniqueIdentifier>{3bfe056e-fc94-4586-b6e5-2d61c3d94d75}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="inc\client\sound">
+      <UniqueIdentifier>{0d512c66-3f69-40fe-9eac-4b5f2e83acc4}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="inc\common">
+      <UniqueIdentifier>{4e7d39ec-e832-4f83-b40b-0fe0f25994ec}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="inc\common\net">
+      <UniqueIdentifier>{fa2692f1-6de4-47a1-980f-1e2ee151d1c7}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="inc\format">
+      <UniqueIdentifier>{004de5cb-77d3-45f2-b691-2381e859416e}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="inc\refresh">
+      <UniqueIdentifier>{0d262dbb-8f78-4583-8121-b7e741652f9e}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="inc\server">
+      <UniqueIdentifier>{ac4ebd2e-ad94-4ccf-80e3-700df2f47d90}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="inc\server\mvd">
+      <UniqueIdentifier>{47522520-13a7-458d-8f4b-ab764e36c3c6}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="inc\system">
+      <UniqueIdentifier>{7b20a963-4c4a-4c24-8f3d-ef02f90b89cc}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="src">
+      <UniqueIdentifier>{38822057-a242-4f4b-8f8a-a23894a14326}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="src\action">
+      <UniqueIdentifier>{1a1d1677-7b4a-45ef-b9d0-732e7a94e1c9}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="src\action\acebot">
+      <UniqueIdentifier>{0841e986-1b8d-4b96-bfd8-8a8b4aaa4a7c}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="src\action\addons">
+      <UniqueIdentifier>{801fdf8b-2d69-4c7f-9e10-c9d289c67bf3}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="src\action\addons\tngbot">
+      <UniqueIdentifier>{d852dbcc-a2b2-4d37-83b8-6f34c6f1a31f}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="src\shared">
+      <UniqueIdentifier>{b4c8c703-9e90-429c-b693-452e74910af6}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="src\client">
+      <UniqueIdentifier>{2cc6f960-2e93-4fbe-a1d6-d63436e8f53a}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="src\client\sound">
+      <UniqueIdentifier>{28be1289-4e68-45eb-b56b-45d58e2e76e9}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="src\client\ui">
+      <UniqueIdentifier>{4f562c17-8d3b-48ba-ace5-8a7d6170cac8}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="src\common">
+      <UniqueIdentifier>{d20f24af-8a7e-4dbe-b282-c3b225c892b7}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="src\common\net">
+      <UniqueIdentifier>{e0e79ec0-2f49-4838-932e-57f4828eddb8}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="src\game">
+      <UniqueIdentifier>{91f6f017-c5a1-4b28-9a8c-9fdc1b0f6913}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="src\refresh">
+      <UniqueIdentifier>{1cac76d3-ae62-4ed6-900b-c6cd496ddb6b}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="src\server">
+      <UniqueIdentifier>{e33ae617-0aff-45af-bb30-a2aecce03999}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="src\server\mvd">
+      <UniqueIdentifier>{f527253a-ae71-4b6e-a74a-28d5196b77b7}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="src\unix">
+      <UniqueIdentifier>{b64b950a-f8d6-4edd-8a1d-8553cce7f68c}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="src\unix\res">
+      <UniqueIdentifier>{f0764e12-fe39-4fa7-a46f-798d44e03d9b}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="src\unix\sound">
+      <UniqueIdentifier>{afdc68cf-b44a-495f-ba71-973712d5da08}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="src\unix\video">
+      <UniqueIdentifier>{e8a3f168-f2e8-4244-9d28-a2db6a274eb8}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="src\unix\video\keytables">
+      <UniqueIdentifier>{da04e258-7bcf-43e0-8338-b3ccc368b76b}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="src\windows">
+      <UniqueIdentifier>{c4cb9d7f-88de-4bde-9ebf-103302ec9c60}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="src\windows\res">
+      <UniqueIdentifier>{614cfeeb-ee49-4f30-8238-ca6f95ecb179}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="AQtion">
+      <UniqueIdentifier>{131572c4-f889-4c76-a267-8b1c52ca5d64}</UniqueIdentifier>
+    </Filter>
+  </ItemGroup>
+  <ItemGroup>
+    <ClCompile Include="..\src\action\a_cmds.c">
+      <Filter>src\action</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\action\a_ctf.c">
+      <Filter>src\action</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\action\a_dom.c">
+      <Filter>src\action</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\action\a_doorkick.c">
+      <Filter>src\action</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\action\a_esp.c">
+      <Filter>src\action</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\action\a_game.c">
+      <Filter>src\action</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\action\a_items.c">
+      <Filter>src\action</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\action\a_match.c">
+      <Filter>src\action</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\action\a_menu.c">
+      <Filter>src\action</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\action\a_radio.c">
+      <Filter>src\action</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\action\a_team.c">
+      <Filter>src\action</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\action\a_tourney.c">
+      <Filter>src\action</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\action\a_vote.c">
+      <Filter>src\action</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\action\a_xcmds.c">
+      <Filter>src\action</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\action\a_xgame.c">
+      <Filter>src\action</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\action\a_xmenu.c">
+      <Filter>src\action</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\action\a_xvote.c">
+      <Filter>src\action</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\action\cgf_sfx_glass.c">
+      <Filter>src\action</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\action\e_game.c">
+      <Filter>src\action</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\action\g_chase.c">
+      <Filter>src\action</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\action\g_cmds.c">
+      <Filter>src\action</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\action\g_combat.c">
+      <Filter>src\action</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\action\g_ext.c">
+      <Filter>src\action</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\action\g_func.c">
+      <Filter>src\action</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\action\g_grapple.c">
+      <Filter>src\action</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\action\g_items.c">
+      <Filter>src\action</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\action\g_main.c">
+      <Filter>src\action</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\action\g_misc.c">
+      <Filter>src\action</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\action\g_phys.c">
+      <Filter>src\action</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\action\g_save.c">
+      <Filter>src\action</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\action\g_spawn.c">
+      <Filter>src\action</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\action\g_svcmds.c">
+      <Filter>src\action</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\action\g_target.c">
+      <Filter>src\action</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\action\g_trigger.c">
+      <Filter>src\action</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\action\g_utils.c">
+      <Filter>src\action</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\action\g_weapon.c">
+      <Filter>src\action</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\action\lcchack.c">
+      <Filter>src\action</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\action\p_antilag.c">
+      <Filter>src\action</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\action\p_client.c">
+      <Filter>src\action</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\action\p_hud.c">
+      <Filter>src\action</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\action\p_view.c">
+      <Filter>src\action</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\action\p_weapon.c">
+      <Filter>src\action</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\action\tng_balancer.c">
+      <Filter>src\action</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\action\tng_flashlight.c">
+      <Filter>src\action</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\action\tng_ini.c">
+      <Filter>src\action</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\action\tng_irc.c">
+      <Filter>src\action</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\action\tng_jump.c">
+      <Filter>src\action</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\action\tng_stats.c">
+      <Filter>src\action</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\action\acesrc\acebot_ai.c">
+      <Filter>src\action\acebot</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\action\acesrc\acebot_cmds.c">
+      <Filter>src\action\acebot</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\action\acesrc\acebot_compress.c">
+      <Filter>src\action\acebot</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\action\acesrc\acebot_items.c">
+      <Filter>src\action\acebot</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\action\acesrc\acebot_movement.c">
+      <Filter>src\action\acebot</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\action\acesrc\acebot_nodes.c">
+      <Filter>src\action\acebot</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\action\acesrc\acebot_spawn.c">
+      <Filter>src\action\acebot</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\action\acesrc\bot_ai.c">
+      <Filter>src\action\acebot</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\action\acesrc\bot_collision.c">
+      <Filter>src\action\acebot</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\action\acesrc\bot_combat.c">
+      <Filter>src\action\acebot</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\action\acesrc\bot_env_doors.c">
+      <Filter>src\action\acebot</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\action\acesrc\bot_movement.c">
+      <Filter>src\action\acebot</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\action\acesrc\bot_states.c">
+      <Filter>src\action\acebot</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\action\acesrc\bot_utility.c">
+      <Filter>src\action\acebot</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\action\acesrc\bot_weapon.c">
+      <Filter>src\action\acebot</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\action\acesrc\botchat.c">
+      <Filter>src\action\acebot</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\action\acesrc\botnav.c">
+      <Filter>src\action\acebot</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\action\acesrc\botscan.c">
+      <Filter>src\action\acebot</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\action\addons\tngbot\tngbot.c">
+      <Filter>src\action\addons\tngbot</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\shared\m_flash.c">
+      <Filter>src\shared</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\shared\shared.c">
+      <Filter>src\shared</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\client\ui\demos.c">
+      <Filter>src\client\ui</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\client\ui\menu.c">
+      <Filter>src\client\ui</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\client\ui\playerconfig.c">
+      <Filter>src\client\ui</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\client\ui\playermodels.c">
+      <Filter>src\client\ui</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\client\ui\script.c">
+      <Filter>src\client\ui</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\client\ui\servers.c">
+      <Filter>src\client\ui</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\client\ui\ui.c">
+      <Filter>src\client\ui</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\client\sound\al.c">
+      <Filter>src\client\sound</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\client\sound\dma.c">
+      <Filter>src\client\sound</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\client\sound\main.c">
+      <Filter>src\client\sound</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\client\sound\mem.c">
+      <Filter>src\client\sound</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\client\sound\ogg.c">
+      <Filter>src\client\sound</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\client\sound\qal.c">
+      <Filter>src\client\sound</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\client\ascii.c">
+      <Filter>src\client</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\client\cin.c">
+      <Filter>src\client</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\client\console.c">
+      <Filter>src\client</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\client\crc.c">
+      <Filter>src\client</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\client\demo.c">
+      <Filter>src\client</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\client\download.c">
+      <Filter>src\client</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\client\effects.c">
+      <Filter>src\client</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\client\entities.c">
+      <Filter>src\client</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\client\ffcin.c">
+      <Filter>src\client</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\client\ghud.c">
+      <Filter>src\client</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\client\gtv.c">
+      <Filter>src\client</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\client\http.c">
+      <Filter>src\client</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\client\input.c">
+      <Filter>src\client</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\client\keys.c">
+      <Filter>src\client</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\client\locs.c">
+      <Filter>src\client</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\client\main.c">
+      <Filter>src\client</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\client\newfx.c">
+      <Filter>src\client</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\client\null.c">
+      <Filter>src\client</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\client\parse.c">
+      <Filter>src\client</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\client\precache.c">
+      <Filter>src\client</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\client\predict.c">
+      <Filter>src\client</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\client\refresh.c">
+      <Filter>src\client</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\client\screen.c">
+      <Filter>src\client</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\client\tent.c">
+      <Filter>src\client</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\client\view.c">
+      <Filter>src\client</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\common\async.c">
+      <Filter>src\common</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\common\bsp.c">
+      <Filter>src\common</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\common\cmd.c">
+      <Filter>src\common</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\common\cmodel.c">
+      <Filter>src\common</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\common\common.c">
+      <Filter>src\common</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\common\cvar.c">
+      <Filter>src\common</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\common\error.c">
+      <Filter>src\common</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\common\field.c">
+      <Filter>src\common</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\common\fifo.c">
+      <Filter>src\common</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\common\files.c">
+      <Filter>src\common</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\common\hash_map.c">
+      <Filter>src\common</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\common\math.c">
+      <Filter>src\common</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\common\mdfour.c">
+      <Filter>src\common</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\common\msg.c">
+      <Filter>src\common</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\common\pmove.c">
+      <Filter>src\common</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\common\prompt.c">
+      <Filter>src\common</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\common\sizebuf.c">
+      <Filter>src\common</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\common\tests.c">
+      <Filter>src\common</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\common\utils.c">
+      <Filter>src\common</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\common\zone.c">
+      <Filter>src\common</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\common\net\chan.c">
+      <Filter>src\common\net</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\common\net\net.c">
+      <Filter>src\common\net</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\game\g_ai.c">
+      <Filter>src\game</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\game\g_chase.c">
+      <Filter>src\game</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\game\g_cmds.c">
+      <Filter>src\game</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\game\g_combat.c">
+      <Filter>src\game</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\game\g_func.c">
+      <Filter>src\game</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\game\g_items.c">
+      <Filter>src\game</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\game\g_main.c">
+      <Filter>src\game</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\game\g_misc.c">
+      <Filter>src\game</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\game\g_monster.c">
+      <Filter>src\game</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\game\g_phys.c">
+      <Filter>src\game</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\game\g_ptrs.c">
+      <Filter>src\game</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\game\g_save.c">
+      <Filter>src\game</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\game\g_spawn.c">
+      <Filter>src\game</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\game\g_svcmds.c">
+      <Filter>src\game</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\game\g_target.c">
+      <Filter>src\game</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\game\g_trigger.c">
+      <Filter>src\game</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\game\g_turret.c">
+      <Filter>src\game</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\game\g_utils.c">
+      <Filter>src\game</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\game\g_weapon.c">
+      <Filter>src\game</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\game\m_actor.c">
+      <Filter>src\game</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\game\m_berserk.c">
+      <Filter>src\game</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\game\m_boss2.c">
+      <Filter>src\game</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\game\m_boss3.c">
+      <Filter>src\game</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\game\m_boss31.c">
+      <Filter>src\game</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\game\m_boss32.c">
+      <Filter>src\game</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\game\m_brain.c">
+      <Filter>src\game</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\game\m_chick.c">
+      <Filter>src\game</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\game\m_flipper.c">
+      <Filter>src\game</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\game\m_float.c">
+      <Filter>src\game</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\game\m_flyer.c">
+      <Filter>src\game</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\game\m_gladiator.c">
+      <Filter>src\game</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\game\m_gunner.c">
+      <Filter>src\game</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\game\m_hover.c">
+      <Filter>src\game</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\game\m_infantry.c">
+      <Filter>src\game</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\game\m_insane.c">
+      <Filter>src\game</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\game\m_medic.c">
+      <Filter>src\game</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\game\m_move.c">
+      <Filter>src\game</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\game\m_mutant.c">
+      <Filter>src\game</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\game\m_parasite.c">
+      <Filter>src\game</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\game\m_soldier.c">
+      <Filter>src\game</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\game\m_supertank.c">
+      <Filter>src\game</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\game\m_tank.c">
+      <Filter>src\game</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\game\p_client.c">
+      <Filter>src\game</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\game\p_hud.c">
+      <Filter>src\game</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\game\p_trail.c">
+      <Filter>src\game</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\game\p_view.c">
+      <Filter>src\game</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\game\p_weapon.c">
+      <Filter>src\game</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\refresh\draw.c">
+      <Filter>src\refresh</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\refresh\hq2x.c">
+      <Filter>src\refresh</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\refresh\images.c">
+      <Filter>src\refresh</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\refresh\legacy.c">
+      <Filter>src\refresh</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\refresh\main.c">
+      <Filter>src\refresh</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\refresh\mesh.c">
+      <Filter>src\refresh</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\refresh\models.c">
+      <Filter>src\refresh</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\refresh\qgl.c">
+      <Filter>src\refresh</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\refresh\shader.c">
+      <Filter>src\refresh</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\refresh\sky.c">
+      <Filter>src\refresh</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\refresh\state.c">
+      <Filter>src\refresh</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\refresh\surf.c">
+      <Filter>src\refresh</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\refresh\tess.c">
+      <Filter>src\refresh</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\refresh\texture.c">
+      <Filter>src\refresh</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\refresh\world.c">
+      <Filter>src\refresh</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\server\ac.c">
+      <Filter>src\server</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\server\commands.c">
+      <Filter>src\server</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\server\entities.c">
+      <Filter>src\server</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\server\game.c">
+      <Filter>src\server</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\server\ghud.c">
+      <Filter>src\server</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\server\init.c">
+      <Filter>src\server</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\server\main.c">
+      <Filter>src\server</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\server\mvd.c">
+      <Filter>src\server</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\server\save.c">
+      <Filter>src\server</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\server\send.c">
+      <Filter>src\server</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\server\user.c">
+      <Filter>src\server</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\server\world.c">
+      <Filter>src\server</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\server\mvd\client.c">
+      <Filter>src\server\mvd</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\server\mvd\game.c">
+      <Filter>src\server\mvd</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\server\mvd\parse.c">
+      <Filter>src\server\mvd</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\unix\video\sdl.c">
+      <Filter>src\unix\video</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\unix\video\wayland.c">
+      <Filter>src\unix\video</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\unix\video\x11.c">
+      <Filter>src\unix\video</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\unix\video\keytables\at.c">
+      <Filter>src\unix\video\keytables</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\unix\video\keytables\evdev.c">
+      <Filter>src\unix\video\keytables</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\unix\sound\sdl.c">
+      <Filter>src\unix\sound</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\unix\hunk.c">
+      <Filter>src\unix</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\unix\system.c">
+      <Filter>src\unix</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\unix\tty.c">
+      <Filter>src\unix</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\windows\ac.c">
+      <Filter>src\windows</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\windows\client.c">
+      <Filter>src\windows</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\windows\debug.c">
+      <Filter>src\windows</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\windows\dsound.c">
+      <Filter>src\windows</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\windows\egl.c">
+      <Filter>src\windows</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\windows\hunk.c">
+      <Filter>src\windows</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\windows\system.c">
+      <Filter>src\windows</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\windows\wave.c">
+      <Filter>src\windows</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\windows\wgl.c">
+      <Filter>src\windows</Filter>
+    </ClCompile>
+  </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="..\src\action\a_ctf.h">
+      <Filter>src\action</Filter>
+    </ClInclude>
+    <ClInclude Include="..\src\action\a_dom.h">
+      <Filter>src\action</Filter>
+    </ClInclude>
+    <ClInclude Include="..\src\action\a_esp.h">
+      <Filter>src\action</Filter>
+    </ClInclude>
+    <ClInclude Include="..\src\action\a_game.h">
+      <Filter>src\action</Filter>
+    </ClInclude>
+    <ClInclude Include="..\src\action\a_match.h">
+      <Filter>src\action</Filter>
+    </ClInclude>
+    <ClInclude Include="..\src\action\a_menu.h">
+      <Filter>src\action</Filter>
+    </ClInclude>
+    <ClInclude Include="..\src\action\a_radio.h">
+      <Filter>src\action</Filter>
+    </ClInclude>
+    <ClInclude Include="..\src\action\a_team.h">
+      <Filter>src\action</Filter>
+    </ClInclude>
+    <ClInclude Include="..\src\action\a_tourney.h">
+      <Filter>src\action</Filter>
+    </ClInclude>
+    <ClInclude Include="..\src\action\a_vote.h">
+      <Filter>src\action</Filter>
+    </ClInclude>
+    <ClInclude Include="..\src\action\a_xcmds.h">
+      <Filter>src\action</Filter>
+    </ClInclude>
+    <ClInclude Include="..\src\action\a_xgame.h">
+      <Filter>src\action</Filter>
+    </ClInclude>
+    <ClInclude Include="..\src\action\a_xmenu.h">
+      <Filter>src\action</Filter>
+    </ClInclude>
+    <ClInclude Include="..\src\action\a_xvote.h">
+      <Filter>src\action</Filter>
+    </ClInclude>
+    <ClInclude Include="..\src\action\cgf_sfx_glass.h">
+      <Filter>src\action</Filter>
+    </ClInclude>
+    <ClInclude Include="..\src\action\g_grapple.h">
+      <Filter>src\action</Filter>
+    </ClInclude>
+    <ClInclude Include="..\src\action\g_local.h">
+      <Filter>src\action</Filter>
+    </ClInclude>
+    <ClInclude Include="..\src\action\m_player.h">
+      <Filter>src\action</Filter>
+    </ClInclude>
+    <ClInclude Include="..\src\action\p_antilag.h">
+      <Filter>src\action</Filter>
+    </ClInclude>
+    <ClInclude Include="..\src\action\q_ghud.h">
+      <Filter>src\action</Filter>
+    </ClInclude>
+    <ClInclude Include="..\src\action\tng_balancer.h">
+      <Filter>src\action</Filter>
+    </ClInclude>
+    <ClInclude Include="..\src\action\tng_ini.h">
+      <Filter>src\action</Filter>
+    </ClInclude>
+    <ClInclude Include="..\src\action\tng_irc.h">
+      <Filter>src\action</Filter>
+    </ClInclude>
+    <ClInclude Include="..\src\action\tng_jump.h">
+      <Filter>src\action</Filter>
+    </ClInclude>
+    <ClInclude Include="..\src\action\tng_stats.h">
+      <Filter>src\action</Filter>
+    </ClInclude>
+    <ClInclude Include="..\src\action\acesrc\acebot.h">
+      <Filter>src\action\acebot</Filter>
+    </ClInclude>
+    <ClInclude Include="..\src\action\acesrc\botchat.h">
+      <Filter>src\action\acebot</Filter>
+    </ClInclude>
+    <ClInclude Include="..\src\action\acesrc\botnav.h">
+      <Filter>src\action\acebot</Filter>
+    </ClInclude>
+    <ClInclude Include="..\src\action\acesrc\botscan.h">
+      <Filter>src\action\acebot</Filter>
+    </ClInclude>
+    <ClInclude Include="..\inc\shared\atomic.h">
+      <Filter>inc\shared</Filter>
+    </ClInclude>
+    <ClInclude Include="..\inc\shared\files.h">
+      <Filter>inc\shared</Filter>
+    </ClInclude>
+    <ClInclude Include="..\inc\shared\game.h">
+      <Filter>inc\shared</Filter>
+    </ClInclude>
+    <ClInclude Include="..\inc\shared\ghud.h">
+      <Filter>inc\shared</Filter>
+    </ClInclude>
+    <ClInclude Include="..\inc\shared\list.h">
+      <Filter>inc\shared</Filter>
+    </ClInclude>
+    <ClInclude Include="..\inc\shared\m_flash.h">
+      <Filter>inc\shared</Filter>
+    </ClInclude>
+    <ClInclude Include="..\inc\shared\platform.h">
+      <Filter>inc\shared</Filter>
+    </ClInclude>
+    <ClInclude Include="..\inc\client\client.h">
+      <Filter>inc\client</Filter>
+    </ClInclude>
+    <ClInclude Include="..\inc\client\input.h">
+      <Filter>inc\client</Filter>
+    </ClInclude>
+    <ClInclude Include="..\inc\client\keys.h">
+      <Filter>inc\client</Filter>
+    </ClInclude>
+    <ClInclude Include="..\inc\client\ui.h">
+      <Filter>inc\client</Filter>
+    </ClInclude>
+    <ClInclude Include="..\inc\client\video.h">
+      <Filter>inc\client</Filter>
+    </ClInclude>
+    <ClInclude Include="..\inc\client\sound\dma.h">
+      <Filter>inc\client\sound</Filter>
+    </ClInclude>
+    <ClInclude Include="..\inc\client\sound\sound.h">
+      <Filter>inc\client\sound</Filter>
+    </ClInclude>
+    <ClInclude Include="..\inc\common\net\chan.h">
+      <Filter>inc\common\net</Filter>
+    </ClInclude>
+    <ClInclude Include="..\inc\common\net\net.h">
+      <Filter>inc\common\net</Filter>
+    </ClInclude>
+    <ClInclude Include="..\inc\common\async.h">
+      <Filter>inc\common</Filter>
+    </ClInclude>
+    <ClInclude Include="..\inc\common\bsp.h">
+      <Filter>inc\common</Filter>
+    </ClInclude>
+    <ClInclude Include="..\inc\common\cmd.h">
+      <Filter>inc\common</Filter>
+    </ClInclude>
+    <ClInclude Include="..\inc\common\cmodel.h">
+      <Filter>inc\common</Filter>
+    </ClInclude>
+    <ClInclude Include="..\inc\common\common.h">
+      <Filter>inc\common</Filter>
+    </ClInclude>
+    <ClInclude Include="..\inc\common\cvar.h">
+      <Filter>inc\common</Filter>
+    </ClInclude>
+    <ClInclude Include="..\inc\common\error.h">
+      <Filter>inc\common</Filter>
+    </ClInclude>
+    <ClInclude Include="..\inc\common\field.h">
+      <Filter>inc\common</Filter>
+    </ClInclude>
+    <ClInclude Include="..\inc\common\fifo.h">
+      <Filter>inc\common</Filter>
+    </ClInclude>
+    <ClInclude Include="..\inc\common\files.h">
+      <Filter>inc\common</Filter>
+    </ClInclude>
+    <ClInclude Include="..\inc\common\hash_map.h">
+      <Filter>inc\common</Filter>
+    </ClInclude>
+    <ClInclude Include="..\inc\common\intreadwrite.h">
+      <Filter>inc\common</Filter>
+    </ClInclude>
+    <ClInclude Include="..\inc\common\math.h">
+      <Filter>inc\common</Filter>
+    </ClInclude>
+    <ClInclude Include="..\inc\common\mdfour.h">
+      <Filter>inc\common</Filter>
+    </ClInclude>
+    <ClInclude Include="..\inc\common\msg.h">
+      <Filter>inc\common</Filter>
+    </ClInclude>
+    <ClInclude Include="..\inc\common\pmove.h">
+      <Filter>inc\common</Filter>
+    </ClInclude>
+    <ClInclude Include="..\inc\common\prompt.h">
+      <Filter>inc\common</Filter>
+    </ClInclude>
+    <ClInclude Include="..\inc\common\protocol.h">
+      <Filter>inc\common</Filter>
+    </ClInclude>
+    <ClInclude Include="..\inc\common\sizebuf.h">
+      <Filter>inc\common</Filter>
+    </ClInclude>
+    <ClInclude Include="..\inc\common\tests.h">
+      <Filter>inc\common</Filter>
+    </ClInclude>
+    <ClInclude Include="..\inc\common\utils.h">
+      <Filter>inc\common</Filter>
+    </ClInclude>
+    <ClInclude Include="..\inc\common\zone.h">
+      <Filter>inc\common</Filter>
+    </ClInclude>
+    <ClInclude Include="..\inc\format\bsp.h">
+      <Filter>inc\format</Filter>
+    </ClInclude>
+    <ClInclude Include="..\inc\format\md2.h">
+      <Filter>inc\format</Filter>
+    </ClInclude>
+    <ClInclude Include="..\inc\format\md3.h">
+      <Filter>inc\format</Filter>
+    </ClInclude>
+    <ClInclude Include="..\inc\format\pak.h">
+      <Filter>inc\format</Filter>
+    </ClInclude>
+    <ClInclude Include="..\inc\format\pcx.h">
+      <Filter>inc\format</Filter>
+    </ClInclude>
+    <ClInclude Include="..\inc\format\sp2.h">
+      <Filter>inc\format</Filter>
+    </ClInclude>
+    <ClInclude Include="..\inc\format\wal.h">
+      <Filter>inc\format</Filter>
+    </ClInclude>
+    <ClInclude Include="..\inc\refresh\refresh.h">
+      <Filter>inc\refresh</Filter>
+    </ClInclude>
+    <ClInclude Include="..\inc\server\server.h">
+      <Filter>inc\server</Filter>
+    </ClInclude>
+    <ClInclude Include="..\inc\server\mvd\client.h">
+      <Filter>inc\server\mvd</Filter>
+    </ClInclude>
+    <ClInclude Include="..\inc\server\mvd\protocol.h">
+      <Filter>inc\server\mvd</Filter>
+    </ClInclude>
+    <ClInclude Include="..\inc\system\hunk.h">
+      <Filter>inc\system</Filter>
+    </ClInclude>
+    <ClInclude Include="..\inc\system\pthread.h">
+      <Filter>inc\system</Filter>
+    </ClInclude>
+    <ClInclude Include="..\inc\system\system.h">
+      <Filter>inc\system</Filter>
+    </ClInclude>
+    <ClInclude Include="..\src\client\ui\ui.h">
+      <Filter>src\client\ui</Filter>
+    </ClInclude>
+    <ClInclude Include="..\src\client\sound\qal.h">
+      <Filter>src\client\sound</Filter>
+    </ClInclude>
+    <ClInclude Include="..\src\client\sound\sound.h">
+      <Filter>src\client\sound</Filter>
+    </ClInclude>
+    <ClInclude Include="..\src\client\client.h">
+      <Filter>src\client</Filter>
+    </ClInclude>
+    <ClInclude Include="..\src\common\features.h">
+      <Filter>src\common</Filter>
+    </ClInclude>
+    <ClInclude Include="..\src\common\net\unix.h">
+      <Filter>src\common\net</Filter>
+    </ClInclude>
+    <ClInclude Include="..\src\common\net\win.h">
+      <Filter>src\common\net</Filter>
+    </ClInclude>
+    <ClInclude Include="..\src\game\g_local.h">
+      <Filter>src\game</Filter>
+    </ClInclude>
+    <ClInclude Include="..\src\game\g_ptrs.h">
+      <Filter>src\game</Filter>
+    </ClInclude>
+    <ClInclude Include="..\src\game\m_actor.h">
+      <Filter>src\game</Filter>
+    </ClInclude>
+    <ClInclude Include="..\src\game\m_berserk.h">
+      <Filter>src\game</Filter>
+    </ClInclude>
+    <ClInclude Include="..\src\game\m_boss2.h">
+      <Filter>src\game</Filter>
+    </ClInclude>
+    <ClInclude Include="..\src\game\m_boss31.h">
+      <Filter>src\game</Filter>
+    </ClInclude>
+    <ClInclude Include="..\src\game\m_boss32.h">
+      <Filter>src\game</Filter>
+    </ClInclude>
+    <ClInclude Include="..\src\game\m_brain.h">
+      <Filter>src\game</Filter>
+    </ClInclude>
+    <ClInclude Include="..\src\game\m_chick.h">
+      <Filter>src\game</Filter>
+    </ClInclude>
+    <ClInclude Include="..\src\game\m_flipper.h">
+      <Filter>src\game</Filter>
+    </ClInclude>
+    <ClInclude Include="..\src\game\m_float.h">
+      <Filter>src\game</Filter>
+    </ClInclude>
+    <ClInclude Include="..\src\game\m_flyer.h">
+      <Filter>src\game</Filter>
+    </ClInclude>
+    <ClInclude Include="..\src\game\m_gladiator.h">
+      <Filter>src\game</Filter>
+    </ClInclude>
+    <ClInclude Include="..\src\game\m_gunner.h">
+      <Filter>src\game</Filter>
+    </ClInclude>
+    <ClInclude Include="..\src\game\m_hover.h">
+      <Filter>src\game</Filter>
+    </ClInclude>
+    <ClInclude Include="..\src\game\m_infantry.h">
+      <Filter>src\game</Filter>
+    </ClInclude>
+    <ClInclude Include="..\src\game\m_insane.h">
+      <Filter>src\game</Filter>
+    </ClInclude>
+    <ClInclude Include="..\src\game\m_medic.h">
+      <Filter>src\game</Filter>
+    </ClInclude>
+    <ClInclude Include="..\src\game\m_mutant.h">
+      <Filter>src\game</Filter>
+    </ClInclude>
+    <ClInclude Include="..\src\game\m_parasite.h">
+      <Filter>src\game</Filter>
+    </ClInclude>
+    <ClInclude Include="..\src\game\m_player.h">
+      <Filter>src\game</Filter>
+    </ClInclude>
+    <ClInclude Include="..\src\game\m_rider.h">
+      <Filter>src\game</Filter>
+    </ClInclude>
+    <ClInclude Include="..\src\game\m_soldier.h">
+      <Filter>src\game</Filter>
+    </ClInclude>
+    <ClInclude Include="..\src\game\m_supertank.h">
+      <Filter>src\game</Filter>
+    </ClInclude>
+    <ClInclude Include="..\src\game\m_tank.h">
+      <Filter>src\game</Filter>
+    </ClInclude>
+    <ClInclude Include="..\src\refresh\arbfp.h">
+      <Filter>src\refresh</Filter>
+    </ClInclude>
+    <ClInclude Include="..\src\refresh\gl.h">
+      <Filter>src\refresh</Filter>
+    </ClInclude>
+    <ClInclude Include="..\src\refresh\images.h">
+      <Filter>src\refresh</Filter>
+    </ClInclude>
+    <ClInclude Include="..\src\refresh\qgl.h">
+      <Filter>src\refresh</Filter>
+    </ClInclude>
+    <ClInclude Include="..\src\server\server.h">
+      <Filter>src\server</Filter>
+    </ClInclude>
+    <ClInclude Include="..\src\server\mvd\client.h">
+      <Filter>src\server\mvd</Filter>
+    </ClInclude>
+    <ClInclude Include="..\src\unix\video\keytables\keytables.h">
+      <Filter>src\unix\video\keytables</Filter>
+    </ClInclude>
+    <ClInclude Include="..\src\unix\video\keytables\sdl.h">
+      <Filter>src\unix\video\keytables</Filter>
+    </ClInclude>
+    <ClInclude Include="..\src\unix\tty.h">
+      <Filter>src\unix</Filter>
+    </ClInclude>
+    <ClInclude Include="..\src\windows\client.h">
+      <Filter>src\windows</Filter>
+    </ClInclude>
+    <ClInclude Include="..\src\windows\egl_import.h">
+      <Filter>src\windows</Filter>
+    </ClInclude>
+    <ClInclude Include="Debug\config.h">
+      <Filter>AQtion</Filter>
+    </ClInclude>
+    <ClInclude Include="..\inc\shared\shared.h">
+      <Filter>inc\shared</Filter>
+    </ClInclude>
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="..\src\client\ui\q2pro.menu">
+      <Filter>src\client\ui</Filter>
+    </None>
+    <None Include="..\src\game\genptr.py">
+      <Filter>src\game</Filter>
+    </None>
+    <None Include="..\src\unix\video\meson.build">
+      <Filter>src\unix\video</Filter>
+    </None>
+    <None Include="..\src\unix\res\q2pro.default">
+      <Filter>src\unix\res</Filter>
+    </None>
+    <None Include="..\src\unix\res\q2pro.desktop">
+      <Filter>src\unix\res</Filter>
+    </None>
+    <None Include="..\src\unix\res\q2pro.xbm">
+      <Filter>src\unix\res</Filter>
+    </None>
+    <None Include="..\src\unix\res\q2pro.xpm">
+      <Filter>src\unix\res</Filter>
+    </None>
+    <None Include="..\src\unix\meson.build">
+      <Filter>src\unix</Filter>
+    </None>
+    <None Include="..\src\windows\meson.build">
+      <Filter>src\windows</Filter>
+    </None>
+    <None Include="..\INSTALL.md" />
+    <None Include="..\LICENSE" />
+    <None Include="..\meson.build" />
+    <None Include="..\README.md" />
+    <None Include="..\update.bat" />
+    <None Include="..\version.py" />
+    <None Include="meson_debug_build.bat">
+      <Filter>AQtion</Filter>
+    </None>
+    <None Include="meson_debug_clean.bat">
+      <Filter>AQtion</Filter>
+    </None>
+    <None Include="meson_debug_configure.bat">
+      <Filter>AQtion</Filter>
+    </None>
+    <None Include="meson_debug_rebuild.bat">
+      <Filter>AQtion</Filter>
+    </None>
+    <None Include="meson_release_build.bat">
+      <Filter>AQtion</Filter>
+    </None>
+    <None Include="meson_release_clean.bat">
+      <Filter>AQtion</Filter>
+    </None>
+    <None Include="meson_release_configure.bat">
+      <Filter>AQtion</Filter>
+    </None>
+    <None Include="meson_release_rebuild.bat">
+      <Filter>AQtion</Filter>
+    </None>
+  </ItemGroup>
+  <ItemGroup>
+    <ResourceCompile Include="..\src\windows\res\aqtion.rc">
+      <Filter>src\windows\res</Filter>
+    </ResourceCompile>
+    <ResourceCompile Include="..\src\windows\res\game.rc">
+      <Filter>src\windows\res</Filter>
+    </ResourceCompile>
+    <ResourceCompile Include="..\src\windows\res\q2pro.rc">
+      <Filter>src\windows\res</Filter>
+    </ResourceCompile>
+    <ResourceCompile Include="..\src\windows\res\q2pro-aqtion.rc">
+      <Filter>src\windows\res</Filter>
+    </ResourceCompile>
+    <ResourceCompile Include="..\src\windows\res\q2proded.rc">
+      <Filter>src\windows\res</Filter>
+    </ResourceCompile>
+    <ResourceCompile Include="..\src\windows\res\q2proded-aqtion.rc">
+      <Filter>src\windows\res</Filter>
+    </ResourceCompile>
+  </ItemGroup>
+  <ItemGroup>
+    <Manifest Include="..\src\windows\res\q2pro.exe.manifest">
+      <Filter>src\windows\res</Filter>
+    </Manifest>
+    <Manifest Include="..\src\windows\res\q2proded.exe.manifest">
+      <Filter>src\windows\res</Filter>
+    </Manifest>
+  </ItemGroup>
+  <ItemGroup>
+    <Image Include="..\src\windows\res\q2pro.ico">
+      <Filter>src\windows\res</Filter>
+    </Image>
+    <Image Include="..\src\windows\res\q2pro-aqtion.ico">
+      <Filter>src\windows\res</Filter>
+    </Image>
+    <Image Include="..\src\windows\res\q2proded.ico">
+      <Filter>src\windows\res</Filter>
+    </Image>
+    <Image Include="..\src\windows\res\q2proded-aqtion.ico">
+      <Filter>src\windows\res</Filter>
+    </Image>
+  </ItemGroup>
+  <ItemGroup>
+    <Text Include="..\meson_options.txt" />
+  </ItemGroup>
+</Project>

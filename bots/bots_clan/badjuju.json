@@ -1,0 +1,35 @@
+{
+    "name": "Bad JuJu",
+    "clan_id": 20,
+    "skin": "male/nut",
+    "weaponPreferences": {
+        "mk23": 0.5,
+        "dual_mk23": 0.2,
+        "mp5": 0.6,
+        "m4": 0.7,
+        "m3": 0.7,
+        "hc": 0.3,
+        "sniper": 0.5,
+        "knives": 0.7,
+        "grenades": 0.7
+    },
+    "itemPreferences": {
+        "vest": 0.7,
+        "helm": -0.2,
+        "laser": 0.2,
+        "silencer": 0.7,
+        "slippers": 0.4,
+        "bandolier": 0.5
+    },
+    "coreTraits": {
+        "aggressiveness": 0.6,
+        "teamwork": 0.4,
+        "curiosity": 0.1,
+        "aimingSkill": 0.7,
+        "reactionTime": 0.2,
+        "communicationFreq": 0.6,
+        "communicationTone": 0.1,
+        "movementStyle": 0.3,
+        "objectiveFocus": 0.6
+    }
+}

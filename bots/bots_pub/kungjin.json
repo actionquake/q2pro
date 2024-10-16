@@ -1,0 +1,35 @@
+{
+    "name": "Kung Jin",
+    "clan_id": null,
+    "skin": "terror/skyterr",
+    "weaponPreferences": {
+        "mk23": 0.5,
+        "dual_mk23": 0.5,
+        "mp5": -0.1,
+        "m4": 0.5,
+        "m3": 0.9,
+        "hc": 0.5,
+        "sniper": 0.7,
+        "knives": 0.6,
+        "grenades": 0.5
+    },
+    "itemPreferences": {
+        "vest": 0.3,
+        "helm": 0.6,
+        "laser": 0.1,
+        "silencer": 0.6,
+        "slippers": 0.4,
+        "bandolier": 0.2
+    },
+    "coreTraits": {
+        "aggressiveness": 0.4,
+        "teamwork": 0.2,
+        "curiosity": 0.4,
+        "aimingSkill": 0.2,
+        "reactionTime": 0.5,
+        "communicationFreq": 0.6,
+        "communicationTone": 0.4,
+        "movementStyle": 0.4,
+        "objectiveFocus": 1.0
+    }
+}

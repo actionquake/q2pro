@@ -1,0 +1,35 @@
+{
+    "name": "Bob Ross",
+    "clan_id": 10,
+    "skin": "sydney/blonde",
+    "weaponPreferences": {
+        "mk23": 0.5,
+        "dual_mk23": 0.6,
+        "mp5": 0.2,
+        "m4": 0.9,
+        "m3": 0.8,
+        "hc": 0.6,
+        "sniper": -0.0,
+        "knives": 0.2,
+        "grenades": 1.0
+    },
+    "itemPreferences": {
+        "vest": 0.4,
+        "helm": 0.4,
+        "laser": 0.1,
+        "silencer": 0.5,
+        "slippers": 0.5,
+        "bandolier": 0.6
+    },
+    "coreTraits": {
+        "aggressiveness": 0.1,
+        "teamwork": 0.6,
+        "curiosity": 0.5,
+        "aimingSkill": 0.5,
+        "reactionTime": 0.4,
+        "communicationFreq": 0.5,
+        "communicationTone": 0.8,
+        "movementStyle": 0.8,
+        "objectiveFocus": 0.2
+    }
+}

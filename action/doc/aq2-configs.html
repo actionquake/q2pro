@@ -1,0 +1,682 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+
+<html>
+  <head>
+    <meta name="generator" content="HTML Tidy, see www.w3.org">
+    <meta name="version" content="Version: $Id: aq2-configs.html,v 1.10 2003/06/19 16:37:57 igor_rock Exp $">
+
+    <title>AQ2:TNG - Online Config Generator Part I: Global Server Configuration</title>
+  </head>
+
+  <body bgcolor="#000000" text="#ff0000" link="#808080" vlink="#808080" alink="#808000">
+    <center>
+      <form action="create_aq2-config.php" target="_blank">
+        <table width="98%" cellspacing="2" cellpadding="2" border="0">
+          <tr>
+            <td align="center" width="100%">
+              <h1>AQ2:TNG Online Config Generator</h1>
+	      <h2>Part I: Global Server Config</h2>
+
+              <p style="color:#FFFFFF"><b>How to use this page:</b></p>
+
+              <p>Use the form below to choose your desired options. Click on "Download" to get the file send to you or "Show Config" to display the created config in your browser window.</p>
+            </td>
+          </tr>
+
+          <tr>
+            <td align="center">
+              <table width="95%" cellspacing="2" cellpadding="2" border="2">
+                <tr>
+                  <td colspan="2" align="center" width="100%">
+                    <h3>General Settings</h3>
+                  </td>
+                </tr>
+
+                <tr>
+                  <td>Name of the main config file to create</td>
+
+                  <td><input type="text" name="data[configname]" size="25" maxlength="40" value="action.cfg"></td>
+                </tr>
+
+                <tr>
+                  <td>Name of the default mode config file to load</td>
+
+                  <td><input type="text" name="data[defaultconfig]" size="25" maxlength="40" value="mode_teamplay.cfg"></td>
+                </tr>
+
+                <tr>
+                  <td>rcon Password</td>
+
+                  <td><input type="text" name="data[rcon_password]" size="15" maxlength="15" value="*ChangeMe*"></td>
+                </tr>
+
+                <tr>
+                  <td>Announce Server to Masterserver</td>
+
+                  <td><select name="data[public]">
+                    <option value="0">
+                      No
+                    </option>
+
+                    <option value="1" selected>
+                      Yes
+                    </option>
+                  </select> </td>
+                </tr>
+
+                <tr>
+                  <td>Master Server List</td>
+
+                  <td><input type="text" name="data[masterserver]" size="25" maxlength="80" value="213.221.174.165"></td>
+                </tr>
+
+                <tr>
+                  <td>Skip Message Of The Day (MOTD)</td>
+
+                  <td><select name="data[skipmotd]">
+                    <option value="0" selected>
+                      No
+                    </option>
+
+                    <option value="1">
+                      Yes
+                    </option>
+                  </select> </td>
+                </tr>
+
+                <tr>
+                  <td>Time to display MOTD</td>
+
+                  <td><input type="text" name="data[motd_time]" size="2" maxlength="2" value="2"></td>
+                </tr>
+
+                <tr>
+                  <td>Timeout for idle people until kicked</td>
+
+                  <td><input type="text" name="data[ppl_idletime]" size="2" maxlength="2" value="15"></td>
+                </tr>
+
+                <tr>
+                  <td>Check time (cheats)</td>
+
+                  <td><input type="text" name="data[check_time]" size="2" maxlength="2" value="3"></td>
+                </tr>
+
+                <tr>
+                  <td>Enable Radio Logging</td>
+
+                  <td><select name="data[radiolog]">
+                    <option value="0" selected>
+                      No
+                    </option>
+
+                    <option value="1">
+                      Yes
+                    </option>
+                  </select> </td>
+                </tr>
+
+                <tr>
+                  <td>Use voice commands</td>
+
+                  <td><select name="data[use_voice]">
+                    <option value="0">
+                      No
+                    </option>
+
+                    <option value="1" selected>
+                      Yes
+                    </option>
+                  </select> </td>
+                </tr>
+
+                <tr>
+                  <td>Use classic mode (from 1.52)</td>
+
+                  <td><select name="data[use_classic]">
+                    <option value="0" selected>
+                      No
+                    </option>
+
+                    <option value="1">
+                      Yes
+                    </option>
+                  </select> </td>
+                </tr>
+
+                <tr>
+                  <td>"punch" command enabled</td>
+
+                  <td><select name="data[use_punch]">
+                    <option value="0">
+                      No
+                    </option>
+
+                    <option value="1" selected>
+                      Yes
+                    </option>
+                  </select> </td>
+                </tr>
+
+                <tr>
+                  <td>Allow CR/LF in say/say_team</td>
+
+                  <td><select name="data[sv_crlf]">
+                    <option value="0" selected>
+                      No
+                    </option>
+
+                    <option value="1">
+                      Yes
+                    </option>
+                  </select> </td>
+                </tr>
+
+                <tr>
+                  <td>Suicide after serious wound counts as kill</td>
+
+                  <td><select name="data[punishkills]">
+                    <option value="0">
+                      No
+                    </option>
+
+                    <option value="1" selected>
+                      Yes
+                    </option>
+                  </select> </td>
+                </tr>
+
+              </table>
+            </td>
+          </tr>
+
+          <tr>
+            <td>&nbsp;</td>
+          </tr>
+
+          <tr>
+            <td align="center">
+              <table width="95%" cellspacing="2" cellpadding="2" border="2">
+                <tr>
+                  <td colspan="2" align="center" width="100%">
+                    <h3>Maprotation</h3>
+                  </td>
+                </tr>
+
+                <tr>
+                  <td>Use maprotation</td>
+
+                  <td><select name="data[actionmaps]">
+                    <option value="0">
+                      No
+                    </option>
+
+                    <option value="1" selected>
+                      Yes
+                    </option>
+                  </select> </td>
+                </tr>
+
+                <tr>
+                  <td>Use random rotation</td>
+
+                  <td><select name="data[rrot]">
+                    <option value="0" selected>
+                      No
+                    </option>
+
+                    <option value="1">
+                      Yes
+                    </option>
+                  </select> </td>
+                </tr>
+
+                <tr>
+                  <td>Use voterotation</td>
+
+                  <td><select name="data[vrot]">
+                    <option value="0" selected>
+                      No
+                    </option>
+
+                    <option value="1">
+                      Yes
+                    </option>
+                  </select> </td>
+                </tr>
+
+              </table>
+            </td>
+          </tr>
+
+          <tr>
+            <td>&nbsp;</td>
+          </tr>
+
+          <tr>
+            <td align="center">
+              <table width="95%" cellspacing="2" cellpadding="2" border="2">
+                <tr>
+                  <td colspan="2" align="center" width="100%">
+                    <h3>Lag related settings</h3>
+                  </td>
+                </tr>
+
+                <tr>
+                  <td>Use lowlag soundpack</td>
+
+                  <td><select name="data[llsound]">
+                    <option value="0">
+                      No
+                    </option>
+
+                    <option value="1" selected>
+                      Yes
+                    </option>
+                  </select> </td>
+                </tr>
+
+                <tr>
+                  <td>Number of bullet holes in game (bholelimit)</td>
+
+                  <td><input type="text" name="data[bholelimit]" size="3" maxlength="3" value="0"></td>
+                </tr>
+
+                <tr>
+                  <td>Number of splatter in game (splatlimit)</td>
+
+                  <td><input type="text" name="data[splatlimit]" size="3" maxlength="3" value="0"></td>
+                </tr>
+
+                <tr>
+                  <td>Draw shells (shelloff)</td>
+
+                  <td><select name="data[shelloff]">
+                    <option value="1" selected>
+                      No
+                    </option>
+
+                    <option value="0">
+                      Yes
+                    </option>
+                  </select> </td>
+                </tr>
+
+                <tr>
+                  <td>Sniper gib mode</td>
+
+                  <td><select name="data[sv_gib]">
+                    <option value="0" selected>
+                      No
+                    </option>
+
+                    <option value="1">
+                      Yes
+                    </option>
+                  </select> </td>
+                </tr>
+
+                <tr>
+                  <td>Breakable glass support</td>
+
+                  <td><select name="data[breakableglass]">
+                    <option value="0" selected>
+                      No
+                    </option>
+
+                    <option value="1">
+                      Yes
+                    </option>
+                  </select> </td>
+                </tr>
+
+                <tr>
+                  <td>Glassfragmentlimit</td>
+
+                  <td><input type="text" name="data[glassfragmentlimit]" size="1" maxlength="1" value="0"></td>
+                </tr>
+
+              </table>
+            </td>
+          </tr>
+
+          <tr>
+            <td>&nbsp;</td>
+          </tr>
+
+          <tr>
+            <td align="center">
+              <table width="95%" cellspacing="2" cellpadding="2" border="2">
+                <tr>
+                  <td colspan="2" align="center" width="100%">
+                    <h3>Voting</h3>
+                  </td>
+                </tr>
+
+                <tr>
+                  <td>Use config voting</td>
+
+                  <td><select name="data[use_cvote]">
+                    <option value="0">
+                      No
+                    </option>
+
+                    <option value="1" selected>
+                      Yes
+                    </option>
+                  </select> </td>
+                </tr>
+
+                <tr>
+                  <td>Config voting parameters (minimum values)</td>
+
+                  <td>If there are <input type="text" name="data[cvote_min]" size="2" maxlength="2" value="2"> players connected and <input type="text" name="data[cvote_need]" size="3" maxlength="3" value="66">% of them want to change the config, then you need <input type="text" name="data[cvote_pass]" size="3" maxlength="3" value="33">% voting for the same config to vote it.</td>
+                </tr>
+
+                <tr>
+                  <td>Name of the file for voteable configs</td>
+
+                  <td><input type="text" name="data[configlistname]" size="25" maxlength="40" value="configlist.ini"></td>
+                </tr>
+
+                <tr>
+                  <td>Use map voting</td>
+
+                  <td><select name="data[use_mapvote]">
+                    <option value="0">
+                      No
+                    </option>
+
+                    <option value="1" selected>
+                      Yes
+                    </option>
+                  </select> </td>
+                </tr>
+
+                <tr>
+                  <td>Make mapvotes public</td>
+
+                  <td><select name="data[mv_public]">
+                    <option value="0" selected>
+                      No
+                    </option>
+
+                    <option value="1">
+                      Yes
+                    </option>
+                  </select> </td>
+                </tr>
+
+                <tr>
+                  <td>Time to block mapvotes after mapchange</td>
+
+                  <td><input type="text" name="data[mapvote_waittime]" size="3" maxlength="3" value="40"> seconds</td>
+                </tr>
+
+                <tr>
+                  <td>Map voting parameters (minimum values)</td>
+
+                  <td>If there are <input type="text" name="data[mapvote_min]" size="2" maxlength="2" value="2"> players connected and <input type="text" name="data[mapvote_need]" size="3" maxlength="3" value="66">% of them want to change the map, then you need <input type="text" name="data[mapvote_pass]" size="3" maxlength="3" value="50">% voting for the same map to vote it.</td>
+                </tr>
+
+                <tr>
+                  <td>Use kick voting</td>
+
+                  <td><select name="data[use_kickvote]">
+                    <option value="0">
+                      No
+                    </option>
+
+                    <option value="1" selected>
+                      Yes
+                    </option>
+                  </select> </td>
+                </tr>
+
+                <tr>
+                  <td>Make kickvotes public</td>
+
+                  <td><select name="data[vk_public]">
+                    <option value="0" selected>
+                      No
+                    </option>
+
+                    <option value="1">
+                      Yes
+                    </option>
+                  </select> </td>
+                </tr>
+
+                <tr>
+                  <td>Kick voting parameters (minimum values)</td>
+
+                  <td>If there are <input type="text" name="data[kickvote_min]" size="2" maxlength="2" value="2"> players connected and <input type="text" name="data[kickvote_need]" size="3" maxlength="3" value="50">% of them want to kick a player, then you need <input type="text" name="data[kickvote_pass]" size="3" maxlength="3" value="30">% voting for the same player to kick him. After kicking he <select name="data[kickvote_tempban]">
+                    <option value="0">
+                      won't
+                    </option>
+
+                    <option value="1" selected>
+                      will
+                    </option>
+                  </select> be banned temporary</td>
+                </tr>
+              </table>
+            </td>
+          </tr>
+
+          <tr>
+            <td>&nbsp;</td>
+          </tr>
+ 
+          <tr>
+            <td align="center">
+              <table width="95%" cellspacing="2" cellpadding="2" border="2">
+                <tr>
+                  <td colspan="2" align="center" width="100%">
+                    <h3>Flood Protection</h3>
+                  </td>
+                </tr>
+
+                <tr>
+                  <td>Number of messages considered a flood</td>
+
+                  <td><input type="text" name="data[flood_msgs]" size="2" maxlength="2" value="4"></td>
+                </tr>
+
+                <tr>
+                  <td>Time for those number of messages</td>
+
+                  <td><input type="text" name="data[flood_persecond]" size="2" maxlength="2" value="4"></td>
+                </tr>
+
+                <tr>
+                  <td>Time to block messages</td>
+
+                  <td><input type="text" name="data[flood_waitdelay]" size="2" maxlength="2" value="10"></td>
+                </tr>
+
+                <tr>
+                  <td>Max no of radio and voice requests</td>
+
+                  <td><input type="text" name="data[radio_max]" size="2" maxlength="2" value="4"></td>
+                </tr>
+
+                <tr>
+                  <td>Max time for the above radio_max</td>
+
+                  <td><input type="text" name="data[radio_time]" size="2" maxlength="2" value="2"> seconds</td>
+                </tr>
+
+                <tr>
+                  <td>Same as radio_max, only for repeats</td>
+
+                  <td><input type="text" name="data[radio_repeat]" size="2" maxlength="2" value="3"></td>
+                </tr>
+
+                <tr>
+                  <td>Silence player for</td>
+
+                  <td><input type="text" name="data[radio_ban]" size="2" maxlength="2" value="15"> seconds</td>
+                </tr>
+
+              </table>
+            </td>
+          </tr>
+
+          <tr>
+            <td>&nbsp;</td>
+          </tr>
+
+          <tr>
+            <td align="center">
+              <table width="95%" cellspacing="2" cellpadding="2" border="2">
+                <tr>
+                  <td colspan="2" align="center" width="100%">
+                    <h3>Teamkill Parameters</h3>
+                  </td>
+                </tr>
+
+                <tr>
+                  <td>Maximum number of teamkills</td>
+
+                  <td><input type="text" name="data[maxteamkills]" size="2" maxlength="2" value="0"></td>
+                </tr>
+
+                <tr>
+                  <td>Number of maps banned for killing teammates</td>
+
+                  <td><input type="text" name="data[tkbanrounds]" size="2" maxlength="2" value="2"></td>
+                </tr>
+
+                <tr>
+                  <td>Number of maps banned for wounding teammates</td>
+
+                  <td><input type="text" name="data[twbanrounds]" size="2" maxlength="2" value="2"></td>
+                </tr>
+
+                <tr>
+                  <td>Teamkills allowed without punishment after round ends</td>
+
+                  <td><select name="data[ff_afterround]">
+                    <option value="0">
+                      No
+                    </option>
+
+                    <option value="1" selected>
+                      Yes
+                    </option>
+                  </select> </td>
+                </tr>
+
+              </table>
+            </td>
+          </tr>
+
+          <tr>
+            <td>&nbsp;</td>
+          </tr>
+
+          <tr>
+            <td align="center">
+              <table width="95%" cellspacing="2" cellpadding="2" border="2">
+                <tr>
+                  <td colspan="2" align="center" width="100%">
+                    <h3>IRC Settings</h3>
+                  </td>
+                </tr>
+
+                <tr>
+                  <td>Enable IRC client</td>
+
+                  <td><select name="data[ircbot]">
+                    <option value="0" selected>
+                      No
+                    </option>
+
+                    <option value="1">
+                      Yes
+                    </option>
+                  </select> </td>
+
+                </tr>
+
+                <tr>
+                  <td>IRC Server (FQDN or IP address)</td>
+
+                  <td><input type="text" name="data[ircserver]" size="25" maxlength="40" value="irc.barrysworld.com"></td>
+                </tr>
+
+                <tr>
+                  <td>IRC Server Port (only <i>one</i> port!)</td>
+
+                  <td><input type="text" name="data[ircport]" size="5" maxlength="5" value="6667"></td>
+                </tr>
+
+                <tr>
+                  <td>IRC User Name of the Client</td>
+
+                  <td><input type="text" name="data[ircuser]" size="25" maxlength="25" value="TNG-Bot"></td>
+                </tr>
+
+                <tr>
+                  <td>Raw IRC Command to Auth with IRC, e.g. for quakenet:<br><b>PRIVMSG Q@CServe.quakenet.org :AUTH <i>mybotname mypassword</i></b></td>
+
+                  <td><input type="text" name="data[ircop]" size="25" maxlength="80" value=""></td>
+                </tr>
+
+                <tr>
+                  <td>IRC Channel (don't forget the leading "<b>#</b>")</td>
+
+                  <td><input type="text" name="data[ircchannel]" size="25" maxlength="25" value=""></td>
+                </tr>
+
+                <tr>
+                  <td>IRC Channel Password</td>
+
+                  <td><input type="text" name="data[ircpasswd]" size="15" maxlength="15" value=""></td>
+                </tr>
+
+                <tr>
+                  <td>IRC Admin Password (bot will op you on "<b>/msg <i>botname password</i> op<b>"</td>
+
+                  <td><input type="text" name="data[ircadminpwd]" size="15" maxlength="15" value=""></td>
+                </tr>
+
+                <tr>
+                  <td>IRC Debug Mode (writes all IRC in/outgoing Traffic to console)</td>
+
+                  <td><select name="data[ircdebug]">
+                    <option value="0" selected>
+                      No
+                    </option>
+
+                    <option value="1">
+                      Yes
+                    </option>
+                  </select> </td>
+                </tr>
+
+              </table>
+            </td>
+          </tr>
+
+          <tr>
+            <td>&nbsp;</td>
+          </tr>
+
+          <tr>
+            <td align="center">
+              <table width="95%" cellspacing="2" cellpadding="2" border="0">
+	        <tr>
+	          <td align="center"><input type="submit" name="data[action]" value="Download"> </td>
+		  <td align="center"><input type="submit" name="data[action]" value="Show Config"> </td>
+                </tr>
+              </table>
+	    </td>
+          </tr>
+        </table>
+      </form>
+    </center>
+  </body>
+</html>
+

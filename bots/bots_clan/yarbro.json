@@ -1,0 +1,35 @@
+{
+    "name": "Yarbro",
+    "clan_id": 26,
+    "skin": "actionmale/blood",
+    "weaponPreferences": {
+        "mk23": 0.6,
+        "dual_mk23": 0.7,
+        "mp5": 0.5,
+        "m4": 0.3,
+        "m3": 0.7,
+        "hc": 0.6,
+        "sniper": 0.5,
+        "knives": 0.6,
+        "grenades": 0.6
+    },
+    "itemPreferences": {
+        "vest": 0.4,
+        "helm": 0.4,
+        "laser": 0.4,
+        "silencer": 0.9,
+        "slippers": 0.3,
+        "bandolier": 0.4
+    },
+    "coreTraits": {
+        "aggressiveness": 0.3,
+        "teamwork": 0.2,
+        "curiosity": 0.3,
+        "aimingSkill": 0.5,
+        "reactionTime": 0.4,
+        "communicationFreq": 0.5,
+        "communicationTone": 0.5,
+        "movementStyle": 0.3,
+        "objectiveFocus": 0.8
+    }
+}

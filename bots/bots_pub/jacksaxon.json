@@ -1,0 +1,35 @@
+{
+    "name": "Jack Saxon",
+    "clan_id": null,
+    "skin": "male/hall",
+    "weaponPreferences": {
+        "mk23": 0.2,
+        "dual_mk23": 0.4,
+        "mp5": 0.7,
+        "m4": 0.7,
+        "m3": 0.7,
+        "hc": 0.9,
+        "sniper": 0.4,
+        "knives": 0.9,
+        "grenades": 0.5
+    },
+    "itemPreferences": {
+        "vest": 0.7,
+        "helm": 0.2,
+        "laser": 0.7,
+        "silencer": 0.9,
+        "slippers": 0.5,
+        "bandolier": 0.4
+    },
+    "coreTraits": {
+        "aggressiveness": 0.5,
+        "teamwork": 0.2,
+        "curiosity": 0.9,
+        "aimingSkill": 0.3,
+        "reactionTime": 0.9,
+        "communicationFreq": 0.7,
+        "communicationTone": 0.8,
+        "movementStyle": 0.5,
+        "objectiveFocus": 0.6
+    }
+}

@@ -1,0 +1,28 @@
+[esp]
+type=etv
+author=darksaint
+name=Let's See Paul Allen's Card
+
+[respawn]
+red=6
+blue=6
+
+[spawns]
+red=<813 982 1078 -127>,<-143 824 713 176>,<-794 593 591 -17>
+blue=<930 -789 954 145>,<319 -891 684 111>,<-887 -522 1076 -19>
+
+[target]
+escort=<-358 -524 1191>
+name=Axe in the Briefcase
+
+[red_team]
+name=Yuppies
+leader_name=Patrick Bateman
+skin=male/ctf_r
+leader_skin=male/ctf_vip_r
+
+[blue_team]
+name=Innocent Victims
+leader_name=Mohoney
+skin=male/ctf_b
+leader_skin=male/ctf_vip_b

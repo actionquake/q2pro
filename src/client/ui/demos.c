@@ -53,7 +53,7 @@ typedef struct {
     char        name[1];
 } demoEntry_t;
 
-typedef struct m_demos_s {
+typedef struct {
     menuFrameWork_t menu;
     menuList_t      list;
     int             numDirs;
@@ -167,7 +167,7 @@ static char *LoadCache(void **list)
     if (Q_concat(buffer, sizeof(buffer), m_demos.browse, "/" COM_DEMOCACHE_NAME) >= sizeof(buffer)) {
         return NULL;
     }
-    len = FS_LoadFileEx(buffer, (void **)&cache, FS_TYPE_REAL | FS_PATH_GAME, TAG_FILESYSTEM);
+    len = FS_LoadFileEx(buffer, (void **)&cache, FS_TYPE_REAL | FS_PATH_GAME | FS_DIR_HOME, TAG_FILESYSTEM);
     if (!cache) {
         return NULL;
     }

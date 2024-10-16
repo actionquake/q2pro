@@ -1,0 +1,35 @@
+{
+    "name": "Joe Tanto",
+    "clan_id": null,
+    "skin": "sas/sasuc",
+    "weaponPreferences": {
+        "mk23": 0.6,
+        "dual_mk23": 0.7,
+        "mp5": 0.1,
+        "m4": 0.2,
+        "m3": 0.6,
+        "hc": 1.1,
+        "sniper": 0.8,
+        "knives": 0.5,
+        "grenades": 0.6
+    },
+    "itemPreferences": {
+        "vest": 0.7,
+        "helm": 0.4,
+        "laser": 0.5,
+        "silencer": 0.7,
+        "slippers": 0.3,
+        "bandolier": 0.3
+    },
+    "coreTraits": {
+        "aggressiveness": 0.8,
+        "teamwork": 0.8,
+        "curiosity": 0.3,
+        "aimingSkill": 0.4,
+        "reactionTime": 0.5,
+        "communicationFreq": 0.3,
+        "communicationTone": 0.4,
+        "movementStyle": 0.2,
+        "objectiveFocus": 0.4
+    }
+}

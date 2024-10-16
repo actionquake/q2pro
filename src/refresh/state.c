@@ -20,14 +20,17 @@ with this program; if not, write to the Free Software Foundation, Inc.,
 
 glState_t gls;
 
+const glbackend_t *gl_backend;
+
+static const GLfloat identity[16] = { [0] = 1, [5] = 1, [10] = 1, [15] = 1 };
+
 // for uploading
-void GL_ForceTexture(GLuint tmu, GLuint texnum)
+void GL_ForceTexture(glTmu_t tmu, GLuint texnum)
 {
     GL_ActiveTexture(tmu);
 
-    if (gls.texnums[tmu] == texnum) {
+    if (gls.texnums[tmu] == texnum)
         return;
-    }
 
     qglBindTexture(GL_TEXTURE_2D, texnum);
     gls.texnums[tmu] = texnum;
@@ -36,71 +39,114 @@ void GL_ForceTexture(GLuint tmu, GLuint texnum)
 }
 
 // for drawing
-void GL_BindTexture(GLuint tmu, GLuint texnum)
+void GL_BindTexture(glTmu_t tmu, GLuint texnum)
 {
 #if USE_DEBUG
-    if (gl_nobind->integer && !tmu) {
+    if (gl_nobind->integer && tmu == TMU_TEXTURE)
         texnum = TEXNUM_DEFAULT;
-    }
 #endif
 
-    if (gls.texnums[tmu] == texnum) {
+    if (gls.texnums[tmu] == texnum)
         return;
+
+    if (qglBindTextureUnit) {
+        qglBindTextureUnit(tmu, texnum);
+    } else {
+        GL_ActiveTexture(tmu);
+        qglBindTexture(GL_TEXTURE_2D, texnum);
     }
-
-    GL_ActiveTexture(tmu);
-
-    qglBindTexture(GL_TEXTURE_2D, texnum);
     gls.texnums[tmu] = texnum;
 
     c.texSwitches++;
 }
 
-void GL_CommonStateBits(GLbitfield bits)
+void GL_ForceCubemap(GLuint texnum)
 {
-    GLbitfield diff = bits ^ gls.state_bits;
+    GL_ActiveTexture(TMU_TEXTURE);
+
+    if (gls.texnumcube == texnum)
+        return;
+
+    qglBindTexture(GL_TEXTURE_CUBE_MAP, texnum);
+    gls.texnumcube = texnum;
+
+    c.texSwitches++;
+}
+
+void GL_BindCubemap(GLuint texnum)
+{
+    if (!gl_drawsky->integer)
+        texnum = TEXNUM_CUBEMAP_BLACK;
+
+    if (gls.texnumcube == texnum)
+        return;
+
+    if (qglBindTextureUnit) {
+        qglBindTextureUnit(TMU_TEXTURE, texnum);
+    } else {
+        GL_ActiveTexture(TMU_TEXTURE);
+        qglBindTexture(GL_TEXTURE_CUBE_MAP, texnum);
+    }
+    gls.texnumcube = texnum;
+
+    c.texSwitches++;
+}
+
+void GL_DeleteBuffer(GLuint buffer)
+{
+    if (!buffer)
+        return;
+
+    Q_assert(qglDeleteBuffers);
+    qglDeleteBuffers(1, &buffer);
+
+    // invalidate bindings
+    for (int i = 0; i < q_countof(gls.currentbuffer); i++)
+        if (gls.currentbuffer[i] == buffer)
+            gls.currentbuffer[i] = 0;
+}
+
+void GL_CommonStateBits(glStateBits_t bits)
+{
+    glStateBits_t diff = bits ^ gls.state_bits;
 
     if (diff & GLS_BLEND_MASK) {
         if (bits & GLS_BLEND_MASK) {
             qglEnable(GL_BLEND);
-            if (bits & GLS_BLEND_BLEND) {
+            if (bits & GLS_BLEND_BLEND)
                 qglBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
-            } else if (bits & GLS_BLEND_ADD) {
+            else if (bits & GLS_BLEND_ADD)
                 qglBlendFunc(GL_SRC_ALPHA, GL_ONE);
-            } else if (bits & GLS_BLEND_MODULATE) {
+            else if (bits & GLS_BLEND_MODULATE)
                 qglBlendFunc(GL_DST_COLOR, GL_ONE);
-            }
         } else {
             qglDisable(GL_BLEND);
         }
     }
 
     if (diff & GLS_DEPTHMASK_FALSE) {
-        if (bits & GLS_DEPTHMASK_FALSE) {
+        if (bits & GLS_DEPTHMASK_FALSE)
             qglDepthMask(GL_FALSE);
-        } else {
+        else
             qglDepthMask(GL_TRUE);
-        }
     }
 
     if (diff & GLS_DEPTHTEST_DISABLE) {
-        if (bits & GLS_DEPTHTEST_DISABLE) {
+        if (bits & GLS_DEPTHTEST_DISABLE)
             qglDisable(GL_DEPTH_TEST);
-        } else {
+        else
             qglEnable(GL_DEPTH_TEST);
-        }
     }
 
     if (diff & GLS_CULL_DISABLE) {
-        if (bits & GLS_CULL_DISABLE) {
+        if (bits & GLS_CULL_DISABLE)
             qglDisable(GL_CULL_FACE);
-        } else {
+        else
             qglEnable(GL_CULL_FACE);
-        }
     }
 }
 
-void GL_ScrollSpeed(vec2_t scroll, GLbitfield bits)
+void GL_ScrollPos(vec2_t scroll, glStateBits_t bits)
 {
     float speed = 1.6f;
 
@@ -111,6 +157,8 @@ void GL_ScrollSpeed(vec2_t scroll, GLbitfield bits)
 
     if (bits & GLS_SCROLL_FLIP)
         speed = -speed;
+
+    speed *= glr.fd.time;
 
     if (bits & GLS_SCROLL_Y) {
         scroll[0] = 0;
@@ -126,31 +174,31 @@ void GL_Ortho(GLfloat xmin, GLfloat xmax, GLfloat ymin, GLfloat ymax, GLfloat zn
     GLfloat width, height, depth;
     GLfloat matrix[16];
 
-    width = xmax - xmin;
+    width  = xmax - xmin;
     height = ymax - ymin;
-    depth = zfar - znear;
+    depth  = zfar - znear;
 
-    matrix[0] = 2 / width;
-    matrix[4] = 0;
-    matrix[8] = 0;
+    matrix[ 0] = 2 / width;
+    matrix[ 4] = 0;
+    matrix[ 8] = 0;
     matrix[12] = -(xmax + xmin) / width;
 
-    matrix[1] = 0;
-    matrix[5] = 2 / height;
-    matrix[9] = 0;
+    matrix[ 1] = 0;
+    matrix[ 5] = 2 / height;
+    matrix[ 9] = 0;
     matrix[13] = -(ymax + ymin) / height;
 
-    matrix[2] = 0;
-    matrix[6] = 0;
+    matrix[ 2] = 0;
+    matrix[ 6] = 0;
     matrix[10] = -2 / depth;
     matrix[14] = -(zfar + znear) / depth;
 
-    matrix[3] = 0;
-    matrix[7] = 0;
+    matrix[ 3] = 0;
+    matrix[ 7] = 0;
     matrix[11] = 0;
     matrix[15] = 1;
 
-    gl_static.backend.load_proj_matrix(matrix);
+    gl_backend->load_matrix(GL_PROJECTION, matrix);
 }
 
 void GL_Setup2D(void)
@@ -168,10 +216,10 @@ void GL_Setup2D(void)
         draw.scissor = false;
     }
 
-    if (gl_static.backend.setup_2d)
-        gl_static.backend.setup_2d();
+    if (gl_backend->setup_2d)
+        gl_backend->setup_2d();
 
-    gl_static.backend.load_view_matrix(NULL);
+    gl_backend->load_matrix(GL_MODELVIEW, identity);
 }
 
 void GL_Frustum(GLfloat fov_x, GLfloat fov_y, GLfloat reflect_x)
@@ -187,37 +235,37 @@ void GL_Frustum(GLfloat fov_x, GLfloat fov_y, GLfloat reflect_x)
     else
         zfar = gl_static.world.size * 2;
 
-    xmax = znear * tan(fov_x * (M_PI / 360));
+    xmax = znear * tanf(fov_x * (M_PIf / 360));
     xmin = -xmax;
 
-    ymax = znear * tan(fov_y * (M_PI / 360));
+    ymax = znear * tanf(fov_y * (M_PIf / 360));
     ymin = -ymax;
 
-    width = xmax - xmin;
+    width  = xmax - xmin;
     height = ymax - ymin;
-    depth = zfar - znear;
+    depth  = zfar - znear;
 
-    matrix[0] = reflect_x * 2 * znear / width;
-    matrix[4] = 0;
-    matrix[8] = (xmax + xmin) / width;
+    matrix[ 0] = reflect_x * 2 * znear / width;
+    matrix[ 4] = 0;
+    matrix[ 8] = (xmax + xmin) / width;
     matrix[12] = 0;
 
-    matrix[1] = 0;
-    matrix[5] = 2 * znear / height;
-    matrix[9] = (ymax + ymin) / height;
+    matrix[ 1] = 0;
+    matrix[ 5] = 2 * znear / height;
+    matrix[ 9] = (ymax + ymin) / height;
     matrix[13] = 0;
 
-    matrix[2] = 0;
-    matrix[6] = 0;
+    matrix[ 2] = 0;
+    matrix[ 6] = 0;
     matrix[10] = -(zfar + znear) / depth;
     matrix[14] = -2 * zfar * znear / depth;
 
-    matrix[3] = 0;
-    matrix[7] = 0;
+    matrix[ 3] = 0;
+    matrix[ 7] = 0;
     matrix[11] = -1;
     matrix[15] = 0;
 
-    gl_static.backend.load_proj_matrix(matrix);
+    gl_backend->load_matrix(GL_PROJECTION, matrix);
 }
 
 static void GL_RotateForViewer(void)
@@ -226,23 +274,23 @@ static void GL_RotateForViewer(void)
 
     AnglesToAxis(glr.fd.viewangles, glr.viewaxis);
 
-    matrix[0] = -glr.viewaxis[1][0];
-    matrix[4] = -glr.viewaxis[1][1];
-    matrix[8] = -glr.viewaxis[1][2];
+    matrix[ 0] = -glr.viewaxis[1][0];
+    matrix[ 4] = -glr.viewaxis[1][1];
+    matrix[ 8] = -glr.viewaxis[1][2];
     matrix[12] = DotProduct(glr.viewaxis[1], glr.fd.vieworg);
 
-    matrix[1] = glr.viewaxis[2][0];
-    matrix[5] = glr.viewaxis[2][1];
-    matrix[9] = glr.viewaxis[2][2];
+    matrix[ 1] = glr.viewaxis[2][0];
+    matrix[ 5] = glr.viewaxis[2][1];
+    matrix[ 9] = glr.viewaxis[2][2];
     matrix[13] = -DotProduct(glr.viewaxis[2], glr.fd.vieworg);
 
-    matrix[2] = -glr.viewaxis[0][0];
-    matrix[6] = -glr.viewaxis[0][1];
+    matrix[ 2] = -glr.viewaxis[0][0];
+    matrix[ 6] = -glr.viewaxis[0][1];
     matrix[10] = -glr.viewaxis[0][2];
     matrix[14] = DotProduct(glr.viewaxis[0], glr.fd.vieworg);
 
-    matrix[3] = 0;
-    matrix[7] = 0;
+    matrix[ 3] = 0;
+    matrix[ 7] = 0;
     matrix[11] = 0;
     matrix[15] = 1;
 
@@ -257,8 +305,8 @@ void GL_Setup3D(bool waterwarp)
         qglViewport(glr.fd.x, r_config.height - (glr.fd.y + glr.fd.height),
                     glr.fd.width, glr.fd.height);
 
-    if (gl_static.backend.setup_3d)
-        gl_static.backend.setup_3d();
+    if (gl_backend->setup_3d)
+        gl_backend->setup_3d();
 
     GL_Frustum(glr.fd.fov_x, glr.fd.fov_y, 1.0f);
 
@@ -270,32 +318,43 @@ void GL_Setup3D(bool waterwarp)
     qglClear(GL_DEPTH_BUFFER_BIT | gl_static.stencil_buffer_bit);
 }
 
-void GL_DrawOutlines(GLsizei count, const QGL_INDEX_TYPE *indices)
+void GL_DrawOutlines(GLsizei count, GLenum type, const void *indices)
 {
-    GL_BindTexture(0, TEXNUM_WHITE);
-    GL_StateBits(GLS_DEPTHMASK_FALSE | GLS_TEXTURE_REPLACE);
-    GL_ArrayBits(GLA_VERTEX);
+    GL_BindTexture(TMU_TEXTURE, TEXNUM_WHITE);
+    GL_StateBits(GLS_DEPTHMASK_FALSE | GLS_TEXTURE_REPLACE | (gls.state_bits & GLS_MESH_MASK));
+    if (gls.currentva)
+        GL_ArrayBits(GLA_VERTEX);
     GL_DepthRange(0, 0);
 
     if (qglPolygonMode) {
         qglPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
 
-        if (indices)
-            qglDrawElements(GL_TRIANGLES, count, QGL_INDEX_ENUM, indices);
+        if (type)
+            qglDrawElements(GL_TRIANGLES, count, type, indices);
         else
             qglDrawArrays(GL_TRIANGLES, 0, count);
 
         qglPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
-    } else {
-        GLsizei i;
+    } else if (type) {
+        uintptr_t base = (uintptr_t)indices;
+        uintptr_t size = 0;
 
-        if (indices) {
-            for (i = 0; i < count / 3; i++)
-                qglDrawElements(GL_LINE_LOOP, 3, QGL_INDEX_ENUM, &indices[i * 3]);
-        } else {
-            for (i = 0; i < count / 3; i++)
-                qglDrawArrays(GL_LINE_LOOP, i * 3, 3);
+        switch (type) {
+        case GL_UNSIGNED_INT:
+            size = 4 * 3;
+            break;
+        case GL_UNSIGNED_SHORT:
+            size = 2 * 3;
+            break;
+        default:
+            Q_assert(!"bad type");
         }
+
+        for (int i = 0; i < count / 3; i++, base += size)
+            qglDrawElements(GL_LINE_LOOP, 3, type, VBO_OFS(base));
+    } else {
+        for (int i = 0; i < count / 3; i++)
+            qglDrawArrays(GL_LINE_LOOP, i * 3, 3);
     }
 
     GL_DepthRange(0, 1);
@@ -316,13 +375,22 @@ void GL_ClearState(void)
     qglCullFace(GL_BACK);
     qglEnable(GL_CULL_FACE);
 
-    gl_static.backend.clear_state();
+    // unbind buffers
+    if (qglBindBuffer) {
+        qglBindBuffer(GL_ARRAY_BUFFER, 0);
+        qglBindBuffer(GL_ELEMENT_ARRAY_BUFFER, 0);
+    }
+
+    gl_backend->clear_state();
 
     qglClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT | gl_static.stencil_buffer_bit);
 
     memset(&gls, 0, sizeof(gls));
     GL_ShowErrors(__func__);
 }
+
+extern const glbackend_t backend_legacy;
+extern const glbackend_t backend_shader;
 
 void GL_InitState(void)
 {
@@ -342,13 +410,18 @@ void GL_InitState(void)
         }
     }
 
-    gl_static.backend = gl_static.use_shaders ? backend_shader : backend_legacy;
-    gl_static.backend.init();
+    gl_shaders->modified = false;
 
-    Com_Printf("Using %s rendering backend.\n", gl_static.backend.name);
+    gl_backend = gl_static.use_shaders ? &backend_shader : &backend_legacy;
+    gl_backend->init();
+
+    Com_Printf("Using %s rendering backend.\n", gl_backend->name);
 }
 
 void GL_ShutdownState(void)
 {
-    gl_static.backend.shutdown();
+    if (gl_backend) {
+        gl_backend->shutdown();
+        gl_backend = NULL;
+    }
 }

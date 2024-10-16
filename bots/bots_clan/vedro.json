@@ -1,0 +1,35 @@
+{
+    "name": "Vedro",
+    "clan_id": 46,
+    "skin": "male/wcwsting3",
+    "weaponPreferences": {
+        "mk23": 0.8,
+        "dual_mk23": 0.5,
+        "mp5": 0.7,
+        "m4": 0.6,
+        "m3": 0.6,
+        "hc": 0.4,
+        "sniper": 0.6,
+        "knives": 0.8,
+        "grenades": 0.6
+    },
+    "itemPreferences": {
+        "vest": 0.2,
+        "helm": -0.2,
+        "laser": 0.5,
+        "silencer": 0.8,
+        "slippers": 0.2,
+        "bandolier": 0.8
+    },
+    "coreTraits": {
+        "aggressiveness": 0.3,
+        "teamwork": 0.4,
+        "curiosity": 0.6,
+        "aimingSkill": 0.3,
+        "reactionTime": 0.6,
+        "communicationFreq": 0.2,
+        "communicationTone": 0.7,
+        "movementStyle": 0.7,
+        "objectiveFocus": 0.6
+    }
+}

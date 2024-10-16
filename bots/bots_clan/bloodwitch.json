@@ -1,0 +1,35 @@
+{
+    "name": "Bloodwitch",
+    "clan_id": 78,
+    "skin": "male/babarracuda",
+    "weaponPreferences": {
+        "mk23": 0.5,
+        "dual_mk23": 0.4,
+        "mp5": 0.3,
+        "m4": 0.4,
+        "m3": 0.5,
+        "hc": 0.2,
+        "sniper": 0.2,
+        "knives": 0.5,
+        "grenades": 0.2
+    },
+    "itemPreferences": {
+        "vest": 0.8,
+        "helm": 0.3,
+        "laser": 0.6,
+        "silencer": 0.7,
+        "slippers": 0.4,
+        "bandolier": 0.3
+    },
+    "coreTraits": {
+        "aggressiveness": 0.7,
+        "teamwork": 0.7,
+        "curiosity": 0.4,
+        "aimingSkill": 0.4,
+        "reactionTime": 0.4,
+        "communicationFreq": 0.7,
+        "communicationTone": 0.5,
+        "movementStyle": 0.6,
+        "objectiveFocus": 0.6
+    }
+}

@@ -1,0 +1,37 @@
+[esp]
+type=etv
+author=darksaint
+name=Show No Mercy
+
+[respawn]
+red=10
+blue=10
+green=10
+
+[spawns]
+red=<-1087 1552 302 -90>,<8 952 46 -90>,<200 1369 430 -92>
+blue=<-1311 -831 62 0>,<160 -1183 814 135>,<-1445 -1264 494 87>
+green=<-1311 -831 62 0>,<160 -1183 814 135>,<-1445 -1264 494 87>
+
+[target]
+escort=<-1311 -831 62 0>
+name=Casino
+
+[red_team]
+name=The B-Team
+leader_name=Mister Bigtime
+skin=male/ctf_r
+leader_skin=male/ctf_vip_r
+
+[blue_team]
+name=Peacekeepers
+leader_name=Frankie Blueshoes
+skin=male/ctf_b
+leader_skin=male/ctf_vip_b
+
+[green_team]
+name=Landscaping Crew
+leader_name=Professor G
+skin=male/ctf_g
+leader_skin=male/ctf_vip_g
+

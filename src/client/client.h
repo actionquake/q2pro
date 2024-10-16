@@ -70,7 +70,7 @@ typedef union {
     };
 } centity_state_t;
 
-typedef struct centity_s {
+typedef struct {
     centity_state_t     current;
     centity_state_t     prev;           // will always be valid, but might just be a copy of current
 
@@ -98,7 +98,7 @@ extern centity_t    cl_entities[MAX_EDICTS];
 
 #define MAX_CLIENTWEAPONMODELS        256       // PGM -- upped from 16 to fit the chainfist vwep
 
-typedef struct clientinfo_s {
+typedef struct {
     char name[MAX_QPATH];
     qhandle_t skin;
     qhandle_t icon;
@@ -127,7 +127,7 @@ typedef struct {
     int             clientNum;
 
     int             numEntities;
-    int             firstEntity;
+    unsigned        firstEntity;
 } server_frame_t;
 
 // locally calculated frame flags for debug display
@@ -160,7 +160,7 @@ typedef struct {
 // the client_state_t structure is wiped completely at every
 // server map change
 //
-typedef struct client_state_s {
+typedef struct {
     int         timeoutcount;
 
     unsigned    lastTransmitTime;
@@ -171,9 +171,9 @@ typedef struct client_state_s {
     usercmd_t    cmd;
     usercmd_t    cmds[CMD_BACKUP];    // each mesage will send several old cmds
     unsigned     cmdNumber;
-    short        predicted_origins[CMD_BACKUP][3];    // for debug comparing against server
+    int          predicted_origins[CMD_BACKUP][3];    // for debug comparing against server
     client_history_t    history[CMD_BACKUP];
-    int         initialSeq;
+    unsigned    initialSeq;
 
     float       predicted_step;                // for stair up smoothing
     unsigned    predicted_step_time;
@@ -193,7 +193,7 @@ typedef struct client_state_s {
     centity_state_t baselines[MAX_EDICTS];
 
     centity_state_t entityStates[MAX_PARSE_ENTITIES];
-    int             numEntityStates;
+    unsigned        numEntityStates;
 
     msgEsFlags_t    esFlags;
     msgPsFlags_t    psFlags;
@@ -212,7 +212,7 @@ typedef struct client_state_s {
     int             keyservertime;
 #endif
 
-    byte            dcs[CS_BITMAP_BYTES];
+    size_t          dcs[BC_COUNT(MAX_CONFIGSTRINGS)];
 
     // the client maintains its own idea of view angles, which are
     // sent to the server each frame.  It is cleared to 0 upon entering each level.
@@ -257,7 +257,7 @@ typedef struct client_state_s {
     char        layout[MAX_NET_STRING];     // general 2D overlay
     int         inventory[MAX_ITEMS];
 
-#ifdef AQTION_EXTENSION
+#if AQTION_EXTENSION
 	ghud_3delement_t *ghud_3dlist;
 	ghud_element_t ghud[MAX_GHUDS];
 #endif
@@ -298,7 +298,7 @@ typedef struct client_state_s {
     bsp_t        *bsp;
 
     qhandle_t model_draw[MAX_MODELS];
-    mmodel_t *model_clip[MAX_MODELS];
+    const mmodel_t *model_clip[MAX_MODELS];
 
     qhandle_t sound_precache[MAX_SOUNDS];
     qhandle_t image_precache[MAX_IMAGES];
@@ -322,6 +322,8 @@ typedef struct client_state_s {
         } muzzle;
     } weapon;
 
+    unsigned hit_marker_time;
+    int hit_marker_count;
 } client_state_t;
 
 extern client_state_t   cl;
@@ -391,7 +393,7 @@ typedef struct {
     byte        data[1];
 } demosnap_t;
 
-typedef struct client_static_s {
+typedef struct {
     connstate_t state;
     keydest_t   key_dest;
 
@@ -405,7 +407,6 @@ typedef struct client_static_s {
 // this is set each time a CVAR_USERINFO variable is changed
 // so that the client knows to send it to the server
 
-    int         framecount;
     unsigned    realtime;           // always increasing, no clamping, etc
     float       frametime;          // seconds since last frame
 
@@ -452,7 +453,7 @@ typedef struct client_static_s {
 #define RECENT_MASK (RECENT_ADDR - 1)
 
     netadr_t    recent_addr[RECENT_ADDR];
-    int         recent_head;
+    unsigned    recent_head;
 
     string_entry_t  *stufftextwhitelist;
 
@@ -491,7 +492,9 @@ typedef struct client_static_s {
         bool        paused;
         bool        seeking;
         bool        eof;
+        bool        compat;             // demomap compatibility mode
         msgEsFlags_t    esFlags;        // for snapshots/recording
+        msgPsFlags_t    psFlags;
     } demo;
 
 #if USE_CLIENT_GTV
@@ -517,18 +520,18 @@ extern char         cl_cmdbuf_text[MAX_STRING_CHARS];
 
 //=============================================================================
 
-#define NOPART_GRENADE_EXPLOSION    1
-#define NOPART_GRENADE_TRAIL        2
-#define NOPART_ROCKET_EXPLOSION     4
-#define NOPART_ROCKET_TRAIL         8
-#define NOPART_BLOOD                16
+#define NOPART_GRENADE_EXPLOSION    BIT(0)
+#define NOPART_GRENADE_TRAIL        BIT(1)
+#define NOPART_ROCKET_EXPLOSION     BIT(2)
+#define NOPART_ROCKET_TRAIL         BIT(3)
+#define NOPART_BLOOD                BIT(4)
 
-#define NOEXP_GRENADE   1
-#define NOEXP_ROCKET    2
+#define NOEXP_GRENADE               BIT(0)
+#define NOEXP_ROCKET                BIT(1)
 
-#define DLHACK_ROCKET_COLOR         1
-#define DLHACK_SMALLER_EXPLOSION    2
-#define DLHACK_NO_MUZZLEFLASH       4
+#define DLHACK_ROCKET_COLOR         BIT(0)
+#define DLHACK_SMALLER_EXPLOSION    BIT(1)
+#define DLHACK_NO_MUZZLEFLASH       BIT(2)
 
 //
 // cvars
@@ -689,7 +692,7 @@ bool CL_IgnoreDownload(const char *path);
 void CL_FinishDownload(dlqueue_t *q);
 void CL_CleanupDownloads(void);
 void CL_LoadDownloadIgnores(void);
-void CL_HandleDownload(byte *data, int size, int percent, int decompressed_size);
+void CL_HandleDownload(const byte *data, int size, int percent, int decompressed_size);
 bool CL_CheckDownloadExtension(const char *ext);
 void CL_StartNextDownload(void);
 void CL_RequestNextDownload(void);
@@ -718,6 +721,9 @@ void CL_SendCmd(void);
 #define CL_ES_EXTENDED_MASK \
     (MSG_ES_LONGSOLID | MSG_ES_UMASK | MSG_ES_BEAMORIGIN | MSG_ES_SHORTANGLES | MSG_ES_EXTENSIONS)
 
+#define CL_ES_EXTENDED_MASK_2 (CL_ES_EXTENDED_MASK | MSG_ES_EXTENSIONS_2)
+#define CL_PS_EXTENDED_MASK_2 (MSG_PS_EXTENSIONS | MSG_PS_EXTENSIONS_2)
+
 typedef struct {
     int type;
     vec3_t pos1;
@@ -729,6 +735,10 @@ typedef struct {
     int entity1;
     int entity2;
     int time;
+    //rekkie -- surface data -- s
+    unsigned int acolor; // arrow color
+    byte width; // line width
+    //rekkie -- surface data -- e
 } tent_params_t;
 
 typedef struct {
@@ -787,8 +797,8 @@ extern qhandle_t    gun_model;
 void V_Init(void);
 void V_Shutdown(void);
 void V_RenderView(void);
-void V_AddEntity(entity_t *ent);
-void V_AddParticle(particle_t *p);
+void V_AddEntity(const entity_t *ent);
+void V_AddParticle(const particle_t *p);
 void V_AddLight(const vec3_t org, float intensity, float r, float g, float b);
 void V_AddLightStyle(int style, float value);
 void CL_UpdateBlendSetting(void);
@@ -849,21 +859,19 @@ void CL_InitTEnts(void);
 void CL_PredictAngles(void);
 void CL_PredictMovement(void);
 void CL_CheckPredictionError(void);
-void CL_Trace(trace_t *tr, const vec3_t start, const vec3_t mins, const vec3_t maxs, const vec3_t end, int contentmask);
+void CL_Trace(trace_t *tr, const vec3_t start, const vec3_t end, const vec3_t mins, const vec3_t maxs, int contentmask);
 
 
 //
 // effects.c
 //
-#define PARTICLE_GRAVITY        40
-#define BLASTER_PARTICLE_COLOR  0xe0
+#define PARTICLE_GRAVITY    40
 #define INSTANT_PARTICLE    -10000.0f
 
 typedef struct cparticle_s {
     struct cparticle_s    *next;
 
-    float   time;
-
+    int     time;
     vec3_t  org;
     vec3_t  vel;
     vec3_t  accel;
@@ -873,29 +881,38 @@ typedef struct cparticle_s {
     color_t rgba;
 } cparticle_t;
 
-typedef struct cdlight_s {
+typedef struct {
     int     key;        // so entities can reuse same entry
     vec3_t  color;
     vec3_t  origin;
     float   radius;
-    float   die;        // stop lighting after this time
+    int     die;        // stop lighting after this time
 } cdlight_t;
 
+typedef enum {
+    DT_GIB,
+    DT_GREENGIB,
+    DT_ROCKET,
+    DT_GRENADE,
+    DT_FIREBALL,
+
+    DT_COUNT
+} diminishing_trail_t;
+
 void CL_BigTeleportParticles(const vec3_t org);
-void CL_RocketTrail(const vec3_t start, const vec3_t end, centity_t *old);
-void CL_DiminishingTrail(const vec3_t start, const vec3_t end, centity_t *old, int flags);
+void CL_DiminishingTrail(centity_t *ent, const vec3_t end, diminishing_trail_t type);
 void CL_FlyEffect(centity_t *ent, const vec3_t origin);
-void CL_BfgParticles(entity_t *ent);
+void CL_BfgParticles(const entity_t *ent);
 void CL_ItemRespawnParticles(const vec3_t org);
 void CL_InitEffects(void);
 void CL_ClearEffects(void);
 void CL_BlasterParticles(const vec3_t org, const vec3_t dir);
 void CL_ExplosionParticles(const vec3_t org);
 void CL_BFGExplosionParticles(const vec3_t org);
-void CL_BlasterTrail(const vec3_t start, const vec3_t end);
+void CL_BlasterTrail(centity_t *ent, const vec3_t end);
 void CL_OldRailTrail(void);
 void CL_BubbleTrail(const vec3_t start, const vec3_t end);
-void CL_FlagTrail(const vec3_t start, const vec3_t end, int color);
+void CL_FlagTrail(centity_t *ent, const vec3_t end, int color);
 void CL_MuzzleFlash(void);
 void CL_MuzzleFlash2(void);
 void CL_TeleporterParticles(const vec3_t org);
@@ -914,15 +931,15 @@ void CL_AddLightStyles(void);
 //
 
 void CL_BlasterParticles2(const vec3_t org, const vec3_t dir, unsigned int color);
-void CL_BlasterTrail2(const vec3_t start, const vec3_t end);
+void CL_BlasterTrail2(centity_t *ent, const vec3_t end);
 void CL_DebugTrail(const vec3_t start, const vec3_t end);
 void CL_Flashlight(int ent, const vec3_t pos);
 void CL_ForceWall(const vec3_t start, const vec3_t end, int color);
 void CL_BubbleTrail2(const vec3_t start, const vec3_t end, int dist);
 void CL_Heatbeam(const vec3_t start, const vec3_t end);
 void CL_ParticleSteamEffect(const vec3_t org, const vec3_t dir, int color, int count, int magnitude);
-void CL_TrackerTrail(const vec3_t start, const vec3_t end, int particleColor);
-void CL_TagTrail(const vec3_t start, const vec3_t end, int color);
+void CL_TrackerTrail(centity_t *ent, const vec3_t end);
+void CL_TagTrail(centity_t *ent, const vec3_t end, int color);
 void CL_ColorFlash(const vec3_t pos, int ent, int intensity, float r, float g, float b);
 void CL_Tracker_Shell(const centity_t *cent, const vec3_t origin);
 void CL_MonsterPlasma_Shell(const vec3_t origin);
@@ -931,7 +948,7 @@ void CL_ParticleSmokeEffect(const vec3_t org, const vec3_t dir, int color, int c
 void CL_Widowbeamout(cl_sustain_t *self);
 void CL_Nukeblast(cl_sustain_t *self);
 void CL_WidowSplash(void);
-void CL_IonripperTrail(const vec3_t start, const vec3_t end);
+void CL_IonripperTrail(centity_t *ent, const vec3_t end);
 void CL_TrapParticles(centity_t *ent, const vec3_t origin);
 void CL_ParticleEffect3(const vec3_t org, const vec3_t dir, int color, int count);
 void CL_ParticleSteamEffect2(cl_sustain_t *self);
@@ -955,7 +972,7 @@ void CL_EmitDemoSnapshot(void);
 void CL_FreeDemoSnapshots(void);
 void CL_FirstDemoFrame(void);
 void CL_Stop_f(void);
-demoInfo_t *CL_GetDemoInfo(const char *path, demoInfo_t *info);
+bool CL_GetDemoInfo(const char *path, demoInfo_t *info);
 
 
 //
@@ -964,7 +981,6 @@ demoInfo_t *CL_GetDemoInfo(const char *path, demoInfo_t *info);
 void LOC_Init(void);
 void LOC_LoadLocations(void);
 void LOC_FreeLocations(void);
-void LOC_UpdateCvars(void);
 void LOC_AddLocationsToScene(void);
 
 
@@ -1082,7 +1098,7 @@ void HTTP_CleanupDownloads(void);
 
 #if USE_CLIENT_GTV
 void CL_GTV_EmitFrame(void);
-void CL_GTV_WriteMessage(byte *data, size_t len);
+void CL_GTV_WriteMessage(const byte *data, size_t len);
 void CL_GTV_Resume(void);
 void CL_GTV_Suspend(void);
 void CL_GTV_Transmit(void);
@@ -1103,4 +1119,115 @@ void CL_GTV_Shutdown(void);
 //
 // crc.c
 //
-byte COM_BlockSequenceCRCByte(byte *base, size_t length, int sequence);
+byte COM_BlockSequenceCRCByte(const byte *base, size_t length, int sequence);
+
+#if USE_DISCORD && USE_CURL && USE_AQTION
+#include <curl/curl.h>
+
+#if _MSC_VER >= 1920 && !__INTEL_COMPILER
+#if defined( _WIN64 )
+        #pragma comment(lib, "../extern/discord/lib/x86_64/discord_game_sdk.dll.lib")
+    #elif defined( _WIN32 )
+        #pragma comment(lib, "../extern/discord/lib/x86/discord_game_sdk.dll.lib")
+    #endif // End 64/32 bit check
+#elif _MSC_VER < 1920 // older MSC
+// Push/Pop fix needed for older versions of Visual Studio to prevent unexpected crashes due to compile configurations
+    #pragma pack(push, 8)
+        #include "../extern/discord/c/discord_game_sdk.h"
+    #pragma pack(pop)
+#endif // _MSC_VER >= 1920 && !__INTEL_COMPILER
+
+#define DISCORD_APP_ID 1002762540247433297  // Discord application ID (also referred to as "Client ID" is the game's unique identifier across Discord)
+#define DISCORD_APP_TEXT "AQtion"           // Tooltip name
+#define DISCORD_APP_IMAGE "aqtion"          // Rich presence -> art asset -> asset name
+#define DISCORD_UPDATE_MSEC 1000            // Time between updates, 1000 = 1 second.
+#define DISCORD_ACTIVITY_UPDATE_MSEC 15000  // Time between updates, 1000 = 1 second.
+
+cvar_t* cl_extern_ip;                       // External IP
+cvar_t *cl_discord;                         // Allow the user to disable Discord features for privacy
+cvar_t *cl_discord_id;                      // User ID
+cvar_t *cl_discord_username;                // User name
+cvar_t *cl_discord_discriminator;           // User's unique discrim ( username#discriminator -> bob#1900 )
+cvar_t *cl_discord_avatar;                  // Hash of the user's avatar
+cvar_t *cl_discord_accept_join_requests;    // If true automatically accept join request, else let the user decide
+
+enum discord_message_type {
+    DISCORD_MSG_NULL,       // Null packet
+    DISCORD_MSG_PING,       // Ping -> pong
+    DISCORD_MSG_CONNECT,    // Client wants to connect to the game server
+    DISCORD_MSG_OWNERSHIP   // Transfer of ownership
+};
+
+struct Application {
+    struct IDiscordCore* core;
+    struct IDiscordApplicationManager* application;
+    struct IDiscordUserManager* user;
+    struct IDiscordImageManager* images;
+    struct IDiscordActivityManager* activities;
+    struct IDiscordRelationshipManager* relationships;
+    struct IDiscordLobbyManager* lobbies;
+    struct IDiscordNetworkManager* network;
+    struct IDiscordOverlayManager* overlay;
+    struct IDiscordStorageManager* storage;
+    struct IDiscordStoreManager* store;
+    struct IDiscordVoiceManager* voice;
+    struct IDiscordAchievementManager* achievements;
+};
+
+typedef struct {
+    struct Application app;             // Discord app
+    struct DiscordCreateParams params;  // Creation parameters
+    
+    // Events
+    IDiscordCoreEvents* events;                                 // Core events
+    struct IDiscordUserEvents users_events;                     // Users
+    struct IDiscordActivityEvents activities_events;            // Activities
+    struct IDiscordRelationshipEvents relationships_events;     // Relationships
+    struct IDiscordLobbyEvents lobbies_events;                  // Lobbies
+    struct IDiscordAchievementEvents achievements_events;       // Achievements
+    struct IDiscordNetworkEvents* network_events;               // Network
+    struct IDiscordOverlayEvents* overlay_events;               // Overlay
+    IDiscordStorageEvents* storage_events;                      // Storage
+    struct IDiscordStoreEvents* store_events;                   // Store
+    struct IDiscordVoiceEvents* voice_events;                   // Voice
+    struct IDiscordAchievementEvents* achievement_events;       // Achievements
+    
+    // Activities
+    struct DiscordActivity activity;                // Activities (rich presence)
+
+    // Lobbies
+    struct IDiscordLobbyTransaction *transaction;   // Transaction
+    struct DiscordLobby lobby;                      // Lobby
+    
+    // User
+    struct DiscordUser user;            // User data (the user's discord id, username, etc)
+    
+    // Init
+    qboolean init;                      // Discord is initialized true/false
+    qboolean discord_found;             // If Discord is running
+
+    // Callback
+    int result;
+    
+    // Timers
+    int last_discord_runtime;           // Last time (in msec) discord was updated
+    int last_activity_time;             // Last time (in msec) activity was updated
+    
+    char server_hostname[64];           // Cache hostname
+    char mapname[MAX_QPATH];            // Cache map
+    byte curr_players;                  // How many players currently connected to the server
+    byte prev_players;                  // How many players previously connected to the server
+    
+} discord_t;
+discord_t discord;
+
+void    CL_InitDiscord(void);
+void    CL_CreateDiscordLobby_f(void);
+void    CL_DeleteDiscordLobby(void);
+void    CL_RunDiscord(void);
+void    CL_ShutdownDiscord(void);
+void    CL_RunDiscord(void); // Run in main loop
+void    CL_GetExternalIP(void);
+void    CL_DiscordParseServerStatus(serverStatus_t* status, const char* string);
+
+#endif

@@ -1,0 +1,35 @@
+{
+    "name": "BroFist",
+    "clan_id": null,
+    "skin": "male/jdredd",
+    "weaponPreferences": {
+        "mk23": 0.3,
+        "dual_mk23": 0.4,
+        "mp5": 0.4,
+        "m4": 0.4,
+        "m3": 0.3,
+        "hc": 0.4,
+        "sniper": 0.1,
+        "knives": 0.6,
+        "grenades": 0.7
+    },
+    "itemPreferences": {
+        "vest": 0.4,
+        "helm": 0.2,
+        "laser": 0.3,
+        "silencer": 0.5,
+        "slippers": 0.5,
+        "bandolier": 0.5
+    },
+    "coreTraits": {
+        "aggressiveness": 0.6,
+        "teamwork": 0.6,
+        "curiosity": 0.6,
+        "aimingSkill": 0.2,
+        "reactionTime": 0.3,
+        "communicationFreq": 0.8,
+        "communicationTone": 0.6,
+        "movementStyle": 0.5,
+        "objectiveFocus": 0.5
+    }
+}

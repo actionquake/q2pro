@@ -1,0 +1,35 @@
+{
+    "name": "Fullmonty",
+    "clan_id": null,
+    "skin": "male/blues",
+    "weaponPreferences": {
+        "mk23": 0.5,
+        "dual_mk23": 0.5,
+        "mp5": 0.7,
+        "m4": 0.7,
+        "m3": 0.6,
+        "hc": 0.5,
+        "sniper": 0.3,
+        "knives": 0.7,
+        "grenades": 0.4
+    },
+    "itemPreferences": {
+        "vest": 0.6,
+        "helm": 0.9,
+        "laser": 0.6,
+        "silencer": 0.4,
+        "slippers": 0.0,
+        "bandolier": 0.3
+    },
+    "coreTraits": {
+        "aggressiveness": 0.8,
+        "teamwork": 0.4,
+        "curiosity": 0.3,
+        "aimingSkill": 0.2,
+        "reactionTime": 0.6,
+        "communicationFreq": 0.6,
+        "communicationTone": 0.1,
+        "movementStyle": 0.6,
+        "objectiveFocus": 0.7
+    }
+}

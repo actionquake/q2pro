@@ -1,0 +1,35 @@
+{
+    "name": "Dark Kahn",
+    "clan_id": 46,
+    "skin": "messiah/chow",
+    "weaponPreferences": {
+        "mk23": 0.5,
+        "dual_mk23": 0.3,
+        "mp5": 0.6,
+        "m4": 0.6,
+        "m3": 0.7,
+        "hc": 1.1,
+        "sniper": 0.7,
+        "knives": 0.6,
+        "grenades": 0.5
+    },
+    "itemPreferences": {
+        "vest": 0.4,
+        "helm": 0.5,
+        "laser": 0.5,
+        "silencer": 0.3,
+        "slippers": 0.3,
+        "bandolier": 0.6
+    },
+    "coreTraits": {
+        "aggressiveness": 0.5,
+        "teamwork": 0.4,
+        "curiosity": 0.3,
+        "aimingSkill": 0.3,
+        "reactionTime": 0.7,
+        "communicationFreq": 0.5,
+        "communicationTone": 0.5,
+        "movementStyle": 0.2,
+        "objectiveFocus": 0.2
+    }
+}

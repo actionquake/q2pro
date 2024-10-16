@@ -1,0 +1,35 @@
+{
+    "name": "Michael",
+    "clan_id": 96,
+    "skin": "sas/aqmsas",
+    "weaponPreferences": {
+        "mk23": 0.7,
+        "dual_mk23": 0.3,
+        "mp5": 0.3,
+        "m4": 0.4,
+        "m3": 0.7,
+        "hc": 0.6,
+        "sniper": 0.6,
+        "knives": 0.6,
+        "grenades": 0.4
+    },
+    "itemPreferences": {
+        "vest": 0.8,
+        "helm": 0.4,
+        "laser": 0.2,
+        "silencer": 0.4,
+        "slippers": 0.3,
+        "bandolier": 0.4
+    },
+    "coreTraits": {
+        "aggressiveness": 0.7,
+        "teamwork": 0.5,
+        "curiosity": 0.5,
+        "aimingSkill": 0.4,
+        "reactionTime": 0.4,
+        "communicationFreq": 0.2,
+        "communicationTone": 0.6,
+        "movementStyle": 0.6,
+        "objectiveFocus": 0.1
+    }
+}
