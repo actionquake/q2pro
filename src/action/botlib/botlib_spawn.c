@@ -1586,7 +1586,10 @@ edict_t* BOTLIB_SpawnBot(int team, int force_gender, char* force_name, char* for
 		bot->bot.bot_baseline_ping = (int)(3 + (random() * 66)); // Average pinger
 	else
 		bot->bot.bot_baseline_ping = (int)(7 + (random() * 227)); // High ping bastard
-	gi.SV_BotConnect(bot->client->pers.netname); // So the server can fake the bot as a 'client'
+	
+	if (bot_reportasclient->value)
+		SV_BotConnect(bot->client->pers.netname); // So the server can fake the bot as a 'client'
+	//gi.SV_BotConnect(bot->client->pers.netname); // So the server can fake the bot as a 'client'
 	game.bot_count++;
 	//rekkie -- Fake Bot Client -- e
 
@@ -1618,7 +1621,10 @@ void BOTLIB_RemoveBot(char* name)
 				if (bot->is_bot && (remove_all || !strlen(name) || Q_stricmp(bot->client->pers.netname, name) == 0 || (find_team && bot->client->resp.team == find_team)))
 				{
 					//rekkie -- Fake Bot Client -- s
-					gi.SV_BotDisconnect(bot->client->pers.netname); // So the server can remove the fake client
+					
+					if (bot_reportasclient->value)
+						SV_BotDisconnect(bot->client->pers.netname); // So the server can fake the bot as a 'client'
+					//gi.SV_BotDisconnect(bot->client->pers.netname); // So the server can remove the fake client
 					//rekkie -- Fake Bot Client -- e
 
 					bot->health = 0;
@@ -1689,7 +1695,9 @@ void BOTLIB_RemoveBot(char* name)
 				}
 
 				// Fake Bot Client - Disconnect the bot
-				gi.SV_BotDisconnect(bot->client->pers.netname);
+				if (bot_reportasclient->value)
+					SV_BotDisconnect(bot->client->pers.netname); // So the server can fake the bot as a 'client'
+				//gi.SV_BotDisconnect(bot->client->pers.netname); // So the server can remove the fake client
 
 				bot->health = 0;
 				player_die(bot, bot, bot, 100000, vec3_origin);
@@ -1734,7 +1742,9 @@ void BOTLIB_RemoveTeamplayBot(int team)
 					//if (random() < 0.20) // Randomly kick a bot
 					{
 						//rekkie -- Fake Bot Client -- s
-						gi.SV_BotDisconnect(bot->client->pers.netname); // So the server can remove the fake client
+						if (bot_reportasclient->value)
+							SV_BotDisconnect(bot->client->pers.netname); // So the server can fake the bot as a 'client'
+						//gi.SV_BotDisconnect(bot->client->pers.netname); // So the server can remove the fake client
 						//rekkie -- Fake Bot Client -- e
 
 						if (team == TEAM1)
