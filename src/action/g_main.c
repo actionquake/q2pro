@@ -275,6 +275,7 @@ game_locals_t game;
 level_locals_t level;
 game_import_t gi;
 game_export_t globals;
+const game_import_ex_t *gix;
 spawn_temp_t st;
 
 int sm_meat_index;
@@ -504,8 +505,13 @@ cvar_t* bot_debug;		// Enable bot debug mode
 cvar_t* bot_count_min;	// Minimum number of bots to keep on the server (will range between this and bot_count_max)
 cvar_t* bot_count_max;	// Maximum number of bots to keep on the server (will range between this and bot_count_min)
 cvar_t* bot_rotate;		// Disable/enable rotating bots on the server
+cvar_t* bot_reportasclient; // Report bots as clients to the server browser
 cvar_t* bot_navautogen;	// Enable/Disable automatic generation of navigation files
 //cvar_t* bot_randteamskin; // Bots can randomize team skins each map
+
+
+cvar_t* gl_shaders;  // Temporarily adding gl_shaders so we can disable it for navmesh generation
+
 //rekkie -- DEV_1 -- e
 #endif
 
@@ -681,30 +687,50 @@ q_exported game_export_t *GetGameAPI(game_import_t *import)
 
 	globals.edict_size = sizeof (edict_t);
 
-
-#if AQTION_EXTENSION
-	G_InitExtEntrypoints();
-	globals.FetchGameExtension = G_FetchGameExtension;
-
-	engine_Client_GetProtocol = gi.CheckForExtension("Client_GetProtocol");
-	engine_Client_GetVersion = gi.CheckForExtension("Client_GetVersion");
-
-	engine_Ghud_ClearForClient = gi.CheckForExtension("Ghud_ClearForClient");
-	engine_Ghud_NewElement = gi.CheckForExtension("Ghud_NewElement");
-	engine_Ghud_RemoveElement = gi.CheckForExtension("Ghud_RemoveElement");
-	engine_Ghud_SetFlags = gi.CheckForExtension("Ghud_SetFlags");
-	engine_Ghud_SetInt = gi.CheckForExtension("Ghud_SetInt");
-	engine_Ghud_SetText = gi.CheckForExtension("Ghud_SetText");
-	engine_Ghud_SetPosition = gi.CheckForExtension("Ghud_SetPosition");
-	engine_Ghud_SetAnchor = gi.CheckForExtension("Ghud_SetAnchor");
-	engine_Ghud_SetColor = gi.CheckForExtension("Ghud_SetColor");
-	engine_Ghud_SetSize = gi.CheckForExtension("Ghud_SetSize");
-
-	engine_CvarSync_Set = gi.CheckForExtension("CvarSync_Set");
-#endif
-
-
 	return &globals;
+}
+
+const game_export_ex_t gex = {
+    .apiversion = GAME_API_VERSION_EX,
+    .structsize = sizeof(game_export_ex_t),
+
+	// // Functionality examples?
+	// // https://github.com/skullernet/q2pro/issues/294#issuecomment-1476818818
+    //.GetExtension = GetExtension,
+
+};
+
+q_exported const game_export_ex_t *GetGameAPIEx(game_import_ex_t *importx)
+{
+    gix = importx;   // assign pointer, don't copy!
+	
+	//gex.CheckForExtension = G_FetchGameExtension;
+	G_InitExtEntrypoints();
+	engine_Client_GetProtocol = gix->CheckForExtension("Client_GetProtocol");
+	engine_Client_GetVersion = gix->CheckForExtension("Client_GetVersion");
+
+	engine_Ghud_ClearForClient = gix->CheckForExtension("Ghud_ClearForClient");
+	engine_Ghud_NewElement = gix->CheckForExtension("Ghud_NewElement");
+	engine_Ghud_RemoveElement = gix->CheckForExtension("Ghud_RemoveElement");
+	engine_Ghud_SetFlags = gix->CheckForExtension("Ghud_SetFlags");
+	engine_Ghud_SetInt = gix->CheckForExtension("Ghud_SetInt");
+	engine_Ghud_SetText = gix->CheckForExtension("Ghud_SetText");
+	engine_Ghud_SetPosition = gix->CheckForExtension("Ghud_SetPosition");
+	engine_Ghud_SetAnchor = gix->CheckForExtension("Ghud_SetAnchor");
+	engine_Ghud_SetColor = gix->CheckForExtension("Ghud_SetColor");
+	engine_Ghud_SetSize = gix->CheckForExtension("Ghud_SetSize");
+
+	engine_CvarSync_Set = gix->CheckForExtension("CvarSync_Set");
+
+	SV_BSP = gix->CheckForExtension("Bsp");
+	CS_NAV = gix->CheckForExtension("Nav");
+	CS_DebugDraw = gix->CheckForExtension("DebugDraw");
+	SV_BotConnect = gix->CheckForExtension("SV_BotConnect");
+	SV_BotDisconnect = gix->CheckForExtension("SV_BotDisconnect");
+	SV_BotUpdateInfo = gix->CheckForExtension("SV_BotUpdateInfo");
+	SV_BotClearClients = gix->CheckForExtension("SV_BotClearClients");
+
+    return &gex;
 }
 
 #ifndef GAME_HARD_LINKED

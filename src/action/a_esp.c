@@ -1559,14 +1559,20 @@ qboolean AllTeamsHaveLeaders(void)
 	if((espsettings.esp_mode == ESPMODE_ETV) && HAVE_LEADER(TEAM1)) {
 		if (esp_debug->value)
 		  gi.dprintf("ETV team has a leader\n");
+		teams[TEAM1].leader_dead = false;  // Reset this in case the leader left and returned
 		return true;
 	} else if(espsettings.esp_mode == ESPMODE_ATL && (teamsWithLeaders == teamCount)){
 		if (esp_debug->value)
 			gi.dprintf("Teams with leaders is the same as the team count\n");
-		return true;
+		teams[TEAM1].leader_dead = false;  // Reset this in case the leader left and returned
+		teams[TEAM2].leader_dead = false;
+		if (teamCount == 3)
+			teams[TEAM3].leader_dead = false;
 	} else {
 		return false;
 	}
+
+
 	if (esp_debug->value)
 		gi.dprintf("%s: Leadercount: %d\n", __func__, teamsWithLeaders);
 	return false;
@@ -1722,6 +1728,27 @@ qboolean EspLeaderCheck(void)
 	int i = 0;
 	edict_t *newLeader;
 	qboolean athl = AllTeamsHaveLeaders();
+	int t1count = TotalPlayersOnTeam(TEAM1);
+	int t2count = TotalPlayersOnTeam(TEAM2);
+
+	// Setting leader deadness to true if there's no one left on the team
+	// This is meant to end the round immediately if a team has no members on it
+	if (teamCount == 2){
+		if (t1count == 0 && t2count > 0){
+			teams[TEAM1].leader_dead = true;
+		} else if (t2count == 0 && t1count > 0){
+			teams[TEAM2].leader_dead = true;
+		}
+	} else if (teamCount == 3){
+		int t3count = TotalPlayersOnTeam(TEAM3);
+		if (t1count == 0 && t2count > 0 && t3count > 0){
+			teams[TEAM1].leader_dead = true;
+		} else if (t2count == 0 && t1count > 0 && t3count > 0){
+			teams[TEAM2].leader_dead = true;
+		} else if (t3count == 0 && t1count > 0 && t2count > 0){
+			teams[TEAM3].leader_dead = true;
+		}
+	}
 
 	// Quick sanity check in case this ever occurs as I've seen it on rare occasions
 	for (i = TEAM1; i <= teamCount; i++) {
@@ -1762,6 +1789,8 @@ qboolean EspLeaderCheck(void)
 						if (esp_debug->value)
 							gi.dprintf("%s: I need a random leader!\n", __func__);
 						return true;
+					} else {
+						return false;
 					}
 				}
 
@@ -2041,6 +2070,8 @@ void EspEndOfRoundCleanup(void)
 	// as well as any bots that were leaders, somehow
 	for (i = TEAM1; i <= teamCount; i++) {
 		if (teams[i].leader && teams[i].leader->is_bot)
+			teams[i].leader = NULL;
+		if (TotalPlayersOnTeam(i) == 0)  //Clears leader edict if no one is left on the team
 			teams[i].leader = NULL;
 		teams[i].leader_dead = false;
 	}

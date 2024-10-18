@@ -878,21 +878,40 @@ static const debug_draw_api_v1_t debug_draw_api_v1 = {
 };
 #endif
 
+static const rektek_bots_api_v1_t rektek_bots_api_v1 = {
+    .Bsp = SV_BSP,
+    .Nav = CS_NAV,
+    .Draw = CS_DebugDraw,
+    .SV_BotUpdateInfo = SV_BotUpdateInfo,
+    .SV_BotConnect = SV_BotConnect,
+    .SV_BotDisconnect = SV_BotDisconnect,
+    .SV_BotClearClients = SV_BotClearClients,
+};
+
 static void *PF_GetExtension(const char *name)
 {
-    if (!name)
+    if (!name){
         return NULL;
+    }
 
-    if (!strcmp(name, FILESYSTEM_API_V1))
+    if (!strcmp(name, FILESYSTEM_API_V1)){
         return (void *)&filesystem_api_v1;
+    }
+
+	if (!strcmp(name, REKTEK_BOTS_API_V1)){
+		return (void *)&rektek_bots_api_v1;
+    }
+
 
 #if USE_REF && USE_DEBUG
-    if (!strcmp(name, DEBUG_DRAW_API_V1) && !dedicated->integer)
+    if (!strcmp(name, DEBUG_DRAW_API_V1) && !dedicated->integer){
         return (void *)&debug_draw_api_v1;
+    }
 #endif
 
     return NULL;
 }
+static void* G_CheckForExtension(char *text);
 
 static const game_import_ex_t game_import_ex = {
     .apiversion = GAME_API_VERSION_EX,
@@ -905,6 +924,7 @@ static const game_import_ex_t game_import_ex = {
 
     .GetExtension = PF_GetExtension,
     .TagRealloc = PF_TagRealloc,
+    .CheckForExtension = G_CheckForExtension,
 };
 
 static void *game_library;
@@ -1087,6 +1107,16 @@ void G_InitializeExtensions(void)
 
 	// cvar sync
 	g_addextension("CvarSync_Set", G_Ext_CvarSync_Set);
+
+    // botlib
+    g_addextension("Bsp", SV_BSP);
+    g_addextension("Nav", CS_NAV);
+    g_addextension("DebugDraw", CS_DebugDraw);
+    g_addextension("SV_BotConnect", SV_BotConnect);
+    g_addextension("SV_BotDisconnect", SV_BotDisconnect);
+    g_addextension("SV_BotClearClients", SV_BotClearClients);
+    g_addextension("SV_BotUpdateInfo", SV_BotUpdateInfo);
+
 }
 
 
@@ -1140,34 +1170,6 @@ void SV_InitGameProgs(void)
     // load a new game dll
     import = game_import;
 
-#if AQTION_EXTENSION
-	import.CheckForExtension = G_CheckForExtension;
-#endif
-
-//rekkie -- BSP -- s
-    //#ifdef ACTION_DLL
-    import.Bsp = SV_BSP;
-    //#endif
-    //rekkie -- BSP -- e
-    //rekkie -- surface data -- s
-    import.Nav = CS_NAV;
-    //rekkie -- debug drawing -- s
-#if DEBUG_DRAWING
-//#if USE_REF
-    import.Draw = CS_DebugDraw;
-//#endif
-#endif
-//rekkie -- debug drawing -- e
-    //import.SurfaceData = SV_SURFACE_DATA;
-    //rekkie -- surface data -- e
-
-    //rekkie -- Fake Bot Client -- s
-    import.SV_BotUpdateInfo = SV_BotUpdateInfo;
-    import.SV_BotConnect = SV_BotConnect;
-    import.SV_BotDisconnect = SV_BotDisconnect;
-    import.SV_BotClearClients = SV_BotClearClients;
-    //rekkie -- Fake Bot Client -- e
-
     ge = entry(&import);
     if (!ge) {
         Com_Error(ERR_DROP, "Game library returned NULL exports");
@@ -1182,12 +1184,17 @@ void SV_InitGameProgs(void)
 
     // get extended api if present
     game_entry_ex_t entry_ex = Sys_GetProcAddress(game_library, "GetGameAPIEx");
+    Com_Printf("==== Extended Protocol ====\n");
     if (entry_ex) {
         gex = entry_ex(&game_import_ex);
-        if (gex && gex->apiversion >= GAME_API_VERSION_EX_MINIMUM)
-            Com_DPrintf("Game supports Q2PRO extended API version %d.\n", gex->apiversion);
-        else
+        if (gex == NULL) {
+            Com_Printf("Disabled: Failed to get extended game API.\n");
+        } else if (gex->apiversion < GAME_API_VERSION_EX_MINIMUM) {
             gex = NULL;
+            Com_Printf("Disabled: Extended game API version is too old.\n");
+        } else {
+            Com_Printf("Game supports Q2PRO extended API version %d.\n", gex->apiversion);
+        }
     }
 
     // initialize
@@ -1211,9 +1218,4 @@ void SV_InitGameProgs(void)
     if (ge->max_edicts <= sv_maxclients->integer || ge->max_edicts > svs.csr.max_edicts) {
         Com_Error(ERR_DROP, "Game library returned bad number of max_edicts: %i", ge->max_edicts);
     }
-
-#if AQTION_EXTENSION
-	GE_customizeentityforclient = ge->FetchGameExtension("customizeentityforclient");
-	GE_CvarSync_Updated = ge->FetchGameExtension("CvarSync_Updated");
-#endif
 }

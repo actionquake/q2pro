@@ -559,9 +559,9 @@ static int BOTLIB_ReadKilledPlayers(edict_t* ent)
 static void BOTLIB_GetLastKilledTargets(edict_t* self, int kills, char* buf)
 {
 	if (kills > 1)
-		sprintf(buf, " %c [ %d ] %dx Enemies Down! [ %c ", '\x06', self->client->resp.score, kills, '\x07'); // Build bandage string
+		sprintf(buf, " %c [ %d ] %dx Enemies Down! [ %c ", '\x06', self->client->resp.streakKills, kills, '\x07'); // Build bandage string
 	else
-		sprintf(buf, " %c [ %d ] Enemy Down! [ %c ", '\x06', self->client->resp.score, '\x07'); // Build bandage string
+		sprintf(buf, " %c [ %d ] Enemy Down! [ %c ", '\x06', self->client->resp.streakKills, '\x07'); // Build bandage string
 
 	Q_strncatz(buf, self->client->last_killed_target[0]->client->pers.netname, PARSE_BUFSIZE); // First kill
 
