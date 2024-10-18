@@ -507,6 +507,10 @@ cvar_t* bot_rotate;		// Disable/enable rotating bots on the server
 cvar_t* bot_reportasclient; // Report bots as clients to the server browser
 cvar_t* bot_navautogen;	// Enable/Disable automatic generation of navigation files
 //cvar_t* bot_randteamskin; // Bots can randomize team skins each map
+
+
+cvar_t* gl_shaders;  // Temporarily adding gl_shaders so we can disable it for navmesh generation
+
 //rekkie -- DEV_1 -- e
 #endif
 
