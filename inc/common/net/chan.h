@@ -34,7 +34,7 @@ typedef struct {
 
     netsrc_t    sock;
 
-    int         dropped;            // between last packet and previous
+    unsigned    dropped;            // between last packet and previous
     unsigned    total_dropped;      // for statistics
     unsigned    total_received;
 
@@ -46,23 +46,22 @@ typedef struct {
 
     sizebuf_t   message;            // writing buffer for reliable data
 
-    unsigned    reliable_length;
-
     bool        reliable_ack_pending;   // set to true each time reliable is received
     bool        fragment_pending;
 
     // sequencing variables
-    int         incoming_sequence;
-    int         incoming_acknowledged;
-    int         outgoing_sequence;
+    unsigned    incoming_sequence;
+    unsigned    incoming_acknowledged;
+    unsigned    outgoing_sequence;
 
     bool        incoming_reliable_acknowledged; // single bit
     bool        incoming_reliable_sequence;     // single bit, maintained local
     bool        reliable_sequence;          // single bit
-    int         last_reliable_sequence;     // sequence number of last send
-    int         fragment_sequence;
+    unsigned    last_reliable_sequence;     // sequence number of last send
+    unsigned    fragment_sequence;
 
     // message is copied to this buffer when it is first transfered
+    unsigned    reliable_length;
     byte        *reliable_buf;      // unacked reliable message
 
     sizebuf_t   fragment_in;
@@ -81,8 +80,13 @@ void Netchan_Setup(netchan_t *chan, netsrc_t sock, netchan_type_t type,
 int Netchan_Transmit(netchan_t *chan, size_t length, const void *data, int numpackets);
 int Netchan_TransmitNextFragment(netchan_t *chan);
 bool Netchan_Process(netchan_t *chan);
-bool Netchan_ShouldUpdate(netchan_t *chan);
+bool Netchan_ShouldUpdate(const netchan_t *chan);
 void Netchan_Close(netchan_t *chan);
+
+static inline bool Netchan_SeqTooBig(const netchan_t *chan)
+{
+    return chan->outgoing_sequence >= BIT(31 - chan->type) - 256;
+}
 
 #define OOB_PRINT(sock, addr, data) \
     NET_SendPacket(sock, CONST_STR_LEN("\xff\xff\xff\xff" data), addr)

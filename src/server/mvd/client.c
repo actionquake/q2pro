@@ -254,20 +254,20 @@ mvd_t *MVD_SetChannel(int arg)
         }
     } else
 #endif
-        if (COM_IsUint(s)) {
-            id = Q_atoi(s);
-            FOR_EACH_MVD(mvd) {
-                if (mvd->id == id) {
-                    return mvd;
-                }
-            }
-        } else {
-            FOR_EACH_MVD(mvd) {
-                if (!strcmp(mvd->name, s)) {
-                    return mvd;
-                }
+    if (COM_IsUint(s)) {
+        id = Q_atoi(s);
+        FOR_EACH_MVD(mvd) {
+            if (mvd->id == id) {
+                return mvd;
             }
         }
+    } else {
+        FOR_EACH_MVD(mvd) {
+            if (!strcmp(mvd->name, s)) {
+                return mvd;
+            }
+        }
+    }
 
     Com_Printf("No such channel ID: %s\n", s);
     return NULL;
@@ -505,9 +505,7 @@ static int demo_skip_map(qhandle_t f)
         }
     }
 
-    SZ_Init(&msg_read, msg_read_buffer, sizeof(msg_read_buffer));
-    msg_read.cursize = msglen;
-
+    SZ_InitRead(&msg_read, msg_read_buffer, msglen);
     return msglen;
 }
 
@@ -519,9 +517,7 @@ static int demo_read_message(qhandle_t f)
         return msglen;
     }
 
-    SZ_Init(&msg_read, msg_read_buffer, sizeof(msg_read_buffer));
-    msg_read.cursize = msglen;
-
+    SZ_InitRead(&msg_read, msg_read_buffer, msglen);
     return msglen;
 }
 
@@ -562,7 +558,7 @@ static void demo_emit_snapshot(mvd_t *mvd)
     if (mvd_snaps->integer <= 0)
         return;
 
-    if (mvd->framenum < mvd->last_snapshot + mvd_snaps->integer * 10)
+    if (mvd->framenum < mvd->last_snapshot + mvd_snaps->integer * BASE_FRAMERATE)
         return;
 
     if (mvd->numsnapshots >= MAX_SNAPSHOTS)
@@ -630,19 +626,23 @@ static void demo_emit_snapshot(mvd_t *mvd)
         MSG_WriteString(mvd->layout);
     }
 
-    snap = MVD_Malloc(sizeof(*snap) + msg_write.cursize - 1);
-    snap->framenum = mvd->framenum;
-    snap->filepos = pos;
-    snap->msglen = msg_write.cursize;
-    memcpy(snap->data, msg_write.data, msg_write.cursize);
+    if (msg_write.overflowed) {
+        Com_WPrintf("%s: message buffer overflowed\n", __func__);
+    } else {
+        snap = MVD_Malloc(sizeof(*snap) + msg_write.cursize - 1);
+        snap->framenum = mvd->framenum;
+        snap->filepos = pos;
+        snap->msglen = msg_write.cursize;
+        memcpy(snap->data, msg_write.data, msg_write.cursize);
 
-    if (!mvd->snapshots)
-        mvd->snapshots = MVD_Malloc(sizeof(mvd->snapshots[0]) * MIN_SNAPSHOTS);
-    else
-        mvd->snapshots = Z_Realloc(mvd->snapshots, sizeof(mvd->snapshots[0]) * ALIGN(mvd->numsnapshots + 1, MIN_SNAPSHOTS));
-    mvd->snapshots[mvd->numsnapshots++] = snap;
+        if (!mvd->snapshots)
+            mvd->snapshots = MVD_Malloc(sizeof(mvd->snapshots[0]) * MIN_SNAPSHOTS);
+        else
+            mvd->snapshots = Z_Realloc(mvd->snapshots, sizeof(mvd->snapshots[0]) * Q_ALIGN(mvd->numsnapshots + 1, MIN_SNAPSHOTS));
+        mvd->snapshots[mvd->numsnapshots++] = snap;
 
-    Com_DPrintf("[%d] snaplen %u\n", mvd->framenum, msg_write.cursize);
+        Com_DPrintf("[%d] snaplen %u\n", mvd->framenum, msg_write.cursize);
+    }
 
     SZ_Clear(&msg_write);
 
@@ -1690,7 +1690,7 @@ void MVD_Spawn(void)
 #endif
 
     // generate spawncount for Waiting Room
-    sv.spawncount = Q_rand() & 0x7fffffff;
+    sv.spawncount = Q_rand() & INT_MAX;
 
 #if USE_FPS
     // just fixed base FPS
@@ -1721,12 +1721,19 @@ static void list_generic(void)
         "-- ------------ -------- --- --- ---- --- ---- --------------\n");
 
     FOR_EACH_MVD(mvd) {
+        gtv_t *gtv = mvd->gtv;
+        int percent;
+
+        if (gtv && gtv->demoplayback)
+            percent = gtv->demoprogress * 100;
+        else
+            percent = FIFO_Percent(&mvd->delay);
+
         Com_Printf("%2d %-12.12s %-8.8s %3d %3d %-4.4s %3d %4u %s\n",
                    mvd->id, mvd->name, mvd->mapname,
                    List_Count(&mvd->clients), mvd->numplayers,
-                   mvd_states[mvd->state],
-                   FIFO_Percent(&mvd->delay), mvd->num_packets,
-                   mvd->gtv ? mvd->gtv->address : "<disconnected>");
+                   mvd_states[mvd->state], percent, mvd->num_packets,
+                   gtv ? gtv->address : "<disconnected>");
     }
 }
 
@@ -1786,8 +1793,7 @@ static void MVD_ListServers_f(void)
         ratio = 100;
 #if USE_ZLIB
         if (gtv->z_act && gtv->z_str.total_out) {
-            ratio = 100 * ((double)gtv->z_str.total_in /
-                           gtv->z_str.total_out);
+            ratio = gtv->z_str.total_in * 100ULL / gtv->z_str.total_out;
         }
 #endif
         Com_Printf("%2d %-12.12s %-12.12s %4u%% %7u %s\n",
@@ -1858,7 +1864,7 @@ static void emit_base_frame(mvd_t *mvd)
     // send base player states
     for (i = 0; i < mvd->maxclients; i++) {
         player = &mvd->players[i];
-        MSG_PackPlayer(&ps, &player->ps);
+        MSG_PackPlayerNew(&ps, &player->ps);
         MSG_WriteDeltaPlayerstate_Packet(NULL, &ps, i, player_flags(mvd, player));
     }
     MSG_WriteByte(CLIENTNUM_NONE);
@@ -1866,7 +1872,7 @@ static void emit_base_frame(mvd_t *mvd)
     // send base entity states
     for (i = 1; i < mvd->csr->max_edicts; i++) {
         ent = &mvd->edicts[i];
-        if (!(ent->svflags & SVF_MONSTER))
+        if (!(ent->svflags & SVF_MVD_SEEN))
             continue;   // entity never seen
         ent->s.number = i;
         MSG_PackEntity(&es, &ent->s, &ent->x);
@@ -1877,17 +1883,21 @@ static void emit_base_frame(mvd_t *mvd)
 
 static void emit_gamestate(mvd_t *mvd)
 {
-    int         i, extra;
+    int         i;
     char        *s;
     size_t      len;
 
-    // pack MVD stream flags into extra bits
-    extra = mvd->flags << SVCMD_BITS;
-
     // send the serverdata
-    MSG_WriteByte(mvd_serverdata | extra);
-    MSG_WriteLong(PROTOCOL_VERSION_MVD);
-    MSG_WriteLong(mvd->version);
+    if (mvd->version >= PROTOCOL_VERSION_MVD_EXTENDED_LIMITS_2) {
+        MSG_WriteByte(mvd_serverdata);
+        MSG_WriteLong(PROTOCOL_VERSION_MVD);
+        MSG_WriteLong(mvd->version);
+        MSG_WriteShort(mvd->flags);
+    } else {
+        MSG_WriteByte(mvd_serverdata | (mvd->flags << SVCMD_BITS));
+        MSG_WriteLong(PROTOCOL_VERSION_MVD);
+        MSG_WriteLong(mvd->version);
+    }
     MSG_WriteLong(mvd->servercount);
     MSG_WriteString(mvd->gamedir);
     MSG_WriteShort(mvd->clientNum);
@@ -1969,6 +1979,12 @@ void MVD_StreamedRecord_f(void)
     mvd->demoname = MVD_CopyString(buffer);
 
     emit_gamestate(mvd);
+
+    // check for overflow
+    if (msg_write.overflowed) {
+        ret = Q_ERR(EMSGSIZE);
+        goto fail;
+    }
 
     // write magic
     magic = MVD_MAGIC;
@@ -2335,8 +2351,7 @@ static void MVD_Seek_f(void)
             // set player names
             MVD_SetPlayerNames(mvd);
 
-            SZ_Init(&msg_read, snap->data, snap->msglen);
-            msg_read.cursize = snap->msglen;
+            SZ_InitRead(&msg_read, snap->data, snap->msglen);
 
             MVD_ParseMessage(mvd);
             mvd->framenum = snap->framenum;
@@ -2372,12 +2387,12 @@ static void MVD_Seek_f(void)
     Com_DPrintf("[%d] after skip\n", mvd->framenum);
 
     // update dirty configstrings
-    for (i = 0; i < CS_BITMAP_LONGS; i++) {
-        if (((uint32_t *)mvd->dcs)[i] == 0)
+    for (i = 0; i < q_countof(mvd->dcs); i++) {
+        if (mvd->dcs[i] == 0)
             continue;
 
-        index = i << 5;
-        for (j = 0; j < 32; j++, index++) {
+        index = i * BC_BITS;
+        for (j = 0; j < BC_BITS; j++, index++) {
             if (Q_IsBitSet(mvd->dcs, index))
                 MVD_UpdateConfigstring(mvd, index);
         }
@@ -2409,7 +2424,7 @@ static void MVD_Seek_f(void)
     for (i = 1; i < mvd->csr->max_edicts; i++) {
         ent = &mvd->edicts[i];
 
-        if (ent->svflags & SVF_MONSTER)
+        if (ent->svflags & SVF_MVD_SEEN)
             MVD_LinkEdict(mvd, ent);
 
         if (!ent->inuse)
@@ -2676,7 +2691,7 @@ static const cmdreg_t c_mvd[] = {
 
 static void mvd_wait_delay_changed(cvar_t *self)
 {
-    self->integer = 10 * Cvar_ClampValue(self, 0, 60 * 60);
+    self->integer = BASE_FRAMERATE * Cvar_ClampValue(self, 0, 60 * 60);
 }
 
 /*

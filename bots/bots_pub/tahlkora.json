@@ -1,0 +1,35 @@
+{
+    "name": "Tahlkora",
+    "clan_id": null,
+    "skin": "male/kw_blue",
+    "weaponPreferences": {
+        "mk23": 0.6,
+        "dual_mk23": 0.4,
+        "mp5": 0.4,
+        "m4": 0.5,
+        "m3": 0.4,
+        "hc": 0.7,
+        "sniper": 0.4,
+        "knives": 0.6,
+        "grenades": 0.7
+    },
+    "itemPreferences": {
+        "vest": 0.4,
+        "helm": 0.4,
+        "laser": 0.2,
+        "silencer": 0.9,
+        "slippers": 0.3,
+        "bandolier": 0.7
+    },
+    "coreTraits": {
+        "aggressiveness": 0.5,
+        "teamwork": 0.6,
+        "curiosity": 0.4,
+        "aimingSkill": 0.3,
+        "reactionTime": 0.5,
+        "communicationFreq": 0.3,
+        "communicationTone": 0.7,
+        "movementStyle": 0.2,
+        "objectiveFocus": 0.6
+    }
+}

@@ -1,0 +1,35 @@
+{
+    "name": "FXguy",
+    "clan_id": 29,
+    "skin": "messiah/blade2",
+    "weaponPreferences": {
+        "mk23": 0.7,
+        "dual_mk23": 0.7,
+        "mp5": 0.2,
+        "m4": 0.4,
+        "m3": 0.6,
+        "hc": 0.8,
+        "sniper": 0.7,
+        "knives": 0.3,
+        "grenades": 0.8
+    },
+    "itemPreferences": {
+        "vest": 0.4,
+        "helm": 0.7,
+        "laser": 0.3,
+        "silencer": 0.5,
+        "slippers": 0.5,
+        "bandolier": 0.1
+    },
+    "coreTraits": {
+        "aggressiveness": 0.6,
+        "teamwork": 0.2,
+        "curiosity": 0.4,
+        "aimingSkill": 0.4,
+        "reactionTime": 0.5,
+        "communicationFreq": 0.6,
+        "communicationTone": 0.2,
+        "movementStyle": 0.7,
+        "objectiveFocus": 0.5
+    }
+}

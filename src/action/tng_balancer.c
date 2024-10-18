@@ -10,7 +10,7 @@ edict_t *FindNewestPlayer(int team)
 
 	for (i = 0, e = &g_edicts[1]; i < game.maxclients; i++, e++)
 	{
-		if (!e->inuse || e->client->resp.team != team)
+		if (!e->inuse || e->client->resp.team != team || (esp->value && IS_LEADER(e))) // don't move leaders
 			continue;
 
 		if (!newest || e->client->resp.joined_team > newest->client->resp.joined_team) {
@@ -58,6 +58,10 @@ qboolean CheckForUnevenTeams (edict_t *ent)
 		other_team = leastPlayers;
 		swap_ent = FindNewestPlayer(mostPlayers);
 	}
+
+	// Never move a leader
+	if(swap_ent && IS_LEADER(swap_ent))
+		return false;
 
 	if(swap_ent && (!ent || ent == swap_ent)) {
 		gi.centerprintf (swap_ent, "You have been swapped to the other team to even the game.");

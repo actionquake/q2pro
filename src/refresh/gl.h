@@ -25,6 +25,7 @@ with this program; if not, write to the Free Software Foundation, Inc.,
 #include "common/cvar.h"
 #include "common/files.h"
 #include "common/hash_map.h"
+#include "common/intreadwrite.h"
 #include "common/math.h"
 #include "client/video.h"
 #include "client/client.h"
@@ -38,47 +39,26 @@ with this program; if not, write to the Free Software Foundation, Inc.,
  *
  */
 
+#define R_Malloc(size)  Z_TagMalloc(size, TAG_RENDERER)
+#define R_Mallocz(size) Z_TagMallocz(size, TAG_RENDERER)
+
 #if USE_GLES
-#define QGL_INDEX_TYPE  GLushort
-#define QGL_INDEX_ENUM  GL_UNSIGNED_SHORT
+#define QGL_INDEX_TYPE  GL_UNSIGNED_SHORT
+typedef GLushort glIndex_t;
 #else
-#define QGL_INDEX_TYPE  GLuint
-#define QGL_INDEX_ENUM  GL_UNSIGNED_INT
+#define QGL_INDEX_TYPE  GL_UNSIGNED_INT
+typedef GLuint glIndex_t;
 #endif
 
-#define MAX_TMUS        3
+#define TAB_SIN(x)  gl_static.sintab[(x) & 255]
+#define TAB_COS(x)  gl_static.sintab[((x) + 64) & 255]
 
-#define TAB_SIN(x) gl_static.sintab[(x) & 255]
-#define TAB_COS(x) gl_static.sintab[((x) + 64) & 255]
-
-#define MAX_PROGRAMS    128
-#define NUM_TEXNUMS     7
-
-typedef struct {
-    const char *name;
-
-    void (*init)(void);
-    void (*shutdown)(void);
-    void (*clear_state)(void);
-    void (*setup_2d)(void);
-    void (*setup_3d)(void);
-
-    void (*load_proj_matrix)(const GLfloat *matrix);
-    void (*load_view_matrix)(const GLfloat *matrix);
-
-    void (*state_bits)(GLbitfield bits);
-    void (*array_bits)(GLbitfield bits);
-
-    void (*vertex_pointer)(GLint size, GLsizei stride, const GLfloat *pointer);
-    void (*tex_coord_pointer)(GLint size, GLsizei stride, const GLfloat *pointer);
-    void (*light_coord_pointer)(GLint size, GLsizei stride, const GLfloat *pointer);
-    void (*color_byte_pointer)(GLint size, GLsizei stride, const GLubyte *pointer);
-    void (*color_float_pointer)(GLint size, GLsizei stride, const GLfloat *pointer);
-    void (*color)(GLfloat r, GLfloat g, GLfloat b, GLfloat a);
-} glbackend_t;
+#define NUM_AUTO_TEXTURES   9
 
 typedef struct {
     GLuint query;
+    float frac;
+    unsigned timestamp;
     bool pending;
     bool visible;
 } glquery_t;
@@ -86,20 +66,29 @@ typedef struct {
 typedef struct {
     bool            registering;
     bool            use_shaders;
-    glbackend_t     backend;
+    bool            use_cubemaps;
+    bool            use_bmodel_skies;
+    bool            use_gpu_lerp;
     struct {
         bsp_t       *cache;
-        memhunk_t   hunk;
         vec_t       *vertices;
-        GLuint      bufnum;
+        GLuint      buffer;
+        size_t      buffer_size;
         vec_t       size;
     } world;
     GLuint          warp_texture;
     GLuint          warp_renderbuffer;
     GLuint          warp_framebuffer;
-    GLuint          u_bufnum;
-    GLuint          programs[MAX_PROGRAMS];
-    GLuint          texnums[NUM_TEXNUMS];
+    GLuint          uniform_buffer;
+#if USE_MD5
+    GLuint          skeleton_buffer;
+    GLuint          skeleton_tex[2];
+#endif
+    GLuint          array_object;
+    GLuint          index_buffer;
+    GLuint          vertex_buffer;
+    GLuint          warp_program;
+    GLuint          texnums[NUM_AUTO_TEXTURES];
     GLenum          samples_passed;
     GLbitfield      stencil_buffer_bit;
     float           entity_modulate;
@@ -107,10 +96,13 @@ typedef struct {
     uint32_t        inverse_intensity_66;
     uint32_t        inverse_intensity_100;
     int             nolm_mask;
+    int             hunk_align;
+    int             hunk_maxsize;
     float           sintab[256];
     byte            latlngtab[NUMVERTEXNORMALS][2];
     byte            lightstylemap[MAX_LIGHTSTYLES];
     hash_map_t      *queries;
+    hash_map_t      *programs;
 } glStatic_t;
 
 typedef struct {
@@ -120,15 +112,18 @@ typedef struct {
     unsigned        visframe;
     unsigned        drawframe;
     unsigned        dlightframe;
-    unsigned        rand_seed;
+    unsigned        timestamp;
+    float           frametime;
     int             viewcluster1;
     int             viewcluster2;
+    int             nodes_visible;
     cplane_t        frustumPlanes[4];
     entity_t        *ent;
     bool            entrotated;
     float           entscale;
     vec3_t          entaxis[3];
     GLfloat         entmatrix[16];
+    GLfloat         skymatrix[2][16];
     lightpoint_t    lightpoint;
     int             num_beams;
     int             num_flares;
@@ -137,7 +132,7 @@ typedef struct {
     bool            framebuffer_ok;
 } glRefdef_t;
 
-enum {
+typedef enum {
     QGL_CAP_LEGACY                      = BIT(0),
     QGL_CAP_SHADER                      = BIT(1),
     QGL_CAP_TEXTURE_BITS                = BIT(2),
@@ -146,7 +141,15 @@ enum {
     QGL_CAP_TEXTURE_LOD_BIAS            = BIT(5),
     QGL_CAP_TEXTURE_NON_POWER_OF_TWO    = BIT(6),
     QGL_CAP_TEXTURE_ANISOTROPY          = BIT(7),
-};
+    QGL_CAP_UNPACK_SUBIMAGE             = BIT(8),
+    QGL_CAP_ELEMENT_INDEX_UINT          = BIT(9),
+    QGL_CAP_QUERY_RESULT_NO_WAIT        = BIT(10),
+    QGL_CAP_CLIENT_VA                   = BIT(11),
+    QGL_CAP_LINE_SMOOTH                 = BIT(12),
+    QGL_CAP_BUFFER_TEXTURE              = BIT(13),
+    QGL_CAP_SHADER_STORAGE              = BIT(14),
+    QGL_CAP_SKELETON_MASK               = QGL_CAP_BUFFER_TEXTURE | QGL_CAP_SHADER_STORAGE,
+} glcap_t;
 
 #define QGL_VER(major, minor)   ((major) * 100 + (minor))
 #define QGL_UNPACK_VER(ver)     (ver) / 100, (ver) % 100
@@ -155,10 +158,13 @@ typedef struct {
     int     ver_gl;
     int     ver_es;
     int     ver_sl;
-    int     caps;
+    glcap_t caps;
     int     colorbits;
     int     depthbits;
     int     stencilbits;
+    int     max_texture_size_log2;
+    int     max_texture_size;
+    int     ssbo_align;
 } glConfig_t;
 
 extern glStatic_t gl_static;
@@ -167,10 +173,9 @@ extern glRefdef_t glr;
 
 extern entity_t gl_world;
 
-extern int registration_sequence;
+extern unsigned r_registration_sequence;
 
 typedef struct {
-    int nodesVisible;
     int nodesDrawn;
     int leavesDrawn;
     int facesMarked;
@@ -188,6 +193,8 @@ typedef struct {
     int rotatedBoxesCulled;
     int batchesDrawn2D;
     int uniformUploads;
+    int vertexArrayBinds;
+    int occlusionQueries;
 } statCounters_t;
 
 extern statCounters_t c;
@@ -195,24 +202,29 @@ extern statCounters_t c;
 // regular variables
 extern cvar_t *gl_partscale;
 extern cvar_t *gl_partstyle;
+extern cvar_t *gl_beamstyle;
 extern cvar_t *gl_celshading;
 extern cvar_t *gl_dotshading;
 extern cvar_t *gl_shadows;
 extern cvar_t *gl_modulate;
 extern cvar_t *gl_modulate_world;
 extern cvar_t *gl_coloredlightmaps;
+extern cvar_t *gl_lightmap_bits;
 extern cvar_t *gl_brightness;
 extern cvar_t *gl_dynamic;
 extern cvar_t *gl_dlight_falloff;
 extern cvar_t *gl_modulate_entities;
 extern cvar_t *gl_doublelight_entities;
 extern cvar_t *gl_glowmap_intensity;
+extern cvar_t *gl_flarespeed;
 extern cvar_t *gl_fontshadow;
 extern cvar_t *gl_shaders;
 #if USE_MD5
 extern cvar_t *gl_md5_load;
 extern cvar_t *gl_md5_use;
+extern cvar_t *gl_md5_distance;
 #endif
+extern cvar_t *gl_damageblend_frac;
 
 // development variables
 extern cvar_t *gl_znear;
@@ -220,9 +232,11 @@ extern cvar_t *gl_drawsky;
 extern cvar_t *gl_showtris;
 #if USE_DEBUG
 extern cvar_t *gl_nobind;
+extern cvar_t *gl_novbo;
 extern cvar_t *gl_test;
 #endif
 extern cvar_t *gl_cull_nodes;
+extern cvar_t *gl_cull_models;
 extern cvar_t *gl_clear;
 extern cvar_t *gl_novis;
 extern cvar_t *gl_lockpvs;
@@ -242,30 +256,55 @@ glCullResult_t GL_CullBox(const vec3_t bounds[2]);
 glCullResult_t GL_CullSphere(const vec3_t origin, float radius);
 glCullResult_t GL_CullLocalBox(const vec3_t origin, const vec3_t bounds[2]);
 
-bool GL_AllocBlock(int width, int height, int *inuse,
+bool GL_AllocBlock(int width, int height, uint16_t *inuse,
                    int w, int h, int *s, int *t);
 
 void GL_MultMatrix(GLfloat *restrict out, const GLfloat *restrict a, const GLfloat *restrict b);
 void GL_SetEntityAxis(void);
 void GL_RotationMatrix(GLfloat *matrix);
-void GL_RotateForEntity(void);
+void GL_RotateForEntity(bool skies);
 
 void GL_ClearErrors(void);
 bool GL_ShowErrors(const char *func);
 
+void GL_InitQueries(void);
+void GL_DeleteQueries(void);
+
+static inline void GL_AdvanceValue(float *restrict val, float target, float speed)
+{
+    if (speed <= 0) {
+        *val = target;
+    } else if (*val < target) {
+        *val += speed * glr.frametime;
+        if (*val > target)
+            *val = target;
+    } else if (*val > target) {
+        *val -= speed * glr.frametime;
+        if (*val < target)
+            *val = target;
+    }
+}
 
 /*
  * gl_model.c
  *
  */
 
+#define MOD_MAXSIZE_GPU     0x1000000
+
+#if (defined _WIN32) && !(defined _WIN64)
+#define MOD_MAXSIZE_CPU     0x400000
+#else
+#define MOD_MAXSIZE_CPU     0x800000
+#endif
+
 typedef struct {
     float   st[2];
 } maliastc_t;
 
 typedef struct {
-    short   pos[3];
-    byte    norm[2]; // lat, lng
+    int16_t     pos[3];
+    uint8_t     norm[2]; // lat, lng
 } maliasvert_t;
 
 typedef struct {
@@ -282,7 +321,7 @@ typedef struct {
     int             numtris;
     int             numindices;
     int             numskins;
-    QGL_INDEX_TYPE  *indices;
+    uint16_t        *indices;
     maliasvert_t    *verts;
     maliastc_t      *tcoords;
 #if USE_MD5
@@ -303,36 +342,31 @@ typedef struct {
 
 // the total amount of joints the renderer will bother handling
 #define MD5_MAX_JOINTS      256
-#define MD5_MAX_JOINTNAME   32
+#define MD5_MAX_JOINTNAME   48
 #define MD5_MAX_MESHES      32
-#define MD5_MAX_WEIGHTS     4096
+#define MD5_MAX_WEIGHTS     8192
 #define MD5_MAX_FRAMES      1024
-
-typedef char md5_jointname_t[MD5_MAX_JOINTNAME];
 
 /* Joint */
 typedef struct {
-    int parent;
-
     vec3_t pos;
-    quat_t orient;
     float scale;
+    quat_t orient;
+    vec3_t axis[3];
 } md5_joint_t;
 
 /* Vertex */
 typedef struct {
     vec3_t normal;
 
-    uint32_t start; /* start weight */
-    uint32_t count; /* weight count */
+    uint16_t start; /* start weight */
+    uint16_t count; /* weight count */
 } md5_vertex_t;
 
 /* Weight */
 typedef struct {
-    int joint;
-    float bias;
-
     vec3_t pos;
+    float bias;
 } md5_weight_t;
 
 /* Mesh */
@@ -343,8 +377,9 @@ typedef struct {
 
     md5_vertex_t *vertices;
     maliastc_t *tcoords;
-    QGL_INDEX_TYPE *indices;
+    uint16_t *indices;
     md5_weight_t *weights;
+    uint8_t *jointnums;
 } md5_mesh_t;
 
 /* MD5 model + animation structure */
@@ -355,9 +390,7 @@ typedef struct {
     int num_skins;
 
     md5_mesh_t *meshes;
-    md5_joint_t *base_skeleton;
     md5_joint_t *skeleton_frames; // [num_joints][num_frames]
-    md5_jointname_t *jointnames;
     image_t **skins;
 } md5_model_t;
 
@@ -372,21 +405,22 @@ typedef struct {
     } type;
 
     char name[MAX_QPATH];
-    int registration_sequence;
+    unsigned registration_sequence;
     memhunk_t hunk;
 
     int nummeshes;
     int numframes;
 
-    maliasmesh_t *meshes; // md2 / md3
+    maliasmesh_t *meshes; // MD2 / MD3
 #if USE_MD5
-    md5_model_t *skeleton; // md5
-    memhunk_t skeleton_hunk; // md5
+    md5_model_t *skeleton; // MD5
 #endif
     union {
         maliasframe_t *frames;
         mspriteframe_t *spriteframes;
     };
+
+    GLuint buffer;
 } model_t;
 
 // xyz[3] | color[1]  | st[2]    | lmst[2]
@@ -408,12 +442,12 @@ qhandle_t R_RegisterModel(const char *name);
 #define LIGHT_STYLE(i) \
     &glr.fd.lightstyles[gl_static.lightstylemap[(i)]]
 
-#define LM_MAX_LIGHTMAPS    32
-#define LM_BLOCK_WIDTH      (1 << 10)
+#define LM_MAX_LIGHTMAPS    128
+#define LM_MAX_BLOCK_WIDTH  (1 << 10)
 
 typedef struct lightmap_s {
-    int         mins[2];
-    int         maxs[2];
+    uint16_t    mins[2];
+    uint16_t    maxs[2];
     byte        *buffer;
 } lightmap_t;
 
@@ -421,11 +455,10 @@ typedef struct {
     bool        dirty;
     int         comp, block_size, block_shift;
     float       add, modulate, scale;
-    int         nummaps, maxmaps;
-    int         inuse[LM_BLOCK_WIDTH];
+    int         nummaps, maxmaps, block_bytes;
+    uint16_t    inuse[LM_MAX_BLOCK_WIDTH];
     GLuint      texnums[LM_MAX_LIGHTMAPS];
     lightmap_t  lightmaps[LM_MAX_LIGHTMAPS];
-    byte        buffer[0x4000000];
 } lightmap_builder_t;
 
 extern lightmap_builder_t lm;
@@ -450,6 +483,7 @@ typedef enum {
     GLS_BLEND_BLEND         = BIT(3),
     GLS_BLEND_ADD           = BIT(4),
     GLS_BLEND_MODULATE      = BIT(5),
+
     GLS_ALPHATEST_ENABLE    = BIT(6),
     GLS_TEXTURE_REPLACE     = BIT(7),
     GLS_SCROLL_ENABLE       = BIT(8),
@@ -457,52 +491,191 @@ typedef enum {
     GLS_WARP_ENABLE         = BIT(10),
     GLS_INTENSITY_ENABLE    = BIT(11),
     GLS_GLOWMAP_ENABLE      = BIT(12),
-    GLS_SHADE_SMOOTH        = BIT(13),
-    GLS_SCROLL_X            = BIT(14),
-    GLS_SCROLL_Y            = BIT(15),
-    GLS_SCROLL_FLIP         = BIT(16),
-    GLS_SCROLL_SLOW         = BIT(17),
+    GLS_CLASSIC_SKY         = BIT(13),
+    GLS_DEFAULT_SKY         = BIT(14),
+    GLS_DEFAULT_FLARE       = BIT(15),
+
+    GLS_MESH_MD2            = BIT(16),
+    GLS_MESH_MD5            = BIT(17),
+    GLS_MESH_LERP           = BIT(18),
+    GLS_MESH_SHELL          = BIT(19),
+    GLS_MESH_SHADE          = BIT(20),
+
+    GLS_SHADE_SMOOTH        = BIT(21),
+    GLS_SCROLL_X            = BIT(22),
+    GLS_SCROLL_Y            = BIT(23),
+    GLS_SCROLL_FLIP         = BIT(24),
+    GLS_SCROLL_SLOW         = BIT(25),
 
     GLS_BLEND_MASK  = GLS_BLEND_BLEND | GLS_BLEND_ADD | GLS_BLEND_MODULATE,
     GLS_COMMON_MASK = GLS_DEPTHMASK_FALSE | GLS_DEPTHTEST_DISABLE | GLS_CULL_DISABLE | GLS_BLEND_MASK,
+    GLS_SKY_MASK    = GLS_CLASSIC_SKY | GLS_DEFAULT_SKY,
+    GLS_MESH_ANY    = GLS_MESH_MD2 | GLS_MESH_MD5,
+    GLS_MESH_MASK   = GLS_MESH_ANY | GLS_MESH_LERP | GLS_MESH_SHELL | GLS_MESH_SHADE,
     GLS_SHADER_MASK = GLS_ALPHATEST_ENABLE | GLS_TEXTURE_REPLACE | GLS_SCROLL_ENABLE |
-        GLS_LIGHTMAP_ENABLE | GLS_WARP_ENABLE | GLS_INTENSITY_ENABLE | GLS_GLOWMAP_ENABLE,
+        GLS_LIGHTMAP_ENABLE | GLS_WARP_ENABLE | GLS_INTENSITY_ENABLE | GLS_GLOWMAP_ENABLE |
+        GLS_SKY_MASK | GLS_DEFAULT_FLARE | GLS_MESH_MASK,
     GLS_SCROLL_MASK = GLS_SCROLL_ENABLE | GLS_SCROLL_X | GLS_SCROLL_Y | GLS_SCROLL_FLIP | GLS_SCROLL_SLOW,
 } glStateBits_t;
 
 typedef enum {
+    VERT_ATTR_POS,
+    VERT_ATTR_TC,
+    VERT_ATTR_LMTC,
+    VERT_ATTR_COLOR,
+    VERT_ATTR_COUNT,
+
+    // MD2
+    VERT_ATTR_MESH_TC = 0,
+    VERT_ATTR_MESH_NEW_POS = 1,
+    VERT_ATTR_MESH_OLD_POS = 2,
+
+    // MD5
+    VERT_ATTR_MESH_NORM = 1,
+    VERT_ATTR_MESH_VERT = 2,
+} glVertexAttr_t;
+
+typedef enum {
     GLA_NONE        = 0,
-    GLA_VERTEX      = BIT(0),
-    GLA_TC          = BIT(1),
-    GLA_LMTC        = BIT(2),
-    GLA_COLOR       = BIT(3),
+    GLA_VERTEX      = BIT(VERT_ATTR_POS),
+    GLA_TC          = BIT(VERT_ATTR_TC),
+    GLA_LMTC        = BIT(VERT_ATTR_LMTC),
+    GLA_COLOR       = BIT(VERT_ATTR_COLOR),
+    GLA_MESH_STATIC = MASK(2),
+    GLA_MESH_LERP   = MASK(3),
 } glArrayBits_t;
 
+typedef enum {
+    VA_NONE,
+
+    VA_SPRITE,
+    VA_EFFECT,
+    VA_NULLMODEL,
+    VA_OCCLUDE,
+    VA_WATERWARP,
+    VA_MESH_SHADE,
+    VA_MESH_FLAT,
+    VA_2D,
+    VA_3D,
+
+    VA_TOTAL
+} glVertexArray_t;
+
+typedef enum {
+    TMU_TEXTURE,
+    TMU_LIGHTMAP,
+    TMU_GLOWMAP,
+    MAX_TMUS,
+
+    // MD5
+    TMU_SKEL_WEIGHTS,
+    TMU_SKEL_JOINTNUMS,
+} glTmu_t;
+
+typedef enum {
+    GLB_VBO,
+    GLB_EBO,
+    GLB_UBO,
+
+    GLB_COUNT
+} glBufferBinding_t;
+
+enum { UBO_UNIFORMS, UBO_SKELETON };
+enum { SSBO_WEIGHTS, SSBO_JOINTNUMS };
+
 typedef struct {
-    GLuint          client_tmu;
-    GLuint          server_tmu;
-    GLuint          texnums[MAX_TMUS];
-    GLbitfield      state_bits;
-    GLbitfield      array_bits;
-    const GLfloat   *currentmatrix;
-    struct {
-        GLfloat     view[16];
-        GLfloat     proj[16];
-        GLfloat     time;
-        GLfloat     modulate;
-        GLfloat     add;
-        GLfloat     intensity;
-        GLfloat     intensity2;
-        GLfloat     pad;
-        GLfloat     w_amp[2];
-        GLfloat     w_phase[2];
-        GLfloat     scroll[2];
-    } u_block;
+    vec4_t      oldscale;
+    vec4_t      newscale;
+    vec4_t      translate;
+    vec4_t      shadedir;
+    vec4_t      color;
+    vec4_t      pad_0;
+    GLfloat     pad_1;
+    GLfloat     pad_2;
+    GLfloat     pad_3;
+    GLuint      weight_ofs;
+    GLuint      jointnum_ofs;
+    GLfloat     shellscale;
+    GLfloat     backlerp;
+    GLfloat     frontlerp;
+} glMeshBlock_t;
+
+typedef struct {
+    GLfloat     mvp[16];
+    union {
+        GLfloat         msky[2][16];
+        glMeshBlock_t   mesh;
+    };
+    GLfloat     time;
+    GLfloat     modulate;
+    GLfloat     add;
+    GLfloat     intensity;
+    GLfloat     intensity2;
+    GLfloat     pad_4;
+    GLfloat     w_amp[2];
+    GLfloat     w_phase[2];
+    GLfloat     scroll[2];
+} glUniformBlock_t;
+
+typedef struct {
+    glTmu_t             client_tmu;
+    glTmu_t             server_tmu;
+    GLuint              texnums[MAX_TMUS];
+    GLuint              texnumcube;
+    glStateBits_t       state_bits;
+    glArrayBits_t       array_bits;
+    GLuint              currentbuffer[GLB_COUNT];
+    glVertexArray_t     currentva;
+    const GLfloat      *currentmatrix;
+    GLfloat             view_matrix[16];
+    GLfloat             proj_matrix[16];
+    glUniformBlock_t    u_block;
+    bool                u_block_dirty;
 } glState_t;
 
 extern glState_t gls;
 
-static inline void GL_ActiveTexture(GLuint tmu)
+#define VBO_OFS(n)  ((void *)(n))
+
+typedef struct {
+    uint8_t size;
+    bool type;
+    uint8_t stride;
+    uint8_t offset;
+} glVaDesc_t;
+
+typedef struct {
+    const char *name;
+
+    void (*init)(void);
+    void (*shutdown)(void);
+    void (*clear_state)(void);
+    void (*setup_2d)(void);
+    void (*setup_3d)(void);
+
+    void (*load_matrix)(GLenum mode, const GLfloat *matrix);
+    void (*load_uniforms)(void);
+
+    void (*state_bits)(glStateBits_t bits);
+    void (*array_bits)(glArrayBits_t bits);
+
+    void (*array_pointers)(const glVaDesc_t *desc, const GLfloat *ptr);
+    void (*tex_coord_pointer)(const GLfloat *ptr);
+// Re-added to support Rektek bot navmesh rendering
+    void (*vertex_pointer)(GLint size, GLsizei stride, const GLfloat *pointer);
+    void (*color_byte_pointer)(GLint size, GLsizei stride, const GLubyte *pointer);
+// End
+    void (*color)(GLfloat r, GLfloat g, GLfloat b, GLfloat a);
+} glbackend_t;
+
+extern const glbackend_t *gl_backend;
+
+// Re-added to support Rektek bot navmesh rendering
+#define GL_VertexPointer        gl_backend->vertex_pointer
+#define GL_ColorBytePointer     gl_backend->color_byte_pointer
+// End
+
+static inline void GL_ActiveTexture(glTmu_t tmu)
 {
     if (gls.server_tmu != tmu) {
         qglActiveTexture(GL_TEXTURE0 + tmu);
@@ -510,7 +683,7 @@ static inline void GL_ActiveTexture(GLuint tmu)
     }
 }
 
-static inline void GL_ClientActiveTexture(GLuint tmu)
+static inline void GL_ClientActiveTexture(glTmu_t tmu)
 {
     if (gls.client_tmu != tmu) {
         qglClientActiveTexture(GL_TEXTURE0 + tmu);
@@ -518,47 +691,64 @@ static inline void GL_ClientActiveTexture(GLuint tmu)
     }
 }
 
-static inline void GL_StateBits(GLbitfield bits)
+static inline void GL_StateBits(glStateBits_t bits)
 {
     if (gls.state_bits != bits) {
-        gl_static.backend.state_bits(bits);
+        gl_backend->state_bits(bits);
         gls.state_bits = bits;
     }
 }
 
-static inline void GL_ArrayBits(GLbitfield bits)
+static inline void GL_ArrayBits(glArrayBits_t bits)
 {
     if (gls.array_bits != bits) {
-        gl_static.backend.array_bits(bits);
+        gl_backend->array_bits(bits);
         gls.array_bits = bits;
-    }
-}
-
-static inline void GL_LockArrays(GLsizei count)
-{
-    if (qglLockArraysEXT) {
-        qglLockArraysEXT(0, count);
-    }
-}
-
-static inline void GL_UnlockArrays(void)
-{
-    if (qglUnlockArraysEXT) {
-        qglUnlockArraysEXT();
     }
 }
 
 static inline void GL_ForceMatrix(const GLfloat *matrix)
 {
-    gl_static.backend.load_view_matrix(matrix);
+    gl_backend->load_matrix(GL_MODELVIEW, matrix);
     gls.currentmatrix = matrix;
 }
 
 static inline void GL_LoadMatrix(const GLfloat *matrix)
 {
     if (gls.currentmatrix != matrix) {
-        gl_static.backend.load_view_matrix(matrix);
+        gl_backend->load_matrix(GL_MODELVIEW, matrix);
         gls.currentmatrix = matrix;
+    }
+}
+
+static inline void GL_LoadUniforms(void)
+{
+    if (gls.u_block_dirty && gl_backend->load_uniforms) {
+        gl_backend->load_uniforms();
+        gls.u_block_dirty = false;
+    }
+}
+
+static inline glBufferBinding_t GL_BindingForTarget(GLenum target)
+{
+    switch (target) {
+    case GL_ARRAY_BUFFER:
+        return GLB_VBO;
+    case GL_ELEMENT_ARRAY_BUFFER:
+        return GLB_EBO;
+    case GL_UNIFORM_BUFFER:
+        return GLB_UBO;
+    default:
+        q_unreachable();
+    }
+}
+
+static inline void GL_BindBuffer(GLenum target, GLuint buffer)
+{
+    glBufferBinding_t i = GL_BindingForTarget(target);
+    if (gls.currentbuffer[i] != buffer) {
+        qglBindBuffer(target, buffer);
+        gls.currentbuffer[i] = buffer;
     }
 }
 
@@ -578,18 +768,24 @@ static inline void GL_DepthRange(GLfloat n, GLfloat f)
         qglDepthRange(n, f);
 }
 
-#define GL_VertexPointer        gl_static.backend.vertex_pointer
-#define GL_TexCoordPointer      gl_static.backend.tex_coord_pointer
-#define GL_LightCoordPointer    gl_static.backend.light_coord_pointer
-#define GL_ColorBytePointer     gl_static.backend.color_byte_pointer
-#define GL_ColorFloatPointer    gl_static.backend.color_float_pointer
-#define GL_Color                gl_static.backend.color
+#define GL_Color(r, g, b, a) gl_backend->color(r, g, b, a)
 
-void GL_ForceTexture(GLuint tmu, GLuint texnum);
-void GL_BindTexture(GLuint tmu, GLuint texnum);
-void GL_CommonStateBits(GLbitfield bits);
-void GL_ScrollSpeed(vec2_t scroll, GLbitfield bits);
-void GL_DrawOutlines(GLsizei count, const QGL_INDEX_TYPE *indices);
+typedef enum {
+    SHOWTRIS_NONE   = 0,
+    SHOWTRIS_WORLD  = BIT(0),
+    SHOWTRIS_MESH   = BIT(1),
+    SHOWTRIS_PIC    = BIT(2),
+    SHOWTRIS_FX     = BIT(3),
+} showtris_t;
+
+void GL_ForceTexture(glTmu_t tmu, GLuint texnum);
+void GL_BindTexture(glTmu_t tmu, GLuint texnum);
+void GL_ForceCubemap(GLuint texnum);
+void GL_BindCubemap(GLuint texnum);
+void GL_DeleteBuffer(GLuint buffer);
+void GL_CommonStateBits(glStateBits_t bits);
+void GL_ScrollPos(vec2_t scroll, glStateBits_t bits);
+void GL_DrawOutlines(GLsizei count, GLenum type, const void *indices);
 void GL_Ortho(GLfloat xmin, GLfloat xmax, GLfloat ymin, GLfloat ymax, GLfloat znear, GLfloat zfar);
 void GL_Frustum(GLfloat fov_x, GLfloat fov_y, GLfloat reflect_x);
 void GL_Setup2D(void);
@@ -597,9 +793,6 @@ void GL_Setup3D(bool waterwarp);
 void GL_ClearState(void);
 void GL_InitState(void);
 void GL_ShutdownState(void);
-
-extern const glbackend_t backend_legacy;
-extern const glbackend_t backend_shader;
 
 /*
  * gl_draw.c
@@ -630,13 +823,15 @@ void GL_Blend(void);
  */
 
 // auto textures
-#define TEXNUM_DEFAULT  gl_static.texnums[0]
-#define TEXNUM_SCRAP    gl_static.texnums[1]
-#define TEXNUM_PARTICLE gl_static.texnums[2]
-#define TEXNUM_BEAM     gl_static.texnums[3]
-#define TEXNUM_WHITE    gl_static.texnums[4]
-#define TEXNUM_BLACK    gl_static.texnums[5]
-#define TEXNUM_RAW      gl_static.texnums[6]
+#define TEXNUM_DEFAULT          gl_static.texnums[0]
+#define TEXNUM_SCRAP            gl_static.texnums[1]
+#define TEXNUM_PARTICLE         gl_static.texnums[2]
+#define TEXNUM_BEAM             gl_static.texnums[3]
+#define TEXNUM_WHITE            gl_static.texnums[4]
+#define TEXNUM_BLACK            gl_static.texnums[5]
+#define TEXNUM_RAW              gl_static.texnums[6]
+#define TEXNUM_CUBEMAP_DEFAULT  gl_static.texnums[7]
+#define TEXNUM_CUBEMAP_BLACK    gl_static.texnums[8]
 
 void Scrap_Upload(void);
 
@@ -647,22 +842,20 @@ bool GL_InitWarpTexture(void);
 
 extern cvar_t *gl_intensity;
 
-
 /*
  * gl_tess.c
  *
  */
-#define TESS_MAX_VERTICES   4096
+#define TESS_MAX_VERTICES   6144
 #define TESS_MAX_INDICES    (3 * TESS_MAX_VERTICES)
 
 typedef struct {
     GLfloat         vertices[VERTEX_SIZE * TESS_MAX_VERTICES];
-    QGL_INDEX_TYPE  indices[TESS_MAX_INDICES];
-    GLubyte         colors[4 * TESS_MAX_VERTICES];
+    glIndex_t       indices[TESS_MAX_INDICES];
     GLuint          texnum[MAX_TMUS];
     int             numverts;
     int             numindices;
-    int             flags;
+    glStateBits_t   flags;
 } tesselator_t;
 
 extern tesselator_t tess;
@@ -670,11 +863,18 @@ extern tesselator_t tess;
 void GL_Flush2D(void);
 void GL_DrawParticles(void);
 void GL_DrawBeams(void);
+void GL_DrawFlares(void);
 
-void GL_BindArrays(void);
+void GL_BindArrays(glVertexArray_t va);
+void GL_LockArrays(GLsizei count);
+void GL_UnlockArrays(void);
+void GL_DrawIndexed(showtris_t showtris);
+void GL_InitArrays(void);
+void GL_ShutdownArrays(void);
+
 void GL_Flush3D(void);
 
-void GL_AddAlphaFace(mface_t *face, entity_t *ent);
+void GL_AddAlphaFace(mface_t *face);
 void GL_AddSolidFace(mface_t *face);
 void GL_DrawAlphaFaces(void);
 void GL_DrawSolidFaces(void);
@@ -693,9 +893,10 @@ void GL_LightPoint(const vec3_t origin, vec3_t color);
  * gl_sky.c
  *
  */
-void R_AddSkySurface(mface_t *surf);
+void R_AddSkySurface(const mface_t *surf);
 void R_ClearSkyBox(void);
 void R_DrawSkyBox(void);
+void R_RotateForSky(void);
 void R_SetSky(const char *name, float rotate, bool autorotate, const vec3_t axis);
 
 /*
@@ -711,3 +912,17 @@ void GL_DrawAliasModel(const model_t *model);
 void HQ2x_Render(uint32_t *output, const uint32_t *input, int width, int height);
 void HQ4x_Render(uint32_t *output, const uint32_t *input, int width, int height);
 void HQ2x_Init(void);
+
+/*
+ * debug.c
+ *
+ */
+#if USE_DEBUG
+void GL_InitDebugDraw(void);
+void GL_ShutdownDebugDraw(void);
+void GL_DrawDebugObjects(void);
+#else
+#define GL_InitDebugDraw()      (void)0
+#define GL_ShutdownDebugDraw()  (void)0
+#define GL_DrawDebugObjects()   (void)0
+#endif

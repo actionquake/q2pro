@@ -100,7 +100,7 @@ void MVD_ParseEntityString(mvd_t *mvd, const char *data)
             } else if (!strcmp(key, "angles")) {
                 sscanf(value, "%f %f", &angles[0], &angles[1]);
             } else if (!strcmp(key, "angle")) {
-                angles[1] = atof(value);
+                angles[1] = Q_atof(value);
             }
         }
 
@@ -122,49 +122,27 @@ void MVD_ParseEntityString(mvd_t *mvd, const char *data)
     }
 }
 
-static void MVD_ParseMulticast(mvd_t *mvd, mvd_ops_t op, int extrabits)
+static void MVD_ParseMulticast(mvd_t *mvd, multicast_t to, int extrabits)
 {
     mvd_client_t    *client;
-    client_t    *cl;
-    byte        mask[VIS_MAX_BYTES];
-    mleaf_t     *leaf1 = NULL, *leaf2;
-    vec3_t      org;
-    bool        reliable = false;
-    byte        *data;
-    int         length, leafnum;
+    client_t        *cl;
+    byte            mask[VIS_MAX_BYTES];
+    const mleaf_t   *leaf1, *leaf2;
+    vec3_t          org;
+    bool            reliable = false;
+    byte            *data;
+    int             length, leafnum;
 
     length = MSG_ReadByte();
     length |= extrabits << 8;
 
-    switch (op) {
-    case mvd_multicast_all_r:
+    if (to >= MULTICAST_ALL_R) {
         reliable = true;
-        // intentional fallthrough
-    case mvd_multicast_all:
-        break;
-    case mvd_multicast_phs_r:
-        reliable = true;
-        // intentional fallthrough
-    case mvd_multicast_phs:
-        leafnum = MSG_ReadWord();
-        if (!mvd->demoseeking) {
-            leaf1 = CM_LeafNum(&mvd->cm, leafnum);
-            BSP_ClusterVis(mvd->cm.cache, mask, leaf1->cluster, DVIS_PHS);
-        }
-        break;
-    case mvd_multicast_pvs_r:
-        reliable = true;
-        // intentional fallthrough
-    case mvd_multicast_pvs:
-        leafnum = MSG_ReadWord();
-        if (!mvd->demoseeking) {
-            leaf1 = CM_LeafNum(&mvd->cm, leafnum);
-            BSP_ClusterVis(mvd->cm.cache, mask, leaf1->cluster, DVIS_PVS);
-        }
-        break;
-    default:
-        MVD_Destroyf(mvd, "bad op");
+        to -= MULTICAST_ALL_R;
     }
+
+    if (to)
+        leafnum = MSG_ReadWord();
 
     // skip data payload
     data = MSG_ReadData(length);
@@ -174,6 +152,11 @@ static void MVD_ParseMulticast(mvd_t *mvd, mvd_ops_t op, int extrabits)
 
     if (mvd->demoseeking)
         return;
+
+    if (to) {
+        leaf1 = CM_LeafNum(&mvd->cm, leafnum);
+        BSP_ClusterVis(mvd->cm.cache, mask, leaf1->cluster, MULTICAST_PVS - to);
+    }
 
     // send the data to all relevent clients
     FOR_EACH_MVDCL(client, mvd) {
@@ -187,7 +170,7 @@ static void MVD_ParseMulticast(mvd_t *mvd, mvd_ops_t op, int extrabits)
             continue;
         }
 
-        if (leaf1) {
+        if (to) {
             VectorScale(client->ps.pmove.origin, 0.125f, org);
             leaf2 = CM_PointLeaf(&mvd->cm, org);
             if (!CM_AreasConnected(&mvd->cm, leaf1->area, leaf2->area))
@@ -202,7 +185,7 @@ static void MVD_ParseMulticast(mvd_t *mvd, mvd_ops_t op, int extrabits)
     }
 }
 
-static void MVD_UnicastSend(mvd_t *mvd, bool reliable, byte *data, size_t length, mvd_player_t *player)
+static void MVD_UnicastSend(mvd_t *mvd, bool reliable, const byte *data, size_t length, mvd_player_t *player)
 {
     mvd_player_t *target;
     mvd_client_t *client;
@@ -368,13 +351,12 @@ MVD_ParseUnicast
 Attempt to parse the datagram and find custom configstrings,
 layouts, etc. Give up as soon as unknown command byte is encountered.
 */
-static void MVD_ParseUnicast(mvd_t *mvd, mvd_ops_t op, int extrabits)
+static void MVD_ParseUnicast(mvd_t *mvd, bool reliable, int extrabits)
 {
     int clientNum;
     uint32_t length, last;
     mvd_player_t *player;
     byte *data;
-    bool reliable;
     int cmd;
 
     length = MSG_ReadByte();
@@ -391,8 +373,6 @@ static void MVD_ParseUnicast(mvd_t *mvd, mvd_ops_t op, int extrabits)
     }
 
     player = &mvd->players[clientNum];
-
-    reliable = op == mvd_unicast_r;
 
     while (msg_read.readcount < last) {
         cmd = MSG_ReadByte();
@@ -449,7 +429,7 @@ static void MVD_ParseSound(mvd_t *mvd, int extrabits)
     mvd_client_t        *client;
     client_t    *cl;
     byte        mask[VIS_MAX_BYTES];
-    mleaf_t     *leaf1, *leaf2;
+    const mleaf_t       *leaf1, *leaf2;
     message_packet_t    *msg;
     edict_t     *entity;
     int         i;
@@ -508,7 +488,7 @@ static void MVD_ParseSound(mvd_t *mvd, int extrabits)
         MSG_WriteByte(offset);
 
     MSG_WriteShort(sendchan);
-    MSG_WritePos(origin);
+    MSG_WritePos(origin, mvd->esFlags & MSG_ES_EXTENSIONS_2);
 
     leaf1 = NULL;
     if (!(extrabits & 1)) {
@@ -557,7 +537,7 @@ static void MVD_ParseSound(mvd_t *mvd, int extrabits)
 
         msg = LIST_FIRST(message_packet_t, &cl->msg_free_list, entry);
 
-        msg->cursize = 0;
+        msg->cursize = SOUND_PACKET;
         msg->flags = flags;
         msg->index = index;
         msg->volume = volume;
@@ -570,7 +550,7 @@ static void MVD_ParseSound(mvd_t *mvd, int extrabits)
 
         List_Remove(&msg->entry);
         List_Append(&cl->msg_unreliable_list, &msg->entry);
-        cl->msg_unreliable_bytes += MAX_SOUND_PACKET;
+        cl->msg_unreliable_bytes += msg_write.cursize;
     }
 
     // clear multicast buffer
@@ -589,7 +569,7 @@ static void MVD_ParseConfigstring(mvd_t *mvd)
     }
 
     s = mvd->configstrings[index];
-    maxlen = CS_SIZE(mvd->csr, index);
+    maxlen = Com_ConfigstringSize(mvd->csr, index);
     if (MSG_ReadString(s, maxlen) >= maxlen) {
         MVD_Destroyf(mvd, "%s: index %d overflowed", __func__, index);
     }
@@ -642,7 +622,7 @@ static void MVD_PlayerToEntityStates(mvd_t *mvd)
         mvd->numplayers++;
         if (player->ps.pmove.pm_type != PM_NORMAL) {
             continue;   // can be out of sync, in this case
-            // server should provide valid data
+                        // server should provide valid data
         }
 
         edict = &mvd->edicts[i];
@@ -652,7 +632,9 @@ static void MVD_PlayerToEntityStates(mvd_t *mvd)
 
         Com_PlayerToEntityState(&player->ps, &edict->s);
 
-        MVD_LinkEdict(mvd, edict);
+        if (!mvd->demoseeking) {
+            MVD_LinkEdict(mvd, edict);
+        }
     }
 }
 
@@ -670,6 +652,9 @@ static void MVD_ParsePacketEntities(mvd_t *mvd)
     edict_t     *ent;
 
     while (1) {
+#if USE_DEBUG
+        uint32_t readcount = msg_read.readcount;
+#endif
         if (msg_read.readcount > msg_read.cursize) {
             MVD_Destroyf(mvd, "%s: read past end of message", __func__);
         }
@@ -687,10 +672,10 @@ static void MVD_ParsePacketEntities(mvd_t *mvd)
 
 #if USE_DEBUG
         if (mvd_shownet->integer > 2) {
-            Com_Printf("   %s: %d ", ent->inuse ?
-                       "delta" : "baseline", number);
+            Com_LPrintf(PRINT_DEVELOPER, "%3u:%s:%d ", readcount,
+                       ent->inuse ? "delta" : "baseline", number);
             MSG_ShowDeltaEntityBits(bits);
-            Com_Printf("\n");
+            Com_LPrintf(PRINT_DEVELOPER, "\n");
         }
 #endif
 
@@ -702,11 +687,11 @@ static void MVD_ParsePacketEntities(mvd_t *mvd)
         }
 
         // mark this entity as seen even if removed
-        ent->svflags |= SVF_MONSTER;
+        ent->svflags |= SVF_MVD_SEEN;
 
         // shuffle current origin to old if removed
         if (bits & U_REMOVE) {
-            SHOWNET(2, "   remove: %d\n", number);
+            SHOWNET(2, "%3u:remove:%d\n", readcount, number);
             if (!(ent->s.renderfx & RF_BEAM)) {
                 VectorCopy(ent->s.origin, ent->s.old_origin);
             }
@@ -733,6 +718,9 @@ static void MVD_ParsePacketPlayers(mvd_t *mvd)
     mvd_player_t    *player;
 
     while (1) {
+#if USE_DEBUG
+        uint32_t readcount = msg_read.readcount;
+#endif
         if (msg_read.readcount > msg_read.cursize) {
             MVD_Destroyf(mvd, "%s: read past end of message", __func__);
         }
@@ -752,17 +740,17 @@ static void MVD_ParsePacketPlayers(mvd_t *mvd)
 
 #if USE_DEBUG
         if (mvd_shownet->integer > 2) {
-            Com_Printf("   %s: %d ", player->inuse ?
-                       "delta" : "baseline", number);
+            Com_LPrintf(PRINT_DEVELOPER, "%3u:%s:%d ", readcount,
+                       player->inuse ? "delta" : "baseline", number);
             MSG_ShowDeltaPlayerstateBits_Packet(bits);
-            Com_Printf("\n");
+            Com_LPrintf(PRINT_DEVELOPER, "\n");
         }
 #endif
 
-        MSG_ParseDeltaPlayerstate_Packet(&player->ps, &player->ps, bits, mvd->psFlags);
+        MSG_ParseDeltaPlayerstate_Packet(&player->ps, bits, mvd->psFlags);
 
         if (bits & PPS_REMOVE) {
-            SHOWNET(2, "   remove: %d\n", number);
+            SHOWNET(2, "%3u:remove:%d\n", readcount, number);
             player->inuse = false;
             continue;
         }
@@ -914,12 +902,18 @@ static void MVD_ParseServerData(mvd_t *mvd, int extrabits)
                      "Current version is %d.\n", mvd->version, PROTOCOL_VERSION_MVD_CURRENT);
     }
 
+    // parse MVD stream flags
+    if (mvd->version >= PROTOCOL_VERSION_MVD_EXTENDED_LIMITS_2) {
+        mvd->flags = MSG_ReadWord();
+    } else {
+        mvd->flags = extrabits;
+    }
+
     mvd->servercount = MSG_ReadLong();
     if (MSG_ReadString(mvd->gamedir, sizeof(mvd->gamedir)) >= sizeof(mvd->gamedir)) {
         MVD_Destroyf(mvd, "Oversize gamedir string");
     }
     mvd->clientNum = MSG_ReadShort();
-    mvd->flags = extrabits;
     mvd->esFlags = MSG_ES_UMASK | MSG_ES_BEAMORIGIN;
     mvd->psFlags = 0;
     mvd->csr = &cs_remap_old;
@@ -928,6 +922,13 @@ static void MVD_ParseServerData(mvd_t *mvd, int extrabits)
         mvd->esFlags |= MSG_ES_LONGSOLID | MSG_ES_SHORTANGLES | MSG_ES_EXTENSIONS;
         mvd->psFlags |= MSG_PS_EXTENSIONS;
         mvd->csr = &cs_remap_new;
+    }
+    if (mvd->version >= PROTOCOL_VERSION_MVD_EXTENDED_LIMITS_2 && mvd->flags & MVF_EXTLIMITS_2) {
+        mvd->esFlags |= MSG_ES_EXTENSIONS_2;
+        mvd->psFlags |= MSG_PS_EXTENSIONS_2;
+        if (!(mvd->flags & MVF_EXTLIMITS)) {
+            MVD_Destroyf(mvd, "MVF_EXTLIMITS_2 without MVF_EXTLIMITS");
+        }
     }
 
 #if 0
@@ -947,7 +948,7 @@ static void MVD_ParseServerData(mvd_t *mvd, int extrabits)
         }
 
         string = mvd->configstrings[index];
-        maxlen = CS_SIZE(mvd->csr, index);
+        maxlen = Com_ConfigstringSize(mvd->csr, index);
         if (MSG_ReadString(string, maxlen) >= maxlen) {
             MVD_Destroyf(mvd, "Configstring %d overflowed", index);
         }
@@ -1095,11 +1096,11 @@ bool MVD_ParseMessage(mvd_t *mvd)
         case mvd_multicast_all_r:
         case mvd_multicast_pvs_r:
         case mvd_multicast_phs_r:
-            MVD_ParseMulticast(mvd, cmd, extrabits);
+            MVD_ParseMulticast(mvd, cmd - mvd_multicast_all, extrabits);
             break;
         case mvd_unicast:
         case mvd_unicast_r:
-            MVD_ParseUnicast(mvd, cmd, extrabits);
+            MVD_ParseUnicast(mvd, cmd == mvd_unicast_r, extrabits);
             break;
         case mvd_configstring:
             MVD_ParseConfigstring(mvd);

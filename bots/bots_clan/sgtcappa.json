@@ -1,0 +1,35 @@
+{
+    "name": "SGT CAPPA",
+    "clan_id": 105,
+    "skin": "messiah/blade4",
+    "weaponPreferences": {
+        "mk23": 0.2,
+        "dual_mk23": 0.9,
+        "mp5": 0.2,
+        "m4": 0.5,
+        "m3": 0.7,
+        "hc": 0.1,
+        "sniper": 0.7,
+        "knives": 0.4,
+        "grenades": 0.5
+    },
+    "itemPreferences": {
+        "vest": 0.1,
+        "helm": 0.2,
+        "laser": -0.0,
+        "silencer": 0.5,
+        "slippers": 0.6,
+        "bandolier": 0.7
+    },
+    "coreTraits": {
+        "aggressiveness": 0.5,
+        "teamwork": 0.8,
+        "curiosity": 0.1,
+        "aimingSkill": 0.6,
+        "reactionTime": 0.2,
+        "communicationFreq": 0.6,
+        "communicationTone": 0.4,
+        "movementStyle": 0.5,
+        "objectiveFocus": 0.1
+    }
+}

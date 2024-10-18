@@ -1,0 +1,35 @@
+{
+    "name": "Leiruth",
+    "clan_id": 36,
+    "skin": "male/kw_red",
+    "weaponPreferences": {
+        "mk23": 0.3,
+        "dual_mk23": 0.5,
+        "mp5": 0.7,
+        "m4": 0.5,
+        "m3": 0.6,
+        "hc": 0.6,
+        "sniper": 0.6,
+        "knives": 0.3,
+        "grenades": 0.5
+    },
+    "itemPreferences": {
+        "vest": 0.2,
+        "helm": 0.5,
+        "laser": 0.0,
+        "silencer": 0.1,
+        "slippers": 0.8,
+        "bandolier": 0.7
+    },
+    "coreTraits": {
+        "aggressiveness": 0.5,
+        "teamwork": 0.5,
+        "curiosity": 0.8,
+        "aimingSkill": 0.6,
+        "reactionTime": 0.5,
+        "communicationFreq": 0.9,
+        "communicationTone": 0.5,
+        "movementStyle": 0.6,
+        "objectiveFocus": 0.7
+    }
+}

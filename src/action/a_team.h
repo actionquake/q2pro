@@ -69,6 +69,7 @@ void UpdateJoinMenu( void );
 void OpenJoinMenu (edict_t *);
 void OpenWeaponMenu (edict_t *);
 void OpenItemMenu (edict_t * ent);
+void OpenItemKitMenu (edict_t * ent);
 void JoinTeam (edict_t * ent, int desired_team, int skip_menuclose);
 edict_t *FindOverlap (edict_t * ent, edict_t * last_overlap);
 int CheckTeamRules (void);
@@ -89,12 +90,28 @@ void RemoveFromTransparentList (edict_t *);
 qboolean OnTransparentList( const edict_t *ent );
 void PrintTransparentList (void);
 void CenterPrintAll (const char *msg);
+void CenterPrintTeam (int teamNum, const char *msg);
+void CenterPrintLevelTeam (int teamNum, int printlvl, const char *msg);
 int TeamHasPlayers( int team );
+char* PrintMatchRules(void);
 
 //TNG:Freud - new spawning system
 void NS_GetSpawnPoints (void);
 qboolean NS_SelectFarTeamplaySpawnPoint (int team, qboolean teams_assigned[]);
 void NS_SetupTeamSpawnPoints (void);
+int OtherTeam(int teamNum);
+
+//PaTMaN - Menu support
+void OpenPMItemMenu (edict_t * ent);
+
+//Expose auto-join functionality
+void JoinTeamAutobalance (edict_t * ent);
+
+//Utility functions
+int TotalPlayersOnTeam(int teamNum);
+int TotalPlayersAliveOnTeam(int teamNum);
+void PrintAdNotification(edict_t* ent);
+int G_PlayerCmp( const void *p1, const void *p2 );
 
 typedef struct spawn_distances_s
 {
@@ -125,6 +142,7 @@ extern int day_cycle_at;
 extern int teamCount;
 extern int in_warmup;
 extern qboolean teams_changed;
+extern int teamplay_spawn_node[MAX_TEAMS];
 
 typedef struct menu_list_weapon
 {

@@ -1,0 +1,35 @@
+{
+    "name": "Morgan",
+    "clan_id": null,
+    "skin": "male/aqgthug",
+    "weaponPreferences": {
+        "mk23": 0.5,
+        "dual_mk23": 0.8,
+        "mp5": 0.9,
+        "m4": 0.2,
+        "m3": 0.5,
+        "hc": 0.5,
+        "sniper": 0.7,
+        "knives": 0.6,
+        "grenades": 0.3
+    },
+    "itemPreferences": {
+        "vest": 0.4,
+        "helm": 0.6,
+        "laser": 0.6,
+        "silencer": 0.6,
+        "slippers": 0.5,
+        "bandolier": 0.4
+    },
+    "coreTraits": {
+        "aggressiveness": 0.4,
+        "teamwork": 0.1,
+        "curiosity": 0.5,
+        "aimingSkill": 0.7,
+        "reactionTime": 0.8,
+        "communicationFreq": 0.7,
+        "communicationTone": 0.2,
+        "movementStyle": 0.6,
+        "objectiveFocus": 0.4
+    }
+}

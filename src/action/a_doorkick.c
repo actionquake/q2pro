@@ -30,7 +30,7 @@
 extern void door_use(edict_t * self, edict_t * other, edict_t * activator);
 
 // needed for KickDoor
-void VectorRotate(vec3_t in, vec3_t angles, vec3_t out)
+void VectorRotate3(vec3_t in, vec3_t angles, vec3_t out)
 {
 	float cv, sv, angle, tv;
 
@@ -102,7 +102,7 @@ int KickDoor(trace_t * tr_old, edict_t * ent, vec3_t forward)
 			VectorNormalize(forward);
 			VectorNormalize(d_forward);
 			VectorSet(right, 0, 90, 0);
-			VectorRotate(d_forward, right, d_forward);
+			VectorRotate3(d_forward, right, d_forward);
 
 			d = DotProduct(forward, d_forward);
 			if (tr.ent->spawnflags & DOOR_REVERSE)

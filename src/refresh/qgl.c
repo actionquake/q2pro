@@ -30,6 +30,7 @@ typedef struct {
     uint16_t excl_gl;
     uint16_t excl_es;
     uint32_t caps;
+    char suffix[4];
     const char *extension;
     const glfunction_t *functions;
 } glsection_t;
@@ -86,7 +87,7 @@ static const glsection_t sections[] = {
         .ver_es = QGL_VER(1, 0),
         .excl_gl = QGL_VER(3, 1),
         .excl_es = QGL_VER(2, 0),
-        .caps = QGL_CAP_LEGACY,
+        .caps = QGL_CAP_LEGACY | QGL_CAP_CLIENT_VA,
         .functions = (const glfunction_t []) {
             QGL_FN(AlphaFunc),
             QGL_FN(Color4f),
@@ -112,6 +113,7 @@ static const glsection_t sections[] = {
         .functions = (const glfunction_t []) {
             QGL_FN(ClearDepth),
             QGL_FN(DepthRange),
+            QGL_FN(PolygonMode),
             { NULL }
         }
     },
@@ -121,16 +123,38 @@ static const glsection_t sections[] = {
         .ver_gl = QGL_VER(1, 1),
         .excl_gl = QGL_VER(3, 1),
         .caps = QGL_CAP_TEXTURE_BITS,
-        .functions = (const glfunction_t []) {
-            QGL_FN(PolygonMode),
-            { NULL }
-        }
+    },
+
+    // GL 1.1, ES 3.0
+    // EXT_unpack_subimage
+    {
+        .extension = "GL_EXT_unpack_subimage",
+        .ver_gl = QGL_VER(1, 1),
+        .ver_es = QGL_VER(3, 0),
+        .caps = QGL_CAP_UNPACK_SUBIMAGE,
+    },
+
+    // GL 1.1, ES 3.0
+    // OES_element_index_uint
+    {
+        .extension = "GL_OES_element_index_uint",
+        .ver_gl = QGL_VER(1, 1),
+        .ver_es = QGL_VER(3, 0),
+        .caps = QGL_CAP_ELEMENT_INDEX_UINT,
+    },
+
+    // GL 1.1, ES 1.0 up to 2.0
+    {
+        .ver_gl = QGL_VER(1, 1),
+        .ver_es = QGL_VER(1, 0),
+        .excl_es = QGL_VER(2, 0),
+        .caps = QGL_CAP_LINE_SMOOTH,
     },
 
     // ES 1.1
     {
         .ver_es = QGL_VER(1, 1),
-        .caps = QGL_CAP_TEXTURE_CLAMP_TO_EDGE,
+        .caps = QGL_CAP_TEXTURE_CLAMP_TO_EDGE | QGL_CAP_CLIENT_VA,
     },
 
     // GL 1.2
@@ -140,9 +164,10 @@ static const glsection_t sections[] = {
     },
 
     // GL 1.3
-    // GL_ARB_multitexture
+    // ARB_multitexture
     {
         .extension = "GL_ARB_multitexture",
+        .suffix = "ARB",
         .ver_gl = QGL_VER(1, 3),
         .ver_es = QGL_VER(1, 0),
         .functions = (const glfunction_t []) {
@@ -152,9 +177,10 @@ static const glsection_t sections[] = {
     },
 
     // GL 1.3, compat
-    // GL_ARB_multitexture
+    // ARB_multitexture
     {
         .extension = "GL_ARB_multitexture",
+        .suffix = "ARB",
         .ver_gl = QGL_VER(1, 3),
         .ver_es = QGL_VER(1, 0),
         .excl_gl = QGL_VER(3, 1),
@@ -173,9 +199,10 @@ static const glsection_t sections[] = {
     },
 
     // GL 1.5
-    // GL_ARB_vertex_buffer_object
+    // ARB_vertex_buffer_object
     {
         .extension = "GL_ARB_vertex_buffer_object",
+        .suffix = "ARB",
         .ver_gl = QGL_VER(1, 5),
         .ver_es = QGL_VER(1, 1),
         .functions = (const glfunction_t []) {
@@ -189,9 +216,10 @@ static const glsection_t sections[] = {
     },
 
     // GL 1.5, ES 3.0
-    // GL_ARB_occlusion_query
+    // ARB_occlusion_query
     {
         .extension = "GL_ARB_occlusion_query",
+        .suffix = "ARB",
         .ver_gl = QGL_VER(1, 5),
         .ver_es = QGL_VER(3, 0),
         .functions = (const glfunction_t []) {
@@ -248,6 +276,7 @@ static const glsection_t sections[] = {
             QGL_FN(GenFramebuffers),
             QGL_FN(GenRenderbuffers),
             QGL_FN(GenerateMipmap),
+            QGL_FN(GetFramebufferAttachmentParameteriv),
             QGL_FN(RenderbufferStorage),
             { NULL }
         }
@@ -257,24 +286,43 @@ static const glsection_t sections[] = {
     {
         .ver_gl = QGL_VER(3, 0),
         .ver_es = QGL_VER(3, 0),
+        // NPOT textures are technically GL 2.0, but only enable them on 3.0 to
+        // ensure full hardware support, including mipmaps.
         .caps = QGL_CAP_TEXTURE_MAX_LEVEL | QGL_CAP_TEXTURE_NON_POWER_OF_TWO,
         .functions = (const glfunction_t []) {
+            QGL_FN(BindBufferBase),
+            QGL_FN(BindBufferRange),
+            QGL_FN(BindVertexArray),
+            QGL_FN(DeleteVertexArrays),
+            QGL_FN(GenVertexArrays),
             QGL_FN(GetStringi),
+            QGL_FN(VertexAttribIPointer),
             { NULL }
         }
     },
 
     // GL 3.1
-    // GL_ARB_uniform_buffer_object
+    // ES 3.2
+    {
+        .ver_gl = QGL_VER(3, 1),
+        .ver_es = QGL_VER(3, 2),
+        .caps = QGL_CAP_BUFFER_TEXTURE,
+        .functions = (const glfunction_t []) {
+            QGL_FN(TexBuffer),
+            { NULL }
+        }
+    },
+
+    // GL 3.1
+    // ARB_uniform_buffer_object
     {
         .extension = "GL_ARB_uniform_buffer_object",
         .ver_gl = QGL_VER(3, 1),
         .ver_es = QGL_VER(3, 0),
         .caps = QGL_CAP_SHADER,
         .functions = (const glfunction_t []) {
-            QGL_FN(BindBufferBase),
-            QGL_FN(GetUniformBlockIndex),
             QGL_FN(GetActiveUniformBlockiv),
+            QGL_FN(GetUniformBlockIndex),
             QGL_FN(UniformBlockBinding),
             { NULL }
         }
@@ -292,26 +340,77 @@ static const glsection_t sections[] = {
     },
 
     // GL 4.3
-    // GL_KHR_debug
+    // KHR_debug
     {
         .extension = "GL_KHR_debug",
+        .suffix = "?KHR",
         .ver_gl = QGL_VER(4, 3),
         .ver_es = QGL_VER(3, 2),
         .functions = (const glfunction_t []) {
             QGL_FN(DebugMessageCallback),
+            QGL_FN(DebugMessageControl),
+            { NULL }
+        }
+    },
+
+    // GL 4.3
+    // ES 3.1
+    {
+        .ver_gl = QGL_VER(4, 3),
+        .ver_es = QGL_VER(3, 1),
+        .caps = QGL_CAP_SHADER_STORAGE,
+    },
+
+    // GL 4.4
+    {
+        .ver_gl = QGL_VER(4, 4),
+        .caps = QGL_CAP_QUERY_RESULT_NO_WAIT,
+    },
+
+    // GL 4.4
+    // ARB_multi_bind
+    {
+        .ver_gl = QGL_VER(4, 4),
+        .extension = "GL_ARB_multi_bind",
+        .functions = (const glfunction_t []) {
+            QGL_FN(BindTextures),
+            { NULL }
+        }
+    },
+
+    // GL 4.5
+    // ARB_direct_state_access
+    {
+        .ver_gl = QGL_VER(4, 5),
+        .extension = "GL_ARB_direct_state_access",
+        .functions = (const glfunction_t []) {
+            QGL_FN(BindTextureUnit),
+            { NULL }
+        }
+    },
+
+    // GL 4.5
+    // ARB_robustness
+    {
+        .extension = "GL_ARB_robustness",
+        .suffix = "ARB",
+        .ver_gl = QGL_VER(4, 5),
+        .ver_es = QGL_VER(3, 2),
+        .functions = (const glfunction_t []) {
+            QGL_FN(ReadnPixels),
             { NULL }
         }
     },
 
     // GL 4.6
-    // GL_EXT_texture_filter_anisotropic
+    // EXT_texture_filter_anisotropic
     {
         .extension = "GL_EXT_texture_filter_anisotropic",
         .ver_gl = QGL_VER(4, 6),
         .caps = QGL_CAP_TEXTURE_ANISOTROPY
     },
 
-    // GL_ARB_fragment_program
+    // ARB_fragment_program
     {
         .extension = "GL_ARB_fragment_program",
         .functions = (const glfunction_t []) {
@@ -324,7 +423,7 @@ static const glsection_t sections[] = {
         }
     },
 
-    // GL_EXT_compiled_vertex_array
+    // EXT_compiled_vertex_array
     {
         .extension = "GL_EXT_compiled_vertex_array",
         .functions = (const glfunction_t []) {
@@ -335,13 +434,32 @@ static const glsection_t sections[] = {
     },
 };
 
-static bool parse_version(void)
+static const char *const es_prefixes[] = {
+    "OpenGL ES-CM ",
+    "OpenGL ES-CL ",
+    "OpenGL ES "
+};
+
+static int parse_version(const char *s)
+{
+    int major, minor;
+
+    if (sscanf(s, "%d.%d", &major, &minor) < 2)
+        return 0;
+
+    if (major < 1 || major > (INT_MAX - 99) / 100 || minor < 0 || minor > 99)
+        return 0;
+
+    return QGL_VER(major, minor);
+}
+
+static bool parse_gl_version(void)
 {
     const char *s;
-    int major, minor, ver;
+    int ver;
     bool gl_es = false;
 
-    qglGetString = vid.get_proc_addr("glGetString");
+    qglGetString = vid->get_proc_addr("glGetString");
     if (!qglGetString)
         return false;
 
@@ -356,37 +474,34 @@ static bool parse_version(void)
     Com_DPrintf("GL_VERSION: %s\n", s);
 
     // parse ES profile prefix
-    if (!strncmp(s, "OpenGL ES", 9)) {
-        s += 9;
-        if (s[0] == '-' && s[1] && s[2] && s[3] == ' ')
-            s += 4;
-        else if (s[0] == ' ')
-            s += 1;
-        else
-            return false;
-        gl_es = true;
+    for (int i = 0; i < q_countof(es_prefixes); i++) {
+        size_t len = strlen(es_prefixes[i]);
+        if (!strncmp(s, es_prefixes[i], len)) {
+            s += len;
+            gl_es = true;
+            break;
+        }
     }
 
     // parse version
-    if (sscanf(s, "%d.%d", &major, &minor) < 2)
-        return false;
-
-    if (major < 1 || minor < 0 || minor > 99)
-        return false;
-
-    ver = QGL_VER(major, minor);
-    if (gl_es)
+    ver = parse_version(s);
+    if (gl_es) {
         gl_config.ver_es = ver;
-    else
-        gl_config.ver_gl = ver;
+        return ver;
+    }
 
-    return true;
+    // reject GL 1.0
+    if (ver >= QGL_VER(1, 1)) {
+        gl_config.ver_gl = ver;
+        return true;
+    }
+
+    return false;
 }
 
 static bool parse_glsl_version(void)
 {
     const char *s;
-    int major, minor;
 
     if (gl_config.ver_gl < QGL_VER(2, 0) && gl_config.ver_es < QGL_VER(2, 0))
         return true;
@@ -400,14 +515,8 @@ static bool parse_glsl_version(void)
     if (gl_config.ver_es && !strncmp(s, "OpenGL ES GLSL ES ", 18))
         s += 18;
 
-    if (sscanf(s, "%d.%d", &major, &minor) < 2)
-        return false;
-
-    if (major < 1 || minor < 0 || minor > 99)
-        return false;
-
-    gl_config.ver_sl = QGL_VER(major, minor);
-    return true;
+    gl_config.ver_sl = parse_version(s);
+    return gl_config.ver_sl;
 }
 
 static bool extension_blacklisted(const char *search)
@@ -476,7 +585,7 @@ void QGL_Shutdown(void)
 
 bool QGL_Init(void)
 {
-    if (!parse_version()) {
+    if (!parse_gl_version()) {
         Com_EPrintf("OpenGL returned invalid version string\n");
         return false;
     }
@@ -487,32 +596,41 @@ bool QGL_Init(void)
     }
 
     if (gl_config.ver_gl >= QGL_VER(3, 0) || gl_config.ver_es >= QGL_VER(3, 0)) {
-        qglGetStringi = vid.get_proc_addr("glGetStringi");
-        qglGetIntegerv = vid.get_proc_addr("glGetIntegerv");
+        qglGetStringi = vid->get_proc_addr("glGetStringi");
+        qglGetIntegerv = vid->get_proc_addr("glGetIntegerv");
         if (!qglGetStringi || !qglGetIntegerv) {
             Com_EPrintf("Required OpenGL entry points not found\n");
             return false;
         }
     }
 
-    bool compatible = false;
+    int non_compat_ver = 0;
     if (gl_config.ver_gl >= QGL_VER(3, 2)) {
         // Profile is correctly set by Mesa, but can be 0 for compatibility
         // context on NVidia. Thus only check for core bit.
         GLint profile = 0;
         qglGetIntegerv(GL_CONTEXT_PROFILE_MASK, &profile);
-        compatible = !(profile & GL_CONTEXT_CORE_PROFILE_BIT);
+        if (profile & GL_CONTEXT_CORE_PROFILE_BIT)
+            non_compat_ver = gl_config.ver_gl;
     } else if (gl_config.ver_gl == QGL_VER(3, 1)) {
-        compatible = extension_present("GL_ARB_compatibility");
+        if (!extension_present("GL_ARB_compatibility"))
+            non_compat_ver = gl_config.ver_gl;
+    } else if (gl_config.ver_gl == QGL_VER(3, 0)) {
+        // 3.0 deprecates functionality removed by 3.1. If forward compatible
+        // bit is set, it also removes this functionality.
+        GLint flags = 0;
+        qglGetIntegerv(GL_CONTEXT_FLAGS, &flags);
+        if (flags & GL_CONTEXT_FLAG_FORWARD_COMPATIBLE_BIT)
+            non_compat_ver = QGL_VER(3, 1);
     }
 
     if (gl_config.ver_es) {
         Com_DPrintf("Detected OpenGL ES %d.%d\n",
                     QGL_UNPACK_VER(gl_config.ver_es));
-    } else if (gl_config.ver_gl >= QGL_VER(3, 2)) {
+    } else if (gl_config.ver_gl >= QGL_VER(3, 2) || non_compat_ver) {
         Com_DPrintf("Detected OpenGL %d.%d (%s profile)\n",
                     QGL_UNPACK_VER(gl_config.ver_gl),
-                    compatible ? "compatibility" : "core");
+                    non_compat_ver ? "core" : "compatibility");
     } else {
         Com_DPrintf("Detected OpenGL %d.%d\n",
                     QGL_UNPACK_VER(gl_config.ver_gl));
@@ -523,7 +641,7 @@ bool QGL_Init(void)
         const glfunction_t *func;
         bool core;
 
-        if (sec->excl_gl && gl_config.ver_gl >= sec->excl_gl && !compatible)
+        if (sec->excl_gl && non_compat_ver >= sec->excl_gl)
             continue;
         if (sec->excl_es && gl_config.ver_es >= sec->excl_es)
             continue;
@@ -541,21 +659,24 @@ bool QGL_Init(void)
         }
 
         if (sec->functions) {
+            const char *suffix = sec->suffix;
+
+            // GL_KHR_debug weirdness
+            if (*suffix == '?') {
+                if (gl_config.ver_es)
+                    suffix++;
+                else
+                    suffix = "";
+            }
+
             for (func = sec->functions; func->name; func++) {
                 const char *name = func->name;
-                void *addr = vid.get_proc_addr(name);
 
-                // try with XYZ suffix if this is a GL_XYZ_extension
-                if (!addr && !core)  {
-                    char suf[4];
-                    memcpy(suf, sec->extension + 3, 3);
-                    suf[3] = 0;
-                    if (!strstr(name, suf)) {
-                        name = va("%s%s", name, suf);
-                        addr = vid.get_proc_addr(name);
-                    }
-                }
+                // add suffix if this is an extension
+                if (!core && *suffix)
+                    name = va("%s%.3s", name, suffix);
 
+                void *addr = vid->get_proc_addr(name);
                 if (!addr) {
                     Com_EPrintf("Couldn't get entry point: %s\n", name);
                     break;
@@ -586,28 +707,39 @@ bool QGL_Init(void)
     }
 
     if (gl_config.ver_es) {
-        // don't ever attempt to use shaders with GL ES < 3.0
+        // don't ever attempt to use shaders with GL ES < 3.0, or GLSL ES < 3.0
         if (gl_config.ver_es < QGL_VER(3, 0) || gl_config.ver_sl < QGL_VER(3, 0))
             gl_config.caps &= ~QGL_CAP_SHADER;
-
-        // GL ES 3.0+ deprecates, but still supports client vertex arrays, thus
-        // pure QGL_CAP_SHADER mode will work.
-        if (!(gl_config.caps & (QGL_CAP_LEGACY | QGL_CAP_SHADER))) {
-            Com_EPrintf("Unsupported OpenGL ES version\n");
-            return false;
-        }
     } else {
-        // don't ever attempt to use shaders with GL < 3.0
+        // don't ever attempt to use shaders with GL < 3.0, or GLSL < 1.30
         if (gl_config.ver_gl < QGL_VER(3, 0) || gl_config.ver_sl < QGL_VER(1, 30))
             gl_config.caps &= ~QGL_CAP_SHADER;
+    }
 
-        // MUST have QGL_CAP_LEGACY bit, because Q2PRO still uses client vertex
-        // arrays removed by GL 3.1+.
-        if (!(gl_config.caps & QGL_CAP_LEGACY)) {
-            Com_EPrintf("Unsupported OpenGL version/profile\n");
-            return false;
+    // reject unsupported configurations, such as GL ES 2.0
+    if (!(gl_config.caps & (QGL_CAP_LEGACY | QGL_CAP_SHADER))) {
+        Com_EPrintf("Unsupported OpenGL version\n");
+        return false;
+    }
+
+#if !USE_GLES
+    // reject if GL_UNSIGNED_INT indices are not supported
+    if (!(gl_config.caps & QGL_CAP_ELEMENT_INDEX_UINT)) {
+        Com_EPrintf("UINT indices are not supported, recompile with USE_GLES.\n");
+        return false;
+    }
+#endif
+
+    // disable qglLineWidth in forward compatible core profile contexts
+    if (non_compat_ver >= QGL_VER(3, 1)) {
+        GLint flags = 0;
+        qglGetIntegerv(GL_CONTEXT_FLAGS, &flags);
+        if (flags & GL_CONTEXT_FLAG_FORWARD_COMPATIBLE_BIT) {
+            Com_DPrintf("Detected forward compatible context\n");
+            qglLineWidth = NULL;
         }
     }
 
+    Com_DPrintf("Detected OpenGL capabilities: %#x\n", gl_config.caps);
     return true;
 }

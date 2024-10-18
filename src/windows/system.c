@@ -44,7 +44,6 @@ static cvar_t                   *sys_exitonerror;
 cvar_t  *sys_basedir;
 cvar_t  *sys_libdir;
 cvar_t  *sys_homedir;
-cvar_t  *sys_forcegamelib;
 
 /*
 ===============================================================================
@@ -203,11 +202,10 @@ Sys_ConsoleInput
 void Sys_RunConsole(void)
 {
     INPUT_RECORD    recs[MAX_CONSOLE_INPUT_EVENTS];
-    int     ch;
-    DWORD   numread, numevents;
-    int     i;
+    int             i, ch;
+    DWORD           numread, numevents;
     inputField_t    *f = &sys_con.inputLine;
-    char    *s;
+    char            *s;
 
     if (hinput == INVALID_HANDLE_VALUE) {
         return;
@@ -490,6 +488,20 @@ void Sys_RunConsole(void)
     }
 }
 
+void Sys_LoadHistory(void)
+{
+    if (gotConsole && sys_history && sys_history->integer > 0) {
+        Prompt_LoadHistory(&sys_con, SYS_HISTORYFILE_NAME);
+    }
+}
+
+void Sys_SaveHistory(void)
+{
+    if (gotConsole && sys_history && sys_history->integer > 0) {
+        Prompt_SaveHistory(&sys_con, SYS_HISTORYFILE_NAME, sys_history->integer);
+    }
+}
+
 #define FOREGROUND_BLACK    0
 #define FOREGROUND_WHITE    (FOREGROUND_BLUE|FOREGROUND_GREEN|FOREGROUND_RED)
 
@@ -769,26 +781,6 @@ MISC
 ===============================================================================
 */
 
-#if USE_SYSCON
-/*
-================
-Sys_Printf
-================
-*/
-void Sys_Printf(const char *fmt, ...)
-{
-    va_list     argptr;
-    char        msg[MAXPRINTMSG];
-    size_t      len;
-
-    va_start(argptr, fmt);
-    len = Q_vscnprintf(msg, sizeof(msg), fmt, argptr);
-    va_end(argptr);
-
-    Sys_ConsoleOutput(msg, len);
-}
-#endif
-
 /*
 ================
 Sys_Error
@@ -914,8 +906,6 @@ void Sys_Init(void)
     // specifies per-user writable directory for demos, screenshots, etc
     sys_homedir = Cvar_Get("homedir", "", CVAR_NOSET);
 
-    sys_forcegamelib = Cvar_Get("sys_forcegamelib", "", CVAR_NOSET);
-
     sys_exitonerror = Cvar_Get("sys_exitonerror", "0", 0);
 
 #if USE_WINSVC
@@ -1020,6 +1010,10 @@ void Sys_ListFiles_r(listfiles_t *list, const char *path, int depth)
     unsigned    mask;
     void        *info;
     const char  *filter = list->filter;
+
+    if (list->count >= MAX_LISTED_FILES) {
+        return;
+    }
 
     // optimize single extension search
     if (!(list->flags & (FS_SEARCH_BYFILTER | FS_SEARCH_RECURSIVE)) &&

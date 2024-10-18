@@ -58,7 +58,7 @@ static sfxcache_t *DMA_UploadSfx(sfx_t *sfx)
 
     int outcount = s_info.samples / stepscale;
     if (!outcount) {
-        Com_DPrintf("%s resampled to zero length\n", s_info.name);
+        Com_SetLastError("Resampled to zero length");
         sfx->error = Q_ERR_INVALID_FORMAT;
         return NULL;
     }
@@ -95,7 +95,6 @@ static void DMA_PageInSfx(sfx_t *sfx)
     if (sc)
         Com_PageInMemory(sc->data, sc->size);
 }
-
 
 /*
 ===============================================================================
@@ -167,7 +166,6 @@ static void DMA_DropRawSamples(void)
     s_rawend = s_paintedtime;
 }
 
-
 /*
 ===============================================================================
 
@@ -176,7 +174,7 @@ PAINTBUFFER TRANSFER
 ===============================================================================
 */
 
-static void TransferStereo16(samplepair_t *samp, int endtime)
+static void TransferStereo16(const samplepair_t *samp, int endtime)
 {
     int ltime = s_paintedtime;
     int size = dma.samples >> 1;
@@ -197,9 +195,9 @@ static void TransferStereo16(samplepair_t *samp, int endtime)
     }
 }
 
-static void TransferStereo(samplepair_t *samp, int endtime)
+static void TransferStereo(const samplepair_t *samp, int endtime)
 {
-    float *p = (float *)samp;
+    const float *p = (const float *)samp;
     int count = (endtime - s_paintedtime) * dma.channels;
     int out_mask = dma.samples - 1;
     int out_idx = s_paintedtime * dma.channels & out_mask;
@@ -232,7 +230,7 @@ static void TransferPaintBuffer(samplepair_t *samp, int endtime)
     if (s_testsound->integer) {
         // write a fixed sine wave
         for (i = 0; i < endtime - s_paintedtime; i++) {
-            samp[i].left = samp[i].right = sin((s_paintedtime + i) * 0.1f) * 20000;
+            samp[i].left = samp[i].right = sinf((s_paintedtime + i) * 0.1f) * 20000;
         }
     }
 
@@ -266,20 +264,15 @@ typedef struct {
 static hist_t hist[2];
 static float a1, a2, b0, b1, b2;
 
-// Implements "high shelf" biquad filter. This is what OpenAL Soft uses for
-// AL_FILTER_LOWPASS.
+// Implementation of "high shelf" biquad filter from OpenAL Soft.
 static void s_underwater_gain_hf_changed(cvar_t *self)
 {
+    float gain = Cvar_ClampValue(self, 0.001f, 1);
     float f0norm = 5000.0f / dma.speed;
-    float gain = Cvar_ClampValue(self, 0, 1);
-
-    // Limit to -60dB
-    gain = max(gain, 0.001f);
-
-    float w0 = M_PI * 2.0f * f0norm;
-    float sin_w0 = sin(w0);
-    float cos_w0 = cos(w0);
-    float alpha = sin_w0 / 2.0f * M_SQRT2;
+    float w0 = M_PIf * 2.0f * f0norm;
+    float sin_w0 = sinf(w0);
+    float cos_w0 = cosf(w0);
+    float alpha = sin_w0 / 2.0f * M_SQRT2f;
     float sqrtgain_alpha_2 = 2.0f * sqrtf(gain) * alpha;
     float a0;
 
@@ -291,7 +284,7 @@ static void s_underwater_gain_hf_changed(cvar_t *self)
     a1 = ((gain-1.0f) - (gain+1.0f) * cos_w0) * 2.0f;
     a2 =  (gain+1.0f) - (gain-1.0f) * cos_w0 - sqrtgain_alpha_2;
 
-    a1 /= a0; a2 /= a0; b0 /= a0; b1 /= a0; b2 /= a0;
+    a1 /= a0, a2 /= a0, b0 /= a0, b1 /= a0, b2 /= a0;
 }
 
 static void filter_ch(hist_t *hist, float *samp, int count)
@@ -325,16 +318,16 @@ CHANNEL MIXING
 ===============================================================================
 */
 
-typedef void (*paintfunc_t)(channel_t *, sfxcache_t *, int, samplepair_t *);
+typedef void (*paintfunc_t)(const channel_t *, const sfxcache_t *, int, samplepair_t *);
 
 #define PAINTFUNC(name) \
-    static void name(channel_t *ch, sfxcache_t *sc, int count, samplepair_t *samp)
+    static void name(const channel_t *ch, const sfxcache_t *sc, int count, samplepair_t *samp)
 
 PAINTFUNC(PaintMono8)
 {
     float leftvol = ch->leftvol * snd_vol * 256;
     float rightvol = ch->rightvol * snd_vol * 256;
-    uint8_t *sfx = sc->data + ch->pos;
+    const uint8_t *sfx = sc->data + ch->pos;
 
     for (int i = 0; i < count; i++, samp++, sfx++) {
         samp->left += (*sfx - 128) * leftvol;
@@ -344,9 +337,9 @@ PAINTFUNC(PaintMono8)
 
 PAINTFUNC(PaintStereoDmix8)
 {
-    float leftvol = ch->leftvol * snd_vol * (256 * M_SQRT1_2);
-    float rightvol = ch->rightvol * snd_vol * (256 * M_SQRT1_2);
-    uint8_t *sfx = sc->data + ch->pos * 2;
+    float leftvol = ch->leftvol * snd_vol * (256 * M_SQRT1_2f);
+    float rightvol = ch->rightvol * snd_vol * (256 * M_SQRT1_2f);
+    const uint8_t *sfx = sc->data + ch->pos * 2;
 
     for (int i = 0; i < count; i++, samp++, sfx += 2) {
         int sum = (sfx[0] - 128) + (sfx[1] - 128);
@@ -358,7 +351,7 @@ PAINTFUNC(PaintStereoDmix8)
 PAINTFUNC(PaintStereoFull8)
 {
     float vol = ch->leftvol * snd_vol * 256;
-    uint8_t *sfx = sc->data + ch->pos * 2;
+    const uint8_t *sfx = sc->data + ch->pos * 2;
 
     for (int i = 0; i < count; i++, samp++, sfx += 2) {
         samp->left += (sfx[0] - 128) * vol;
@@ -370,7 +363,7 @@ PAINTFUNC(PaintMono16)
 {
     float leftvol = ch->leftvol * snd_vol;
     float rightvol = ch->rightvol * snd_vol;
-    int16_t *sfx = (int16_t *)sc->data + ch->pos;
+    const int16_t *sfx = (const int16_t *)sc->data + ch->pos;
 
     for (int i = 0; i < count; i++, samp++, sfx++) {
         samp->left += *sfx * leftvol;
@@ -380,9 +373,9 @@ PAINTFUNC(PaintMono16)
 
 PAINTFUNC(PaintStereoDmix16)
 {
-    float leftvol = ch->leftvol * snd_vol * M_SQRT1_2;
-    float rightvol = ch->rightvol * snd_vol * M_SQRT1_2;
-    int16_t *sfx = (int16_t *)sc->data + ch->pos * 2;
+    float leftvol = ch->leftvol * snd_vol * M_SQRT1_2f;
+    float rightvol = ch->rightvol * snd_vol * M_SQRT1_2f;
+    const int16_t *sfx = (const int16_t *)sc->data + ch->pos * 2;
 
     for (int i = 0; i < count; i++, samp++, sfx += 2) {
         int sum = sfx[0] + sfx[1];
@@ -394,7 +387,7 @@ PAINTFUNC(PaintStereoDmix16)
 PAINTFUNC(PaintStereoFull16)
 {
     float vol = ch->leftvol * snd_vol;
-    int16_t *sfx = (int16_t *)sc->data + ch->pos * 2;
+    const int16_t *sfx = (const int16_t *)sc->data + ch->pos * 2;
 
     for (int i = 0; i < count; i++, samp++, sfx += 2) {
         samp->left += sfx[0] * vol;
@@ -530,7 +523,7 @@ static const snddma_driver_t *const s_drivers[] = {
     NULL
 };
 
-static snddma_driver_t  snddma;
+static const snddma_driver_t    *snddma;
 
 static void DMA_SoundInfo(void)
 {
@@ -556,8 +549,8 @@ static bool DMA_Init(void)
 
     for (i = 0; s_drivers[i]; i++) {
         if (!strcmp(s_drivers[i]->name, s_driver->string)) {
-            snddma = *s_drivers[i];
-            ret = snddma.init();
+            snddma = s_drivers[i];
+            ret = snddma->init();
             break;
         }
     }
@@ -567,8 +560,8 @@ static bool DMA_Init(void)
         for (i = 0; s_drivers[i]; i++) {
             if (i == tried)
                 continue;
-            snddma = *s_drivers[i];
-            if ((ret = snddma.init()) == SIS_SUCCESS)
+            snddma = s_drivers[i];
+            if ((ret = snddma->init()) == SIS_SUCCESS)
                 break;
         }
         Cvar_Reset(s_driver);
@@ -592,7 +585,8 @@ static bool DMA_Init(void)
 
 static void DMA_Shutdown(void)
 {
-    snddma.shutdown();
+    snddma->shutdown();
+    snddma = NULL;
     s_numchannels = 0;
 
     s_underwater_gain_hf->changed = NULL;
@@ -601,9 +595,9 @@ static void DMA_Shutdown(void)
 
 static void DMA_Activate(void)
 {
-    if (snddma.activate) {
+    if (snddma->activate) {
         S_StopAllSounds();
-        snddma.activate(s_active);
+        snddma->activate(s_active);
     }
 }
 
@@ -637,10 +631,10 @@ static int DMA_DriftBeginofs(float timeofs)
 
 static void DMA_ClearBuffer(void)
 {
-    snddma.begin_painting();
+    snddma->begin_painting();
     if (dma.buffer)
         memset(dma.buffer, dma.samplebits == 8 ? 0x80 : 0, dma.samples * dma.samplebits / 8);
-    snddma.submit();
+    snddma->submit();
 }
 
 /*
@@ -858,7 +852,7 @@ static void DMA_Update(void)
     }
 #endif
 
-    snddma.begin_painting();
+    snddma->begin_painting();
 
     if (!dma.buffer)
         return;
@@ -879,13 +873,13 @@ static void DMA_Update(void)
     endtime = soundtime + sec * dma.speed;
 
     // mix to an even submission block size
-    endtime = ALIGN(endtime, dma.submission_chunk);
+    endtime = Q_ALIGN(endtime, dma.submission_chunk);
     samples = dma.samples >> (dma.channels - 1);
     endtime = min(endtime, soundtime + samples);
 
     PaintChannels(endtime);
 
-    snddma.submit();
+    snddma->submit();
 }
 
 static int DMA_GetSampleRate(void)

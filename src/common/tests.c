@@ -69,7 +69,7 @@ static void Com_Freeze_f(void)
         return;
     }
 
-    seconds = atof(Cmd_Argv(1));
+    seconds = Q_atof(Cmd_Argv(1));
     if (seconds < 0) {
         return;
     }
@@ -252,7 +252,7 @@ typedef struct {
 static const normtest_t normtests[] = {
     { "",               "",         },
     { "///",            "",         },
-    { "foo///",         "foo/",     },
+    { "foo///",         "foo",      },
     { "\\/\\",          "",         },
     { "///foo",         "foo"       },
     { "\\/foo",         "foo"       },
@@ -272,9 +272,10 @@ static const normtest_t normtests[] = {
     { "./../../foo",    "foo"       },
     { "../bar/../foo",  "foo"       },
     { "foo/bar/..",     "foo"       },
-    { "foo/bar/../",    "foo/"      },
+    { "foo/bar/../",    "foo"       },
+    { "foo/bar//..//",  "foo"       },
     { "foo/bar/.",      "foo/bar"   },
-    { "foo/bar/./",     "foo/bar/"  },
+    { "foo/bar/./",     "foo/bar"   },
     { "..",             ""          },
     { ".",              ""          },
     { "/..",            ""          },
@@ -285,8 +286,8 @@ static const normtest_t normtests[] = {
     { "/./",            ""          },
     { "../..",          ""          },
     { "../../../../",   ""          },
-    { "../foo..bar/",   "foo..bar/" },
-    { "......./",       "......./"  },
+    { "../foo..bar/",   "foo..bar"  },
+    { "......./",       "......."   },
 
     { "foo/bar/baz/abc/../def",                             "foo/bar/baz/def"   },
     { "foo/bar/baz/abc/../../def",                          "foo/bar/def"       },
@@ -577,8 +578,12 @@ static void Com_TestImages_f(void)
     void **list;
     int i, count, errors;
     unsigned start, end;
+    const char *filter = ".pcx;.wal;.png;.jpg;.tga";
 
-    list = FS_ListFiles(NULL, ".pcx;.wal;.png;.jpg;.tga", FS_SEARCH_RECURSIVE, &count);
+    if (Cmd_Argc() > 1)
+        filter = Cmd_Argv(1);
+
+    list = FS_ListFiles(NULL, filter, FS_SEARCH_RECURSIVE, &count);
     if (!list) {
         Com_Printf("No images found\n");
         return;
@@ -594,7 +599,7 @@ static void Com_TestImages_f(void)
             R_EndRegistration();
             R_BeginRegistration(NULL);
         }
-        if (!R_RegisterTempPic(va("/%s", (char *)list[i]))) {
+        if (!R_RegisterImage(va("/%s", (char *)list[i]), IT_PIC, IF_KEEP_EXTENSION)) {
             errors++;
             continue;
         }
@@ -822,6 +827,35 @@ static void Com_NextPathTest_f(void)
     }
 }
 
+static void Com_Extract_f(void)
+{
+    char *path;
+    void *data;
+    int len, ret;
+
+    if (Cmd_Argc() < 2) {
+        Com_Printf("Usage: %s <file>\n", Cmd_Argv(0));
+        return;
+    }
+
+    path = Cmd_Argv(1);
+    len = FS_LoadFileEx(path, &data, FS_TYPE_PAK, TAG_FILESYSTEM);
+    if (!data) {
+        if (len == Q_ERR(ENOENT) && FS_FileExistsEx(path, FS_TYPE_REAL))
+            Com_Printf("%s is not in a pack file\n", path);
+        else
+            Com_Printf("Couldn't extract %s: %s\n", path, Q_ErrorString(len));
+        return;
+    }
+
+    ret = FS_WriteFile(path, data, len);
+    FS_FreeFile(data);
+    if (ret)
+        Com_Printf("Couldn't write %s: %s\n", path, Q_ErrorString(ret));
+    else
+        Com_Printf("Extracted %s (%d bytes)\n", path, len);
+}
+
 static const cmdreg_t c_test[] = {
     { "error", Com_Error_f },
     { "errordrop", Com_ErrorDrop_f },
@@ -846,6 +880,7 @@ static const cmdreg_t c_test[] = {
     { "mdfoursum", Com_MdfourSum_f },
     { "extcmptest", Com_ExtCmpTest_f },
     { "nextpathtest", Com_NextPathTest_f },
+    { "extract", Com_Extract_f },
     { NULL }
 };
 

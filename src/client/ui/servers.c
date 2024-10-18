@@ -62,7 +62,6 @@ typedef struct {
     uint32_t    color;
     char        name[1];
     bool        hasBots;
-    size_t      numBots;
 } serverslot_t;
 
 typedef struct {
@@ -192,6 +191,8 @@ static serverslot_t *FindSlot(const netadr_t *search, int *index_p)
 
 static uint32_t ColorForStatus(const serverStatus_t *status, unsigned ping)
 {
+    ui_colorpingmax = Cvar_Get("ui_colorpingmax", "50", 0);
+
     if (Q_atoi(Info_ValueForKey(status->infostring, "needpass")) >= 1)
         return uis.color.disabled.u32;
 
@@ -260,31 +261,13 @@ void UI_StatusEvent(const serverStatus_t *status)
 
     const char *am = "No";
     #if USE_AQTION
-    size_t ambci;
-
+    // This checks if the server has bots, if so, turn the color of the server to MAGENTA
     const char *hasBotsCheck = Info_ValueForKey(status->infostring, "am");
-    const char *botsCountCheck = Info_ValueForKey(status->infostring, "am_botcount");
 
     if (hasBotsCheck == NULL || COM_IsWhite(hasBotsCheck) || *hasBotsCheck == '0') {
         am = "No";
-        slot->hasBots = false;
     } else {
-        if (slot) {
-            ambci = atoi(botsCountCheck);
-            if (ambci < 0) {
-                ambci = 0;
-            }
-            slot->numBots = ambci;
-
-            // Don't count bots if humans equal or outnumber ambci
-            if (playerCount >= slot->numBots) {
-                playerCount = status->numPlayers;
-            } else {
-                playerCount = status->numPlayers + slot->numBots;
-            }
-            slot->hasBots = true;
-            am = "Yes";
-        }
+        am = "Yes";
     }
     #endif
 
@@ -371,7 +354,7 @@ UI_ErrorEvent
 An ICMP destination-unreachable error has been received.
 =================
 */
-void UI_ErrorEvent(netadr_t *from)
+void UI_ErrorEvent(const netadr_t *from)
 {
     serverslot_t *slot;
     netadr_t address;
@@ -444,8 +427,8 @@ static menuSound_t CopyAddress(void)
 
     slot = m_servers.list.items[m_servers.list.curvalue];
 
-    if (vid.set_clipboard_data)
-        vid.set_clipboard_data(slot->hostname);
+    if (vid && vid->set_clipboard_data)
+        vid->set_clipboard_data(slot->hostname);
     return QMS_OUT;
 }
 
@@ -649,7 +632,7 @@ static void ParseMasterArgs(netadr_t *broadcast)
             if (len < 0)
                 continue;
             (*parse)(data, len, chunk);
-            free(data);
+            HTTP_FreeFile(data);
 #else
             Com_Printf("Can't fetch '%s', no HTTP support compiled in.\n", s);
 #endif

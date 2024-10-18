@@ -250,9 +250,9 @@ static void abort_func(void *arg)
 
 static void SV_Map(bool restart)
 {
-    mapcmd_t    cmd;
-
-    memset(&cmd, 0, sizeof(cmd));
+    mapcmd_t cmd = {
+        .endofunit = restart,   // wipe savegames
+    };
 
     // save the mapcmd
     if (Cmd_ArgvBuffer(1, cmd.buffer, sizeof(cmd.buffer)) >= sizeof(cmd.buffer)) {
@@ -263,11 +263,16 @@ static void SV_Map(bool restart)
     if (!SV_ParseMapCmd(&cmd))
         return;
 
+#if USE_CLIENT
+    // hack for demomap
+    if (cmd.state == ss_demo) {
+        Cbuf_InsertText(&cmd_buffer, va("demo \"%s\" compat\n", cmd.server));
+        return;
+    }
+#endif
+
     // save pending CM to be freed later if ERR_DROP is thrown
     Com_AbortFunc(abort_func, &cmd.cm);
-
-    // wipe savegames
-    cmd.endofunit |= restart;
 
     SV_AutoSaveBegin(&cmd);
 
@@ -290,21 +295,15 @@ SV_DemoMap_f
 Puts the server in demo mode on a specific map/cinematic
 ==================
 */
-#if USE_CLIENT
 static void SV_DemoMap_f(void)
 {
-    char *s = Cmd_Argv(1);
+    if (Cmd_Argc() != 2) {
+        Com_Printf("Usage: %s <mapname>\n", Cmd_Argv(0));
+        return;
+    }
 
-    if (!COM_CompareExtension(s, ".dm2"))
-        Cbuf_InsertText(&cmd_buffer, va("demo \"%s\"\n", s));
-    else if (!COM_CompareExtension(s, ".cin"))
-        Cbuf_InsertText(&cmd_buffer, va("map \"%s\" force\n", s));
-    else if (*s)
-        Com_Printf("\"%s\" only supports .dm2 and .cin files\n", Cmd_Argv(0));
-    else
-        Com_Printf("Usage: %s <demo>\n", Cmd_Argv(0));
+    SV_Map(false);
 }
-#endif
 
 /*
 ==================
@@ -331,7 +330,7 @@ static void SV_GameMap_f(void)
         return;
     }
 
-#if !USE_CLIENT
+#if USE_SERVER
     // admin option to reload the game DLL or entire server
     if (sv_recycle->integer > 0) {
         if (sv_recycle->integer > 1) {
@@ -352,7 +351,7 @@ static int should_really_restart(void)
     if (sv.state < ss_game || sv.state == ss_broadcast)
         return 1;   // the game is just starting
 
-#if !USE_CLIENT
+#if USE_SERVER
     if (sv_recycle->integer)
         return 1;   // there is recycle pending
 #endif
@@ -366,7 +365,7 @@ static int should_really_restart(void)
     if (sv_allow_map->integer == 1)
         return 1;   // `map' warning disabled
 
-    if (sv_allow_map->integer != 0)
+    if (sv_allow_map->integer >= 2)
         return 0;   // turn `map' into `gamemap'
 
     Com_Printf(
@@ -410,17 +409,43 @@ static void SV_Map_f(void)
 
 static void SV_Map_c(genctx_t *ctx, int argnum)
 {
-    unsigned flags = FS_SEARCH_RECURSIVE | FS_SEARCH_STRIPEXT;
-    if (argnum == 1) {
-        FS_File_g("maps", ".bsp", flags, ctx);
-        const char *s = Cvar_VariableString("map_override_path");
-        if (*s) {
-            int pos = ctx->count;
-            FS_File_g(s, ".bsp.override", flags, ctx);
-            for (int i = pos; i < ctx->count; i++)
-                *COM_FileExtension(ctx->matches[i]) = 0;
-        }
+    const char *path;
+    void **list;
+    int count;
+
+    if (argnum != 1)
+        return;
+
+    // complete regular maps
+    FS_File_g("maps", ".bsp", FS_SEARCH_RECURSIVE | FS_SEARCH_STRIPEXT, ctx);
+
+    // complete overrides
+    path = Cvar_VariableString("map_override_path");
+    if (!*path)
+        return;
+
+    list = FS_ListFiles(path, ".bsp.override", FS_SEARCH_RECURSIVE, &count);
+    if (!list)
+        return;
+
+    ctx->ignoredups = true;
+    for (int i = 0; i < count; i++) {
+        const char *s = list[i];
+        const int len = strlen(s) - strlen(".bsp.override");
+        Prompt_AddMatch(ctx, va("%.*s", len, s));
     }
+
+    FS_FreeList(list);
+}
+
+static void SV_DemoMap_c(genctx_t *ctx, int argnum)
+{
+#if USE_CLIENT
+    if (argnum == 1) {
+        FS_File_g("demos", ".dm2", FS_SEARCH_RECURSIVE, ctx);
+        SCR_Cinematic_g(ctx);
+    }
+#endif
 }
 
 static void SV_DumpEnts_f(void)
@@ -503,41 +528,63 @@ static void dump_clients(void)
     Com_Printf(
         "num score ping name            lastmsg address                rate pr fps\n"
         "--- ----- ---- --------------- ------- --------------------- ----- -- ---\n");
+
     FOR_EACH_CLIENT(client) {
-        Com_Printf("%3i %5i ", client->number,
-                   client->edict->client->ps.stats[STAT_FRAGS]);
+        const char *ping;
 
         switch (client->state) {
         case cs_zombie:
-            Com_Printf("ZMBI ");
+            ping = "ZMBI";
             break;
         case cs_assigned:
-            Com_Printf("ASGN ");
+            ping = "ASGN";
             break;
         case cs_connected:
         case cs_primed:
             if (client->download) {
-                Com_Printf("DNLD ");
+                ping = "DNLD";
             } else if (client->http_download) {
-                Com_Printf("HTTP ");
+                ping = "HTTP";
             } else if (client->state == cs_connected) {
-                Com_Printf("CNCT ");
+                ping = "CNCT";
             } else {
-                Com_Printf("PRIM ");
+                ping = "PRIM";
             }
             break;
         default:
-            Com_Printf("%4i ", client->ping < 9999 ? client->ping : 9999);
+            ping = va("%4i", min(client->ping, 9999));
             break;
         }
 
-        Com_Printf("%-15.15s ", client->name);
-        Com_Printf("%7u ", svs.realtime - client->lastmessage);
-        Com_Printf("%-21s ", NET_AdrToString(&client->netchan.remote_address));
-        Com_Printf("%5i ", client->rate);
-        Com_Printf("%2i ", client->protocol);
-        Com_Printf("%3i ", client->moves_per_sec);
-        Com_Printf("\n");
+        Com_Printf("%3i %5i %s %-15.15s %7u %-21s %5i %2i %3i\n", client->number,
+                   SV_GetClient_Stat(client, STAT_FRAGS),
+                   ping, client->name, svs.realtime - client->lastmessage,
+                   NET_AdrToString(&client->netchan.remote_address),
+                   client->rate, client->protocol, client->moves_per_sec);
+    }
+}
+
+
+static void dump_bot_clients(void)
+{
+    // Display nothing if no bots
+    if (!bot_clients[0].in_use) {
+        return;
+    }
+
+    Com_Printf(
+        "\n"
+        "Bot Clients.\n"
+        "num score ping name\n"
+        "--- ----- ---- ---------------\n");
+
+    for (int i = 0; i < MAX_CLIENTS; i++) {
+        if(bot_clients[i].in_use) {
+            Com_Printf("%3i %5i ", bot_clients[i].number, bot_clients[i].score);
+            Com_Printf("%4i ", bot_clients[i].ping);
+            Com_Printf("%-15.15s ", bot_clients[i].name);
+            Com_Printf("\n");
+        }
     }
 }
 
@@ -648,7 +695,6 @@ static void dump_settings(void)
         "num name            proto options upd fps\n"
         "--- --------------- ----- ------- --- ---\n");
 
-    opt[6] = ' ';
     opt[7] = 0;
     FOR_EACH_CLIENT(cl) {
         opt[0] = cl->settings[CLS_NOGUN]          ? 'G' : ' ';
@@ -657,6 +703,7 @@ static void dump_settings(void)
         opt[3] = cl->settings[CLS_NOGIBS]         ? 'I' : ' ';
         opt[4] = cl->settings[CLS_NOFOOTSTEPS]    ? 'F' : ' ';
         opt[5] = cl->settings[CLS_NOPREDICT]      ? 'P' : ' ';
+        opt[6] = cl->settings[CLS_NOFLARES]       ? 'L' : ' ';
         Com_Printf("%3i %-15.15s %5d %s %3d %3d\n",
                    cl->number, cl->name, cl->protocol, opt,
                    cl->settings[CLS_PLAYERUPDATES], cl->settings[CLS_FPS]);
@@ -701,6 +748,11 @@ static void SV_Status_f(void)
         }
     }
     Com_Printf("\n");
+
+    #ifndef NO_BOTS
+    dump_bot_clients();
+    Com_Printf("\n");
+    #endif
 
     SV_MvdStatus_f();
 }
@@ -1736,13 +1788,21 @@ Lists all loaded sounds, good for debugging PF_SoundIndex overflows
 void SV_ListSounds_f(void)
 {
     int i;
+    int count = 0;
     char *string;
 
     Com_Printf("-- List of Loaded Sounds:\n");
-    for (i = 1; i < MAX_SOUNDS; i++) {
-        string = sv.configstrings[CS_SOUNDS + i];
-        Com_Printf("%i: %s\n", i, string);
+    for (i = 1; i < svs.csr.max_sounds; i++) {
+        if (svs.csr.extended)
+            string = sv.configstrings[CS_SOUNDS + i];
+        else
+            string = sv.configstrings[CS_SOUNDS_OLD + i];
+        if (string && string[0] != '\0') { // Check if string is not null and not empty
+            Com_Printf("%i: %s\n", i, string);
+            count++;
+        }
     }
+    Com_Printf("-- Total Used Sound Indexes: %i\n-- Total Available Sound Indexes: %i\n", count, svs.csr.max_sounds);
 }
 
 //===========================================================
@@ -1759,9 +1819,7 @@ static const cmdreg_t c_server[] = {
     { "stuffcvar", SV_StuffCvar_f, SV_SetPlayer_c },
     { "printall", SV_PrintAll_f },
     { "map", SV_Map_f, SV_Map_c },
-#if USE_CLIENT
-    { "demomap", SV_DemoMap_f },
-#endif
+    { "demomap", SV_DemoMap_f, SV_DemoMap_c },
     { "gamemap", SV_GameMap_f, SV_Map_c },
     { "dumpents", SV_DumpEnts_f },
     { "setmaster", SV_SetMaster_f },

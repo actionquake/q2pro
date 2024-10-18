@@ -1,0 +1,19 @@
+[ctf]
+type=balanced
+author=matic
+grapple=no
+
+[respawn]
+red=4
+blue=3
+
+[flags]
+red=<690 -1491 460>
+blue=<-804 -5 198>
+
+[spawns]
+red=<843 -1374 210 179>,<936 -1803 617 138>
+blue=<-479 -447 54 90>,<-756 240 197 1>
+
+[objects]
+barrels=<862 -1062 270 -138>,<325 -1285 387 -86>

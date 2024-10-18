@@ -1,0 +1,35 @@
+{
+    "name": "Tarnok",
+    "clan_id": 52,
+    "skin": "actionmale/scarfchain",
+    "weaponPreferences": {
+        "mk23": 0.4,
+        "dual_mk23": 0.7,
+        "mp5": 0.6,
+        "m4": 0.8,
+        "m3": 0.6,
+        "hc": 0.4,
+        "sniper": 0.5,
+        "knives": 1.0,
+        "grenades": 0.9
+    },
+    "itemPreferences": {
+        "vest": 0.3,
+        "helm": 0.8,
+        "laser": 0.4,
+        "silencer": 0.4,
+        "slippers": 0.4,
+        "bandolier": 0.8
+    },
+    "coreTraits": {
+        "aggressiveness": -0.0,
+        "teamwork": 0.5,
+        "curiosity": 0.4,
+        "aimingSkill": 0.8,
+        "reactionTime": 0.7,
+        "communicationFreq": 0.3,
+        "communicationTone": 0.5,
+        "movementStyle": 0.7,
+        "objectiveFocus": 0.5
+    }
+}

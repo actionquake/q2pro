@@ -51,16 +51,6 @@
 
 #include "g_local.h"
 
-#ifdef AQTION_EXTENSION
-int ghud_team1_icon;
-int ghud_team1_num;
-int ghud_team2_icon;
-int ghud_team2_num;
-int ghud_team3_icon;
-int ghud_team3_num;
-#endif
-
-
 /*
   ======================================================================
   
@@ -129,6 +119,9 @@ void BeginIntermission(edict_t *targ)
 	int i;
 	edict_t *ent;
 
+	// Clear all timed messages
+	free(timedMessages);
+
 	if (level.intermission_framenum)
 		return;			// already activated
 
@@ -139,13 +132,13 @@ void BeginIntermission(edict_t *targ)
 	} else if (teamplay->value) {
 		TallyEndOfLevelTeamScores();
 	}
-	#if USE_AQTION
+
 	// Generates stats for non-CTF, Teamplay or Matchmode
-	else if (stat_logs->value && !matchmode->value) {
-		LogMatch();
-		LogEndMatchStats(); // Generates end of match logs
+	if (!matchmode->value) {
+		LOG_MATCH(); // Generates end of game stats
+		LOG_END_MATCH_STATS(); // Generates end of match stats
 	}
-	#endif
+	CALL_DISCORD_WEBHOOK(DM_MATCH_END_MSG, MATCH_END_MSG, AWARD_NONE);
 
 	// respawn any dead clients
 	for (i = 0, ent = g_edicts + 1; i < game.maxclients; i++, ent++)
@@ -196,6 +189,92 @@ void BeginIntermission(edict_t *targ)
 }
 
 /*
+  ======================================================================
+  Point of Interest
+  
+  This isn't perfect, but it gets you in the 'area' of a point of interest
+  Could use some refactoring, but it works for now.
+  Works much like intermission, but it more or less 'teleports' spectators
+  and those who are not 'spawned in' to the point of interest.
+
+  Points of interest are generally on the ground, so this adds 25 units
+  to each axis to move the camera in the area without being directly 
+  on top of the point of interest.
+  ======================================================================
+*/
+void MoveClientToPOI(edict_t *ent, edict_t *poi)
+{
+    PMenu_Close(ent);
+
+    VectorCopy(level.poi_origin, ent->s.origin);
+    ent->s.origin[0] -= 25;
+    ent->s.origin[1] -= 25;
+    ent->s.origin[2] += 25;
+
+    ent->client->ps.pmove.origin[0] = (level.poi_origin[0] - 25) * 8;
+    ent->client->ps.pmove.origin[1] = (level.poi_origin[1] - 25) * 8;
+    ent->client->ps.pmove.origin[2] = (level.poi_origin[2] + 25) * 8;
+
+    vec3_t ownerv, o, ownerv_forward, ownerv_right;
+    vec3_t angles;
+
+    VectorCopy(level.poi_origin, ownerv);
+    ownerv[2] += poi->viewheight;
+
+    VectorCopy(ent->client->ps.viewangles, angles);
+    AngleVectors(angles, ownerv_forward, ownerv_right, NULL);
+
+    VectorNormalize(ownerv_forward);
+    VectorMA(ownerv, -75, ownerv_forward, o);
+
+    VectorCopy(o, ent->s.origin);
+    VectorCopy(o, ent->client->ps.pmove.origin);
+
+    VectorSubtract(level.poi_origin, ent->s.origin, ent->client->ps.viewangles);
+    vectoangles(ent->client->ps.viewangles, ent->client->ps.viewangles);
+
+    VectorClear(ent->client->ps.kick_angles);
+    ent->client->ps.gunindex = 0;
+	ent->client->ps.blend[3] = 0;
+	ent->client->ps.rdflags &= ~RDF_UNDERWATER;
+	ent->client->ps.stats[STAT_FLASHES] = 0;
+
+	// clean up powerup info
+	ent->client->quad_framenum = 0;
+	ent->client->invincible_framenum = 0;
+	ent->client->breather_framenum = 0;
+	ent->client->enviro_framenum = 0;
+	ent->client->grenade_blew_up = false;
+	ent->client->grenade_framenum = 0;
+
+	ent->watertype = 0;
+	ent->waterlevel = 0;
+	ent->viewheight = 0;
+	ent->s.modelindex = 0;
+	ent->s.modelindex2 = 0;
+	ent->s.modelindex3 = 0;
+	ent->s.modelindex4 = 0;
+	ent->s.effects = 0;
+	ent->s.renderfx = 0;
+	ent->s.sound = 0;
+	ent->s.event = 0;
+	ent->s.solid = 0;
+	ent->solid = SOLID_NOT;
+	ent->svflags = SVF_NOCLIENT;
+
+	ent->client->resp.sniper_mode = SNIPER_1X;
+	ent->client->desired_fov = 90;
+	ent->client->ps.fov = 90;
+	ent->client->ps.stats[STAT_SNIPER_ICON] = 0;
+	ent->client->pickup_msg_framenum = 0;
+
+#ifndef NO_BOTS
+	if( ent->is_bot )
+		return;
+#endif
+}
+
+/*
   ==================
   DeathmatchScoreboardMessage
   
@@ -229,7 +308,6 @@ void DeathmatchScoreboardMessage (edict_t * ent, edict_t * killer)
 		}
 		else
 			A_ScoreboardMessage(ent, killer);
-
 		return;
 	}
 
@@ -540,31 +618,41 @@ void G_SetStats (edict_t * ent)
 		//
 		// timers
 		//
-		if (ent->client->quad_framenum > level.framenum)
-		{
-			ent->client->ps.stats[STAT_TIMER_ICON] = gi.imageindex ("p_quad");
-			ent->client->ps.stats[STAT_TIMER] = (ent->client->quad_framenum - level.framenum) / HZ;
-		}
-		else if (ent->client->invincible_framenum > level.framenum)
-		{
-			ent->client->ps.stats[STAT_TIMER_ICON] = gi.imageindex ("p_invulnerability");
-			ent->client->ps.stats[STAT_TIMER] = (ent->client->invincible_framenum - level.framenum) / HZ;
-		}
-		else if (ent->client->enviro_framenum > level.framenum)
-		{
-			ent->client->ps.stats[STAT_TIMER_ICON] = gi.imageindex ("p_envirosuit");
-			ent->client->ps.stats[STAT_TIMER] = (ent->client->enviro_framenum - level.framenum) / HZ;
-		}
-		else if (ent->client->breather_framenum > level.framenum)
-		{
-			ent->client->ps.stats[STAT_TIMER_ICON] = gi.imageindex ("p_rebreather");
-			ent->client->ps.stats[STAT_TIMER] = (ent->client->breather_framenum - level.framenum) / HZ;
-		}
-		else
-		{
-			ent->client->ps.stats[STAT_TIMER_ICON] = 0;
-			ent->client->ps.stats[STAT_TIMER] = 0;
-		}
+		// if (ent->client->quad_framenum > level.framenum)
+		// {
+		// 	ent->client->ps.stats[STAT_TIMER_ICON] = gi.imageindex ("p_quad");
+		// 	ent->client->ps.stats[STAT_TIMER] = (ent->client->quad_framenum - level.framenum) / HZ;
+		// }
+		// else if (ent->client->invincible_framenum > level.framenum)
+		// {
+		// 	ent->client->ps.stats[STAT_TIMER_ICON] = gi.imageindex ("p_invulnerability");
+		// 	ent->client->ps.stats[STAT_TIMER] = (ent->client->invincible_framenum - level.framenum) / HZ;
+		// }
+		// else if (ent->client->enviro_framenum > level.framenum)
+		// {
+		// 	ent->client->ps.stats[STAT_TIMER_ICON] = gi.imageindex ("p_envirosuit");
+		// 	ent->client->ps.stats[STAT_TIMER] = (ent->client->enviro_framenum - level.framenum) / HZ;
+		// }
+		// else if (ent->client->breather_framenum > level.framenum)
+		// {
+		// 	ent->client->ps.stats[STAT_TIMER_ICON] = gi.imageindex ("p_rebreather");
+		// 	ent->client->ps.stats[STAT_TIMER] = (ent->client->breather_framenum - level.framenum) / HZ;
+		// }
+		// else
+		// if (esp->value) {
+		// 	if (!IS_LEADER(ent) && ent->client->respawn_framenum > 0 && ent->client->respawn_framenum > level.framenum > 0){
+		// 		ent->client->ps.stats[STAT_TIMER_ICON] = level.pic_esp_respawn_icon;
+		// 		ent->client->ps.stats[STAT_TIMER] = (ent->client->respawn_framenum - level.framenum) / HZ;
+		// 	} else {
+		// 		ent->client->ps.stats[STAT_TIMER_ICON] = 0;
+		// 		ent->client->ps.stats[STAT_TIMER] = 0;
+		// 	}
+		// }
+		// else
+		// {
+		ent->client->ps.stats[STAT_TIMER_ICON] = 0;
+		ent->client->ps.stats[STAT_TIMER] = 0;
+		//}
 
 		//
 		// selected item
@@ -645,7 +733,367 @@ void G_SetStats (edict_t * ent)
 		SetCTFStats (ent);
 	else if (dom->value)
 		SetDomStats (ent);
+	else if (esp->value)
+		SetEspStats (ent);
 	else if (teamplay->value)
 		A_Scoreboard (ent);
 	//FIREBLADE
 }
+
+
+#if AQTION_EXTENSION
+
+void HUD_SetType(edict_t *clent, int type)
+{
+	if (clent->client->resp.hud_type == type)
+		return;
+	
+	if (type == -1)
+		HUD_ClientSetup(clent);
+	else if (type == 1)
+		HUD_SpectatorSetup(clent);
+	else
+	{
+		Ghud_ClearForClient(clent);
+		clent->client->resp.hud_type = 0;
+	}
+}
+
+void HUD_ClientSetup(edict_t *clent)
+{
+	Ghud_ClearForClient(clent);
+	clent->client->resp.hud_type = -1;
+
+}
+
+void HUD_ClientUpdate(edict_t *clent)
+{
+
+}
+
+
+void HUD_SpectatorSetup(edict_t *clent)
+{
+	Ghud_ClearForClient(clent);
+	clent->client->resp.hud_type = 1;
+
+	int *hud = clent->client->resp.hud_items;
+	int i;
+
+	if (teamplay->value && spectator_hud->value)
+	{
+		for (i = 0; i < 6; i++)
+		{
+			int x, y;
+			int h_base = h_nameplate_l + (i * 5);
+			int h;
+
+			x = 0;
+			y = 28 + (28 * i);
+
+			h = h_base; // back bar
+			hud[h] = Ghud_NewElement(clent, GHT_FILL);
+			Ghud_SetPosition(clent, hud[h], x, y);
+			Ghud_SetAnchor(clent, hud[h], 0, 0);
+			Ghud_SetSize(clent, hud[h], 144, 24);
+			Ghud_SetColor(clent, hud[h], 110, 45, 45, 230);
+
+			h = h_base + 1; // health bar
+			hud[h] = Ghud_NewElement(clent, GHT_FILL);
+			Ghud_SetPosition(clent, hud[h], x, y);
+			Ghud_SetAnchor(clent, hud[h], 0, 0);
+			Ghud_SetSize(clent, hud[h], 0, 24);
+			Ghud_SetColor(clent, hud[h], 220, 60, 60, 230);
+
+			h = h_base + 2; // name
+			hud[h] = Ghud_AddText(clent, x + 142, y + 3, "");
+			Ghud_SetAnchor(clent, hud[h], 0, 0);
+			Ghud_SetTextFlags(clent, hud[h], UI_RIGHT);
+
+			h = h_base + 3; // k/d
+			hud[h] = Ghud_AddText(clent, x + 142, y + 14, "");
+			Ghud_SetAnchor(clent, hud[h], 0, 0);
+			Ghud_SetTextFlags(clent, hud[h], UI_RIGHT);
+
+			h = h_base + 4; // weapon select
+			hud[h] = Ghud_AddIcon(clent, x + 2, y + 2, level.pic_items[M4_NUM], 20, 20);
+			Ghud_SetAnchor(clent, hud[h], 0, 0);
+		}
+
+		for (i = 0; i < 6; i++)
+		{
+			int x, y;
+			int h_base = h_nameplate_r + (i * 5);
+			int h;
+
+			x = -144;
+			y = 28 + (28 * i);
+
+			h = h_base; // back bar
+			hud[h] = Ghud_NewElement(clent, GHT_FILL);
+			Ghud_SetPosition(clent, hud[h], x, y);
+			Ghud_SetAnchor(clent, hud[h], 1, 0);
+			Ghud_SetSize(clent, hud[h], 144, 24);
+			Ghud_SetColor(clent, hud[h], 30, 60, 110, 230);
+
+			h = h_base + 1; // health bar
+			hud[h] = Ghud_NewElement(clent, GHT_FILL);
+			Ghud_SetPosition(clent, hud[h], x, y);
+			Ghud_SetAnchor(clent, hud[h], 1, 0);
+			Ghud_SetSize(clent, hud[h], 0, 24);
+			Ghud_SetColor(clent, hud[h], 40, 80, 220, 230);
+
+			h = h_base + 2; // name
+			hud[h] = Ghud_AddText(clent, x + 2, y + 3, "");
+			Ghud_SetAnchor(clent, hud[h], 1, 0);
+			Ghud_SetTextFlags(clent, hud[h], UI_LEFT);
+
+			h = h_base + 3; // k/d
+			hud[h] = Ghud_AddText(clent, x + 2, y + 14, "");
+			Ghud_SetAnchor(clent, hud[h], 1, 0);
+			Ghud_SetTextFlags(clent, hud[h], UI_LEFT);
+
+			h = h_base + 4; // weapon select
+			hud[h] = Ghud_AddIcon(clent, x + 122, y + 2, level.pic_items[M4_NUM], 20, 20);
+			Ghud_SetAnchor(clent, hud[h], 1, 0);
+		}
+
+		hud[h_team_l] = Ghud_AddIcon(clent, 2, 2, level.pic_teamskin[1], 24, 24);
+		Ghud_SetAnchor(clent, hud[h_team_l], 0, 0);
+		hud[h_team_l_num] = Ghud_AddNumber(clent, 96, 2, 0);
+		Ghud_SetSize(clent, hud[h_team_l_num], 2, 0);
+		Ghud_SetAnchor(clent, hud[h_team_l_num], 0, 0);
+
+		hud[h_team_r] = Ghud_AddIcon(clent, -26, 2, level.pic_teamskin[2], 24, 24);
+		Ghud_SetAnchor(clent, hud[h_team_r], 1, 0);
+		hud[h_team_r_num] = Ghud_AddNumber(clent, -128, 2, 0);
+		Ghud_SetSize(clent, hud[h_team_r_num], 1, 0);
+		Ghud_SetAnchor(clent, hud[h_team_r_num], 1, 0);
+	}
+}
+
+void HUD_SpectatorUpdate(edict_t *clent)
+{
+	int i;
+
+	if (teamplay->value && spectator_hud->value)
+	{
+		int *hud = clent->client->resp.hud_items;
+
+		if (!(clent->client->pers.spec_flags & SPECFL_SPECHUD_NEW)) // hide all elements since client doesn't want them
+		{
+			for (i = 0; i <= h_team_r_num; i++)
+			{
+				Ghud_SetFlags(clent, hud[i], GHF_HIDE);
+			}
+			return;
+		}
+
+		gclient_t *team1_players[6];
+		gclient_t *team2_players[6];
+		gclient_t *sortedClients[MAX_CLIENTS];
+
+		int totalClients, team1Clients, team2Clients;
+
+		memset(team1_players, 0, sizeof(team1_players));
+		memset(team2_players, 0, sizeof(team2_players));
+
+		team1Clients = 0;
+		team2Clients = 0;
+		totalClients = G_SortedClients(sortedClients);
+
+		for (i = 0; i < totalClients; i++)
+		{
+			gclient_t *cl = sortedClients[i];
+
+			if (!cl->resp.team)
+				continue;
+
+			if (cl->resp.subteam)
+				continue;
+
+			if (cl->resp.team == TEAM1)
+			{
+				if (team1Clients >= 6)
+					continue;
+
+				team1_players[team1Clients] = cl;
+				team1Clients++;
+				continue;
+			}
+			if (cl->resp.team == TEAM2)
+			{
+				if (team2Clients >= 6)
+					continue;
+
+				team2_players[team2Clients] = cl;
+				team2Clients++;
+				continue;
+			}
+		}
+
+		// team 1 (red team)
+		Ghud_SetFlags(clent, hud[h_team_l], 0);
+		Ghud_SetFlags(clent, hud[h_team_l_num], 0);
+		Ghud_SetInt(clent, hud[h_team_l_num], teams[TEAM1].score);
+
+		for (i = 0; i < 6; i++)
+		{
+			int x, y;
+			int h = h_nameplate_l + (i * 5);
+			gclient_t *cl = team1_players[i];
+
+			if (!cl) // if there is no player, hide all the elements for their plate
+			{
+				Ghud_SetFlags(clent, hud[h + 0], GHF_HIDE);
+				Ghud_SetFlags(clent, hud[h + 1], GHF_HIDE);
+				Ghud_SetFlags(clent, hud[h + 2], GHF_HIDE);
+				Ghud_SetFlags(clent, hud[h + 3], GHF_HIDE);
+				Ghud_SetFlags(clent, hud[h + 4], GHF_HIDE);
+				continue;
+			}
+
+			x = 0;
+			y = 28 + (28 * i);
+
+			// unhide our elements
+			Ghud_SetFlags(clent, hud[h + 0], 0);
+			Ghud_SetFlags(clent, hud[h + 1], 0);
+			Ghud_SetFlags(clent, hud[h + 2], 0);
+			Ghud_SetFlags(clent, hud[h + 3], 0);
+			Ghud_SetFlags(clent, hud[h + 4], 0);
+
+			// tint for deadness
+			edict_t *cl_ent = g_edicts + 1 + (cl - game.clients);
+			if (!IS_ALIVE(cl_ent))
+			{
+				Ghud_SetSize(clent, hud[h + 1], 0, 24);
+
+				Ghud_SetPosition(clent, hud[h + 0], x, y);
+				Ghud_SetSize(clent, hud[h + 0], 144, 24);
+			}
+			else
+			{
+				float hp_invfrac;
+				float hp_frac = bound(0, ((float)cl_ent->health / 100.0f), 1);
+				hp_invfrac = floorf((1 - hp_frac) * 144) / 144;
+				hp_frac = ceilf(hp_frac * 144) / 144; // round so we don't get gaps
+
+				Ghud_SetSize(clent, hud[h + 1], 144 * hp_frac, 24);
+				Ghud_SetSize(clent, hud[h + 0], 144 * hp_invfrac, 24);
+				Ghud_SetPosition(clent, hud[h + 0], x + (144 * (hp_frac)), y);
+			}
+
+			// generate strings
+			char nm_s[17];
+			char kdr_s[24];
+			memcpy(nm_s, cl->pers.netname, 16);
+			if (IS_ALIVE(cl_ent))
+				snprintf(kdr_s, sizeof(kdr_s), "%i", cl->resp.kills);
+			else
+				snprintf(kdr_s, sizeof(kdr_s), "(%i)%c    %5i", cl->resp.deaths, 06, cl->resp.kills);
+
+			nm_s[sizeof(nm_s) - 1] = 0; // make sure strings are terminated
+			kdr_s[23] = 0;
+
+			// update fields
+			Ghud_SetText(clent, hud[h + 2], nm_s);
+			Ghud_SetText(clent, hud[h + 3], kdr_s);
+
+			int weapNum = cl->pers.chosenWeapon ? cl->pers.chosenWeapon->typeNum : 0;
+
+			if (IS_ALIVE(cl_ent) && cl->curr_weap)
+				Ghud_SetInt(clent, hud[h + 4], level.pic_items[cl->curr_weap]);
+			else if (cl->resp.team == TEAM1 && weapNum)
+				Ghud_SetInt(clent, hud[h + 4], level.pic_items[weapNum]);
+			else // no weapon, set to mk23
+				Ghud_SetInt(clent, hud[h + 4], level.pic_items[MK23_NUM]);
+		}
+
+
+		// team 2 (blue team)
+		Ghud_SetFlags(clent, hud[h_team_r], 0);
+		Ghud_SetFlags(clent, hud[h_team_r_num], 0);
+		Ghud_SetInt(clent, hud[h_team_r_num], teams[TEAM2].score);
+		if (teams[TEAM2].score >= 10) // gotta readjust size for justifying purposes
+			Ghud_SetSize(clent, hud[h_team_r_num], 2, 0);
+		else
+			Ghud_SetSize(clent, hud[h_team_r_num], 1, 0);
+
+		for (i = 0; i < 6; i++)
+		{
+			int x, y;
+			int h = h_nameplate_r + (i * 5);
+			gclient_t *cl = team2_players[i];
+
+			if (!cl) // if there is no player, hide all the elements for their plate
+			{
+				Ghud_SetFlags(clent, hud[h + 0], GHF_HIDE);
+				Ghud_SetFlags(clent, hud[h + 1], GHF_HIDE);
+				Ghud_SetFlags(clent, hud[h + 2], GHF_HIDE);
+				Ghud_SetFlags(clent, hud[h + 3], GHF_HIDE);
+				Ghud_SetFlags(clent, hud[h + 4], GHF_HIDE);
+				continue;
+			}
+
+			x = -144;
+			y = 28 + (28 * i);
+
+			// unhide our elements
+			Ghud_SetFlags(clent, hud[h + 0], 0);
+			Ghud_SetFlags(clent, hud[h + 1], 0);
+			Ghud_SetFlags(clent, hud[h + 2], 0);
+			Ghud_SetFlags(clent, hud[h + 3], 0);
+			Ghud_SetFlags(clent, hud[h + 4], 0);
+
+			// tint for deadness
+			edict_t *cl_ent = g_edicts + 1 + (cl - game.clients);
+			if (!IS_ALIVE(cl_ent))
+			{
+				Ghud_SetSize(clent, hud[h + 1], 0, 24);
+				Ghud_SetSize(clent, hud[h + 0], 144, 24);
+				//Ghud_SetPosition(clent, hud[h + 0], x, y);
+			}
+			else
+			{
+				float hp_invfrac;
+				float hp_frac = bound(0, ((float)cl_ent->health / 100.0f), 1);
+				hp_invfrac = floorf((1 - hp_frac) * 144) / 144;
+				hp_frac = ceilf(hp_frac * 144) / 144; // round so we don't get gaps
+
+				Ghud_SetSize(clent, hud[h + 1], 144 * hp_frac, 24);
+				Ghud_SetSize(clent, hud[h + 0], 144 * hp_invfrac, 24);
+				Ghud_SetPosition(clent, hud[h + 1], x + (144 * hp_invfrac), y);
+				//Ghud_SetPosition(clent, hud[h + 0], x + (144 * (hp_frac)), y);
+			}
+
+			// generate strings
+			char nm_s[17];
+			char kdr_s[24];
+			memcpy(nm_s, cl->pers.netname, 16);
+			if (IS_ALIVE(cl_ent))
+				snprintf(kdr_s, sizeof(kdr_s), "%i", cl->resp.kills);
+			else
+				snprintf(kdr_s, sizeof(kdr_s), "%-5i    %c(%i)", cl->resp.kills, 06, cl->resp.deaths);
+
+			nm_s[sizeof(nm_s) - 1] = 0; // make sure strings are terminated
+			kdr_s[23] = 0;
+
+			// update fields
+			Ghud_SetText(clent, hud[h + 2], nm_s);
+			Ghud_SetText(clent, hud[h + 3], kdr_s);
+
+			int weapNum = cl->pers.chosenWeapon ? cl->pers.chosenWeapon->typeNum : 0;
+
+			if (IS_ALIVE(cl_ent) && cl->curr_weap)
+				Ghud_SetInt(clent, hud[h + 4], level.pic_items[cl->curr_weap]);
+			else if (cl->resp.team == TEAM2 && weapNum)
+				Ghud_SetInt(clent, hud[h + 4], level.pic_items[weapNum]);
+			else // no weapon, set to mk23
+				Ghud_SetInt(clent, hud[h + 4], level.pic_items[MK23_NUM]);
+		}
+	}
+}
+
+#endif
+

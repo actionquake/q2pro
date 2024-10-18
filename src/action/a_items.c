@@ -135,23 +135,22 @@ void SpecThink(edict_t * spec)
 
 static void MakeTouchSpecThink(edict_t * ent)
 {
-
 	ent->touch = Touch_Item;
 
 	if (allitem->value) {
-		ent->nextthink = level.framenum + 1 * HZ;
+		ent->nextthink = eztimer(1);
 		ent->think = G_FreeEdict;
 		return;
 	}
 
 	if (gameSettings & GS_ROUNDBASED) {
-		ent->nextthink = level.framenum + 60 * HZ; //FIXME: should this be roundtime left
+		ent->nextthink = eztimer(60); //FIXME: should this be roundtime left
 		ent->think = G_FreeEdict;
 		return;
 	}
 
 	if (gameSettings & GS_WEAPONCHOOSE) {
-		ent->nextthink = level.framenum + 6 * HZ;
+		ent->nextthink = eztimer(6);
 		ent->think = G_FreeEdict;
 		return;
 	}

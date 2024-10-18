@@ -75,13 +75,13 @@ void CL_CheckPredictionError(void)
 CL_ClipMoveToEntities
 ====================
 */
-static void CL_ClipMoveToEntities(trace_t *tr, const vec3_t start, const vec3_t mins, const vec3_t maxs, const vec3_t end, int contentmask)
+static void CL_ClipMoveToEntities(trace_t *tr, const vec3_t start, const vec3_t end, const vec3_t mins, const vec3_t maxs, int contentmask)
 {
     int         i;
     trace_t     trace;
-    mnode_t     *headnode;
-    centity_t   *ent;
-    mmodel_t    *cmodel;
+    const mnode_t   *headnode;
+    const centity_t *ent;
+    const mmodel_t  *cmodel;
 
     for (i = 0; i < cl.numSolidEntities; i++) {
         ent = cl.solidEntities[i];
@@ -115,15 +115,16 @@ static void CL_ClipMoveToEntities(trace_t *tr, const vec3_t start, const vec3_t 
 CL_Trace
 ================
 */
-void CL_Trace(trace_t *tr, const vec3_t start, const vec3_t mins, const vec3_t maxs, const vec3_t end, int contentmask)
+void CL_Trace(trace_t *tr, const vec3_t start, const vec3_t end, const vec3_t mins, const vec3_t maxs, int contentmask)
 {
     // check against world
     CM_BoxTrace(tr, start, end, mins, maxs, cl.bsp->nodes, contentmask);
-    if (tr->fraction < 1.0f)
-        tr->ent = (struct edict_s *)cl_entities;
+    tr->ent = (struct edict_s *)cl_entities;
+    if (tr->fraction == 0)
+        return;     // blocked by the world
 
     // check all other solid models
-    CL_ClipMoveToEntities(tr, start, mins, maxs, end, contentmask);
+    CL_ClipMoveToEntities(tr, start, end, mins, maxs, contentmask);
 }
 
 static int pm_clipmask;
@@ -131,16 +132,15 @@ static int pm_clipmask;
 static trace_t q_gameabi CL_PMTrace(const vec3_t start, const vec3_t mins, const vec3_t maxs, const vec3_t end)
 {
     trace_t t;
-    CL_Trace(&t, start, mins, maxs, end, pm_clipmask);
+    CL_Trace(&t, start, end, mins, maxs, pm_clipmask);
     return t;
 }
 
 static int CL_PointContents(const vec3_t point)
 {
-    int         i;
-    centity_t   *ent;
-    mmodel_t    *cmodel;
-    int         contents;
+    const centity_t *ent;
+    const mmodel_t  *cmodel;
+    int i, contents;
 
     contents = CM_PointContents(point, cl.bsp->nodes);
 
@@ -231,11 +231,13 @@ void CL_PredictMovement(void)
     pm.trace = CL_PMTrace;
     pm.pointcontents = CL_PointContents;
     pm.s = cl.frame.ps.pmove;
+    pm.snapinitial = qtrue;
 
     // run frames
     while (++ack <= current) {
         pm.cmd = cl.cmds[ack & CMD_MASK];
-        Pmove(&pm, &cl.pmp);
+        PmoveNew(&pm, &cl.pmp);
+        pm.snapinitial = qfalse;
 
         // save for debug checking
         VectorCopy(pm.s.origin, cl.predicted_origins[ack & CMD_MASK]);
@@ -247,7 +249,7 @@ void CL_PredictMovement(void)
         pm.cmd.forwardmove = cl.localmove[0];
         pm.cmd.sidemove = cl.localmove[1];
         pm.cmd.upmove = cl.localmove[2];
-        Pmove(&pm, &cl.pmp);
+        PmoveNew(&pm, &cl.pmp);
         frame = current;
 
         // save for debug checking

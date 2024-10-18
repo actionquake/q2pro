@@ -1,0 +1,35 @@
+{
+    "name": "GuN",
+    "clan_id": null,
+    "skin": "terror/adf2",
+    "weaponPreferences": {
+        "mk23": 0.7,
+        "dual_mk23": 0.3,
+        "mp5": 0.4,
+        "m4": 0.2,
+        "m3": 0.5,
+        "hc": 0.9,
+        "sniper": 0.7,
+        "knives": 0.6,
+        "grenades": 0.5
+    },
+    "itemPreferences": {
+        "vest": 0.6,
+        "helm": 0.6,
+        "laser": 0.6,
+        "silencer": 0.5,
+        "slippers": 0.5,
+        "bandolier": 0.5
+    },
+    "coreTraits": {
+        "aggressiveness": 0.6,
+        "teamwork": 0.7,
+        "curiosity": 0.4,
+        "aimingSkill": 0.3,
+        "reactionTime": 0.4,
+        "communicationFreq": 0.2,
+        "communicationTone": 0.5,
+        "movementStyle": 0.5,
+        "objectiveFocus": 0.7
+    }
+}

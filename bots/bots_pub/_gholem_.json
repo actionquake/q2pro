@@ -1,0 +1,35 @@
+{
+    "name": "_Gholem_",
+    "clan_id": null,
+    "skin": "aqmarine/urban",
+    "weaponPreferences": {
+        "mk23": 0.6,
+        "dual_mk23": 0.3,
+        "mp5": 0.6,
+        "m4": 0.6,
+        "m3": 0.2,
+        "hc": 0.2,
+        "sniper": 0.8,
+        "knives": 0.7,
+        "grenades": 0.3
+    },
+    "itemPreferences": {
+        "vest": 0.6,
+        "helm": 0.5,
+        "laser": 0.8,
+        "silencer": 0.8,
+        "slippers": 0.6,
+        "bandolier": 0.4
+    },
+    "coreTraits": {
+        "aggressiveness": 0.2,
+        "teamwork": 0.3,
+        "curiosity": 0.7,
+        "aimingSkill": 0.4,
+        "reactionTime": 0.5,
+        "communicationFreq": 0.6,
+        "communicationTone": 0.5,
+        "movementStyle": 0.6,
+        "objectiveFocus": 0.3
+    }
+}

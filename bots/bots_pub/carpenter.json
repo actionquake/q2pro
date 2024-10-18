@@ -1,0 +1,35 @@
+{
+    "name": "Carpenter",
+    "clan_id": null,
+    "skin": "actionmale/shinobi",
+    "weaponPreferences": {
+        "mk23": 0.3,
+        "dual_mk23": 0.7,
+        "mp5": 0.4,
+        "m4": 0.8,
+        "m3": 0.7,
+        "hc": 0.6,
+        "sniper": 0.5,
+        "knives": 0.4,
+        "grenades": 0.7
+    },
+    "itemPreferences": {
+        "vest": 0.3,
+        "helm": 0.8,
+        "laser": 0.7,
+        "silencer": 0.3,
+        "slippers": 0.7,
+        "bandolier": 0.3
+    },
+    "coreTraits": {
+        "aggressiveness": 0.7,
+        "teamwork": 0.5,
+        "curiosity": 0.9,
+        "aimingSkill": 0.5,
+        "reactionTime": 0.6,
+        "communicationFreq": 0.2,
+        "communicationTone": 0.6,
+        "movementStyle": 0.3,
+        "objectiveFocus": 0.4
+    }
+}

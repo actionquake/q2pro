@@ -16,6 +16,7 @@
  */
 
 #include "../g_local.h"
+#include "../botlib/botlib.h"
 
 
 #define SHOWNODES_DIST		384	// Max range for shownodes
@@ -90,6 +91,7 @@ void BOTUT_ShowNodes (edict_t *ent)
     for (i=0; i < numnodes; i++)
     {
         pThisNode = &nodes[i];
+		//pThisNode = nodes[i];
         if (pThisNode->nodenum < 0)
                 continue;
         VectorCopy (pThisNode->origin, vNodePos);
