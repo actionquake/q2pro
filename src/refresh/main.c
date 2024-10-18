@@ -357,6 +357,7 @@ static void GL_DrawSpriteModel(const model_t *model)
     }
 
     GL_LoadMatrix(glr.viewmatrix);
+    GL_LoadUniforms();
     GL_BindTexture(TMU_TEXTURE, image->texnum);
     GL_BindArrays(VA_SPRITE);
     GL_StateBits(bits);
@@ -421,6 +422,7 @@ static void GL_DrawNullModel(void)
     //rekkie -- allow gl_showtris to show nodes points as a cross configuration -- e
 
     GL_LoadMatrix(glr.viewmatrix);
+    GL_LoadUniforms();
     GL_BindTexture(TMU_TEXTURE, TEXNUM_WHITE);
     GL_BindArrays(VA_NULLMODEL);
     GL_StateBits(GLS_DEFAULT);
@@ -1516,6 +1518,7 @@ static void GL_OccludeFlares(void)
 
         if (!set) {
             GL_LoadMatrix(glr.viewmatrix);
+            GL_LoadUniforms();
             GL_BindTexture(TMU_TEXTURE, TEXNUM_WHITE);
             GL_BindArrays(VA_OCCLUDE);
             GL_StateBits(GLS_DEPTHMASK_FALSE);
@@ -1684,6 +1687,7 @@ static void GL_WaterWarp(void)
     GL_StateBits(GLS_DEPTHTEST_DISABLE | GLS_DEPTHMASK_FALSE |
                  GLS_CULL_DISABLE | GLS_TEXTURE_REPLACE | GLS_WARP_ENABLE);
     GL_ArrayBits(GLA_VERTEX | GLA_TC);
+    GL_LoadUniforms();
 
     x0 = glr.fd.x;
     x1 = glr.fd.x + glr.fd.width;
@@ -2071,6 +2075,31 @@ static void GL_SetupConfig(void)
         if (Cvar_VariableInteger("gl_debug") < 2)
             qglDebugMessageControl(GL_DONT_CARE, GL_DONT_CARE, GL_DEBUG_SEVERITY_NOTIFICATION, 0, NULL, GL_FALSE);
         qglDebugMessageCallback(myDebugProc, NULL);
+    }
+
+    if (gl_config.caps & QGL_CAP_SHADER_STORAGE) {
+        integer = 0;
+        qglGetIntegerv(GL_MAX_VERTEX_SHADER_STORAGE_BLOCKS, &integer);
+        if (integer < 2) {
+            Com_DPrintf("Not enough shader storage blocks available\n");
+            gl_config.caps &= ~QGL_CAP_SHADER_STORAGE;
+        } else {
+            integer = 1;
+            qglGetIntegerv(GL_SHADER_STORAGE_BUFFER_OFFSET_ALIGNMENT, &integer);
+            if (integer & (integer - 1))
+                integer = Q_npot32(integer);
+            Com_DPrintf("SSBO alignment: %d\n", integer);
+            gl_config.ssbo_align = integer;
+        }
+    }
+
+    if (gl_config.caps & QGL_CAP_BUFFER_TEXTURE) {
+        integer = 0;
+        qglGetIntegerv(GL_MAX_TEXTURE_BUFFER_SIZE, &integer);
+        if (integer < MOD_MAXSIZE_GPU) {
+            Com_DPrintf("Not enough buffer texture size available\n");
+            gl_config.caps &= ~QGL_CAP_BUFFER_TEXTURE;
+        }
     }
 
     GL_ShowErrors(__func__);

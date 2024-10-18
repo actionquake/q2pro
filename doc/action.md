@@ -78,6 +78,7 @@ Additions and enhancements by darksaint, Reki, Rektek and the AQ2World team
     - [Automatic Reloading of Pistol](#automatic-reloading-of-pistol)
     - [Weapon Banning](#weapon-banning)
     - [Item Banning](#item-banning)
+    - [Weapon/Item Counts](#weaponitem-counts)
     - [Teamkilling after a Round](#teamkilling-after-a-round)
     - [New IR Vision](#new-ir-vision)
     - [Radio and Voice Flood Protection](#radio-and-voice-flood-protection)
@@ -480,6 +481,13 @@ To allow/disallow the usage of certain items, TNG supports item banning.
 For all weapons: 63 (default)
 
 **Example:** You want to have slippers and silencers only on your server: you set itm_flags to 3 (1+2).
+
+### Weapon/Item Counts
+Normally, AQ2 allows one item and one weapon.  These settings can adjust that so that you spawn with more, or can hold more in general.
+- `allweapon [0/1]` - default 0, if enabled, all players spawn with all weapons, with exception of any weapon bans
+- `allitem [0/1]` - default 0, if enabled, all players spawn with all items, with exception of any item bans
+- `allow_hoarding [#]` - default 0, if enabled, allows players to pick up more than 1 special item or weapon, but does not spawn with them, like allweapon or allitem will do
+
 
 ### Teamkilling after a Round
 To add a little more fun in the game, we've added an option which will allow a team to TK each other after a round has ended during Teamplay. This is only available to servers where FF is off.

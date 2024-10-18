@@ -574,7 +574,7 @@ static glStateBits_t statebits_for_surface(const mface_t *surf)
     glStateBits_t statebits = GLS_DEFAULT;
 
     if (surf->drawflags & SURF_SKY) {
-        if (Q_stricmpn(surf->texinfo->name, CONST_STR_LEN("n64/env/sky")) == 0)
+        if (surf->texinfo->image->flags & IF_CLASSIC_SKY)
             return GLS_TEXTURE_REPLACE | GLS_CLASSIC_SKY;
         else
             return GLS_TEXTURE_REPLACE | GLS_DEFAULT_SKY;
@@ -986,17 +986,11 @@ void GL_FreeWorld(void)
         return;
 
     BSP_Free(gl_static.world.cache);
+    Z_Free(gl_static.world.vertices);
+    GL_DeleteBuffer(gl_static.world.buffer);
 
-    if (gl_static.world.vertices)
-        Z_Free(gl_static.world.vertices);
-    else if (qglDeleteBuffers)
-        qglDeleteBuffers(1, &gl_static.world.buffer);
-
-    // invalidate bindings
     if (gls.currentva == VA_3D)
         gls.currentva = VA_NONE;
-    if (gls.currentbuffer[0] == gl_static.world.buffer)
-        gls.currentbuffer[0] = 0;
 
     memset(&gl_static.world, 0, sizeof(gl_static.world));
 }
@@ -1097,7 +1091,7 @@ void GL_LoadWorld(const char *name)
     if (create_surface_vbo(size)) {
         Com_DPrintf("%s: %zu bytes of vertex data as VBO\n", __func__, size);
     } else {
-        gl_static.world.vertices = Z_TagMalloc(size, TAG_RENDERER);
+        gl_static.world.vertices = R_Malloc(size);
         Com_DPrintf("%s: %zu bytes of vertex data on heap\n", __func__, size);
     }
     gl_static.world.buffer_size = size;

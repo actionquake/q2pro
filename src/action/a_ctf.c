@@ -479,6 +479,10 @@ void CTFFragBonuses(edict_t * targ, edict_t * inflictor, edict_t * attacker)
 
 	carrier = NULL;
 
+	// NULL checks
+	if (!targ || !inflictor || !attacker)
+		return;
+
 	// no bonus for fragging yourself
 	if (!targ->client || !attacker->client || targ == attacker)
 		return;

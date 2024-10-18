@@ -766,12 +766,14 @@ void BOTLIB_CTF_Goals(edict_t* self)
 			if (VectorDistance(self->s.origin, bot_ctf_status.flag2->s.origin) < VectorDistance(self->s.origin, bot_ctf_status.flag1->s.origin))
 			{
 				flag_to_get = FLAG_T2_NUM; // Dropped team flag
-				Com_Printf("%s %s [team] dropped blue flag is closer. [%f] is less than [%f]\n", __func__, self->client->pers.netname, VectorDistance(self->s.origin, bot_ctf_status.flag2->s.origin), VectorDistance(self->s.origin, bot_ctf_status.flag1->s.origin));
+				if (bot_debug->value)
+					Com_Printf("%s %s [team] dropped blue flag is closer. [%f] is less than [%f]\n", __func__, self->client->pers.netname, VectorDistance(self->s.origin, bot_ctf_status.flag2->s.origin), VectorDistance(self->s.origin, bot_ctf_status.flag1->s.origin));
 			}
 			else
 			{
 				flag_to_get = FLAG_T1_NUM; // Dropped enemy flag
-				Com_Printf("%s %s [enemy] dropped red flag is closer. [%f] is less than [%f]\n", __func__, self->client->pers.netname, VectorDistance(self->s.origin, bot_ctf_status.flag1->s.origin), VectorDistance(self->s.origin, bot_ctf_status.flag2->s.origin));
+				if (bot_debug->value)
+					Com_Printf("%s %s [enemy] dropped red flag is closer. [%f] is less than [%f]\n", __func__, self->client->pers.netname, VectorDistance(self->s.origin, bot_ctf_status.flag1->s.origin), VectorDistance(self->s.origin, bot_ctf_status.flag2->s.origin));
 			}
 		}
 		else if (bot_ctf_status.flag2_is_dropped) // Dropped team flag

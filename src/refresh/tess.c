@@ -73,6 +73,7 @@ void GL_DrawParticles(void)
         return;
 
     GL_LoadMatrix(glr.viewmatrix);
+    GL_LoadUniforms();
     GL_BindArrays(VA_EFFECT);
 
     bits = (gl_partstyle->integer ? GLS_BLEND_ADD : GLS_BLEND_BLEND) | GLS_DEPTHMASK_FALSE;
@@ -126,7 +127,7 @@ void GL_DrawParticles(void)
         qglDrawArrays(GL_TRIANGLES, 0, numverts);
 
         if (gl_showtris->integer & SHOWTRIS_FX)
-            GL_DrawOutlines(numverts, NULL, false);
+            GL_DrawOutlines(numverts, 0, NULL);
 
         GL_UnlockArrays();
     } while (total);
@@ -542,22 +543,24 @@ static const glVaDesc_t arraydescs[VA_TOTAL][VERT_ATTR_COUNT] = {
 
 void GL_BindArrays(glVertexArray_t va)
 {
-    const GLfloat *ptr = tess.vertices;
-    GLuint buffer = 0;
-
     if (gls.currentva == va)
         return;
 
-    if (va == VA_3D && !gl_static.world.vertices) {
-        buffer = gl_static.world.buffer;
-        ptr = NULL;
-    } else if (!(gl_config.caps & QGL_CAP_CLIENT_VA)) {
-        buffer = gl_static.vertex_buffer;
-        ptr = NULL;
-    }
+    if (va != VA_NONE) {
+        const GLfloat *ptr = tess.vertices;
+        GLuint buffer = 0;
 
-    GL_BindBuffer(GL_ARRAY_BUFFER, buffer);
-    gl_backend->array_pointers(arraydescs[va], ptr);
+        if (va == VA_3D && !gl_static.world.vertices) {
+            buffer = gl_static.world.buffer;
+            ptr = NULL;
+        } else if (!(gl_config.caps & QGL_CAP_CLIENT_VA)) {
+            buffer = gl_static.vertex_buffer;
+            ptr = NULL;
+        }
+
+        GL_BindBuffer(GL_ARRAY_BUFFER, buffer);
+        gl_backend->array_pointers(arraydescs[va], ptr);
+    }
 
     gls.currentva = va;
     c.vertexArrayBinds++;
@@ -565,6 +568,8 @@ void GL_BindArrays(glVertexArray_t va)
 
 void GL_LockArrays(GLsizei count)
 {
+    if (gls.currentva == VA_NONE)
+        return;
     if (gls.currentva == VA_3D && !gl_static.world.vertices)
         return;
     if (gl_config.caps & QGL_CAP_CLIENT_VA) {
@@ -579,6 +584,8 @@ void GL_LockArrays(GLsizei count)
 
 void GL_UnlockArrays(void)
 {
+    if (gls.currentva == VA_NONE)
+        return;
     if (gls.currentva == VA_3D && !gl_static.world.vertices)
         return;
     if (!(gl_config.caps & QGL_CAP_CLIENT_VA))
@@ -591,19 +598,25 @@ void GL_DrawIndexed(showtris_t showtris)
 {
     const glIndex_t *indices = tess.indices;
 
+    Q_assert(gls.currentva != VA_NONE);
+
+    GL_LoadUniforms();
+
     GL_LockArrays(tess.numverts);
 
-    if (!(gl_config.caps & QGL_CAP_CLIENT_VA)) {
+    if (gl_config.caps & QGL_CAP_CLIENT_VA) {
+        GL_BindBuffer(GL_ELEMENT_ARRAY_BUFFER, 0);
+    } else {
         GL_BindBuffer(GL_ELEMENT_ARRAY_BUFFER, gl_static.index_buffer);
         qglBufferData(GL_ELEMENT_ARRAY_BUFFER, tess.numindices * sizeof(indices[0]), indices, GL_STREAM_DRAW);
         indices = NULL;
     }
 
-    GL_DrawTriangles(tess.numindices, indices);
+    qglDrawElements(GL_TRIANGLES, tess.numindices, QGL_INDEX_TYPE, indices);
     c.trisDrawn += tess.numindices / 3;
 
     if (gl_showtris->integer & showtris)
-        GL_DrawOutlines(tess.numindices, indices, true);
+        GL_DrawOutlines(tess.numindices, QGL_INDEX_TYPE, indices);
 
     GL_UnlockArrays();
 }
