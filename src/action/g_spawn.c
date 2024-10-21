@@ -1957,7 +1957,7 @@ void SP_worldspawn (edict_t * ent)
 		}
 
 		// Espionage HUD is setup in SetEspStats()
-		if (!esp->value) {
+		if (!esp->value && !ctf->value) {
 			for(i = TEAM1; i <= teamCount; i++)
 			{
 				if (teams[i].skin_index[0] == 0) {

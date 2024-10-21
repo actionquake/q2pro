@@ -1007,6 +1007,8 @@ void SetCTFStats(edict_t * ent)
 	ent->client->ps.stats[STAT_TEAM1_PIC] = flagpic[TEAM1];
 	ent->client->ps.stats[STAT_TEAM2_PIC] = flagpic[TEAM2];
 
+	gi.dprintf("flagpic[1] = %d, flagpic[2] = %d\n", flagpic[TEAM1], flagpic[TEAM2]);
+
 	ent->client->ps.stats[STAT_TEAM1_SCORE] = ctfgame.team1;
 	ent->client->ps.stats[STAT_TEAM2_SCORE] = ctfgame.team2;
 
