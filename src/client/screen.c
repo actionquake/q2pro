@@ -1830,7 +1830,7 @@ static void SCR_ExecuteLayoutString(const char *s)
             continue;
         }
         //save whether we parsed a scope pic
-        scr.currently_zoomed_in = parsed_scope_pic;
+        scr.currently_scoped_in = parsed_scope_pic;
         if (!strcmp(token, "client")) {
             // draw a deathmatch client block
             int     score, ping, time;
