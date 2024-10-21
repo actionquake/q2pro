@@ -62,7 +62,6 @@ typedef struct {
     uint32_t    color;
     char        name[1];
     bool        hasBots;
-    size_t      numBots;
 } serverslot_t;
 
 typedef struct {
@@ -262,6 +261,7 @@ void UI_StatusEvent(const serverStatus_t *status)
 
     const char *am = "No";
     #if USE_AQTION
+    // This checks if the server has bots, if so, turn the color of the server to MAGENTA
     const char *hasBotsCheck = Info_ValueForKey(status->infostring, "am");
 
     if (hasBotsCheck == NULL || COM_IsWhite(hasBotsCheck) || *hasBotsCheck == '0') {

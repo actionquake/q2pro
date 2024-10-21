@@ -1313,6 +1313,7 @@ void Cmd_Ghost_f(edict_t * ent)
 
 	memcpy(ent->client->resp.hitsLocations, ghost->hitsLocations, sizeof(ent->client->resp.hitsLocations));
 	memcpy(ent->client->resp.gunstats, ghost->gunstats, sizeof(ent->client->resp.gunstats));
+	memcpy(ent->client->resp.awardstats, ghost->awardstats, sizeof(ent->client->resp.awardstats));
 
 	//Remove it from the list
 	for (i += 1; i < num_ghost_players; i++) {

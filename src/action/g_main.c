@@ -305,6 +305,7 @@ cvar_t *hud_noscore;
 cvar_t *use_newscore;
 cvar_t *scoreboard;
 cvar_t *actionversion;
+cvar_t *net_port;
 cvar_t *needpass;
 cvar_t *use_voice;
 cvar_t *ppl_idletime;
@@ -553,8 +554,26 @@ cvar_t *sv_killgib; // Gibs on 'kill' command
 
 // 2024
 cvar_t *warmup_unready; // Toggles warmup if captains unready
+// cURL integration / tng_net.c
+cvar_t *sv_curl_enable;					// Enable cURL integration
+cvar_t *sv_discord_announce_enable;		// Enable Discord announcements
+cvar_t *sv_curl_stat_enable;			// Enable cURL stat logging
+cvar_t *sv_aws_access_key;				// AWS Access Key (stat logs)
+cvar_t *sv_aws_secret_key;				// AWS Secret Key (stat logs)
+cvar_t *sv_curl_discord_info_url;		// Discord webhook (#info-feed channel)
+cvar_t *sv_curl_discord_pickup_url;		// Discord webhook (#pickup channel)
+cvar_t *server_ip;						// Server IP
+cvar_t *server_port;					// Server port
+cvar_t *sv_last_announce_interval;		// Interval between announcements
+cvar_t *sv_last_announce_time;			// Last announcement time
+cvar_t *server_announce_url;			// Server announce URL
+cvar_t *msgflags;						// Message flags (like dmflags) see Discord_Notifications enum for more info
+cvar_t *use_pickup;						// Enable pickup notifications from the server
+// end cURL integration cvars
+
 cvar_t *training_mode; // Sets training mode vars
 cvar_t *g_highscores_dir; // Sets the highscores directory
+cvar_t *g_highscores_countbots; // Toggles if we save highscores achieved by bots
 cvar_t *lca_grenade; // Allows grenade pin pulling during LCA
 cvar_t *breakableglass; // Moved from cgf_sfx_glass, enables breakable glass (0,1,2)
 cvar_t *glassfragmentlimit; // Moved from cgf_sfx_glass, sets glass fragment limit
@@ -1256,6 +1275,14 @@ void G_RunFrame (void)
 		int updateStatMode = (level.framenum % (80 * FRAMEDIV)) ? 0 : 1;
 
 		CycleLights ();
+
+		//Run pending curl requests
+		#if USE_CURL
+		#if AQTION_CURL
+		if (sv_curl_enable->value)
+			lc_once_per_gameframe();
+		#endif
+		#endif
 
 		//
 		// treat each object in turn

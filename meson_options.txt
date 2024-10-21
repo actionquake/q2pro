@@ -3,6 +3,11 @@ option('aqtion-build',
   value: true, 
   description: 'Build-specific for AQtion enhancements')
 
+option('aqtion-curl', 
+  type: 'boolean', 
+  value: true, 
+  description: 'Add cURL support for AQtion gamelib')
+
 option('anticheat-server',
   type: 'boolean',
   value: false,
@@ -74,15 +79,15 @@ option('icmp-errors',
   value: 'auto',
   description: 'Handle ICMP errors on UDP sockets')
 
-option('libcurl',
-  type: 'feature',
-  value: 'auto',
-  description: 'libcurl support')
-
 option('jansson',
   type: 'feature',
   value: 'auto',
   description: 'AQtion jansson support')
+
+option('libcurl',
+  type: 'feature',
+  value: 'auto',
+  description: 'libcurl support')
   
 option('libjpeg',
   type: 'feature',
@@ -166,9 +171,9 @@ option('tga',
   value: true,
   description: 'TGA images support')
 
-option('uuid', 
-  type: 'feature', 
-  value: 'auto', 
+option('uuid',
+  type: 'boolean',
+  value: 'true', 
   description: 'AQtion uuid support')
 
 option('variable-fps',

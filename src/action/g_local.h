@@ -291,6 +291,9 @@
 #include	"tng_jump.h"
 #include	"g_grapple.h"
 #include	"p_antilag.h"
+#if AQTION_CURL
+#include 	"tng_net.h"
+#endif
 
 #ifndef NO_BOTS
 //#include	"acesrc/botnav.h"
@@ -429,6 +432,26 @@ typedef enum
 }
 ammo_t;
 
+//tng_net.c
+typedef enum {
+	SERVER_WARMING_UP = BIT(0),   // 1
+	DEATH_MSG = BIT(1),           // 2
+	CHAT_MSG = BIT(2),            // 4
+	AWARD_MSG = BIT(3),           // 8
+	SERVER_MSG = BIT(4),          // 16
+	MATCH_START_MSG = BIT(5),     // 32
+	MATCH_END_MSG = BIT(6),       // 64
+	PICKUP_REQ_MSG = BIT(7),      // 128
+	NOTIFY_MAX = BIT(8)           // 256 (enable all)
+} Discord_Notifications;
+
+// Default messages
+#define MM_MATCH_END_MSG "Matchmode Results"
+#define DM_MATCH_END_MSG "Deathmatch Results"
+#define MM_3_MIN_WARN "3 minutes remaining in the map"
+#define PICKUP_GAME_REQUEST "A pickup game has been started"
+#define TP_MATCH_START_MSG "Match is about to begin!"
+#define TP_MATCH_END_MSG "Match has ended!"
 
 //deadflag
 #define DEAD_NO                         0
@@ -776,6 +799,9 @@ typedef struct
   qboolean ai_ent_found;
   int bot_count;
 
+  // API-related
+  int srv_announce_timeout;
+
   //q2pro protocol extensions
   cs_remap_t  csr;
   precache_t  *precaches;
@@ -787,6 +813,12 @@ typedef struct
   #ifndef NO_BOTS
   char* bot_file_path[MAX_QPATH];
   int used_bot_personalities;
+  #endif
+
+  #if AQTION_CURL
+  // Discord Webhook limits
+  qboolean time_warning_sent; 	// This is set to true when the time warning has been sent, resets every map
+  
   #endif
 }
 game_locals_t;
@@ -893,6 +925,8 @@ typedef struct
   vec3_t poi_origin;
   vec3_t poi_angle;
 
+  // tng_net.c
+  int lc_recently_sent[NOTIFY_MAX];	// Used to prevent spamming of the endpoint
   // Map features
   map_features_t map_features;
 }
@@ -1024,6 +1058,7 @@ typedef enum {
 
 // Awards
 typedef enum {
+	AWARD_NONE,
     ACCURACY,
     IMPRESSIVE,
     EXCELLENT,
@@ -1083,6 +1118,7 @@ extern edict_t *g_edicts;
 #define crandom()       (2.0 * (random() - 0.5))
 
 #define DMFLAGS(x)     (((int)dmflags->value & x) != 0)
+#define MSGFLAGS(x)	   (((int)msgflags->value & x) != 0)
 
 #ifndef NO_BOTS
 #define AQ2WTEAMSIZE	46
@@ -1114,6 +1150,7 @@ extern cvar_t *hud_noscore;
 extern cvar_t *use_newscore;
 extern cvar_t *scoreboard;
 extern cvar_t *actionversion;
+extern cvar_t *net_port;
 #ifndef NO_BOTS
 extern cvar_t *ltk_jumpy;
 #endif
@@ -1311,8 +1348,25 @@ extern cvar_t *sv_killgib; // Enable or disable gibbing on kill command
 
 // 2024
 extern cvar_t *warmup_unready;
+// cURL integration
+extern cvar_t *sv_curl_enable;
+extern cvar_t *sv_discord_announce_enable;
+extern cvar_t *sv_curl_stat_enable;
+extern cvar_t *sv_aws_access_key;
+extern cvar_t *sv_aws_secret_key;
+extern cvar_t *sv_curl_discord_info_url;
+extern cvar_t *sv_curl_discord_pickup_url;
+extern cvar_t *server_ip;
+extern cvar_t *server_port;
+extern cvar_t *sv_last_announce_interval;
+extern cvar_t *sv_last_announce_time;
+extern cvar_t *msgflags;
+extern cvar_t *use_pickup;
+//end cUrl integration
+
 extern cvar_t *training_mode; // Sets training mode vars
 extern cvar_t *g_highscores_dir; // Sets the highscores directory
+extern cvar_t *g_highscores_countbots; // Toggles if we save highscores achieved by bots
 extern cvar_t *lca_grenade; // Allows grenade pin pulling during LCA
 extern cvar_t *breakableglass; // Moved from cgf_sfx_glass, enables breakable glass (0,1,2)
 extern cvar_t *glassfragmentlimit; // Moved from cgf_sfx_glass, sets glass fragment limit
@@ -1364,6 +1418,7 @@ extern cvar_t *stat_logs; // Enables/disables logging of stats
 extern cvar_t *mapvote_next_limit; // Time left that disables map voting
 extern cvar_t *stat_apikey; // Stats URL key
 extern cvar_t *stat_url; // Stats URL endpoint
+extern cvar_t *server_announce_url; // Server announce URL endpoint
 extern cvar_t *g_spawn_items; // Enables item spawning in GS_WEAPONCHOOSE games
 extern cvar_t *gm; // Gamemode
 extern cvar_t *gmf; // Gamemodeflags
@@ -1493,6 +1548,7 @@ qboolean infront( edict_t *self, edict_t *other );
 void disablecvar(cvar_t *cvar, char *msg);
 int eztimer(int seconds);
 float sigmoid(float x);
+edict_t* FindEdictByClient(gclient_t* client);
 
 // Re-enabled for bots
 float *tv (float x, float y, float z);
@@ -1670,7 +1726,10 @@ void G_UpdatePlayerStatusbar( edict_t *ent, int force );
 int Gamemodeflag(void);
 int Gamemode(void);
 #if USE_AQTION
+#define GENERATE_UUID() generate_uuid()
 void generate_uuid(void);
+#else
+#define GENERATE_UUID()
 #endif
 //
 // p_client.c
@@ -1700,17 +1759,34 @@ void InitTookDamage(void);
 void ProduceShotgunDamageReport(edict_t*);
 
 //tng_stats.c
-void StatBotCheck(void);
 void G_RegisterScore(void);
 int G_CalcRanks(gclient_t **ranks);
 void G_LoadScores(void);
+
+// Compiler macros for stat logging
 #if USE_AQTION
-void LogKill(edict_t *self, edict_t *inflictor, edict_t *attacker);
-void LogWorldKill(edict_t *self);
+#define STAT_BOT_CHECK() StatBotCheck()
+void StatBotCheck(void);
+#define LOG_KILL(ent, inflictor, attacker) LogKill(ent, inflictor, attacker)
+void LogKill(edict_t *ent, edict_t *inflictor, edict_t *attacker);
+#define LOG_WORLD_KILL(ent) LogWorldKill(ent)
+void LogWorldKill(edict_t *ent);
+#define LOG_CAPTURE(capturer) LogCapture(capturer)
 void LogCapture(edict_t *capturer);
+#define LOG_MATCH() LogMatch()
 void LogMatch(void);
+#define LOG_AWARD(ent, award) LogAward(ent, award)
 void LogAward(edict_t *ent, int award);
+#define LOG_END_MATCH_STATS() LogEndMatchStats()
 void LogEndMatchStats(void);
+#else
+#define STAT_BOT_CHECK()
+#define LOG_KILL(ent, inflictor, attacker)
+#define LOG_WORLD_KILL(ent)
+#define LOG_CAPTURE(capturer)
+#define LOG_MATCH()
+#define LOG_AWARD(ent, award)
+#define LOG_END_MATCH_STATS()
 #endif
 
 //============================================================================
@@ -1755,6 +1831,12 @@ typedef struct gunStats_s
 	int damage;		//Damage dealt
 } gunStats_t;
 
+typedef struct lt_stats_s
+{
+    int frags;
+    int deaths;
+    int64_t damage;
+} lt_stats_t;
 
 // client data that stays across multiple level loads
 typedef struct
@@ -1887,7 +1969,7 @@ typedef struct
 
   int hitsLocations[LOC_MAX];		//Number of hits for different locations
   gunStats_t gunstats[MOD_TOTAL]; //Number of shots/hits for different guns, adjusted to MOD_TOTAL to allow grenade, kick and punch stats
-
+  int awardstats[AWARD_MAX];			//Number of impressive, excellent and accuracy awards
   //AQ2:TNG - Slicer: Video Checking and further Cheat cheking vars
   char vidref[16];
   char gldriver[16];
@@ -1940,6 +2022,9 @@ typedef struct
   int dom_caps;						// How many times a player captured a dom point
   int dom_capstreak;				// How many times a player captured a dom point in a row
   int dom_capstreakbest;			// Best cap streak for domination
+
+  // Long term stats retreived from database
+  lt_stats_t* lt_stats; // Long-term stats
 }
 client_respawn_t;
 
@@ -2684,6 +2769,7 @@ typedef struct
 	int hitsTotal;
 	int hitsLocations[LOC_MAX];
 	gunStats_t gunstats[MOD_TOTAL];
+	int awardstats[AWARD_MAX];
 	int team;
 	gitem_t *weapon;
 	gitem_t *item;
@@ -2903,3 +2989,18 @@ extern Message *timedMessages;
 
 void addTimedMessage(int teamNum, edict_t *ent, int seconds, char *msg);
 void FireTimedMessages(void);
+
+//tng_net.c
+#if AQTION_CURL
+void lc_shutdown_function(void);
+qboolean lc_init_function(void);
+void lc_once_per_gameframe(void);
+#define CALL_DISCORD_WEBHOOK(msg, type, award) lc_discord_webhook(msg, type, award)
+void lc_discord_webhook(char* message, Discord_Notifications msgtype, Awards awardtype);
+#define CALL_STATS_API(stats) lc_aqtion_stat_send(stats)
+qboolean lc_aqtion_stat_send(const char *stats);
+void lc_start_request_function(request_t* request);
+#else
+#define CALL_DISCORD_WEBHOOK(msg, type, award) // Do nothing if AQTION_CURL is disabled
+#define CALL_STATS_API(stats) // Do nothing if AQTION_CURL is disabled
+#endif

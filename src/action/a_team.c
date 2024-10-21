@@ -1154,6 +1154,8 @@ pmenu_t joinmenu[] = {
   {"MOTD", PMENU_ALIGN_LEFT, NULL, ReprintMOTD},
   {"Credits", PMENU_ALIGN_LEFT, NULL, CreditsMenu},
   {NULL, PMENU_ALIGN_LEFT, NULL, NULL},
+  {"Request a Pickup Game", PMENU_ALIGN_LEFT, NULL, _PickupRequest},
+  {NULL, PMENU_ALIGN_LEFT, NULL, NULL},
   {"Use arrows to move cursor", PMENU_ALIGN_LEFT, NULL, NULL},
   {"ENTER to select", PMENU_ALIGN_LEFT, NULL, NULL},
   {"TAB to exit menu", PMENU_ALIGN_LEFT, NULL, NULL},
@@ -2349,7 +2351,6 @@ void RunWarmup (void)
 	#if USE_AQTION
 	if (warmup_bots->value){
 		gi.cvar_forceset("am", "1");
-		//attract_mode_bot_check();
 	}
 	#endif
 }
@@ -2555,6 +2556,12 @@ qboolean CheckTimelimit( void )
 				CenterPrintAll( "3 MINUTES LEFT..." );
 				gi.sound( &g_edicts[0], CHAN_VOICE | CHAN_NO_PHS_ADD, gi.soundindex("tng/3_minutes.wav"), 1.0, ATTN_NONE, 0.0 );
 				timewarning = 1;
+				#if AQTION_CURL
+				if (!game.time_warning_sent && matchmode->value) {
+					CALL_DISCORD_WEBHOOK(MM_3_MIN_WARN, SERVER_MSG, AWARD_NONE);
+					game.time_warning_sent = true;
+				}
+				#endif
 			}
 		}
 		// Deathmatch and Team Deathmatch warnings
@@ -2576,6 +2583,12 @@ qboolean CheckTimelimit( void )
 				CenterPrintAll( "3 MINUTES LEFT..." );
 				gi.sound( &g_edicts[0], CHAN_VOICE | CHAN_NO_PHS_ADD, gi.soundindex("tng/3_minutes.wav"), 1.0, ATTN_NONE, 0.0 );
 				timewarning = 1;
+				#if AQTION_CURL
+				if (!game.time_warning_sent && matchmode->value) {
+					CALL_DISCORD_WEBHOOK(MM_3_MIN_WARN, SERVER_MSG, AWARD_NONE);
+					game.time_warning_sent = true;
+				}
+				#endif
 			}
 		}
 	}
@@ -2876,6 +2889,7 @@ int CheckTeamRules (void)
 				// Cleanup and remove all bots, it's go time!
 				if (warmup_bots->value){
 					gi.cvar_forceset("am", "0");
+					bot_connections.desire_bots = 0;
 					ACESP_RemoveBot("all");
 					CenterPrintAll("All bots removed, good luck and have fun!");
 
@@ -2988,6 +3002,11 @@ int CheckTeamRules (void)
 					} else {
 						sprintf( buf, "The round will begin in %d seconds!", warmup_length );
 					}
+					#if AQTION_CURL
+					if (game.roundNum == 0)  // Only announce on game start, so match pauses don't send the msg
+						CALL_DISCORD_WEBHOOK(buf, MATCH_START_MSG, AWARD_NONE);
+					#endif
+
 					CenterPrintAll( buf );
 					team_round_countdown = warmup_length * 10 + 2;
 
@@ -3179,25 +3198,25 @@ void A_Scoreboard (edict_t * ent)
 }
 
 
-static int G_PlayerCmp( const void *p1, const void *p2 )
+int G_PlayerCmp(const void *p1, const void *p2)
 {
-	gclient_t *a = *(gclient_t * const *)p1;
-	gclient_t *b = *(gclient_t * const *)p2;
-	
-	if (a->resp.score != b->resp.score)
-		return b->resp.score - a->resp.score;
-	
-	if (a->resp.deaths < b->resp.deaths)
-		return -1;
-	if (a->resp.deaths > b->resp.deaths) 
-		return 1;
-	
-	if (a->resp.damage_dealt > b->resp.damage_dealt)
-		return -1;
-	if (a->resp.damage_dealt < b->resp.damage_dealt)
-		return 1;
-	
-	return 0;
+    gclient_t *a = *(gclient_t * const *)p1;
+    gclient_t *b = *(gclient_t * const *)p2;
+
+    if (a->resp.score != b->resp.score)
+        return b->resp.score - a->resp.score;
+
+    if (a->resp.deaths < b->resp.deaths)
+        return -1;
+    if (a->resp.deaths > b->resp.deaths)
+        return 1;
+
+    if (a->resp.damage_dealt > b->resp.damage_dealt)
+        return -1;
+    if (a->resp.damage_dealt < b->resp.damage_dealt)
+        return 1;
+
+    return (byte *)a - (byte *)b;
 }
 
 int G_SortedClients( gclient_t **sortedList )
@@ -3892,12 +3911,11 @@ void TallyEndOfLevelTeamScores (void)
 	}
 
 	// Stats begin
-	#if USE_AQTION
-		if (stat_logs->value && !matchmode->value) {
-			LogMatch(); // Generates end of game stats
-			LogEndMatchStats(); // Generates end of match logs
-		}
-	#endif
+	if (!matchmode->value) {
+		LOG_MATCH(); // Generates end of game stats
+		LOG_END_MATCH_STATS(); // Generates end of match stats
+	}
+	CALL_DISCORD_WEBHOOK(TP_MATCH_END_MSG, MATCH_END_MSG, AWARD_NONE);
 	// Stats: Reset roundNum
 	game.roundNum = 0;
 	// Stats end

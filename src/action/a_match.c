@@ -85,13 +85,10 @@ void SendScores(void)
 	}
 	gi.bprintf(PRINT_HIGH, "Match is over, waiting for next map, please vote a new one..\n");
 
-	#if USE_AQTION
 	// Needed to add this here because Matchmode does not call BeginIntermission, but other teamplay modes do call it
-		if (stat_logs->value) {
-			LogMatch();  // Generates end of game stats
-			LogEndMatchStats();  // Generates end of match stats
-		}
-	#endif
+	LOG_MATCH(); // Generates end of game stats
+	LOG_END_MATCH_STATS(); // Generates end of match stats
+	CALL_DISCORD_WEBHOOK(MM_MATCH_END_MSG, MATCH_END_MSG, AWARD_NONE);
 	// Stats: Reset roundNum
 	game.roundNum = 0;
 	// Stats end

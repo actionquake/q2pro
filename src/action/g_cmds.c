@@ -1183,41 +1183,40 @@ Cmd_Players_f
 */
 static void Cmd_Players_f (edict_t * ent)
 {
-	int i;
-	int count = 0;
-	char small[64];
-	char large[1024];
-	gclient_t *sortedClients[MAX_CLIENTS], *cl;
+    int i;
+    int count = 0;
+    char playerInfo[64];
+    char playerList[1024];
+    gclient_t *sortedClients[MAX_CLIENTS], *cl;
 
+    if (!teamplay->value || !noscore->value)
+        count = G_SortedClients( sortedClients );
+    else
+        count = G_NotSortedClients( sortedClients );
 
-	if (!teamplay->value || !noscore->value)
-		count = G_SortedClients( sortedClients );
-	else
-		count = G_NotSortedClients( sortedClients );
+    // print information
+    playerList[0] = 0;
 
-	// print information
-	large[0] = 0;
+    for (i = 0; i < count; i++)
+    {
+        cl = sortedClients[i];
+        if (!teamplay->value || !noscore->value)
+            Q_snprintf(playerInfo, sizeof(playerInfo), "%3i %s\n",
+                cl->ps.stats[STAT_FRAGS],
+                cl->pers.netname);
+        else
+            Q_snprintf(playerInfo, sizeof(playerInfo), "%s\n",
+                cl->pers.netname);
 
-	for (i = 0; i < count; i++)
-	{
-		cl = sortedClients[i];
-		if (!teamplay->value || !noscore->value)
-			Q_snprintf (small, sizeof (small), "%3i %s\n",
-				cl->ps.stats[STAT_FRAGS],
-				cl->pers.netname );
-		else
-			Q_snprintf (small, sizeof (small), "%s\n",
-				cl->pers.netname);
+        if (strlen(playerInfo) + strlen(playerList) > sizeof(playerList) - 20)
+        {			// can't print all of them in one packet
+            strcat(playerList, "...\n");
+            break;
+        }
+        strcat(playerList, playerInfo);
+    }
 
-		if (strlen(small) + strlen(large) > sizeof (large) - 20)
-		{			// can't print all of them in one packet
-			strcat (large, "...\n");
-			break;
-		}
-		strcat (large, small);
-	}
-
-	gi.cprintf(ent, PRINT_HIGH, "%s\n%i players\n", large, count);
+    gi.cprintf(ent, PRINT_HIGH, "%s\n%i players\n", playerList, count);
 }
 
 /*
@@ -1466,6 +1465,9 @@ void Cmd_Say_f (edict_t * ent, qboolean team, qboolean arg0, qboolean partner_ms
 		}
 	}
 
+	// Send message to Discord -- this must come before the newline add or it screws up formatting in-game
+	CALL_DISCORD_WEBHOOK(text, CHAT_MSG, AWARD_NONE);
+
 	Q_strncatz(text, "\n", sizeof(text));
 
 	if (FloodCheck(ent))
@@ -1699,10 +1701,10 @@ static void Cmd_PrintSettings_f( edict_t * ent )
 	Q_snprintf( text + length, sizeof( text ) - length, "\n"
 		"timelimit   %2d roundlimit  %2d roundtimelimit %2d\n"
 		"limchasecam %2d tgren       %2d antilag_interp %2d\n"
-		"use_xerp    %2d llsound     %2d\n",
+		"use_xerp    %2d llsound     %2d stats %2d\n",
 		(int)timelimit->value, (int)roundlimit->value, (int)roundtimelimit->value,
 		(int)limchasecam->value, (int)tgren->value, (int)sv_antilag_interp->value,
-		(int)use_xerp->value, (int)llsound->value );
+		(int)use_xerp->value, (int)llsound->value, (int)stat_logs->value );
 	#else
 	Q_snprintf( text + length, sizeof( text ) - length, "\n"
 		"timelimit   %2d roundlimit  %2d roundtimelimit %2d\n"
@@ -1999,6 +2001,8 @@ static cmdList_t commandList[] =
 	{ "volunteer", Cmd_Volunteer_f, 0},
 	{ "leader", Cmd_Volunteer_f, 0},
 	{ "highscores", Cmd_HighScores_f, 0},
+	{ "pickup", Cmd_Pickup_f, 0},
+
 };
 
 #define MAX_COMMAND_HASH 64

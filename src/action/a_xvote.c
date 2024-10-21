@@ -122,7 +122,21 @@ vote_t xvotelist[] = {
    "Team Scramble",		// Votetitle
    _VoteScrambleSelected,	// VoteSelected
    }
+   ,
 
+  {
+   NULL,			// cvar
+   NULL,			// InitGame
+   NULL,			// ExitGame
+   NULL,			// InitLevel
+   NULL,			// ExitLevel
+   NULL,			// InitClient
+   NULL,			// ClientDisconnect
+   NULL,			// Newround
+   NULL,			// CheckVote
+   "Pickup Request",		// Votetitle
+   _PickupRequest,		// VoteSelected
+   }
 };
 
 static const int xvlistsize = (sizeof(xvotelist)/sizeof(vote_t));

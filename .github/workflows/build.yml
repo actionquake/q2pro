@@ -203,7 +203,9 @@ jobs:
 
       - name: Install dependencies
         run: |
-          brew install pkg-config meson libpng sdl2 openal-soft zlib curl ffmpeg jpeg-turbo jansson ossp-uuid
+          brew install pkg-config meson libpng sdl2 \
+          openal-soft zlib curl ffmpeg jpeg-turbo \
+          ossp-uuid jansson
 
       - name: Build
         run: |

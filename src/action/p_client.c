@@ -388,14 +388,13 @@ void Announce_Reward(edict_t *ent, int rewardType) {
 			gi.dprintf("%s: Unknown reward type %d for %s\n", __FUNCTION__, rewardType, playername);
             return;  // Something didn't jive here?
     }
+	ent->client->resp.awardstats[rewardType]++;
+	CALL_DISCORD_WEBHOOK(buf, AWARD_MSG, rewardType);
 
     CenterPrintAll(buf);
     gi.sound(&g_edicts[0], CHAN_VOICE | CHAN_NO_PHS_ADD, gi.soundindex(soundFile), 1.0, ATTN_NONE, 0.0);
 
-    #if USE_AQTION
-    if (stat_logs->value)
-        LogAward(ent, rewardType);
-    #endif
+	LOG_AWARD(ent, rewardType);
 }
 
 void Add_Frag(edict_t * ent, int mod)
@@ -1174,14 +1173,12 @@ void ClientObituary(edict_t * self, edict_t * inflictor, edict_t * attacker)
 			sprintf(death_msg, "%s %s %s\n",
 				self->client->pers.netname, special_message, self->client->attacker->client->pers.netname);
 			PrintDeathMessage(death_msg, self);
+			//Using discord webhook for death messaging
+			CALL_DISCORD_WEBHOOK(death_msg, DEATH_MSG, AWARD_NONE);
 			IRC_printf(IRC_T_KILL, death_msg);
 			AddKilledPlayer(self->client->attacker, self);
 
-			#if USE_AQTION
-			if (stat_logs->value) { // Only create stats logs if stat_logs is 1
-				LogKill(self, inflictor, self->client->attacker);
-			}
-			#endif
+			LOG_KILL(self, inflictor, self->client->attacker);
 
 			self->client->attacker->client->radio_num_kills++;
 
@@ -1205,6 +1202,8 @@ void ClientObituary(edict_t * self, edict_t * inflictor, edict_t * attacker)
 		else
 		{
 			sprintf( death_msg, "%s %s\n", self->client->pers.netname, message );
+			//Using discord webhook for death messaging
+			CALL_DISCORD_WEBHOOK(death_msg, DEATH_MSG, AWARD_NONE);
 			PrintDeathMessage(death_msg, self );
 			IRC_printf( IRC_T_DEATH, death_msg );
 
@@ -1214,12 +1213,7 @@ void ClientObituary(edict_t * self, edict_t * inflictor, edict_t * attacker)
 			}
 
 			self->enemy = NULL;
-      
-			#if USE_AQTION
-			if (stat_logs->value) { // Only create stats logs if stat_logs is 1
-				LogWorldKill(self);
-			}
-			#endif
+			LOG_WORLD_KILL(self);
 		}
 		return;
 	}
@@ -1557,14 +1551,12 @@ void ClientObituary(edict_t * self, edict_t * inflictor, edict_t * attacker)
 			sprintf(death_msg, "%s%s %s%s\n", self->client->pers.netname,
 			message, attacker->client->pers.netname, message2);
 			PrintDeathMessage(death_msg, self);
+			//Using discord webhook for death messaging
+			CALL_DISCORD_WEBHOOK(death_msg, DEATH_MSG, AWARD_NONE);
 			IRC_printf(IRC_T_KILL, death_msg);
 			AddKilledPlayer(attacker, self);
 
-			#if USE_AQTION
-			if (stat_logs->value) {
-				LogKill(self, inflictor, attacker);
-			}
-			#endif
+			LOG_KILL(self, inflictor, attacker);
 
 			if (friendlyFire) {
 				if (!teamplay->value || team_round_going || !ff_afterround->value)
@@ -1601,13 +1593,11 @@ void ClientObituary(edict_t * self, edict_t * inflictor, edict_t * attacker)
 
 	sprintf(death_msg, "%s died\n", self->client->pers.netname);
 	PrintDeathMessage(death_msg, self);
+	//Using discord webhook for death messaging
+	CALL_DISCORD_WEBHOOK(death_msg, DEATH_MSG, AWARD_NONE);
 	IRC_printf(IRC_T_DEATH, death_msg);
 
-	#if USE_AQTION
-	if (stat_logs->value) { // Only create stats logs if stat_logs is 1
-		LogWorldKill(self);
-	}
-	#endif
+	LOG_WORLD_KILL(self);
 
 	Subtract_Frag(self);	//self->client->resp.score--;
 	Add_Death( self, true );
@@ -3228,6 +3218,14 @@ void PutClientInServer(edict_t * ent)
 	// force the current weapon up
 	client->newweapon = client->weapon;
 	ChangeWeapon(ent);
+
+		// Tell the world!
+	#ifdef USE_CURL
+	#if AQTION_CURL
+	if (sv_curl_enable->value && sv_discord_announce_enable->value)
+		announce_server_populating();
+	#endif
+	#endif
 }
 
 /*
@@ -3313,13 +3311,12 @@ void ClientBeginDeathmatch(edict_t * ent)
 	vInitClient(ent);
 
 #ifndef NO_BOTS
-    	ACEIT_RebuildPlayerList();
-		if (ent->is_bot)
-			BOTLIB_SKILL_Init(ent); // Initialize the skill levels
+	ACEIT_RebuildPlayerList();
+	if (ent->is_bot)
+		BOTLIB_SKILL_Init(ent); // Initialize the skill levels
 
-#if USE_AQTION
-		StatBotCheck();
-#endif
+// Check if bots are in the game, if so, disable stat collection
+STAT_BOT_CHECK();
 #endif
 
 	// locate ent at a spawn point
@@ -3737,15 +3734,9 @@ void ClientDisconnect(edict_t * ent)
 	ent->is_bot = false;
 	ent->think = NULL;
 	ACEIT_RebuildPlayerList();
-#if USE_AQTION
-	StatBotCheck();
 
-	#if USE_AQTION
-		if(am->value){
-			//attract_mode_bot_check();
-		}
-	#endif
-#endif
+// Check if bots are in the game, if so, disable stat collection
+STAT_BOT_CHECK();
 #endif
 }
 
@@ -3807,6 +3798,7 @@ void CreateGhost(edict_t * ent)
 
 	memcpy(ghost->hitsLocations, ent->client->resp.hitsLocations, sizeof(ghost->hitsLocations));
 	memcpy(ghost->gunstats, ent->client->resp.gunstats, sizeof(ghost->gunstats));
+	memcpy(ghost->awardstats, ent->client->resp.awardstats, sizeof(ghost->awardstats));
 }
 
 //==============================================================

@@ -354,6 +354,8 @@ void InitGame( void )
 	actionversion = gi.cvar( "actionversion", "TNG " VERSION, CVAR_SERVERINFO | CVAR_NOSET );
 	gi.cvar_set( "actionversion", "TNG " VERSION );
 
+	net_port = gi.cvar( "net_port", "27910", CVAR_NOSET );
+
 	maxclients = gi.cvar( "maxclients", "8", CVAR_SERVERINFO | CVAR_LATCH );
 	maxentities = gi.cvar( "maxentities", "1024", CVAR_LATCH );
 
@@ -646,6 +648,22 @@ void InitGame( void )
 
 	// 2024
 	warmup_unready = gi.cvar("warmup_unready", "0", 0);
+	// curl / tng_net.c
+	sv_curl_enable = gi.cvar("sv_curl_enable", "0", 0);
+	sv_discord_announce_enable = gi.cvar("sv_discord_announce_enable", "0", 0);
+	sv_curl_stat_enable = gi.cvar("sv_curl_stat_enable", "0", 0);
+	sv_aws_access_key = gi.cvar("sv_aws_access_key", "disabled", 0); // Never include this in serverinfo!
+	sv_aws_secret_key = gi.cvar("sv_aws_secret_key", "disabled", 0); // Never include this in serverinfo!
+	sv_curl_discord_info_url = gi.cvar("sv_curl_discord_info_url", "disabled", 0);
+	sv_curl_discord_pickup_url = gi.cvar("sv_curl_discord_pickup_url", "disabled", 0);
+	server_ip = gi.cvar("server_ip", "", 0); // Never include this in serverinfo!
+	server_port = gi.cvar("server_port", "", 0); // Never include this in serverinfo!
+	sv_last_announce_time = gi.cvar("sv_last_announce_time", "0", 0);
+	sv_last_announce_interval = gi.cvar("sv_last_announce_interval", "1800", 0);
+	server_announce_url = gi.cvar("server_announce_url", "disabled", 0);
+	msgflags = gi.cvar("msgflags", "0", 0);
+	use_pickup = gi.cvar("use_pickup", "0", 0);
+
 	training_mode = gi.cvar("training_mode", "0", CVAR_LATCH);
 	if (training_mode->value){
 		gi.cvar_forceset("item_respawnmode", "1");
@@ -654,6 +672,7 @@ void InitGame( void )
 		gi.cvar_forceset("bholelimit", "30");
 	}
 	g_highscores_dir = gi.cvar("g_highscores_dir", "highscores", 0);
+	g_highscores_countbots = gi.cvar("g_highscores_countbots", "0", 0);
 	lca_grenade = gi.cvar("lca_grenade", "0", 0);
 
 
@@ -705,6 +724,14 @@ void InitGame( void )
 	//bot_randteamskin = gi.cvar("bot_randteamskin", "0", 0);
 	//rekkie -- DEV_1 -- e
 #endif
+
+	// Initialize libcurl capabilities if enabled
+	#ifdef USE_CURL
+	#if AQTION_CURL
+	if (sv_curl_enable->value)
+		lc_init_function();
+	#endif
+	#endif
 
 	// items
 	InitItems();

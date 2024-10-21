@@ -111,6 +111,7 @@ void JoinTeamAutobalance (edict_t * ent);
 int TotalPlayersOnTeam(int teamNum);
 int TotalPlayersAliveOnTeam(int teamNum);
 void PrintAdNotification(edict_t* ent);
+int G_PlayerCmp( const void *p1, const void *p2 );
 
 typedef struct spawn_distances_s
 {

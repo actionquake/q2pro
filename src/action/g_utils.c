@@ -767,3 +767,18 @@ int eztimer(int seconds){
 float sigmoid(float x) {
     return 1 / (1 + exp(-x));
 }
+
+/*
+Reverse-lookup, find the edict belonging to the gclient
+*/
+edict_t* FindEdictByClient(gclient_t* client)
+{
+    int index = client - game.clients; // Calculate the index of the client in the clients array
+
+    if (index >= 0 && index < game.maxclients)
+    {
+        return &g_edicts[index + 1]; // g_edicts[0] is the world entity, so players start from g_edicts[1]
+    }
+
+    return NULL; // Return NULL if the client is not valid
+}

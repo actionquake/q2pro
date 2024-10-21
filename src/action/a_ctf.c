@@ -935,13 +935,9 @@ void CTFCalcScores(void)
 			ctfgame.total2 += game.clients[i].resp.score;
 	}
 
-	#if USE_AQTION
 	// Needed to add this here because this is called separately from TallyEndOfLevelTeamScores (teamplay)
-		if (stat_logs->value) {
-			LogMatch();  // Generates end of game stats
-			LogEndMatchStats();  // Generates end of match stats
-		}
-	#endif
+	LOG_MATCH(); // Generates end of game stats
+	LOG_END_MATCH_STATS(); // Generates end of match stats
 	// Stats: Reset roundNum
 	game.roundNum = 0;
 	// Stats end

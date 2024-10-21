@@ -382,6 +382,12 @@ endif
 config.set10('USE_ZLIB', zlib.found())
 config.set10('USE_PNG', png.found())
 
+sdl2 = dependency('sdl2', required: get_option('sdl2'))
+if sdl2.found()
+  client_src += 'src/unix/video/sdl.c'
+  config.set('USE_SDL', 'USE_CLIENT')
+endif
+
 curl = dependency('libcurl',
   version:         '>= 7.68.0',
   required:        get_option('libcurl'),
@@ -391,12 +397,6 @@ curl = dependency('libcurl',
 if curl.found()
   client_src += 'src/client/http.c'
   config.set10('USE_CURL', true)
-endif
-
-sdl2 = dependency('sdl2', required: get_option('sdl2'))
-if sdl2.found()
-  client_src += 'src/unix/video/sdl.c'
-  config.set('USE_SDL', 'USE_CLIENT')
 endif
 
 common_deps = [zlib]
@@ -448,7 +448,6 @@ jansson_dep = dependency('jansson',
 )
 if jansson_dep.found()
   game_deps += jansson_dep
-  #dll_link_args += '-ljansson'
 endif
 
 if not win32
@@ -560,7 +559,15 @@ if get_option('aqtion-build')
   # Win32 winsock compat
   if win32
     dll_link_args += '-lws2_32'
+    dll_link_args += '-lcrypt32'
+    dll_link_args += '-lwsock32'
   endif
+endif
+
+if get_option('aqtion-curl')
+  config.set10('AQTION_CURL', true)
+  action_src += 'src/action/tng_net.c'
+  game_deps += curl
 endif
 
 if get_option('discord-sdk')

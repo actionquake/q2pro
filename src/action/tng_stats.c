@@ -86,6 +86,9 @@ void ResetStats(edict_t *ent)
 	for (i = 0; i<LOC_MAX; i++)
 		ent->client->resp.hitsLocations[i] = 0;
 
+	for (i = 0; i<AWARD_MAX; i++)
+		ent->client->resp.awardstats[i] = 0;
+
 	memset(ent->client->resp.gunstats, 0, sizeof(ent->client->resp.gunstats));
 }
 
@@ -677,19 +680,6 @@ static void G_SaveScores(void)
     fclose(fp);
 }
 
-static int G_PlayerCmp(const void *p1, const void *p2)
-{
-    gclient_t *a = *(gclient_t * const *)p1;
-    gclient_t *b = *(gclient_t * const *)p2;
-
-    int r = b->resp.score - a->resp.score;
-    if (!r)
-        r = a->resp.deaths - b->resp.deaths;
-    if (!r)
-        r = (byte *)a - (byte *)b;
-    return r;
-}
-
 int G_CalcRanks(gclient_t **ranks)
 {
     int i, total;
@@ -727,7 +717,7 @@ void G_RegisterScore(void)
         return;
     }
 
-	if (teamplay->value && game.roundNum == 0){
+	if ((teamplay->value && game.roundNum == 0) && !ctf->value){
 		gi.dprintf("No rounds were played, so no highscore will be recorded\n");
 		return; // No rounds were played, so skip
 	}
@@ -739,7 +729,7 @@ void G_RegisterScore(void)
 	score = c->resp.score;
 
 	// Calculate FPR, if mode is teamplay, else FPH
-	if (teamplay->value && game.roundNum > 0){
+	if ((teamplay->value && game.roundNum > 0) || !ctf->value){
 		fragsper = c->resp.score / game.roundNum;
 	} else {
 		sec = (level.framenum - c->resp.enterframe) / HZ;
@@ -776,6 +766,11 @@ void G_RegisterScore(void)
     level.record = s->time;
 
     qsort(level.scores, level.numscores, sizeof(highscore_t), ScoreCmp);
+
+	// Disable counting bot high scores if the cvar is set
+	edict_t* player = FindEdictByClient(c);
+	if (player->is_bot && !g_highscores_countbots->value)
+		return;
 
     gi.dprintf("Added highscore entry for %s with %d score\n",
                c->pers.netname, score);
@@ -837,6 +832,35 @@ void G_LoadScores(void)
 
 #if USE_AQTION
 
+/*
+If player has a steamid, return the entity with the matching steamid
+else return NULL
+*/
+edict_t *find_player_by_steamid(const char* steamid)
+{
+    edict_t *ent;
+    int i;
+
+	// Don't do anything if steamid is null/emtpy/zero
+	if (steamid == NULL || steamid[0] == '\0' || strcmp(steamid, "0") == 0)
+		return NULL;
+
+    for (i = 0; i < game.maxclients; i++)
+    {
+        ent = &g_edicts[1 + i];
+		if( !ent->inuse || !ent->client || ent->is_bot)
+            continue;
+        if (strcmp(ent->client->pers.steamid, steamid) == 0)
+        {
+            // Found the entity with the matching steamid
+			gi.dprintf("I found %s!\n", ent->client->pers.netname);
+            return ent;
+        }
+    }
+    // No entity with the matching steamid was found
+    return NULL;
+}
+
 #ifndef NO_BOTS
 /*
 =================
@@ -862,29 +886,65 @@ void StatBotCheck(void)
 }
 #endif
 
+#if AQTION_CURL
+qboolean Write_Stats_to_API(const char* stats)
+{
+    if (!CALL_STATS_API(stats)) {
+        gi.dprintf("Error sending stats to API\n");
+        return false;
+    }
+    return true;
+}
+#else
+qboolean Write_Stats_to_API(const char* stats)
+{
+    // AQTION_CURL is disabled, so this function does nothing
+    gi.dprintf("AQTION_CURL is disabled, stats not sent to API\n");
+    return false;
+}
+#endif
+
 cvar_t* logfile_name;
+qboolean Write_Stats_to_Local(const char* stats)
+{
+    char logpath[MAX_QPATH];
+    FILE* f;
+
+    logfile_name = gi.cvar("logfile_name", "", CVAR_NOSET);
+    snprintf(logpath, sizeof(logpath), "action/logs/%s.stats", logfile_name->string); // Use snprintf for safety
+
+    // Open log file in append mode
+    f = fopen(logpath, "a");
+    if (f != NULL) {
+        // Write stats to file
+        fprintf(f, "%s", stats);
+        fclose(f);
+        return true;
+    } else {
+        // Log error if file cannot be opened
+        gi.dprintf("Error writing to %s.stats\n", logfile_name->string);
+        return false;
+    }
+}
+
 void Write_Stats(const char* msg, ...)
 {
-	va_list	argptr;
-	char	stat_cpy[1024];
-	char	logpath[MAX_QPATH];
-	FILE* 	f;
+    va_list argptr;
+    char stat_cpy[1024];
 
-	va_start(argptr, msg);
-	vsprintf(stat_cpy, msg, argptr);
-	va_end(argptr);
+    // Initialize variable argument list
+    va_start(argptr, msg);
+    vsnprintf(stat_cpy, sizeof(stat_cpy), msg, argptr); // Use vsnprintf for safety
+    va_end(argptr);
 
-	logfile_name = gi.cvar("logfile_name", "", CVAR_NOSET);
-	sprintf(logpath, "action/logs/%s.stats", logfile_name->string);
+    // Send stats to API, else write to local file
+    if (sv_curl_enable->value && sv_curl_stat_enable->value) {
+        if (Write_Stats_to_API(stat_cpy))
+            return;
+    }
 
-	if ((f = fopen(logpath, "a")) != NULL)
-	{
-		fprintf(f, "%s", stat_cpy);
-		fclose(f);
-	}
-	else
-		gi.dprintf("Error writing to %s.stats\n", logfile_name->string);
-
+    // Fallback to writing stats to local file
+    Write_Stats_to_Local(stat_cpy);
 }
 
 /*
@@ -921,6 +981,10 @@ void LogKill(edict_t *self, edict_t *inflictor, edict_t *attacker)
 
 	// Check if there's an AI bot in the game, if so, do nothing
 	if (game.ai_ent_found) {
+		return;
+	}
+	// If stats aren't enabled, do nothing
+	if (!stat_logs->value) {
 		return;
 	}
 
@@ -1068,6 +1132,10 @@ void LogWorldKill(edict_t *self)
 	if (game.ai_ent_found) {
 		return;
 	}
+	// If stats aren't enabled, do nothing
+	if (!stat_logs->value) {
+		return;
+	}
 
 	// Only record stats if there's more than one opponent
     if (gameSettings & GS_DEATHMATCH) // Only check if in DM
@@ -1170,6 +1238,10 @@ void LogCapture(edict_t *capturer)
 	if (game.ai_ent_found) {
 		return;
 	}
+	// If stats aren't enabled, do nothing
+	if (!stat_logs->value) {
+		return;
+	}
 
 	int mode = Gamemode();
 	switch (mode) {
@@ -1230,6 +1302,10 @@ void LogMatch(void)
 	if (game.ai_ent_found) {
 		return;
 	}
+	// If stats aren't enabled, do nothing
+	if (!stat_logs->value) {
+		return;
+	}
 
 	// Check for scoreless teamplay, don't log
 	if (teamplay->value && t1 == 0 && t2 == 0 && t3 == 0) {
@@ -1270,6 +1346,10 @@ void LogAward(edict_t *ent, int award)
 
 	// Check if there's an AI bot in the game, if so, do nothing
 	if (game.ai_ent_found) {
+		return;
+	}
+	// If stats aren't enabled, do nothing
+	if (!stat_logs->value) {
 		return;
 	}
 
@@ -1433,6 +1513,10 @@ void LogEndMatchStats(void)
 	if (game.ai_ent_found) {
 		return;
 	}
+	// If stats aren't enabled, do nothing
+	if (!stat_logs->value) {
+		return;
+	}
 
 	// Write out the stats for each client still connected to the server
 	for (i = 0; i < totalClients; i++){
@@ -1488,6 +1572,7 @@ void LogEndMatchStats(void)
 			// Copy all gunstats and hit locations to this dummy entity
 			memcpy(ghlient->resp.hitsLocations, ghost->hitsLocations, sizeof(ghlient->resp.hitsLocations));
 			memcpy(ghlient->resp.gunstats, ghost->gunstats, sizeof(ghlient->resp.gunstats));
+			memcpy(ghlient->resp.awardstats, ghost->awardstats, sizeof(ghlient->resp.awardstats));
 
 		WriteLogEndMatchStats(ghlient);
 		}
