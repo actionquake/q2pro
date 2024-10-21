@@ -457,7 +457,7 @@ void InitGame( void )
 	video_check_glclear = gi.cvar( "video_check_glclear", "0", 0 );
 	video_checktime = gi.cvar( "video_checktime", "15", 0 );
 	hc_single = gi.cvar( "hc_single", "1", CVAR_LATCH );	//default ON
-	hc_boost = gi.cvar("hc_boost", "1", CVAR_LATCH); //rekkie -- allow HC to 'boost' the player
+	hc_boost = gi.cvar("hc_boost", "0", CVAR_LATCH); //rekkie -- allow HC to 'boost' the player
 	hc_boost_percent = gi.cvar("hc_boost_percent", "100", 0); //rekkie -- allow HC to 'boost' the player
 	hc_silencer = gi.cvar("hc_silencer", "0", 0); //rekkie -- allow HC to 'boost' the player
 	wp_flags = gi.cvar( "wp_flags", WPF_DEFAULT_STR, 0 );

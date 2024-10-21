@@ -492,6 +492,7 @@ void ProduceShotgunDamageReport (edict_t *self)
 	int i, total = 0, total_to_print, printed = 0;
 	char *textbuf;
 	gclient_t *cl;
+	int hc_boost_multiplier = 0;
 
 	for (i = 0, cl = game.clients; i < game.maxclients; i++, cl++) {
 		if (cl->took_damage)
@@ -513,9 +514,11 @@ void ProduceShotgunDamageReport (edict_t *self)
 
 		// Sanity check
 		if (hc_boost_percent->value <= 0)
-			gi.cvar_set("hc_boost_multiplier", va("%d", 100));
+			hc_boost_multiplier = 100;
+			//gi.cvar_set("hc_boost_multiplier", va("%d", 100));
 		if (hc_boost_percent->value > 1000)
-			gi.cvar_set("hc_boost_multiplier", va("%d", 1000));
+			hc_boost_multiplier = 1000;
+			//gi.cvar_set("hc_boost_multiplier", va("%d", 1000));
 
 		float knockback = 300; // Double barrel
 		if (self->client->pers.hc_mode) knockback = 150; // Single barrel
@@ -529,17 +532,14 @@ void ProduceShotgunDamageReport (edict_t *self)
 		VectorAdd(self->client->oldvelocity, kvel, self->client->oldvelocity);
 
 		//if (self->is_bot == false) Com_Printf("%s %f %f %f\n", __func__, self->client->v_angle[0], self->client->v_angle[1], self->client->v_angle[2]);
-
-		/*
-		if (hc_boost_multiplier->value < 0)
-			gi.cvar_set("hc_boost_multiplier", va("%d", 0));
-		if (hc_boost_multiplier->value > 10)
-			gi.cvar_set("hc_boost_multiplier", va("%d", 10));
+		// if (hc_boost_multiplier < 0)
+		// 	gi.cvar_set("hc_boost_multiplier", va("%d", 0));
+		// if (hc_boost_multiplier->value > 10)
+		// 	gi.cvar_set("hc_boost_multiplier", va("%d", 10));
 		if (self->client->pers.hc_mode == 0) // Double barrel
-			self->velocity[2] += (300 * hc_boost_multiplier->value);
+			self->velocity[2] += (300 * hc_boost_multiplier);
 		else // self->client->pers.hc_mode == 1 // Single barrel
-			self->velocity[2] += (150 * hc_boost_multiplier->value);
-		*/
+			self->velocity[2] += (150 * hc_boost_multiplier);
 	}
 	//rekkie -- allow HC to 'boost' the player -- e
 

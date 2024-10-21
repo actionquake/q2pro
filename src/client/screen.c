@@ -1419,7 +1419,7 @@ void SCR_Init(void)
     ch_x = Cvar_Get("ch_x", "0", 0);
     ch_y = Cvar_Get("ch_y", "0", 0);
 
-    ch_hide_while_zoomed = Cvar_Get("ch_hide_while_zoomed", "0", 0);
+    ch_hide_while_zoomed = Cvar_Get("ch_hide_while_zoomed", "1", 0);
 
     scr_draw2d = Cvar_Get("scr_draw2d", "2", 0);
     scr_showturtle = Cvar_Get("scr_showturtle", "1", 0);
