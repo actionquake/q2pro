@@ -796,9 +796,14 @@ static void Grenade_Touch (edict_t *ent, edict_t *other, cplane_t *plane, csurfa
 			vec3_t end;
 			// Formula to handle damage amount. With /25-20 we'll get 0 dmg at minimum speed (500)
 			int dmgBySpeed = (int)(grenSpeed) / 25 - 20;
+
+			// Calculate the end position for the trace
+			VectorMA(ent->s.origin, 8192, ent->velocity, end); // Trace 8192 units in the direction of the velocity
+
 			PRETRACE();
-			tr = gi.trace(ent->owner->s.origin, NULL, NULL, end, ent->owner, MASK_SHOT);
+			tr = gi.trace(ent->s.origin, NULL, NULL, end, ent->owner, MASK_SHOT);
 			POSTTRACE();
+
 			T_Damage(other, ent, ent->owner, ent->s.origin, tr.endpos, tr.plane.normal, dmgBySpeed, 0, DAMAGE_NO_ARMOR, MOD_GRENADE_IMPACT);
 		}
 	}
