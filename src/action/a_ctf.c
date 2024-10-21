@@ -519,10 +519,10 @@ void CTFFragBonuses(edict_t * targ, edict_t * inflictor, edict_t * attacker)
 		// fragged a guy who hurt our flag carrier
 		attacker->client->resp.score += CTF_CARRIER_DANGER_PROTECT_BONUS;
 		gi.bprintf(PRINT_MEDIUM,
-			   "%s defends %s's flag carrier against an agressive enemy\n",
+			   "%s defends %s's flag carrier against an aggressive enemy\n",
 			   attacker->client->pers.netname, CTFTeamName(attacker->client->resp.team));
 		IRC_printf(IRC_T_GAME,
-			   "%n defends %n's flag carrier against an agressive enemy\n",
+			   "%n defends %n's flag carrier against an aggressive enemy\n",
 			   attacker->client->pers.netname,
 			   CTFTeamName(attacker->client->resp.team));
 		return;
