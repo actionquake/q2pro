@@ -1714,16 +1714,7 @@ void G_SetupStatusbar( void )
 			Q_strncatz(level.statusbar, "xr -50 yt 2 num 3 14 ", sizeof(level.statusbar));
 
 		if (ctf->value)
-		{
-			Q_strncatz(level.statusbar, 
-				// Red Team
-				"yb -164 " "if 24 " "xr -24 " "pic 24 " "endif " "xr -60 " "num 2 26 "
-				// Blue Team
-				"yb -140 " "if 25 " "xr -24 " "pic 25 " "endif " "xr -60 " "num 2 27 "
-				// Flag carried
-				"if 23 " "yt 26 " "xr -24 " "pic 23 " "endif ",
-				sizeof(level.statusbar) );
-		}
+			CTFSetupStatusbar();
 		else if( dom->value )
 			DomSetupStatusbar();
 		else if( esp->value )

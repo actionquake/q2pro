@@ -1007,8 +1007,6 @@ void SetCTFStats(edict_t * ent)
 	ent->client->ps.stats[STAT_TEAM1_PIC] = flagpic[TEAM1];
 	ent->client->ps.stats[STAT_TEAM2_PIC] = flagpic[TEAM2];
 
-	gi.dprintf("flagpic[1] = %d, flagpic[2] = %d\n", flagpic[TEAM1], flagpic[TEAM2]);
-
 	ent->client->ps.stats[STAT_TEAM1_SCORE] = ctfgame.team1;
 	ent->client->ps.stats[STAT_TEAM2_SCORE] = ctfgame.team2;
 
@@ -1409,4 +1407,16 @@ void CTFCapReward(edict_t * ent)
 	else	gi.cprintf(ent, PRINT_MEDIUM, "CAPTURED!\n\nYou have been rewarded.\n\nNow go get some more!");
 
 	LogCapture(ent);
+}
+
+void CTFSetupStatusbar( void )
+{
+	Q_strncatz(level.statusbar,
+		// Red Team
+		"yb -164 " "if 24 " "xr -24 " "pic 24 " "endif " "xr -60 " "num 2 26 "
+		// Blue Team
+		"yb -140 " "if 25 " "xr -24 " "pic 25 " "endif " "xr -60 " "num 2 27 "
+		// Flag carried
+		"if 23 " "yt 26 " "xr -24 " "pic 23 " "endif ",
+	sizeof(level.statusbar) );
 }
