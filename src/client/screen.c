@@ -1752,6 +1752,7 @@ static void SCR_ExecuteLayoutString(const char *s)
 
     x = scr.hud_x;
     y = scr.hud_y;
+    qboolean parsed_scope_pic = false;
 
     while (s) {
         token = COM_Parse(&s);
@@ -1813,7 +1814,7 @@ static void SCR_ExecuteLayoutString(const char *s)
                 qhandle_t pic = cl.image_precache[value];
                 // hack for action mod scope scaling
                 if (Com_WildCmp("scope?x", token) || Com_WildCmp("scopes/*/scope?x", token)) {
-                    scr.currently_scoped_in = true;
+                    parsed_scope_pic = true;
                     int x = scr.hud_x + (scr.hud_width - scr.scope_width) / 2;
                     int y = scr.hud_y + (scr.hud_height - scr.scope_height) / 2;
 
@@ -1823,13 +1824,13 @@ static void SCR_ExecuteLayoutString(const char *s)
                                      y + ch_y->integer,
                                      w, h, pic);
                 } else {
-                    scr.currently_scoped_in = false;
                     R_DrawPic(x, y, pic);
                 }
             }
             continue;
         }
-
+        //save whether we parsed a scope pic
+        scr.currently_zoomed_in = parsed_scope_pic;
         if (!strcmp(token, "client")) {
             // draw a deathmatch client block
             int     score, ping, time;
