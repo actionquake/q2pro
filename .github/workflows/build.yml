@@ -140,7 +140,7 @@ jobs:
           wget https://github.com/akheron/jansson/releases/download/v2.14/jansson-2.14.tar.gz
           tar xfz jansson-2.14.tar.gz && cd jansson-2.14
           CFLAGS="-fPIC" ./configure
-          make && make install
+          make && sudo make install
 
       - name: Build
         run: |
