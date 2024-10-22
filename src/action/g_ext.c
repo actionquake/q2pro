@@ -50,6 +50,16 @@ void(*engine_Ghud_SetSize)(edict_t *ent, int i, int x, int y);
 
 void(*engine_CvarSync_Set)(int index, const char *name, const char *val);
 
+// botlib
+bsp_t* (*SV_BSP)(void);
+nav_t* (*CS_NAV)(void);
+debug_draw_t* (*CS_DebugDraw)(void);
+void (*SV_BotUpdateInfo)(char* name, int ping, int score);
+void (*SV_BotConnect)(char* name);
+void (*SV_BotDisconnect)(char* name);
+void (*SV_BotClearClients)(void);
+
+
 //
 // optional new entrypoints the engine may want to call
 edict_t *xerp_ent;
@@ -93,13 +103,13 @@ int G_customizeentityforclient(edict_t *clent, edict_t *ent, entity_state_t *sta
 			return false;
 
 		// Espionage allows indicators for leaders if set to 2
-		if (esp->value && use_indicators->value == 2 && esp_showleader->value && clent->client->resp.team) {
-			// Quad is a blue glow, pent is a red glow
-			if (clent->client->resp.team == TEAM1 && IS_LEADER(clent))
-				ent->s.effects = EF_PENT;
-			else if (clent->client->resp.team == TEAM2 && IS_LEADER(clent))
-				ent->s.effects = EF_QUAD;
-		}
+		// if (esp->value && use_indicators->value == 2 && esp_showleader->value && clent->client->resp.team) {
+		// 	// Quad is a blue glow, pent is a red glow
+		// 	if (clent->client->resp.team == TEAM1 && IS_LEADER(clent))
+		// 		ent->s.effects = EF_PENT;
+		// 	else if (clent->client->resp.team == TEAM2 && IS_LEADER(clent))
+		// 		ent->s.effects = EF_QUAD;
+		// }
 		if ((use_indicators->value == 2 && clent->client->resp.team) || (clent->client->resp.team && clent->client->pers.cl_indicators != 2)) // disallow indicators for players in use_indicators 2, and don't use them for players unless cl_indicators 2
 			return false;
 
@@ -303,11 +313,6 @@ void* G_FetchGameExtension(char *name)
 	return NULL;
 }
 
-
-
-
-
-
 // 
 // new engine functions we can call from the game
 
@@ -471,4 +476,5 @@ void CvarSync_Set(int index, const char *name, const char *val)
 
 	engine_CvarSync_Set(index, name, val);
 }
+
 #endif

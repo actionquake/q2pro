@@ -3265,7 +3265,7 @@ void ClientBeginDeathmatch(edict_t * ent)
 
 	//rekkie -- debug drawing -- s
 #if DEBUG_DRAWING
-	ent->client->pers.draw = gi.Draw();
+	ent->client->pers.draw = CS_DebugDraw();
 	//if (ent->client->pers.draw)
 	{
 		// Default all to off state

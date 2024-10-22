@@ -2028,7 +2028,7 @@ int TeamHasPlayers (int team)
 
 int _numclients( void );  // a_vote.c
 
-qboolean BothTeamsHavePlayers(void)
+qboolean AllTeamsHavePlayers(void)
 {
 	int players[TEAM_TOP] = { 0 }, i, teamsWithPlayers;
 	edict_t *ent;
@@ -2096,20 +2096,34 @@ int CheckForWinner(void)
 		if (espsettings.esp_mode == ESPMODE_ATL) {
 			if (teamCount == TEAM2) {
 				if (teams[TEAM1].leader_dead && teams[TEAM2].leader_dead) {
+					if (esp_debug->value)
+						gi.dprintf("Both leaders are dead\n");
 					return WINNER_TIE;
 				} else if (teams[TEAM1].leader_dead) {
+					if (esp_debug->value)
+						gi.dprintf("Team 2 leader is alive\n");
 					return TEAM2;
 				} else if (teams[TEAM2].leader_dead) {
+					if (esp_debug->value)
+						gi.dprintf("Team 1 leader is alive\n");
 					return TEAM1;
 				}
 			} else if (teamCount == TEAM3) {
 				if (teams[TEAM1].leader_dead && teams[TEAM2].leader_dead && teams[TEAM3].leader_dead) {
+					if (esp_debug->value)
+						gi.dprintf("All leaders are dead\n");
 					return WINNER_TIE;
 				} else if (teams[TEAM1].leader_dead && teams[TEAM2].leader_dead) {
+					if (esp_debug->value)
+						gi.dprintf("Team 3 leader is alive\n");
 					return TEAM3;
 				} else if (teams[TEAM1].leader_dead && teams[TEAM3].leader_dead) {
+					if (esp_debug->value)
+						gi.dprintf("Team 2 leader is alive\n");
 					return TEAM2;
 				} else if (teams[TEAM2].leader_dead && teams[TEAM3].leader_dead) {
+					if (esp_debug->value)
+						gi.dprintf("Team 1 leader is alive\n");
 					return TEAM1;
 				} 
 			}
@@ -2831,16 +2845,16 @@ int CheckTeamRules (void)
 		team_round_countdown--;
 		if(!team_round_countdown)
 		{
-			if (!esp->value && BothTeamsHavePlayers())
+			if (!esp->value && AllTeamsHavePlayers())
 			{
 				in_warmup = 0;
 				team_game_going = 1;
 				StartLCA();
 			}
-			else if (esp->value && AllTeamsHaveLeaders() && BothTeamsHavePlayers())
+			else if (esp->value && AllTeamsHaveLeaders() && AllTeamsHavePlayers())
 			{
 				if (esp_debug->value)
-					gi.dprintf("%s: Esp mode on, All teams have leaders, Both teams have players\n", __FUNCTION__);
+					gi.dprintf("%s: Esp mode on, All teams have leaders, all teams have players\n", __func__);
 				in_warmup = 0;
 				team_game_going = 1;
 				StartLCA();
@@ -2985,7 +2999,7 @@ int CheckTeamRules (void)
 
 		if (!team_round_countdown)
 		{
-			if (BothTeamsHavePlayers() || (esp->value && AllTeamsHaveLeaders() && BothTeamsHavePlayers()))
+			if (AllTeamsHavePlayers() || (esp->value && AllTeamsHaveLeaders() && AllTeamsHavePlayers()))
 			{
 				if (use_tourney->value)
 				{
@@ -2997,7 +3011,7 @@ int CheckTeamRules (void)
 				{
 					int warmup_length = max( warmup->value, round_begin->value );
 					char buf[64] = "";
-					if (esp->value && BothTeamsHavePlayers()) {
+					if (esp->value && AllTeamsHavePlayers()) {
 						sprintf( buf, "All teams are ready!\nThe round will begin in %d seconds!", warmup_length );
 					} else {
 						sprintf( buf, "The round will begin in %d seconds!", warmup_length );
@@ -3054,14 +3068,15 @@ int CheckTeamRules (void)
 				return 1;
 			}
 
-			if (!BothTeamsHavePlayers() || (esp->value && !AllTeamsHaveLeaders()))
+			if (!AllTeamsHavePlayers() || (esp->value && !AllTeamsHaveLeaders()))
 			{
-				if (!matchmode->value || TeamsReady())
+				if (!matchmode->value || TeamsReady()) {
 					CenterPrintAll( "Not enough players to play!" );
-				else if (esp->value && !AllTeamsHaveLeaders())
+				} else if (esp->value && !AllTeamsHaveLeaders()) {
 					CenterPrintAll ("Both Teams Must Have a Leader!\nType 'leader' in console to volunteer!");
-				else
+				} else {
 					CenterPrintAll( "Both Teams Must Be Ready!" );
+				}
 
 				team_round_going = team_round_countdown = team_game_going = 0;
 				MakeAllLivePlayersObservers();

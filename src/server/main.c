@@ -2472,6 +2472,8 @@ void SV_Init(void)
     SV_SetConsoleTitle();
 #endif
 
+    G_InitializeExtensions();
+
     sv_registered = true;
 }
 

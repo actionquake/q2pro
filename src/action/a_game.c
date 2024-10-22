@@ -255,9 +255,16 @@ qboolean PrintGameMessage(edict_t *ent)
 		in order to begin the match.  Once both teams have leaders, this message will no longer be printed.
 	*/
 	if (esp->value) {
+		edict_t* t1leader = HAVE_LEADER(TEAM1) ? teams[TEAM1].leader : NULL;
+		edict_t* t2leader = HAVE_LEADER(TEAM2) ? teams[TEAM2].leader : NULL;
+		edict_t* t3leader = HAVE_LEADER(TEAM3) ? teams[TEAM3].leader : NULL;
+
 		if (!team_round_going && !AllTeamsHaveLeaders()) {
 			if (espsettings.esp_mode == ESPMODE_ATL) {
-				Q_snprintf(msg_buf, sizeof(msg_buf), "Waiting for each team to have a leader\nType 'leader' in console to volunteer for duty.\n");
+				if (teamCount == 2)
+					Q_snprintf(msg_buf, sizeof(msg_buf), "Waiting for each team to have a leader\nType 'leader' in console to volunteer for duty.\n\n Team 1 Leader: %s\n Team 2 Leader: %s", t1leader ? t1leader->client->pers.netname : "None", t2leader ? t2leader->client->pers.netname : "None");
+				else if (teamCount == 3)
+					Q_snprintf(msg_buf, sizeof(msg_buf), "Waiting for each team to have a leader\nType 'leader' in console to volunteer for duty.\n\n Team 1 Leader: %s\n Team 2 Leader: %s\n Team 3 Leader: %s", t1leader ? t1leader->client->pers.netname : "None", t2leader ? t2leader->client->pers.netname : "None", t3leader ? t3leader->client->pers.netname : "None");
 				msg_ready = true;
 			} else if (espsettings.esp_mode == ESPMODE_ETV) {
 				if (ent->client->resp.team == TEAM1)

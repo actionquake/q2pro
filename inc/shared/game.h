@@ -256,20 +256,6 @@ typedef struct {
 
     void (*DebugGraph)(float value, int color);
 
-#if AQTION_EXTENSION
-	void *(*CheckForExtension)(char *text);
-#endif
-    bsp_t* (*Bsp)(void);
-    nav_t* (*Nav)(void);
-#if DEBUG_DRAWING
-    debug_draw_t* (*Draw)(void);
-#endif
-    surface_data_t* (*SurfaceData)(void);
-
-    void (*SV_BotUpdateInfo)(char* name, int ping, int score);
-    void (*SV_BotConnect)(char* name);
-    void (*SV_BotDisconnect)(char* name);
-    void (*SV_BotClearClients)(void);
 } game_import_t;
 //
 // functions exported by the game subsystem
@@ -312,11 +298,6 @@ typedef struct {
     // The game can issue gi.argc() / gi.argv() commands to get the rest
     // of the parameters
     void (*ServerCommand)(void);
-
-#if AQTION_EXTENSION
-	void* (*FetchGameExtension)(char *name);
-#endif
-
 
     //
     // global variables shared between game and server

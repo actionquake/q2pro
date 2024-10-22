@@ -48,7 +48,8 @@ with this program; if not, write to the Free Software Foundation, Inc.,
 #define GAME_API_VERSION_EX_MINIMUM             1
 #define GAME_API_VERSION_EX_CUSTOMIZE_ENTITY    2
 #define GAME_API_VERSION_EX_ENTITY_VISIBLE      3
-#define GAME_API_VERSION_EX                     3
+#define GAME_API_VERSION_EX_REKTEK_BOTS         400
+#define GAME_API_VERSION_EX                     400
 
 typedef enum {
     VIS_PVS     = 0,
@@ -63,6 +64,15 @@ typedef struct {
 #endif
 } customize_entity_t;
 
+/*
+
+game_import_ex_t
+
+These pointer functions exist in the engine (server), and this enables importing them to be available for use by the gamelib
+
+    server->gamedll
+
+*/
 typedef struct {
     uint32_t    apiversion;
     uint32_t    structsize;
@@ -74,8 +84,18 @@ typedef struct {
 
     void        *(*GetExtension)(const char *name);
     void        *(*TagRealloc)(void *ptr, size_t size);
+    void	    *(*CheckForExtension)(char *text);
 } game_import_ex_t;
 
+/*
+
+game_export_ex_t
+
+These pointer functions exist in the gamedll, and this enables importing them to be available for use by the engine (server)
+
+    gamedll->server
+
+*/
 typedef struct {
     uint32_t    apiversion;
     uint32_t    structsize;
@@ -86,6 +106,7 @@ typedef struct {
     void        (*RestartFilesystem)(void); // called when fs_restart is issued
     qboolean    (*CustomizeEntityToClient)(edict_t *client, edict_t *ent, customize_entity_t *temp); // if true is returned, `temp' must be initialized
     qboolean    (*EntityVisibleToClient)(edict_t *client, edict_t *ent);
+    void	    *(*CheckForExtension)(char *text);
 } game_export_ex_t;
 
 typedef const game_export_ex_t *(*game_entry_ex_t)(const game_import_ex_t *);
@@ -137,3 +158,19 @@ typedef struct {
     void (*AddDebugText)(const vec3_t origin, const vec3_t angles, const char *text,
                          float size, uint32_t color, uint32_t time, qboolean depth_test);
 } debug_draw_api_v1_t;
+
+#define REKTEK_BOTS_API_V1 "REKTEK_BOTS_API_V1"
+
+typedef struct {
+    bsp_t* (*Bsp)(void);
+    nav_t* (*Nav)(void);
+#if DEBUG_DRAWING
+    debug_draw_t* (*Draw)(void);
+#endif
+    surface_data_t* (*SurfaceData)(void);
+
+    void (*SV_BotUpdateInfo)(char* name, int ping, int score);
+    void (*SV_BotConnect)(char* name);
+    void (*SV_BotDisconnect)(char* name);
+    void (*SV_BotClearClients)(void);
+} rektek_bots_api_v1_t;

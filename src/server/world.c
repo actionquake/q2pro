@@ -598,6 +598,7 @@ trace_t q_gameabi SV_Trace(const vec3_t start, const vec3_t mins,
 bsp_t* SV_BSP(void)
 {
     bsp_t* bsp = sv.cm.cache;
+
     if (!bsp) {
         Com_Error(ERR_DROP, "%s: no map loaded", __func__);
         return NULL;
@@ -613,6 +614,7 @@ bsp_t* SV_BSP(void)
 nav_t* CS_NAV(void)
 {
     nav_t* nav = sv.cm.nav;
+
     if (!nav) {
         //Com_Error(ERR_DROP, "%s: no nav data loaded", __func__);
         return NULL;

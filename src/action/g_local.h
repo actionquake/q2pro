@@ -272,6 +272,7 @@
 // because we define the full size ones in this file
 #define		GAME_INCLUDE
 #include	"shared/game.h"
+#include	"shared/gameext.h"
 
 #include	"a_team.h"
 #include	"a_game.h"
@@ -996,6 +997,8 @@ extern game_locals_t game;
 extern level_locals_t level;
 extern game_import_t gi;
 extern game_export_t globals;
+extern const game_import_ex_t *gix;
+extern const game_export_ex_t gex;
 extern spawn_temp_t st;
 
 extern int sm_meat_index;
@@ -1410,6 +1413,16 @@ int   Ghud_AddNumber(edict_t *ent, int x, int y, int value);
 extern void(*engine_CvarSync_Set)(int index, const char *name, const char *val);
 void  CvarSync_Set(int index, const char *name, const char *val);
 #endif
+
+//botlib
+extern bsp_t* (*SV_BSP)(void);
+extern nav_t* (*CS_NAV)(void);
+extern debug_draw_t* (*CS_DebugDraw)(void);
+extern void (*SV_BotUpdateInfo)(char* name, int ping, int score);
+extern void (*SV_BotConnect)(char* name);
+extern void (*SV_BotDisconnect)(char* name);
+extern void (*SV_BotClearClients)(void);
+
 
 // 2022
 extern cvar_t *sv_limp_highping;
@@ -2976,6 +2989,7 @@ typedef enum {
 
 #ifndef NO_BOTS
 #include "acesrc/acebot.h"
+
 #endif
 
 typedef struct {

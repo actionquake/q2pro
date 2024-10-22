@@ -616,6 +616,7 @@ Now you can fill out your teams with bots, or create an entire team of bots to f
 Taking aspects of the existing bots and greatly enhancing their navigation and behavioral capabilities, the new botlib bots have superceded the legacy LTK bots.  This is a very new system and as such will be in a regular flux of change, enhancements and adjustments.
 
 **Server Commands:**
+- `bot_enable [0/1]` - Server cvar, if enabled, will load all necessary components to enable bots.  Default is disabled [0]
 - `sv bots <#> [#]` - Server command, if command is issued without arguments, it will print out the existing bot counts, bots on teams and other information.  If provided with a single value (`sv bots 3`) this will add 3 bots to the game.  If this is a team game, it should auto balance the bots across teams.  If provided with two values (`sv bots 3 1`) this will assign 3 bots to team 1.  Please be aware of your maxclients limits as the server console will alert you if you have added too many bots.
 - `bot_remember <#>` - Server cvar, how long (in seconds) the bot remembers an enemy after visibility has been lost.  This is experimental and being reevaluated for usability, and may be replaced in the future
 - `bot_reaction <#>` - Server cvar, how long (in seconds) until the bot reacts to an enemy in sight.  Lower values mean a faster reaction.  This is experimental and being reevaluated for usability, and may be replaced in the future
@@ -625,6 +626,7 @@ Taking aspects of the existing bots and greatly enhancing their navigation and b
 - `bot_countashuman [0/1]` - Server cvar, enabling this will allow teamplay-based games to progress without humans being in the server.  Set to 0 to force games to not count bots as clients in terms of teamplay
 - `bot_navautogen [0/1]` - Server cvar, enabling this will auto generate a navmesh for any maps that do not already have one, on map load time.  This automatic navmesh is far from perfect, but it does allow bots to traverse maps rather than stand still.  A far superior option is to have a handcrafted navmesh for the map.
 - `bot_debug [0/1]` - Server cvar, will enable debug messaging for BOTLIB functionality where enabled
+- `bot_reportasclient [0/1]` - Server cvar, if enabled, will report bots as real clients to server masters.  Default is disabled [0]
 
 **Client Commands:**
 These commands only work on local map loads, not connections to dedicated servers.  They are meant to be used to create navmeshes.

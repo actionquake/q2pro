@@ -17,6 +17,11 @@ qboolean BOTLIB_SV_Cmds(void)
 
 		int cc = gi.argc();
 
+		if (!bot_enable->value) {
+			gi.dprintf("bot_enable is 0; Bots are disabled\n");
+			return true;
+		}
+
 		gi.cvar_set("bot_maxteam", va("%d", 0)); // Override if bots manually added
 
 		// sv bots <num>
@@ -297,6 +302,11 @@ qboolean BOTLIB_Commands(edict_t* ent)
 		if (dedicated->value)
 			return true;
 
+		if (gl_shaders->value) {
+			gi.dprintf("Cannot toggle nav nodes with gl_shaders enabled, set gl_shaders to 0 to enable nav editing\n");
+			return true;
+		}
+
 		//bot_showpath->value = !bot_showpath->value; // Toggle path display
 		if (bot_showpath->value == 0 && ent->bot.walknode.enabled == false)
 		{
@@ -320,7 +330,14 @@ qboolean BOTLIB_Commands(edict_t* ent)
 	{
 		if (dedicated->value)
 			return true;
+		if (gl_shaders->value) {
+			gi.dprintf("Cannot edit nodes with gl_shaders enabled, set gl_shaders to 0 to enable nav editing)\n");
+			return true;
+		}
 		ent->bot.walknode.enabled = !ent->bot.walknode.enabled;
+		// Turn off limits if we're in edit mode
+		gi.cvar_forceset(timelimit->name, "0");
+		gi.cvar_forceset(fraglimit->name, "0");
 		return true;
 	}
 
