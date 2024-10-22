@@ -2238,6 +2238,7 @@ struct gclient_s
 	edict_t		*ctf_grapple;		// entity of grapple
 	int			ctf_grapplestate;		// true if pulling
 	int			ctf_grapplereleaseframe;	// frame of grapple release
+	qboolean	ctf_hasflag;		// set to true if this client has the flag
 
 #if AQTION_EXTENSION
 	//AQTION - Reki: Teammate indicators

@@ -57,6 +57,7 @@ cvar_t *ctf_mode = NULL;
 cvar_t *ctf_dropflag = NULL;
 cvar_t *ctf_respawn = NULL;
 cvar_t *ctf_model = NULL;
+cvar_t *ctf_dyn_respawn = NULL;
 
 //-----------------------------------------------------------------------------
 
@@ -90,6 +91,8 @@ qboolean CTFLoadConfig(char *mapname)
 	/* zero is perfectly acceptable respawn time, but we want to know if it came from the config or not */
 	ctfgame.spawn_red = -1;
 	ctfgame.spawn_blue = -1;
+	ctfgame.spawn_red_default = -1;
+	ctfgame.spawn_blue_default = -1;
 
 	sprintf (buf, "%s/tng/%s.ctf", GAMEVERSION, mapname);
 	fh = fopen (buf, "r");
@@ -141,11 +144,13 @@ qboolean CTFLoadConfig(char *mapname)
 	if(ptr) {
 		gi.dprintf("  Red      : %s\n", ptr);
 		ctfgame.spawn_red = atoi(ptr);
+		ctfgame.spawn_red_default = atoi(ptr);
 	}
 	ptr = INI_Find(fh, "respawn", "blue");
 	if(ptr) {
 		gi.dprintf("  Blue     : %s\n", ptr);
 		ctfgame.spawn_blue = atoi(ptr);
+		ctfgame.spawn_blue_default = atoi(ptr);
 	}
 
 	gi.dprintf(" Flags\n");
@@ -252,6 +257,51 @@ void CTFSetTeamSpawns(int team, char *str)
 	} while(next != NULL);
 }
 
+#define POINT_DIFFERENTIAL 3
+#define MIN_RESPAWN_TIME 1
+
+static void AdjustRespawnTime(int* spawn_time, int time_reduction, int team) {
+    *spawn_time = max(MIN_RESPAWN_TIME, *spawn_time - time_reduction);
+    CenterPrintTeam(team, va("Dynamically adjusting respawn rates, your team is now respawning every %d seconds\n", *spawn_time));
+	//gi.dprintf("%s: Respawn time for team %d adjusted to %d\n", __func__, team, *spawn_time);
+}
+
+static void ResetRespawnTime(int team) {
+	if (team == TEAM1) {
+		ctfgame.spawn_red = ctfgame.spawn_red_default;
+		CenterPrintTeam(team, va("Respawn rates reset, your team is now respawning every %d seconds\n", ctfgame.spawn_red_default));
+	} else if (team == TEAM2) {
+		ctfgame.spawn_blue = ctfgame.spawn_blue_default;
+		CenterPrintTeam(team, va("Respawn rates reset, your team is now respawning every %d seconds\n", ctfgame.spawn_blue_default));
+	}
+	//gi.dprintf("%s: Respawn time for team %d reset to %d\n", __func__, team, spawn_time);
+}
+
+void CTFDynamicRespawnTimer(void)
+{
+    if (!ctf_dyn_respawn->value)
+        return;
+
+    int score_diff = abs(ctfgame.team1 - ctfgame.team2);
+    int time_reduction = score_diff / POINT_DIFFERENTIAL;
+
+    gi.dprintf("score diff: %d, time reduction: %d\n", score_diff, time_reduction);
+
+    if (ctfgame.team1 > ctfgame.team2) {
+        if (score_diff >= POINT_DIFFERENTIAL) {
+            AdjustRespawnTime(&ctfgame.spawn_blue, time_reduction, TEAM2);
+        } else {
+            ResetRespawnTime(TEAM2);
+        }
+    } else if (ctfgame.team2 > ctfgame.team1) {
+        if (score_diff >= POINT_DIFFERENTIAL) {
+            AdjustRespawnTime(&ctfgame.spawn_red, time_reduction, TEAM1);
+        } else {
+            ResetRespawnTime(TEAM1);
+        }
+    }
+}
+
 /* returns the respawn time for this particular client */
 int CTFGetRespawnTime(edict_t *ent)
 {
@@ -339,6 +389,7 @@ void CTFSwapTeams(void)
 		if (ent->inuse && ent->client->resp.team) {
 			ent->client->resp.team = CTFOtherTeam(ent->client->resp.team);
 			AssignSkin(ent, teams[ent->client->resp.team].skin, false);
+			ent->client->ctf_hasflag = false;
 		}
 	}
 
@@ -622,6 +673,7 @@ void CTFResetFlag(int team)
 		if (ent->client->inventory[ITEM_INDEX(teamFlag)]) {
 			Drop_Item(ent, teamFlag);
 			ent->client->inventory[ITEM_INDEX(teamFlag)] = 0;
+			ent->client->ctf_hasflag = false;
 		}
 	}
 
@@ -684,6 +736,7 @@ qboolean CTFPickup_Flag(edict_t * ent, edict_t * other)
 					   other->client->pers.netname,
 					   CTFOtherTeamName(team));
 				other->client->inventory[ITEM_INDEX(enemy_flag_item)] = 0;
+				other->client->ctf_hasflag = false;
 
 				ctfgame.last_flag_capture = level.framenum;
 				ctfgame.last_capture_team = team;
@@ -691,6 +744,8 @@ qboolean CTFPickup_Flag(edict_t * ent, edict_t * other)
 					ctfgame.team1++;
 				else
 					ctfgame.team2++;
+
+				CTFDynamicRespawnTimer(); // Dynamic respawn time
 
 				gi.sound(ent, CHAN_RELIABLE + CHAN_NO_PHS_ADD + CHAN_VOICE,
 					 gi.soundindex("tng/flagcap.wav"), 1, ATTN_NONE, 0);
@@ -767,6 +822,7 @@ qboolean CTFPickup_Flag(edict_t * ent, edict_t * other)
 
 	other->client->inventory[ITEM_INDEX(flag_item)] = 1;
 	other->client->resp.ctf_flagsince = level.framenum;
+	other->client->ctf_hasflag = true;
 
 	// pick up the flag
 	// if it's not a dropped flag, we just make is disappear
@@ -825,6 +881,7 @@ void CTFDeadDropFlag(edict_t * self)
 		dropped->think = CTFDropFlagThink;
 		dropped->nextthink = level.framenum + CTF_AUTO_FLAG_RETURN_TIMEOUT * HZ;
 		dropped->touch = CTFDropFlagTouch;
+		self->client->ctf_hasflag = false;
 	}
 }
 
@@ -845,6 +902,7 @@ void CTFDrop_Flag(edict_t * ent, gitem_t * item)
 			dropped->think = CTFDropFlagThink;
 			dropped->nextthink = level.framenum + CTF_AUTO_FLAG_RETURN_TIMEOUT * HZ;
 			dropped->touch = CTFDropFlagTouch;
+			ent->client->ctf_hasflag = false;
 		}
 	} else {
 		if (rand() & 1)

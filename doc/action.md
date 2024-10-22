@@ -206,9 +206,10 @@ Flag locations and CTF player spawns should be specified in tng/mapname.ctf file
 - Server settings:
   - `ctf [0/1]` - This will turn CTF on (1) or off (0). It will automatically turn Teamplay on (1).
   - `capturelimit [#]` - The maximum number of captures before a map will change. Set to 0 to ignore that.
-  - `ctf_respawn [#]` - The time in seconds before a player will respawn after having died.
+  - `ctf_respawn [#]` - The time in seconds before a player will respawn after having died. Overrides respawn timers in .ctf files
   - `ctf_dropflag [0/1]` - Allow clients to drop the flag or not.
   - `uvtime [#]` - The number of seconds *10 of the duration of the 'shield' effect. (for example 40 is 4 secs)
+  - `ctf_dyn_respawn [0/1]` - Default 0, this will reduce the respawn timer for a losing team periodically.  Will self-correct as that team mounts a comeback.
 - Client settings:
   - `drop flag` - Drop the flag if you're holding it
 
