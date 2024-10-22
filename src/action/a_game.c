@@ -1476,7 +1476,7 @@ void Cmd_Pickup_f(edict_t* ent)
 		// Check if msgflags supports this
 		if (!(MSGFLAGS(PICKUP_REQ_MSG))) {
 			gi.cprintf(ent, PRINT_HIGH, MSG_PICKUP_SERVER_ERROR);
-			gi.dprintf("%s: %s attempted to send a pickup request but msgflags needs to be %d (currently %d)\n", __func__, ent->client->pers.netname, PICKUP_REQ_MSG, msgflags->value);
+			gi.dprintf("%s: %s attempted to send a pickup request but msgflags needs to be %d\n", __func__, ent->client->pers.netname, PICKUP_REQ_MSG);
 			return;
 		}
 
@@ -1485,7 +1485,7 @@ void Cmd_Pickup_f(edict_t* ent)
 			snprintf(msg, sizeof(msg), "**%s** is requesting a pickup match at **%s (%s:%s)**", ent->client->pers.netname, hostname->string, server_ip->string, net_port->string);
 		} else {
 			gi.cprintf(ent, PRINT_HIGH, MSG_PICKUP_SERVER_ERROR);
-			gi.dprintf("%s: %s attempted to send a pickup request but the server is missing hostname, server_ip or net_port\n", __func__, ent->client->pers.netname);
+			gi.dprintf("%s: %s attempted to send a pickup request but the server is missing hostname, server_ip and/or net_port\n", __func__, ent->client->pers.netname);
 			return;
 		}
 
