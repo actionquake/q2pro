@@ -577,6 +577,7 @@ cvar_t *g_highscores_countbots; // Toggles if we save highscores achieved by bot
 cvar_t *lca_grenade; // Allows grenade pin pulling during LCA
 cvar_t *breakableglass; // Moved from cgf_sfx_glass, enables breakable glass (0,1,2)
 cvar_t *glassfragmentlimit; // Moved from cgf_sfx_glass, sets glass fragment limit
+cvar_t *knife_catch; // Enables knife catching
 
 #if AQTION_EXTENSION
 cvar_t *use_newirvision;

@@ -674,6 +674,7 @@ void InitGame( void )
 	g_highscores_dir = gi.cvar("g_highscores_dir", "highscores", 0);
 	g_highscores_countbots = gi.cvar("g_highscores_countbots", "0", 0);
 	lca_grenade = gi.cvar("lca_grenade", "0", 0);
+	knife_catch = gi.cvar("knife_catch", "0", 0);
 
 
 	// new AQtion Extension cvars
