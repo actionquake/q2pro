@@ -46,7 +46,8 @@ Additions and enhancements by darksaint, Reki, Rektek and the AQ2World team
     - [Location Files](#location-files)
     - [Punching](#punching)
       - [Commands](#commands-15)
-    - [Lens command](#lens-command)
+    - [Sniper Zooming](#sniper-zooming)
+      - [Cvars](#cvars)
       - [Commands](#commands-16)
     - [New Say Variables](#new-say-variables)
     - [Time and Roundtimeleft](#time-and-roundtimeleft)
@@ -100,7 +101,6 @@ Additions and enhancements by darksaint, Reki, Rektek and the AQ2World team
     - [General quality of life improvements](#general-quality-of-life-improvements)
       - [Client Prediction](#client-prediction)
       - [Force Spawn items](#force-spawn-items)
-      - [Zoom Compensation](#zoom-compensation)
       - [Warmup](#warmup)
       - [Item Kit Mode](#item-kit-mode)
       - [Print rules](#print-rules)
@@ -333,15 +333,24 @@ We have added the extra 'punch' attack, which basically is a weaker version of a
 - Client setting:
     - `punch` - this will preform a punch
 
-### Lens command
-The lens command is in TNG and offers increased control over the zooming of the sniper rifle.
+### Sniper Zooming
+The `lens` command is in TNG and offers increased control over the zooming of the sniper rifle. Zoom sensitivity can be adjusted based on the zoom level with these client cvars.  Any `cl_zoom_xx` value set to `0` will not change the sensitivity for that zoom level.  For example, if you have 2x set to `4` and 4x set to `0`, 4x will also be `4` since it is not changing from 2x's setting.  Zooming all the way back out will restore your original sensitivity setting.
+
+#### Cvars
+- Server cvars:
+  - `zoom_comp [0/1]` - server cvar, set to "1" to compensate zoom delay based on ping. Every 80ms ping reduces 1 frame, minimum of 1 frame. Default is "0", do not compensate
+- Client cvars:
+  - `cl_zoom_autosens` - default 0, if 1, it enables the use of the cvars below
+  - `cl_zoom_2x` - default 0, set this to the sensitivity level you want to use at a 2x zoom
+  - `cl_zoom_4x` - default 0, set this to the sensitivity level you want to use at a 4x zoom
+  - `cl_zoom_6x` - default 0, set this to the sensitivity level you want to use at a 6x zoom
 
 #### Commands
-- Client settings:
-    - `lens` - changes zoom on sniper rifle
-    - `lens [#]` - 1,2,4,6 - if you use any other number it'll go to the nearest zoom mode
-    - `lens in` - zooms the rifle in to the next zooming level
-    - `lens out` - zooms the rifle out to the previous zooming level
+- Client commands:
+  - `lens` - changes zoom on sniper rifle
+  - `lens [#]` - 1,2,4,6 - if you use any other number it'll go to the nearest zoom mode
+  - `lens in` - zooms the rifle in to the next zooming level
+  - `lens out` - zooms the rifle out to the previous zooming level
 
 ### New Say Variables
 TNG offers several new variables clients can use in their text (Client settings):
@@ -659,9 +668,6 @@ Antilag allows server operator to enable lag-compensation for aiming with hitsca
 #### Force Spawn items
 `g_spawn_items [0/1]` - server cvar, set to "1" to allow for item/ammo/weapon spawns in games that you choose your starting weapon, for example, dm_choose, teamplay, etc. Forced set to "0" for matchmode. Set "0" for classic play.
 
-#### Zoom Compensation
-`zoom_comp [0/1]` - server cvar, set to "1" to compensate zoom delay based on ping. Every 80ms ping reduces 1 frame, minimum of 1 frame. Default is "0", do not compensate
-
 #### Warmup
 `warmup [#]` - server cvar, set in seconds, minimum is 15, 20 is common. This is the amount of time in seconds after both captains ready up that warmups will continue until the first round begins. Set to 0 to disable warmup entirely.
 `warmup_bots [#]` - server cvar, set in number of bots to add. This adds this many bots to the warmup phase of matchmode. Set to '0' to disable warmup_bots, suggested value for usage is '4' to '6'.
@@ -695,6 +701,7 @@ Inspired by AQ2:ETE, these additions are optional server vars to create a differ
 ### Gun mechanics/enhancements
 - `gun_dualmk23_enhance [0/1]` - server cvar, default 0.  If enabled, this allows both the silencer and the laser sight to be used on the Dual MK23 Pistols.
 - `use_gren_bonk [0/1]` - server cvar, default 0.  If enabled, this enables impact damage of the grenade to cause damage on direct contact with a player.  The speed of which the grenade is thrown will determine the damage dealt. Thanks to JukS for the idea and the code.
+- `lca_grenade` - server cvar, default 0.  If enabled, players can pull the grenade pin during Lights Camera Action, but they still cannot throw it until Action!
 
 ### Highscores
 Borrowing code from OpenTDM (thank you Skuller!), high scores are stored in a local file on the server.  Each time a new high score is achieved, it is registered in this file.  The high scores are separated by map and by game mode.  For example, `highscores/dm/wizs.txt` is the highscores file for the map `wizs` in `dm` mode.

@@ -92,6 +92,7 @@
     - [ch\_alpha](#ch_alpha)
     - [ch\_scale](#ch_scale)
     - [ch\_x; ch\_y](#ch_x-ch_y)
+    - [ch\_hide\_while\_zoomed](#ch_hide_while_zoomed)
     - [xhair\_enabled](#xhair_enabled)
     - [xhair\_firing\_error](#xhair_firing_error)
     - [xhair\_movement\_error](#xhair_movement_error)
@@ -891,6 +892,10 @@ size).
 These variables specify the crosshair image offset, counted in pixels
 from the default position in center of the game screen. Default values
 are 0 (draw in center).
+
+### ch\_hide\_while\_zoomed
+AQtion-specific client cvar, enabling this will pervent the default crosshair
+from being drawn under the sniper zoom crosshair
 
 ### xhair_enabled
 Enables new xhair system which replaces the classic crosshair.

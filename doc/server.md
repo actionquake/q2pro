@@ -96,6 +96,7 @@
     - [map\_visibility\_patch](#map_visibility_patch)
     - [com\_fatal\_error](#com_fatal_error)
     - [com\_debug\_break](#com_debug_break)
+    - [g\_protocol\_extensions](#g_protocol_extensions)
 - [Commands](#commands)
   - [Generic](#generic-1)
     - [status \[mode\]](#status-mode)
@@ -843,6 +844,12 @@ exit. Default value is 0 (disabled).
 ### com\_debug\_break  
 Development variable that turns all errors into debug breakpoints.
 Default value is 0 (disabled).
+
+### g\_protocol\_extensions
+Server operators can enable protocol extensions, which is not compatible with
+clients that do not have protocol extensions.  The benefit is that
+the limits around items such as sounds, images, map sizes and such are
+significantly heightened.
 
 # Commands
 
