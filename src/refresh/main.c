@@ -68,6 +68,7 @@ cvar_t *gl_md5_distance;
 #endif
 cvar_t *gl_damageblend_frac;
 cvar_t *gl_waterwarp;
+cvar_t *gl_fog;
 cvar_t *gl_swapinterval;
 
 // development variables
@@ -325,14 +326,12 @@ void GL_RotationMatrix(GLfloat *matrix)
 
 void GL_RotateForEntity(bool skies)
 {
-    GLfloat matrix[16];
-
-    GL_RotationMatrix(matrix);
+    GL_RotationMatrix(gls.u_block.m_model);
     if (skies) {
-        GL_MultMatrix(gls.u_block.msky[0], glr.skymatrix[0], matrix);
-        GL_MultMatrix(gls.u_block.msky[1], glr.skymatrix[1], matrix);
+        GL_MultMatrix(gls.u_block.m_sky[0], glr.skymatrix[0], gls.u_block.m_model);
+        GL_MultMatrix(gls.u_block.m_sky[1], glr.skymatrix[1], gls.u_block.m_model);
     }
-    GL_MultMatrix(glr.entmatrix, glr.viewmatrix, matrix);
+    GL_MultMatrix(glr.entmatrix, glr.viewmatrix, gls.u_block.m_model);
     GL_ForceMatrix(glr.entmatrix);
 }
 
@@ -342,7 +341,7 @@ static void GL_DrawSpriteModel(const model_t *model)
     const mspriteframe_t *frame = &model->spriteframes[e->frame % model->numframes];
     const image_t *image = frame->image;
     const float alpha = (e->flags & RF_TRANSLUCENT) ? e->alpha : 1.0f;
-    glStateBits_t bits = GLS_DEPTHMASK_FALSE;
+    glStateBits_t bits = GLS_DEPTHMASK_FALSE | glr.fog_bits;
     vec3_t up, down, left, right;
 
     if (alpha == 1.0f) {
@@ -1717,11 +1716,20 @@ void R_RenderFrame(const refdef_t *fd)
     glr.drawframe++;
 
     glr.fd = *fd;
-    glr.num_beams = 0;
-    glr.num_flares = 0;
+    glr.num_beams = glr.num_flares   = 0;
+    glr.fog_bits  = glr.fog_bits_sky = 0;
 
     if (gl_dynamic->integer != 1 || gl_vertexlight->integer)
         glr.fd.num_dlights = 0;
+
+    if (gl_static.use_shaders && gl_fog->integer > 0) {
+        if (glr.fd.fog.density > 0)
+            glr.fog_bits |= GLS_FOG_GLOBAL;
+        if (glr.fd.heightfog.density > 0 && glr.fd.heightfog.falloff > 0)
+            glr.fog_bits |= GLS_FOG_HEIGHT;
+        if (glr.fd.fog.sky_factor > 0)
+            glr.fog_bits_sky |= GLS_FOG_SKY;
+    }
 
     if (lm.dirty) {
         GL_RebuildLighting();
@@ -1964,6 +1972,7 @@ static void GL_Register(void)
 #endif
     gl_damageblend_frac = Cvar_Get("gl_damageblend_frac", "0.2", 0);
     gl_waterwarp = Cvar_Get("gl_waterwarp", "0", 0);
+    gl_fog = Cvar_Get("gl_fog", "1", 0);
     gl_swapinterval = Cvar_Get("gl_swapinterval", "1", CVAR_ARCHIVE);
     gl_swapinterval->changed = gl_swapinterval_changed;
 
