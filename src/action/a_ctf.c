@@ -262,19 +262,27 @@ void CTFSetTeamSpawns(int team, char *str)
 
 static void AdjustRespawnTime(int* spawn_time, int time_reduction, int team) {
     *spawn_time = max(MIN_RESPAWN_TIME, *spawn_time - time_reduction);
+	if (team == TEAM1) {
+		ctfgame.spawn_red = *spawn_time;
+	} else if (team == TEAM2) {
+		ctfgame.spawn_blue = *spawn_time;
+	} else {
+		return; // invalid team passed
+	}
     CenterPrintTeam(team, va("Dynamically adjusting respawn rates, your team is now respawning every %d seconds\n", *spawn_time));
-	//gi.dprintf("%s: Respawn time for team %d adjusted to %d\n", __func__, team, *spawn_time);
+	gi.dprintf("%s: Respawn time for team %d adjusted to %d\n", __func__, team, *spawn_time);
 }
 
 static void ResetRespawnTime(int team) {
 	if (team == TEAM1) {
 		ctfgame.spawn_red = ctfgame.spawn_red_default;
 		CenterPrintTeam(team, va("Respawn rates reset, your team is now respawning every %d seconds\n", ctfgame.spawn_red_default));
+		gi.dprintf("%s: Respawn time for team %d reset to %d\n", __func__, team, ctfgame.spawn_red_default);
 	} else if (team == TEAM2) {
 		ctfgame.spawn_blue = ctfgame.spawn_blue_default;
 		CenterPrintTeam(team, va("Respawn rates reset, your team is now respawning every %d seconds\n", ctfgame.spawn_blue_default));
+		gi.dprintf("%s: Respawn time for team %d reset to %d\n", __func__, team, ctfgame.spawn_blue_default);
 	}
-	//gi.dprintf("%s: Respawn time for team %d reset to %d\n", __func__, team, spawn_time);
 }
 
 void CTFDynamicRespawnTimer(void)
@@ -285,17 +293,15 @@ void CTFDynamicRespawnTimer(void)
     int score_diff = abs(ctfgame.team1 - ctfgame.team2);
     int time_reduction = score_diff / POINT_DIFFERENTIAL;
 
-    gi.dprintf("score diff: %d, time reduction: %d\n", score_diff, time_reduction);
-
     if (ctfgame.team1 > ctfgame.team2) {
         if (score_diff >= POINT_DIFFERENTIAL) {
-            AdjustRespawnTime(&ctfgame.spawn_blue, time_reduction, TEAM2);
+            AdjustRespawnTime(&ctfgame.spawn_blue_default, time_reduction, TEAM2);
         } else {
             ResetRespawnTime(TEAM2);
         }
     } else if (ctfgame.team2 > ctfgame.team1) {
         if (score_diff >= POINT_DIFFERENTIAL) {
-            AdjustRespawnTime(&ctfgame.spawn_red, time_reduction, TEAM1);
+            AdjustRespawnTime(&ctfgame.spawn_red_default, time_reduction, TEAM1);
         } else {
             ResetRespawnTime(TEAM1);
         }
