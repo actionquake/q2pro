@@ -374,7 +374,6 @@ png = dependency('libpng',
   version:         '>= 1.6.11',
   required:        get_option('libpng'),
   default_options: fallback_opt,
-  static:          true
 )
 if png.found()
   texture_formats += 'png'
@@ -408,7 +407,6 @@ game_deps = [zlib]
 jpeg = dependency('libjpeg',
   required:        get_option('libjpeg'),
   default_options: fallback_opt + [ 'jpeg-turbo=disabled', 'tests=disabled' ],
-  static:          true
 )
 
 if jpeg.found()
