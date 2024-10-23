@@ -308,6 +308,7 @@
 
 qboolean team_game_going = false;	// is a team game going right now?
 qboolean team_round_going = false;	// is an actual round of a team game going right now?
+qboolean during_countdown = false;		// This is set to 1 when the 10..9..8.. countdown is going on
 
 int team_round_countdown = 0;	// countdown variable for start of a round
 int rulecheckfrequency = 0;	// accumulator variable for checking rules every 1.5 secs
@@ -324,12 +325,13 @@ team_t teams[TEAM_TOP];
 int	teamCount = 2;
 int gameSettings;
 
-#define MAX_SPAWNS 512		// max DM spawn points supported
+//#define MAX_SPAWNS 512		// moved to g_local.h
 
 edict_t *potential_spawns[MAX_SPAWNS];
 int num_potential_spawns;
 edict_t *teamplay_spawns[MAX_TEAMS];
 trace_t trace_t_temp;		// used by our trace replace macro in ax_team.h
+int teamplay_spawn_node[MAX_TEAMS];	// used to keep track of the closest BOTLIB node to the spawnpoint
 
 // <TNG:Freud New spawning variables>
 int NS_num_used_farteamplay_spawns[MAX_TEAMS];
@@ -422,6 +424,96 @@ void ReprintMOTD (edict_t * ent, pmenu_t * p)
 	PrintMOTD (ent);
 }
 
+char* PrintMatchRules(void)
+{
+	static char rulesmsg[1024];
+
+	// Espionage rules
+	if (esp->value) {
+		int rndlimit = (int)roundlimit->value;
+		if (espsettings.esp_mode == ESPMODE_ATL) {
+			if (!teams[TEAM1].leader && !teams[TEAM2].leader && !teams[TEAM3].leader) {
+				Q_snprintf( rulesmsg, sizeof( rulesmsg ), "Frag the other team's leader to win, but don't forget to protect your own!\n");
+			}
+			else if (teamCount == TEAM2) {
+				Q_snprintf( rulesmsg, sizeof( rulesmsg ), "%s leader: %s (%s)\n\n%s leader: %s (%s)\n\nFrag the other team's leader to win, but don't forget to protect your own!\n",
+					teams[TEAM1].name, teams[TEAM1].leader->client->pers.netname, teams[TEAM1].leader_name,
+					teams[TEAM2].name, teams[TEAM2].leader->client->pers.netname, teams[TEAM2].leader_name );
+				} else {
+					Q_snprintf( rulesmsg, sizeof( rulesmsg ), "%s leader: %s (%s)\n\n%s leader: %s (%s)\n\n%s leader: %s (%s)\n\nFrag the other team's leaders to win, but don't forget to protect your own!\n",
+					teams[TEAM1].name, teams[TEAM1].leader->client->pers.netname, teams[TEAM1].leader_name,
+					teams[TEAM2].name, teams[TEAM2].leader->client->pers.netname, teams[TEAM2].leader_name,
+					teams[TEAM3].name, teams[TEAM3].leader->client->pers.netname, teams[TEAM3].leader_name );
+				}
+				// Roundlimit info
+				static char addmsg[64];
+				Q_snprintf(addmsg, sizeof(addmsg), "\n** The first team to %i points wins! **", (int)rndlimit);
+				Q_strncatz( rulesmsg, addmsg, sizeof( rulesmsg ) );
+
+		} else if (espsettings.esp_mode == ESPMODE_ETV) {
+				if (!teams[TEAM1].leader)
+					Q_snprintf( rulesmsg, sizeof( rulesmsg ), "\nTeam 1 is trying to escort their leader to the briefcase!\n\nTeam 2 is tasked with preventing that from happening!\n");
+				else if (teams[TEAM1].leader) {
+					Q_snprintf( rulesmsg, sizeof( rulesmsg ), "\n%s: Escort your leader %s to the %s! Don't get them killed!\n\n%s: DO NOT let %s get to the %s! Use lethal force!\n\nTeam 1 Respawn Timer: %i seconds\nTeam 2 Respawn Timer: %i seconds\n\nThe first team to %i points wins!\n",
+						teams[TEAM1].name, teams[TEAM1].leader->client->pers.netname, espsettings.target_name, 
+						teams[TEAM2].name, teams[TEAM1].leader->client->pers.netname, espsettings.target_name, 
+						(int)teams[TEAM1].respawn_timer, (int)teams[TEAM2].respawn_timer,
+						rndlimit );
+			// Append a little extra if halftime is enabled
+				if(esp_etv_halftime->value && roundlimit->value > 3){
+					static char addmsg[64];
+					Q_snprintf(addmsg, sizeof(addmsg), "\n** Halftime is enabled: Teams switch at round %i **", (int)rndlimit/2);
+					Q_strncatz( rulesmsg, addmsg, sizeof( rulesmsg ) );
+				}
+			}
+		}
+	}
+	// CTF rules
+	else if (ctf->value)
+	{
+		if (!capturelimit->value) {
+			Q_snprintf( rulesmsg, sizeof( rulesmsg ), "%s\nvs\n%s\n\nCapture the other team's flag!\nNo capturelimit set!\n",
+			teams[TEAM1].name, teams[TEAM2].name );
+		} else {
+			Q_snprintf( rulesmsg, sizeof( rulesmsg ), "%s\nvs\n%s\n\nCapture the other team's flag!\nThe first team to %s captures wins!\n",
+			teams[TEAM1].name, teams[TEAM2].name, capturelimit->string );
+		}
+	}
+	// Domination rules
+	else if (dom->value)
+	{
+		if (teamCount == TEAM2) {
+			Q_snprintf( rulesmsg, sizeof( rulesmsg ), "%s\nvs\n%s\n\nCapture all of the checkpoints!\n",
+				teams[TEAM1].name, teams[TEAM2].name );
+		} else {
+			Q_snprintf( rulesmsg, sizeof( rulesmsg ), "%s\nvs\n%s\nvs\n%s\n\nCapture all of the checkpoints!\n",
+				teams[TEAM1].name, teams[TEAM2].name, teams[TEAM3].name );
+		}
+	}
+	// This covers both Teamplay and TeamDM
+	else if (teamplay->value)
+	{
+		if (teamCount == TEAM2) {
+			Q_snprintf( rulesmsg, sizeof( rulesmsg ), "%s\nvs\n%s\n\nFrag the other team!\n",
+				teams[TEAM1].name, teams[TEAM2].name );
+		} else if (teamCount == TEAM3) {
+			Q_snprintf( rulesmsg, sizeof( rulesmsg ), "%s\nvs\n%s\nvs\n%s\n\nFrag the other teams!\n",
+				teams[TEAM1].name, teams[TEAM2].name, teams[TEAM3].name );
+		}
+	}
+	else // If nothing else matches, just say glhf
+	{
+		Q_snprintf( rulesmsg, sizeof( rulesmsg ), "Frag 'em all!  Good luck and have fun!\n");
+	}
+
+    if (rulesmsg[0] == '\0') {
+        // Handle empty
+        return "";
+    }
+
+	return rulesmsg;
+}
+
 void JoinTeamAuto (edict_t * ent, pmenu_t * p)
 {
 	int i, team = TEAM1, num1 = 0, num2 = 0, num3 = 0, score1, score2, score3;
@@ -468,6 +560,11 @@ void JoinTeamAuto (edict_t * ent, pmenu_t * p)
 	JoinTeam(ent, team, 0);
 }
 
+void JoinTeamAutobalance (edict_t * ent)
+{
+	JoinTeamAuto(ent, NULL);
+}
+
 void JoinTeam1 (edict_t * ent, pmenu_t * p)
 {
 	JoinTeam(ent, TEAM1, 0);
@@ -495,7 +592,11 @@ void SelectWeapon2(edict_t *ent, pmenu_t *p)
 {
 	ent->client->pers.chosenWeapon = GET_ITEM(MP5_NUM);
 	PMenu_Close(ent);
-	OpenItemMenu(ent);
+	if(!item_kit_mode->value){
+		OpenItemMenu(ent);
+	} else {
+		OpenItemKitMenu(ent);
+	}
 	unicastSound(ent, gi.soundindex("weapons/mp5slide.wav"), 1.0);
 }
 
@@ -503,7 +604,11 @@ void SelectWeapon3(edict_t *ent, pmenu_t *p)
 {
 	ent->client->pers.chosenWeapon = GET_ITEM(M3_NUM);
 	PMenu_Close(ent);
-	OpenItemMenu(ent);
+	if(!item_kit_mode->value){
+		OpenItemMenu(ent);
+	} else {
+		OpenItemKitMenu(ent);
+	}
 	unicastSound(ent, gi.soundindex("weapons/m3in.wav"), 1.0);
 }
 
@@ -511,7 +616,11 @@ void SelectWeapon4(edict_t *ent, pmenu_t *p)
 {
 	ent->client->pers.chosenWeapon = GET_ITEM(HC_NUM);
 	PMenu_Close(ent);
-	OpenItemMenu(ent);
+	if(!item_kit_mode->value){
+		OpenItemMenu(ent);
+	} else {
+		OpenItemKitMenu(ent);
+	}
 	unicastSound(ent, gi.soundindex("weapons/cclose.wav"), 1.0);
 }
 
@@ -519,7 +628,11 @@ void SelectWeapon5(edict_t *ent, pmenu_t *p)
 {
 	ent->client->pers.chosenWeapon = GET_ITEM(SNIPER_NUM);
 	PMenu_Close(ent);
-	OpenItemMenu(ent);
+	if(!item_kit_mode->value){
+		OpenItemMenu(ent);
+	} else {
+		OpenItemKitMenu(ent);
+	}
 	unicastSound(ent, gi.soundindex("weapons/ssgbolt.wav"), 1.0);
 }
 
@@ -527,7 +640,11 @@ void SelectWeapon6(edict_t *ent, pmenu_t *p)
 {
 	ent->client->pers.chosenWeapon = GET_ITEM(M4_NUM);
 	PMenu_Close(ent);
-	OpenItemMenu(ent);
+	if(!item_kit_mode->value){
+		OpenItemMenu(ent);
+	} else {
+		OpenItemKitMenu(ent);
+	}
 	unicastSound(ent, gi.soundindex("weapons/m4a1slide.wav"), 1.0);
 }
 
@@ -535,7 +652,11 @@ void SelectWeapon0(edict_t *ent, pmenu_t *p)
 {
 	ent->client->pers.chosenWeapon = GET_ITEM(KNIFE_NUM);
 	PMenu_Close(ent);
-	OpenItemMenu(ent);
+	if(!item_kit_mode->value){
+		OpenItemMenu(ent);
+	} else {
+		OpenItemKitMenu(ent);
+	}
 	unicastSound(ent, gi.soundindex("weapons/swish.wav"), 1.0);
 }
 
@@ -543,13 +664,21 @@ void SelectWeapon9(edict_t *ent, pmenu_t *p)
 {
 	ent->client->pers.chosenWeapon = GET_ITEM(DUAL_NUM);
 	PMenu_Close(ent);
-	OpenItemMenu(ent);
+	if(!item_kit_mode->value){
+		OpenItemMenu(ent);
+	} else {
+		OpenItemKitMenu(ent);
+	}
 	unicastSound(ent, gi.soundindex("weapons/mk23slide.wav"), 1.0);
 }
 
 void SelectItem1(edict_t *ent, pmenu_t *p)
 {
 	ent->client->pers.chosenItem = GET_ITEM(KEV_NUM);
+	if(item_kit_mode->value){
+		// This is so it clears the chosenItem2 if a previous kit was chosen
+		ent->client->pers.chosenItem2 = NULL;
+	}
 	PMenu_Close(ent);
 	unicastSound(ent, gi.soundindex("misc/veston.wav"), 1.0);
 }
@@ -589,10 +718,40 @@ void SelectItem6(edict_t *ent, pmenu_t *p)
 	unicastSound(ent, gi.soundindex("misc/veston.wav"), 1.0);
 }
 
+// Commando kit
+void SelectKit1(edict_t *ent, pmenu_t *p)
+{
+	ent->client->pers.chosenItem = GET_ITEM(BAND_NUM);
+	ent->client->pers.chosenItem2 = GET_ITEM(HELM_NUM);
+
+	PMenu_Close(ent);
+	unicastSound(ent, gi.soundindex("misc/veston.wav"), 1.0);
+}
+
+// Stealth kit
+void SelectKit2(edict_t *ent, pmenu_t *p)
+{
+	ent->client->pers.chosenItem = GET_ITEM(SLIP_NUM);
+	ent->client->pers.chosenItem2= GET_ITEM(SIL_NUM);
+
+	PMenu_Close(ent);
+	unicastSound(ent, gi.soundindex("misc/screw.wav"), 1.0);
+}
+
+// Assassin kit
+void SelectKit3(edict_t *ent, pmenu_t *p)
+{
+	ent->client->pers.chosenItem = GET_ITEM(LASER_NUM);
+	ent->client->pers.chosenItem2= GET_ITEM(SIL_NUM);
+
+	PMenu_Close(ent);
+	unicastSound(ent, gi.soundindex("misc/lasersight.wav"), 1.0);
+}
+
 // newrand returns n, where 0 >= n < top
 int newrand (int top)
 {
-	return (int) (random () * top);
+	return rand() % top;
 }
 
 void SelectRandomWeapon(edict_t *ent, pmenu_t *p)
@@ -622,7 +781,11 @@ void SelectRandomWeapon(edict_t *ent, pmenu_t *p)
 	unicastSound(ent, gi.soundindex(selected_weapon.sound), 1.0);
 	gi.centerprintf(ent, "You selected %s", selected_weapon.name);
 	PMenu_Close(ent);
-	OpenItemMenu(ent);
+	if(!item_kit_mode->value){
+		OpenItemMenu(ent);
+	} else {
+		OpenItemKitMenu(ent);
+	}
 }
 
 void SelectRandomItem(edict_t *ent, pmenu_t *p)
@@ -683,6 +846,8 @@ void SelectRandomItem(edict_t *ent, pmenu_t *p)
 
 void SelectRandomWeaponAndItem(edict_t *ent, pmenu_t *p)
 {
+	int i;
+	int rand = newrand(7);
 	// WEAPON
 	menu_list_weapon weapon_list[7] = {
 		{ .num = MP5_NUM, .sound = "weapons/mp5slide.wav", .name = MP5_NAME },
@@ -694,7 +859,6 @@ void SelectRandomWeaponAndItem(edict_t *ent, pmenu_t *p)
 		{ .num = DUAL_NUM, .sound = "weapons/mk23slide.wav", .name = DUAL_NAME }
 	};
 
-	int rand = newrand(7);
 	menu_list_weapon selected_weapon = weapon_list[rand];
 	// prevent picking current weapon
 	if (ent->client->pers.chosenWeapon) {
@@ -749,7 +913,7 @@ void SelectRandomWeaponAndItem(edict_t *ent, pmenu_t *p)
 		}
 	}
 
-	for (int i = 0; i < listCount; i++) {
+	for (i = 0; i < listCount; i++) {
 		gi.cprintf(ent, PRINT_HIGH, "%i %s\n", item_list[i].num, item_list[i].name);
 	}
 
@@ -859,7 +1023,7 @@ pmenu_t weapmenu[] = {
   {"Return to Main Menu", PMENU_ALIGN_LEFT, NULL, CreditsReturnToMain},
   {NULL, PMENU_ALIGN_LEFT, NULL, NULL},
   //AQ2:TNG END
-  {"Use [ and ] to move cursor", PMENU_ALIGN_LEFT, NULL, NULL},
+  {"Use arrows to move cursor", PMENU_ALIGN_LEFT, NULL, NULL},
   {"ENTER to select", PMENU_ALIGN_LEFT, NULL, NULL},
   {"TAB to exit menu", PMENU_ALIGN_LEFT, NULL, NULL},
   {NULL, PMENU_ALIGN_LEFT, NULL, NULL},
@@ -882,7 +1046,26 @@ pmenu_t itemmenu[] = {
   {"Random Item", PMENU_ALIGN_LEFT, NULL, SelectRandomItem},
   //AQ2:TNG end adding itm_flags
   {NULL, PMENU_ALIGN_LEFT, NULL, NULL},
-  {"Use [ and ] to move cursor", PMENU_ALIGN_LEFT, NULL, NULL},
+  {"Use arrows to move cursor", PMENU_ALIGN_LEFT, NULL, NULL},
+  {"ENTER to select", PMENU_ALIGN_LEFT, NULL, NULL},
+  {"TAB to exit menu", PMENU_ALIGN_LEFT, NULL, NULL},
+  {NULL, PMENU_ALIGN_LEFT, NULL, NULL},
+  {"v" VERSION, PMENU_ALIGN_RIGHT, NULL, NULL},
+};
+
+pmenu_t itemkitmenu[] = {
+  {"*" TNG_TITLE, PMENU_ALIGN_CENTER, NULL, NULL},
+  {"\x9D\x9E\x9E\x9E\x9E\x9E\x9E\x9E\x9E\x9E\x9E\x9E\x9E\x9E\x9E\x9E\x9E\x9E\x9E\x9E\x9E\x9E\x9E\x9E\x9E\x9E\x9F", PMENU_ALIGN_CENTER, NULL, NULL},
+  {"Select your Item", PMENU_ALIGN_CENTER, NULL, NULL},
+  {NULL, PMENU_ALIGN_LEFT, NULL, NULL},
+  //AQ2:TNG Igor adding itm_flags
+  {KEV_NAME, PMENU_ALIGN_LEFT, NULL, NULL},	// "Kevlar Vest", SelectItem1
+  {C_KIT_NAME, PMENU_ALIGN_LEFT, NULL, NULL},	// "Commando Kit", SelectKit1
+  {S_KIT_NAME, PMENU_ALIGN_LEFT, NULL, NULL},	// "Stealth Kit", SelectKit2
+  {A_KIT_NAME, PMENU_ALIGN_LEFT, NULL, NULL},	// "Assassin Kit", SelectKit3
+  //AQ2:TNG end adding itm_flags
+  {NULL, PMENU_ALIGN_LEFT, NULL, NULL},
+  {"Use arrows to move cursor", PMENU_ALIGN_LEFT, NULL, NULL},
   {"ENTER to select", PMENU_ALIGN_LEFT, NULL, NULL},
   {"TAB to exit menu", PMENU_ALIGN_LEFT, NULL, NULL},
   {NULL, PMENU_ALIGN_LEFT, NULL, NULL},
@@ -901,12 +1084,47 @@ pmenu_t randmenu[] = {
   {NULL, PMENU_ALIGN_LEFT, NULL, NULL},
   {"Return to Main Menu", PMENU_ALIGN_LEFT, NULL, CreditsReturnToMain},
   {NULL, PMENU_ALIGN_LEFT, NULL, NULL},
-  {"Use [ and ] to move cursor", PMENU_ALIGN_LEFT, NULL, NULL},
+  {"Use arrows to move cursor", PMENU_ALIGN_LEFT, NULL, NULL},
   {"ENTER to select", PMENU_ALIGN_LEFT, NULL, NULL},
   {"TAB to exit menu", PMENU_ALIGN_LEFT, NULL, NULL},
   {NULL, PMENU_ALIGN_LEFT, NULL, NULL},
   {"v" VERSION, PMENU_ALIGN_RIGHT, NULL, NULL},
 };
+
+/*
+PaTMaN's JMOD
+*/
+void ToggleLaser(edict_t *ent, pmenu_t *p)
+{
+	Cmd_Toggle_f(ent, "laser");
+}
+
+void ToggleSlippers(edict_t *ent, pmenu_t *p)
+{
+	//strcpy(gi.args(),"togglecode slippers");
+	Cmd_Toggle_f(ent, "slippers");
+}
+
+
+//PaTMaN - Item Menu
+pmenu_t pmitemmenu[] = {
+  {"*Item Menu                  (command binds)",		PMENU_ALIGN_LEFT,	NULL, NULL					},
+  { "-----------------------------------------------",	PMENU_ALIGN_LEFT,	NULL, NULL					},
+  { "Laser Sight                (jmod laser)",			PMENU_ALIGN_LEFT,	NULL, ToggleLaser			},
+  { "Slippers                   (jmod slippers)",		PMENU_ALIGN_LEFT,	NULL, ToggleSlippers		},
+  { NULL,												PMENU_ALIGN_LEFT,	NULL, NULL					},
+  { "Respawn to Closest Spawn   (jmod spawnc)",			PMENU_ALIGN_LEFT,	NULL, Cmd_GotoPC_f_compat  	},
+  { "Respawn to Random Spawn    (jmod spawnp)",			PMENU_ALIGN_LEFT,	NULL, Cmd_GotoP_f_compat   	},
+
+};
+
+
+void OpenPMItemMenu(edict_t *ent)
+{
+	PMenu_Open(ent, pmitemmenu, 2, sizeof(pmitemmenu) / sizeof(pmenu_t));
+}
+
+//End PaTMaN's jmod add
 
 //AQ2:TNG - slicer
 void VotingMenu (edict_t * ent, pmenu_t * p)
@@ -936,7 +1154,9 @@ pmenu_t joinmenu[] = {
   {"MOTD", PMENU_ALIGN_LEFT, NULL, ReprintMOTD},
   {"Credits", PMENU_ALIGN_LEFT, NULL, CreditsMenu},
   {NULL, PMENU_ALIGN_LEFT, NULL, NULL},
-  {"Use [ and ] to move cursor", PMENU_ALIGN_LEFT, NULL, NULL},
+  {"Request a Pickup Game", PMENU_ALIGN_LEFT, NULL, _PickupRequest},
+  {NULL, PMENU_ALIGN_LEFT, NULL, NULL},
+  {"Use arrows to move cursor", PMENU_ALIGN_LEFT, NULL, NULL},
   {"ENTER to select", PMENU_ALIGN_LEFT, NULL, NULL},
   {"TAB to exit menu", PMENU_ALIGN_LEFT, NULL, NULL},
   {NULL, PMENU_ALIGN_LEFT, NULL, NULL},
@@ -956,6 +1176,8 @@ void killPlayer( edict_t *ent, qboolean suicidePunish )
 	if (!IS_ALIVE(ent))
 		return;
 	
+	int damage = 100000;
+
 	if (suicidePunish && punishkills->value)
 	{
 		edict_t *attacker = ent->client->attacker;
@@ -975,11 +1197,25 @@ void killPlayer( edict_t *ent, qboolean suicidePunish )
 			}
 		}
 	}
+
+	// Throws bloody gibs everywhere
+	if (sv_killgib->value) {
+		int n;
+		for (n = 0; n < 10; n++)
+			ThrowGib(ent, "models/objects/gibs/sm_meat/tris.md2", damage, GIB_ORGANIC);
+		ThrowClientHead(ent, damage);
+		ent->client->anim_priority = ANIM_DEATH;
+		ent->client->anim_end = 0;
+		//ent->takedamage = DAMAGE_NO;
+	}
 	
 	ent->flags &= ~FL_GODMODE;
 	ent->health = 0;
 	meansOfDeath = MOD_SUICIDE;
-	player_die(ent, ent, ent, 100000, vec3_origin);
+
+	vec3_t non_const_origin; // Convert to non-const
+	VectorCopy(vec3_origin, non_const_origin);
+	player_die(ent, ent, ent, damage, non_const_origin);
 	ent->deadflag = DEAD_DEAD;
 }
 
@@ -991,6 +1227,11 @@ char *TeamName (int team)
 		return "None";
 }
 
+/*
+AssignSkin
+
+Anytime this is called, all player models are re-skinned
+*/
 void AssignSkin (edict_t * ent, const char *s, qboolean nickChanged)
 {
 	int playernum = ent - g_edicts - 1;
@@ -1004,8 +1245,37 @@ void AssignSkin (edict_t * ent, const char *s, qboolean nickChanged)
 		default_skin = force_skin->string;
 	}
 
-	if( (ctf->value || dom->value) && ! matchmode->value )
-	{
+	// Accounts for each Espionage mode, in matchmode or not
+	if (esp->value){
+		/*
+		In ATL mode (espsettings == 0), all teams must have a leader, and will have their own skin
+		In ETV mode (espsettings == 1), only TEAM1 gets a leader.
+		*/
+	
+		switch (ent->client->resp.team) {
+		case TEAM1:
+			Q_snprintf(skin, sizeof(skin), "%s\\%s", ent->client->pers.netname, teams[TEAM1].skin);
+			if (IS_LEADER(ent)){
+				Q_snprintf(skin, sizeof(skin), "%s\\%s", ent->client->pers.netname, teams[TEAM1].leader_skin);
+			}
+			break;
+		case TEAM2:
+			Q_snprintf(skin, sizeof(skin), "%s\\%s", ent->client->pers.netname, teams[TEAM2].skin);
+			if ((espsettings.esp_mode == ESPMODE_ATL) && IS_LEADER(ent)){
+				Q_snprintf(skin, sizeof(skin), "%s\\%s", ent->client->pers.netname, teams[TEAM2].leader_skin);
+			}
+			break;
+		case TEAM3:
+			Q_snprintf(skin, sizeof(skin), "%s\\%s", ent->client->pers.netname, teams[TEAM3].skin);
+			if ((espsettings.esp_mode == ESPMODE_ATL) && IS_LEADER(ent)){
+				Q_snprintf(skin, sizeof(skin), "%s\\%s", ent->client->pers.netname, teams[TEAM3].leader_skin);
+			}
+			break;
+		default:
+			Q_snprintf(skin, sizeof(skin), "%s\\%s", ent->client->pers.netname, default_skin);
+			break;
+		}
+	} else if ((ctf->value || dom->value) && !matchmode->value) {
 		// forcing CTF model
 		if(ctf_model->string[0]) {
 			/* copy at most bytes that the skin name itself fits in with the delimieter and NULL */
@@ -1033,7 +1303,7 @@ void AssignSkin (edict_t * ent, const char *s, qboolean nickChanged)
 			break;
 		}
 	}
-	else
+	else // Normal teamplay mode, not CTF/DOM/ESP/Matchmode
 	{
 		switch (ent->client->resp.team)
 		{
@@ -1048,7 +1318,7 @@ void AssignSkin (edict_t * ent, const char *s, qboolean nickChanged)
 		}
 	}
 
-	gi.configstring(CS_PLAYERSKINS + playernum, skin);
+	gi.configstring(game.csr.playerskins + playernum, skin);
 }
 
 /*
@@ -1113,6 +1383,11 @@ void Team_f (edict_t * ent)
 		return;
 	}
 	//PG BUND - END (Tourney extension)
+
+	if (esp->value && IS_LEADER(ent)) {
+		gi.cprintf(ent, PRINT_MEDIUM, "You are a team leader, you cannot change teams.\n");
+		return;
+	}
 	
 	Q_strncpyz(team, gi.args(), sizeof(team));
 	t = team;
@@ -1225,14 +1500,34 @@ void JoinTeam (edict_t * ent, int desired_team, int skip_menuclose)
 		G_UpdatePlayerStatusbar(ent, 1);
 	}
 
+#if AQTION_EXTENSION
+	if (desired_team == NOTEAM)
+		HUD_SetType(ent, 1);
+	else
+		HUD_SetType(ent, -1);
+#endif
+
 	if (level.intermission_framenum)
 		return;
+
+	// Espionage join a game in progress
+	if (esp->value && team_round_going && ent->inuse && ent->client->resp.team)
+	{
+		PutClientInServer (ent);
+		//AddToTransparentList (ent);
+	}
 
 	if (!(gameSettings & GS_ROUNDBASED) && team_round_going && ent->inuse && ent->client->resp.team)
 	{
 		PutClientInServer (ent);
 		AddToTransparentList (ent);
 	}
+
+	#if USE_AQTION
+	if (in_warmup && warmup_bots->value) {
+		PutClientInServer (ent);
+	}
+	#endif
 
 	//AQ2:TNG END
 	if (!skip_menuclose && (gameSettings & GS_WEAPONCHOOSE) && !use_randoms->value)
@@ -1242,6 +1537,8 @@ void JoinTeam (edict_t * ent, int desired_team, int skip_menuclose)
 	{
 		SelectRandomWeaponAndItem(ent, weapmenu);
 	}
+
+	gi.cprintf(ent, PRINT_CHAT, "You joined Team %i (%s).\n", desired_team, TeamName(desired_team));
 
 	teams_changed = true;
 }
@@ -1262,9 +1559,16 @@ void LeaveTeam (edict_t * ent)
 
 	MM_LeftTeam( ent );
 
+	if (esp->value)
+		EspLeaderLeftTeam ( ent );
+
 	ent->client->resp.joined_team = 0;
 	ent->client->resp.team = NOTEAM;
 	G_UpdatePlayerStatusbar(ent, 1);
+
+#if AQTION_EXTENSION
+	HUD_SetType(ent, 1);
+#endif
 
 	teams_changed = true;
 }
@@ -1275,7 +1579,7 @@ void ReturnToMain (edict_t * ent, pmenu_t * p)
 	OpenJoinMenu (ent);
 }
 
-char *menu_itemnames[ITEM_MAX_NUM] = {
+char *menu_itemnames[KIT_MAX_NUM] = {
 	"",
 	MK23_NAME,
 	MP5_NAME,
@@ -1286,15 +1590,26 @@ char *menu_itemnames[ITEM_MAX_NUM] = {
 	"Akimbo Pistols",
 	"Combat Knives",
 	GRENADE_NAME,
-
 	SIL_NAME,
 	SLIP_NAME,
 	BAND_NAME,
 	KEV_NAME,
 	"Laser Sight",
 	HELM_NAME,
-	""
+	"",
+	"",
+	"",
+	"",
+	"",
+	"",
+	"",
+	"",
+	"",
+	C_KIT_NAME_FULL,
+	S_KIT_NAME_FULL,
+	A_KIT_NAME_FULL,
 };
+
 
 typedef struct menuentry_s
 {
@@ -1338,6 +1653,39 @@ void OpenItemMenu (edict_t * ent)
 			PMenu_Open(ent, itemmenu, 4, sizeof(itemmenu) / sizeof(pmenu_t));
 			return;
 		}
+	}
+
+	PMenu_Close(ent);
+}
+
+void OpenItemKitMenu (edict_t * ent)
+{
+	menuentry_t *kitmenuEntry, kit_menu_items[] = {
+		{ KEV_NUM, SelectItem1 },
+		{ C_KIT_NUM, SelectKit1 },
+		{ S_KIT_NUM, SelectKit2 },
+		{ A_KIT_NUM, SelectKit3 }
+		};
+	int i, count, pos = 4;
+
+	count = sizeof( kit_menu_items ) / sizeof( kit_menu_items[0] );
+
+	for (kitmenuEntry = kit_menu_items, i = 0; i < count; i++, kitmenuEntry++) {
+		itemkitmenu[pos].text = menu_itemnames[kitmenuEntry->itemNum];
+		itemkitmenu[pos].SelectFunc = kitmenuEntry->SelectFunc;
+		pos++;
+	}
+
+	if ( pos > 4 )
+	{
+		for (; pos < 10; pos++)
+		{
+			itemkitmenu[pos].text = NULL;
+			itemkitmenu[pos].SelectFunc = NULL;
+		}
+
+		PMenu_Open(ent, itemkitmenu, 4, sizeof(itemkitmenu) / sizeof(pmenu_t));
+		return;
 	}
 
 	PMenu_Close(ent);
@@ -1388,7 +1736,11 @@ void OpenWeaponMenu (edict_t * ent)
 		}
 	}
 
-	OpenItemMenu(ent);
+	if(!item_kit_mode->value){
+		OpenItemMenu(ent);
+	} else {
+		OpenItemKitMenu(ent);
+	}
 }
 
 // AQ2:TNG Deathwatch - Updated this for the new menu
@@ -1595,8 +1947,10 @@ void ResetScores (qboolean playerScores)
 		ent->client->resp.damage_dealt = 0;
 		ent->client->resp.streakHS = 0;
 		ent->client->resp.streakKills = 0;
+		ent->client->resp.roundStreakKills = 0;
 		ent->client->resp.ctf_caps = 0;
 		ent->client->resp.ctf_capstreak = 0;
+		ent->client->resp.esp_capstreak = 0;
 		ent->client->resp.deaths = 0;
 		ent->client->resp.team_kills = 0;
 		ent->client->resp.team_wounds = 0;
@@ -1615,8 +1969,40 @@ void CenterPrintAll (const char *msg)
 	for (i = 0; i < game.maxclients; i++)
 	{
 		ent = &g_edicts[1 + i];
+		if (ent->is_bot)
+			continue;
 		if (ent->inuse)
 			gi.centerprintf (ent, "%s", msg);
+	}
+}
+
+void CenterPrintTeam (int teamNum, const char *msg)
+{
+	int i;
+	edict_t *ent;
+	
+	for (i = 0; i < game.maxclients; i++)
+	{
+		ent = &g_edicts[1 + i];
+		if (ent->is_bot)
+			continue;
+		if (ent->inuse && ent->client->resp.team == teamNum)
+			gi.centerprintf (ent, "%s", msg);
+	}
+}
+
+void CenterPrintLevelTeam (int teamNum, int printlvl, const char *msg)
+{
+	int i;
+	edict_t *ent;
+	
+	for (i = 0; i < game.maxclients; i++)
+	{
+		ent = &g_edicts[1 + i];
+		if (ent->is_bot)
+			continue;
+		if (ent->inuse && ent->client->resp.team == teamNum)
+			gi.cprintf(ent, printlvl, "%s", msg);
 	}
 }
 
@@ -1642,7 +2028,7 @@ int TeamHasPlayers (int team)
 
 int _numclients( void );  // a_vote.c
 
-qboolean BothTeamsHavePlayers(void)
+qboolean AllTeamsHavePlayers(void)
 {
 	int players[TEAM_TOP] = { 0 }, i, teamsWithPlayers;
 	edict_t *ent;
@@ -1684,11 +2070,7 @@ int CheckForWinner(void)
 	int players[TEAM_TOP] = { 0 }, i = 0, teamNum = 0, teamsWithPlayers = 0;
 	edict_t *ent;
 
-	if (!(gameSettings & GS_ROUNDBASED))
-		return WINNER_NONE;
-
-	for (i = 0; i < game.maxclients; i++)
-	{
+	for (i = 0; i < game.maxclients; i++){
 		ent = &g_edicts[1 + i];
 		if (!ent->inuse || ent->solid == SOLID_NOT)
 			continue;
@@ -1699,20 +2081,71 @@ int CheckForWinner(void)
 
 		players[teamNum]++;
 	}
-
 	teamsWithPlayers = 0;
-	for (i = TEAM1; i <= teamCount; i++)
-	{
+	for (i = TEAM1; i <= teamCount; i++){
 		if (players[i]) {
 			teamsWithPlayers++;
 			teamNum = i;
 		}
 	}
 
-	if (teamsWithPlayers)
-		return (teamsWithPlayers > 1) ? WINNER_NONE : teamNum;
+	if (!(gameSettings & GS_ROUNDBASED))
+		return WINNER_NONE;
 
-	return WINNER_TIE;
+	if (esp->value){
+		if (espsettings.esp_mode == ESPMODE_ATL) {
+			if (teamCount == TEAM2) {
+				if (teams[TEAM1].leader_dead && teams[TEAM2].leader_dead) {
+					if (esp_debug->value)
+						gi.dprintf("Both leaders are dead\n");
+					return WINNER_TIE;
+				} else if (teams[TEAM1].leader_dead) {
+					if (esp_debug->value)
+						gi.dprintf("Team 2 leader is alive\n");
+					return TEAM2;
+				} else if (teams[TEAM2].leader_dead) {
+					if (esp_debug->value)
+						gi.dprintf("Team 1 leader is alive\n");
+					return TEAM1;
+				}
+			} else if (teamCount == TEAM3) {
+				if (teams[TEAM1].leader_dead && teams[TEAM2].leader_dead && teams[TEAM3].leader_dead) {
+					if (esp_debug->value)
+						gi.dprintf("All leaders are dead\n");
+					return WINNER_TIE;
+				} else if (teams[TEAM1].leader_dead && teams[TEAM2].leader_dead) {
+					if (esp_debug->value)
+						gi.dprintf("Team 3 leader is alive\n");
+					return TEAM3;
+				} else if (teams[TEAM1].leader_dead && teams[TEAM3].leader_dead) {
+					if (esp_debug->value)
+						gi.dprintf("Team 2 leader is alive\n");
+					return TEAM2;
+				} else if (teams[TEAM2].leader_dead && teams[TEAM3].leader_dead) {
+					if (esp_debug->value)
+						gi.dprintf("Team 1 leader is alive\n");
+					return TEAM1;
+				} 
+			}
+		} else if (espsettings.esp_mode == ESPMODE_ETV) {
+			// Check if this value is true, which means the escorting team wins
+			// By default it is false
+			if (espsettings.escortcap == true) {
+				return TEAM1;
+			} else if (teams[TEAM1].leader_dead){
+				return TEAM2;
+			} else if (teamsWithPlayers) // This is in case the last person on team 2 leaves without dying, TEAM1 wins
+				return (teamsWithPlayers > 1) ? WINNER_NONE : teamNum;
+		}
+	
+	} else if (!esp->value) {
+		if (teamsWithPlayers)
+			return (teamsWithPlayers > 1) ? WINNER_NONE : teamNum;
+
+		//gi.dprintf("I was called somehow\n\n\n");
+		return WINNER_TIE;
+	}
+	return WINNER_NONE;
 }
 
 // CheckForForcedWinner: A winner is being forced, find who it is.
@@ -1722,6 +2155,33 @@ int CheckForForcedWinner(void)
 	int health[TEAM_TOP] = { 0 };
 	int i, teamNum, bestTeam, secondBest;
 	edict_t *ent;
+
+	/*
+	In ATL mode, if all leaders are alive, the round ends in a tie
+	health notwithstanding
+	In ETV mode, if the escorting team has
+	not captured the point, the defending team wins
+	*/
+	if (esp->value){
+		if (espsettings.esp_mode == ESPMODE_ATL){
+			if (teamCount == TEAM2){
+				if (IS_ALIVE(teams[TEAM1].leader) && 
+				IS_ALIVE(teams[TEAM2].leader)){
+					return WINNER_TIE;
+				}
+			} else if (teamCount == TEAM3){
+				if (IS_ALIVE(teams[TEAM1].leader) && 
+				IS_ALIVE(teams[TEAM2].leader) && 
+				IS_ALIVE(teams[TEAM3].leader)){
+					return WINNER_TIE;
+				}
+			}
+		} else if (espsettings.esp_mode == ESPMODE_ETV){
+			if (espsettings.escortcap == false){
+				return TEAM2;
+			}
+		}
+	}
 
 	for (i = 0; i < game.maxclients; i++)
 	{
@@ -1771,6 +2231,10 @@ static void SpawnPlayers(void)
 	int i;
 	edict_t *ent;
 
+	if (esp->value) {
+		NS_SetupTeamSpawnPoints ();
+	}
+
 	if (gameSettings & GS_ROUNDBASED)
 	{
 		if (!use_oldspawns->value)
@@ -1812,13 +2276,33 @@ static void SpawnPlayers(void)
 			SelectRandomWeaponAndItem(ent, weapmenu);
 		}
 
+		//rekkie -- s
 #ifndef NO_BOTS
-		if( !Q_stricmp( ent->classname, "bot" ) )
-			ACESP_PutClientInServer( ent, true, ent->client->resp.team );
-		else
+		if (ent->bot.bot_type == BOT_TYPE_BOTLIB)
+		{
+			// Reset bandage state
+			ent->bot.radioBandaging = false;
+			BOTLIB_PutClientInServer(ent, true, ent->client->resp.team);
+		}
 #endif
-		PutClientInServer(ent);
+		else
+		//rekkie -- e
+		{
+			PutClientInServer(ent);
+		}
 		AddToTransparentList(ent);
+
+		//rekkie -- DEV_1 -- s
+#ifndef NO_BOTS
+		if (ent->is_bot)
+		{
+			ent->just_spawned = true; // Flag that we've just spawned
+			ent->just_spawned_go = false; // Flag that the bot shouldn't move until ready
+			BOTLIB_PickLongRangeGoal(ent); // Lets pick a long range goal
+			//ACEAI_PickLongRangeGoal(ent); // Lets pick a long range goal
+		}
+#endif
+		//rekkie -- DEV_1 -- e
 	}
 
 	if(matchmode->value	&& limchasecam->value)
@@ -1842,7 +2326,11 @@ void RunWarmup (void)
 	int i, dead;
 	edict_t *ent;
 
-	if (!warmup->value || (matchmode->value && level.matchTime > 0) || team_round_going || lights_camera_action || (team_round_countdown > 0 && team_round_countdown <= 101))
+	if (!warmup->value || team_round_going || lights_camera_action || (team_round_countdown > 0 && team_round_countdown <= 101))
+		return;
+
+	// Allows re-warmup if teams unready during matchmode
+	if (!warmup_unready->value && (matchmode->value && level.matchTime > 0))
 		return;
 
 	if (!in_warmup)
@@ -1868,9 +2356,17 @@ void RunWarmup (void)
 			ent->client->latched_buttons = 0;
 			PutClientInServer(ent);
 			AddToTransparentList(ent);
-			gi.centerprintf(ent, "WARMUP");
+			if (matchmode->value && level.matchTime > 0)
+				gi.centerprintf(ent, "TEAMS NOT READY: RETURNING TO WARMUP");
+			else
+				gi.centerprintf(ent, "WARMUP");
 		}
 	}
+	#if USE_AQTION
+	if (warmup_bots->value){
+		gi.cvar_forceset("am", "1");
+	}
+	#endif
 }
 
 void StartRound (void)
@@ -1881,8 +2377,15 @@ void StartRound (void)
 
 static void StartLCA(void)
 {
-	if (gameSettings & (GS_WEAPONCHOOSE|GS_ROUNDBASED))
+	during_countdown = false;
+	if ((gameSettings & (GS_WEAPONCHOOSE|GS_ROUNDBASED)))
 		CleanLevel();
+
+	if (esp->value) {
+		// Re-skin everyone to ensure only one leader skin
+		EspSkinCheck();
+		espsettings.esp_live_round = true;
+	}
 
 	if (use_tourney->value && !tourney_lca->value)
 	{
@@ -1896,6 +2399,18 @@ static void StartLCA(void)
 		lights_camera_action = 43;	// TempFile changed from 41
 	}
 	SpawnPlayers();
+
+	if (esp->value) {
+		#ifndef NO_BOTS
+		int l;
+		for (l = 1; l < MAX_TEAMS; l++) {
+			teamplay_spawn_node[l] = ACEND_FindClosestReachableNode(chosenSpawnpoint[l], NODE_DENSITY, NODE_ALL);
+		}
+		#endif
+		esp_punishment_phase = false;
+		EspResetCapturePoint();
+		EspAnnounceDetails(false);
+	}
 }
 
 // FindOverlap: Find the first (or next) overlapping player for ent.
@@ -1962,6 +2477,10 @@ void MakeAllLivePlayersObservers (void)
 	if(ctf->value)
 		CTFResetFlags();
 
+	// Reset Espionage flag
+	if (esp->value && espsettings.esp_mode == ESPMODE_ETV)
+		EspResetCapturePoint();
+
 	for (i = 0; i < game.maxclients; i++)
 	{
 		ent = &g_edicts[1 + i];
@@ -2022,26 +2541,68 @@ qboolean CheckTimelimit( void )
 			return true;
 		}
 		
-		// CTF with use_warnings should have the same warnings when the map is ending as it does for halftime (see CTFCheckRules).
+		// CTF or Espionage with use_warnings should have the same warnings when the map is ending as it does for halftime (see CTFCheckRules).
 		// Otherwise, use_warnings should warn about 3 minutes and 1 minute left, but only if there aren't round ending warnings.
-		if( use_warnings->value && (ctf->value || ! roundtimelimit->value) )
+
+		// CTF and Espionage warnings
+		if( use_warnings->value && (ctf->value || esp->value || ! roundtimelimit->value) && !(gameSettings & GS_DEATHMATCH) )
 		{
-			if( timewarning < 3 && ctf->value && level.matchTime >= timelimit->value * 60 - 10 )
+			// CTF countdown when the match is ending.  Espionage is round-based so there's no countdown.
+			if( timewarning < 3 && ((ctf->value) && level.matchTime >= timelimit->value * 60 - 10 ))
 			{
 				gi.sound( &g_edicts[0], CHAN_VOICE | CHAN_NO_PHS_ADD, gi.soundindex("world/10_0.wav"), 1.0, ATTN_NONE, 0.0 );
 				timewarning = 3;
 			}
-			else if( timewarning < 2 && level.matchTime >= (timelimit->value - 1) * 60 )
+			else if( timewarning < 2 && level.matchTime >= ((timelimit->value - 1) * 60) && !during_countdown)
+			{
+				CenterPrintAll( "1 MINUTE LEFT..." );
+				gi.sound( &g_edicts[0], CHAN_VOICE | CHAN_NO_PHS_ADD, gi.soundindex("tng/1_minute.wav"), 1.0, ATTN_NONE, 0.0 );
+				timewarning = 2;
+				if (esp->value){
+					if (esp_debug->value)
+						gi.dprintf("%s: level.matchTime = %f\n", __FUNCTION__, level.matchTime);
+					// Warns the players that the round is ending in 1 minute
+					EspAnnounceDetails(true);
+				}
+			}
+			else if( timewarning < 1 && (!ctf->value) && timelimit->value > 3 && level.matchTime >= ((timelimit->value - 3) * 60) && !during_countdown )
+			{
+				CenterPrintAll( "3 MINUTES LEFT..." );
+				gi.sound( &g_edicts[0], CHAN_VOICE | CHAN_NO_PHS_ADD, gi.soundindex("tng/3_minutes.wav"), 1.0, ATTN_NONE, 0.0 );
+				timewarning = 1;
+				#if AQTION_CURL
+				if (!game.time_warning_sent && matchmode->value) {
+					CALL_DISCORD_WEBHOOK(MM_3_MIN_WARN, SERVER_MSG, AWARD_NONE);
+					game.time_warning_sent = true;
+				}
+				#endif
+			}
+		}
+		// Deathmatch and Team Deathmatch warnings
+		else if( use_warnings->value && deathmatch->value && (gameSettings & GS_DEATHMATCH))
+		{
+			if( timewarning < 3 && (level.matchTime >= timelimit->value * 60 - 10 ))
+			{
+				gi.sound( &g_edicts[0], CHAN_VOICE | CHAN_NO_PHS_ADD, gi.soundindex("world/10_0.wav"), 1.0, ATTN_NONE, 0.0 );
+				timewarning = 3;
+			}
+			else if( timewarning < 2 && level.matchTime >= ((timelimit->value - 1) * 60) && !during_countdown )
 			{
 				CenterPrintAll( "1 MINUTE LEFT..." );
 				gi.sound( &g_edicts[0], CHAN_VOICE | CHAN_NO_PHS_ADD, gi.soundindex("tng/1_minute.wav"), 1.0, ATTN_NONE, 0.0 );
 				timewarning = 2;
 			}
-			else if( timewarning < 1 && (! ctf->value) && timelimit->value > 3 && level.matchTime >= (timelimit->value - 3) * 60 )
+			else if( timewarning < 1 && timelimit->value > 3 && level.matchTime >= ((timelimit->value - 3) * 60) && !during_countdown)
 			{
 				CenterPrintAll( "3 MINUTES LEFT..." );
 				gi.sound( &g_edicts[0], CHAN_VOICE | CHAN_NO_PHS_ADD, gi.soundindex("tng/3_minutes.wav"), 1.0, ATTN_NONE, 0.0 );
 				timewarning = 1;
+				#if AQTION_CURL
+				if (!game.time_warning_sent && matchmode->value) {
+					CALL_DISCORD_WEBHOOK(MM_3_MIN_WARN, SERVER_MSG, AWARD_NONE);
+					game.time_warning_sent = true;
+				}
+				#endif
 			}
 		}
 	}
@@ -2077,7 +2638,7 @@ static qboolean CheckRoundTimeLimit( void )
 			return true;
 		}
 
-		if (use_warnings->value && timewarning < 2)
+		if (use_warnings->value && timewarning < 2 && roundtimelimit->value >= 1)
 		{
 			roundLimitFrames -= current_round_length;
 			
@@ -2086,6 +2647,11 @@ static qboolean CheckRoundTimeLimit( void )
 				CenterPrintAll( "1 MINUTE LEFT..." );
 				gi.sound( &g_edicts[0], CHAN_VOICE | CHAN_NO_PHS_ADD, gi.soundindex( "tng/1_minute.wav" ), 1.0, ATTN_NONE, 0.0 );
 				timewarning = 2;
+				if (esp->value) {
+					if (esp_debug->value)
+						gi.dprintf("%s: roundLimitFrames = %d\n", __FUNCTION__, roundLimitFrames);
+					EspAnnounceDetails(true);
+				}
 			}
 			else if (roundLimitFrames <= 1800 && timewarning < 1 && roundtimelimit->value > 3)
 			{
@@ -2151,6 +2717,8 @@ int WonGame (int winner)
 
 		if(use_warnings->value)
 			gi.sound(&g_edicts[0], CHAN_VOICE | CHAN_NO_PHS_ADD, level.snd_teamwins[0], 1.0, ATTN_NONE, 0.0);
+		if (esp->value)
+			EspEndOfRoundCleanup();
 		PrintScores ();
 	}
 	else
@@ -2170,7 +2738,6 @@ int WonGame (int winner)
 				player->client->pers.netname);
 				TourneyWinner (player);
 			}
-			game.roundNum++;
 		}
 		else
 		{
@@ -2181,15 +2748,8 @@ int WonGame (int winner)
 				gi.sound(&g_edicts[0], CHAN_VOICE | CHAN_NO_PHS_ADD, level.snd_teamwins[winner], 1.0, ATTN_NONE, 0.0);
 			// end of changing sound dir
 			teams[winner].score++;
-
-			#ifdef AQTION_EXTENSION
-			#ifdef AQTION_HUD
-			Ghud_SetFlags(teams[winner].ghud_icon, GHF_BLINK);
-			Ghud_SetFlags(teams[winner].ghud_num, GHF_BLINK);
-			teams[winner].ghud_resettime = level.time + 3;
-			#endif
-			#endif
-
+			if (esp->value)
+				EspEndOfRoundCleanup();
 			gi.cvar_forceset(teams[winner].teamscore->name, va("%i", teams[winner].score));
 
 			PrintScores ();
@@ -2222,6 +2782,14 @@ int WonGame (int winner)
 	}
 	// Increment roundNum for tracking
 	game.roundNum++;
+
+	// Reset kill streaks in team modes
+	if (use_killcounts->value){
+		for (i = 0; i < game.maxclients; i++) {
+			cl_ent = g_edicts + 1 + i;
+			cl_ent->client->resp.roundStreakKills = 0;
+		}
+	}
 
 	return 0;
 }
@@ -2261,6 +2829,10 @@ int CheckTeamRules (void)
 
 	if (holding_on_tie_check)
 	{
+		if (esp->value) {
+			holding_on_tie_check = 0;
+			checked_tie = 1;
+		}
 		holding_on_tie_check--;
 		if (holding_on_tie_check > 0)
 			return 0;
@@ -2273,21 +2845,43 @@ int CheckTeamRules (void)
 		team_round_countdown--;
 		if(!team_round_countdown)
 		{
-			if (BothTeamsHavePlayers ())
+			if (!esp->value && AllTeamsHavePlayers())
 			{
+				in_warmup = 0;
+				team_game_going = 1;
+				StartLCA();
+			}
+			else if (esp->value && AllTeamsHaveLeaders() && AllTeamsHavePlayers())
+			{
+				if (esp_debug->value)
+					gi.dprintf("%s: Esp mode on, All teams have leaders, all teams have players\n", __func__);
 				in_warmup = 0;
 				team_game_going = 1;
 				StartLCA();
 			}
 			else
 			{
-				if (!matchmode->value || TeamsReady())
+				if (esp->value && !AllTeamsHaveLeaders()) {
+					if (espsettings.esp_mode == ESPMODE_ATL){
+						CenterPrintAll ("All Teams Must Have a Leader!\nType 'leader' in console to volunteer!");
+					} else if (espsettings.esp_mode == ESPMODE_ETV) {
+						CenterPrintTeam(TEAM1, "Team 1 Must Have a Leader!\nType 'leader' in console to volunteer!");
+						CenterPrintTeam(TEAM2, "Waiting on Team 1 to select a leader...");
+					}
+					EspEndOfRoundCleanup();
+				} else if (!matchmode->value || TeamsReady()) {
 					CenterPrintAll ("Not enough players to play!");
-				else
+						// Remove all leaders if they are bots
+						if (esp->value){
+							
+						}
+				} else {
 					CenterPrintAll ("Both Teams Must Be Ready!");
-
+				}
 				team_round_going = team_round_countdown = team_game_going = 0;
 				MakeAllLivePlayersObservers ();
+				if (matchmode->value && warmup_unready->value)
+					RunWarmup();
 			}
 		}
 		else if(use_tourney->value)
@@ -2298,8 +2892,59 @@ int CheckTeamRules (void)
 		{
 			if (team_round_countdown == 101)
 			{
+				during_countdown = true;
 				gi.sound (&g_edicts[0], CHAN_VOICE | CHAN_NO_PHS_ADD,
 				gi.soundindex ("world/10_0.wav"), 1.0, ATTN_NONE, 0.0);
+
+				// Advertizing Discord and the forums
+				//PrintAdNotification(NULL);
+
+				#if USE_AQTION
+				// Cleanup and remove all bots, it's go time!
+				if (warmup_bots->value){
+					gi.cvar_forceset("am", "0");
+					bot_connections.desire_bots = 0;
+					ACESP_RemoveBot("all");
+					CenterPrintAll("All bots removed, good luck and have fun!");
+
+					//Re-enable stats now that the bots are gone
+					game.ai_ent_found = false;
+					gi.cvar_forceset(stat_logs->name, "1");
+				}
+
+				// Move spectators to the capturepoint
+				if (esp->value && espsettings.esp_mode == ESPMODE_ETV) {
+					// find the capturepoint
+					edict_t *capturepoint;
+					edict_t *ent;
+					capturepoint = G_Find(NULL, FOFS(classname), "item_flag");
+					if (!capturepoint) // Somehow we're in ETV with no capture point?
+						if (esp_debug->value)
+							gi.dprintf("ERROR: No capture point (item_flag) found for ETV!?\n");
+
+					if (capturepoint) {
+						if (esp_debug->value)
+							gi.dprintf("INFO: capture point (item_flag) found\n");
+						VectorCopy( capturepoint->s.origin, level.poi_origin );
+						VectorCopy( capturepoint->s.angles, level.poi_angle );
+					}
+
+					// move all spectators to the capture point
+					for (i = 0, ent = g_edicts + 1; i < game.maxclients; i++, ent++)
+					{
+						if (!ent->inuse || !ent->client || ent->is_bot)
+							continue;
+						if (ent->solid != SOLID_NOT)
+							continue;
+						// if (!ent->client->pers.spectator)
+						// 	continue;
+						if (esp_debug->value)
+							gi.dprintf("INFO: moving spectators\n");
+
+						MoveClientToPOI(ent, capturepoint);
+					}
+				}
+				#endif
 			}
 		}
 		if(team_round_countdown == 41 && !matchmode->value)
@@ -2336,14 +2981,25 @@ int CheckTeamRules (void)
 			return 1;
 
 		if (vCheckVote()) {
-			EndDMLevel ();
+			EndDMLevel();
 			team_round_going = team_round_countdown = team_game_going = 0;
 			return 1;
 		}
 
+		if (esp->value) {
+			if (!AllTeamsHaveLeaders())
+				return 1;
+
+			if (EspCheckRules()){
+				EndDMLevel();
+				team_round_going = team_round_countdown = team_game_going = 0;
+				return 1;
+			}
+		}
+
 		if (!team_round_countdown)
 		{
-			if (BothTeamsHavePlayers ())
+			if (AllTeamsHavePlayers() || (esp->value && AllTeamsHaveLeaders() && AllTeamsHavePlayers()))
 			{
 				if (use_tourney->value)
 				{
@@ -2355,7 +3011,16 @@ int CheckTeamRules (void)
 				{
 					int warmup_length = max( warmup->value, round_begin->value );
 					char buf[64] = "";
-					sprintf( buf, "The round will begin in %d seconds!", warmup_length );
+					if (esp->value && AllTeamsHavePlayers()) {
+						sprintf( buf, "All teams are ready!\nThe round will begin in %d seconds!", warmup_length );
+					} else {
+						sprintf( buf, "The round will begin in %d seconds!", warmup_length );
+					}
+					#if AQTION_CURL
+					if (game.roundNum == 0)  // Only announce on game start, so match pauses don't send the msg
+						CALL_DISCORD_WEBHOOK(buf, MATCH_START_MSG, AWARD_NONE);
+					#endif
+
 					CenterPrintAll( buf );
 					team_round_countdown = warmup_length * 10 + 2;
 
@@ -2403,20 +3068,44 @@ int CheckTeamRules (void)
 				return 1;
 			}
 
-			if (!BothTeamsHavePlayers())
+			if (!AllTeamsHavePlayers() || (esp->value && !AllTeamsHaveLeaders()))
 			{
-				if (!matchmode->value || TeamsReady())
+				if (!matchmode->value || TeamsReady()) {
 					CenterPrintAll( "Not enough players to play!" );
-				else
+				} else if (esp->value && !AllTeamsHaveLeaders()) {
+					CenterPrintAll ("Both Teams Must Have a Leader!\nType 'leader' in console to volunteer!");
+				} else {
 					CenterPrintAll( "Both Teams Must Be Ready!" );
+				}
 
 				team_round_going = team_round_countdown = team_game_going = 0;
 				MakeAllLivePlayersObservers();
+				if (matchmode->value && warmup_unready->value)
+					RunWarmup();
 
 				/* try to restart the game */
 				while (CheckForUnevenTeams( NULL ));
 			}
 			return 0; //CTF and teamDM dont need to check winner, its not round based
+		}
+		else if ((gameSettings & GS_ROUNDBASED))
+		// Team round is going, and it's GS_ROUNDBASED
+		{
+			if (esp->value) {
+				//Debugging
+				if (esp_debug->value)
+					EspDebug();
+
+				if (EspCheckRules()){
+					EndDMLevel();
+					team_round_going = team_round_countdown = team_game_going = 0;
+					espsettings.esp_live_round = false;
+					return 1;
+				}
+				GenerateMedKit(false);
+				EspCleanUp();
+				EspLeaderCheck();
+			}
 		}
 
 		winner = CheckForWinner();
@@ -2452,7 +3141,14 @@ int CheckTeamRules (void)
 
 void A_Scoreboard (edict_t * ent)
 {
-  int wteam = 0;
+	int wteam = 0;
+
+	// int timeRemaining = (level.matchTime >= (timelimit->value - 1) * 60);
+
+	// if (timelimit->value && timeRemaining < 60){
+	// 		ent->client->ps.stats[STAT_TIMER_ICON] = level.pic_esp_respawn_icon;
+	// 		ent->client->ps.stats[STAT_TIMER] = timeRemaining / HZ;
+	// }
 
 	if (ent->client->layout == LAYOUT_SCORES)
 	{
@@ -2517,25 +3213,25 @@ void A_Scoreboard (edict_t * ent)
 }
 
 
-static int G_PlayerCmp( const void *p1, const void *p2 )
+int G_PlayerCmp(const void *p1, const void *p2)
 {
-	gclient_t *a = *(gclient_t * const *)p1;
-	gclient_t *b = *(gclient_t * const *)p2;
-	
-	if (a->resp.score != b->resp.score)
-		return b->resp.score - a->resp.score;
-	
-	if (a->resp.deaths < b->resp.deaths)
-		return -1;
-	if (a->resp.deaths > b->resp.deaths) 
-		return 1;
-	
-	if (a->resp.damage_dealt > b->resp.damage_dealt)
-		return -1;
-	if (a->resp.damage_dealt < b->resp.damage_dealt)
-		return 1;
-	
-	return 0;
+    gclient_t *a = *(gclient_t * const *)p1;
+    gclient_t *b = *(gclient_t * const *)p2;
+
+    if (a->resp.score != b->resp.score)
+        return b->resp.score - a->resp.score;
+
+    if (a->resp.deaths < b->resp.deaths)
+        return -1;
+    if (a->resp.deaths > b->resp.deaths)
+        return 1;
+
+    if (a->resp.damage_dealt > b->resp.damage_dealt)
+        return -1;
+    if (a->resp.damage_dealt < b->resp.damage_dealt)
+        return 1;
+
+    return (byte *)a - (byte *)b;
 }
 
 int G_SortedClients( gclient_t **sortedList )
@@ -2716,6 +3412,13 @@ void A_ScoreboardMessage (edict_t * ent, edict_t * killer)
 			base_x += 8;
 			tpic[TEAM1][0] = 30;
 			tpic[TEAM2][0] = 31;
+		}
+		else if(esp->value)
+		{
+			base_x += 8;
+			tpic[TEAM1][0] = STAT_TEAM1_PIC;
+			tpic[TEAM2][0] = STAT_TEAM2_PIC;
+			tpic[TEAM3][0] = STAT_TEAM3_PIC;
 		}
 		else if(teamdm->value)
 		{
@@ -2902,7 +3605,7 @@ void A_ScoreboardMessage (edict_t * ent, edict_t * killer)
 						totalaliveprinted++;
 
 					playername[0] = 0;
-					if (IS_CAPTAIN(cl_ent)) {
+					if (IS_CAPTAIN(cl_ent) || IS_LEADER(cl_ent)) {
 						playername[0] = '@';
 						playername[1] = 0;
 					}
@@ -3160,8 +3863,13 @@ void A_ScoreboardMessage (edict_t * ent, edict_t * killer)
 				else if( field == 'P' )
 				{
 #ifndef NO_BOTS
-					if( cl_ent->is_bot )
-						strcpy( buf, " BOT" );
+					//rekkie -- Fake Bot Client -- s
+					if (cl_ent->is_bot)
+						Q_snprintf(buf, sizeof(buf), "%4i", min(9999, cl_ent->bot.bot_ping));
+					//if (0)
+					//rekkie -- Fake Bot Client -- e
+					//if( cl_ent->is_bot )
+					//	strcpy( buf, " BOT" );
 					else
 #endif
 						Q_snprintf( buf, sizeof(buf), "%4i", min( 9999, cl->ping ) );
@@ -3218,17 +3926,15 @@ void TallyEndOfLevelTeamScores (void)
 	}
 
 	// Stats begin
-	#if USE_AQTION
-		if (stat_logs->value && !matchmode->value) {
-			LogMatch(); // Generates end of game stats
-			LogEndMatchStats(); // Generates end of match logs
-		}
-	#endif
+	if (!matchmode->value) {
+		LOG_MATCH(); // Generates end of game stats
+		LOG_END_MATCH_STATS(); // Generates end of match stats
+	}
+	CALL_DISCORD_WEBHOOK(TP_MATCH_END_MSG, MATCH_END_MSG, AWARD_NONE);
 	// Stats: Reset roundNum
 	game.roundNum = 0;
 	// Stats end
 }
-
 
 /*
  * Teamplay spawning functions...
@@ -3236,6 +3942,11 @@ void TallyEndOfLevelTeamScores (void)
 
 edict_t *SelectTeamplaySpawnPoint (edict_t * ent)
 {
+	// Print all of the teamplay_spawns
+	// int i;
+	// for (i = 0; i < num_potential_spawns; i++)
+	// 	gi.dprintf ("teamplay_spawn %d: %s\n", i, potential_spawns[i]->classname);
+	// 	gi.dprintf("%s was called!\n\n\n", __FUNCTION__);
   return teamplay_spawns[ent->client->resp.team - 1];
 }
 
@@ -3363,7 +4074,7 @@ void SelectFarTeamplaySpawnPoint (int team, qboolean teams_assigned[])
 //
 // Setup the points at which the teams will spawn.
 //
-void SetupTeamSpawnPoints ()
+void SetupTeamSpawnPoints (void)
 {
 	qboolean teams_assigned[MAX_TEAMS];
 	int i, l;
@@ -3386,7 +4097,7 @@ void SetupTeamSpawnPoints ()
 // TNG:Freud New Spawning system
 // NS_GetSpawnPoints:
 // Put the potential spawns into arrays for each team.
-void NS_GetSpawnPoints ()
+void NS_GetSpawnPoints (void)
 {
 	int x, i;
 
@@ -3525,7 +4236,7 @@ qboolean NS_SelectFarTeamplaySpawnPoint (int team, qboolean teams_assigned[])
 // TNG:Freud
 // NS_SetupTeamSpawnPoints
 // Finds and assigns spawn points to each team.
-void NS_SetupTeamSpawnPoints ()
+void NS_SetupTeamSpawnPoints (void)
 {
 	qboolean teams_assigned[MAX_TEAMS];
 	int l;
@@ -3542,4 +4253,93 @@ void NS_SetupTeamSpawnPoints ()
 		if (l != NS_randteam && NS_SelectFarTeamplaySpawnPoint(l, teams_assigned) == false)
 			return;
 	}
+}
+
+/* 
+Simple function that just returns the opposite team number
+Obviously, do not use this for 3team functions
+*/
+int OtherTeam(int teamNum)
+{
+	if (teamNum < 0 || teamNum > TEAM2) {
+		gi.dprintf("OtherTeam() was called but parameter supplied is not 1 or 2");
+		return 0;
+	}
+
+	if (teamNum == 1)
+		return TEAM2;
+	else
+		return TEAM1;
+
+	// Returns zero if teamNum is not 1 or 2
+	return 0;
+}
+
+/*
+Return the total amount of players on a team
+*/
+
+int TotalPlayersOnTeam(int teamNum)
+{
+    int players[TEAM_TOP] = { 0 };
+    int i = 0;
+    edict_t *ent;
+
+    for (i = 0; i < game.maxclients; i++){
+        ent = &g_edicts[1 + i];
+        if (!ent->inuse || ent->solid == SOLID_NOT)
+            continue;
+
+        int currentTeam = game.clients[i].resp.team;
+        if (currentTeam == NOTEAM)
+            continue;
+
+        players[currentTeam]++;
+    }
+
+    return players[teamNum];
+}
+
+/* 
+Return the total players on a team that are alive
+*/
+
+int TotalPlayersAliveOnTeam(int teamNum)
+{
+    int count = 0;
+    edict_t *ent;
+
+    for (int i = 0; i < game.maxclients; i++)
+    {
+        ent = &g_edicts[i + 1];
+        if (!ent->inuse)
+            continue;
+        if (game.clients[i].resp.subteam)
+            continue;
+        if (game.clients[i].resp.team == teamNum && IS_ALIVE(ent))
+        {
+            count++;
+        }
+    }
+
+    return count;
+}
+
+void PrintAdNotification(edict_t* ent)
+{
+    // Don't spam this in matchmode
+    if (matchmode->value)
+        return;
+
+    // Do not send to bots
+    if (ent->is_bot)
+        return;
+
+    const char *msg = "Get in on the Action! Join us in Discord at\n https://discord.aq2world.com\nand the forums at\n https://www.aq2world.com\n";
+
+    // If ent is null, send to all clients, else send to client
+    if (ent == NULL)
+        gi.bprintf(PRINT_MEDIUM, "%s", msg);
+    else
+        gi.cprintf(ent, PRINT_MEDIUM, "%s", msg);
 }

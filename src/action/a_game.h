@@ -86,9 +86,11 @@
 
 // AQ2:TNG Deathwatch - Updated the Version variables to show TNG Stuff
 #ifndef VERSION
-#define VERSION "2.82 git"
+#define VERSION "2.83 git"
 #endif
 #define TNG_TITLE "AQ2: The Next Generation"
+#define TNG_WEBSITE "https://www.aq2world.com"
+#define AQ2_DISCORD "https://discord.aq2world.com"
 // AQ2:TNG Deathwatch End
 //AQ2:TNG Slicer This is the max players writen on last killed target
 //SLIC2
@@ -101,6 +103,7 @@ extern int num_maps, cur_map, rand_map, num_allvotes;	// num_allvotes added by I
 void ReadConfigFile (void);
 void ReadMOTDFile (void);
 void PrintMOTD (edict_t *ent);
+qboolean PrintGameMessage(edict_t *ent);
 void stuffcmd (edict_t *ent, char *s);
 void unicastSound(edict_t *ent, int soundIndex, float volume);
 
@@ -144,3 +147,14 @@ void MakeAllLivePlayersObservers( void );
 
 //a_cmds.c
 void Cmd_NextMap_f( edict_t * ent );
+void Cmd_PrintRules_f(edict_t *ent);
+
+//a_game.c
+#if AQTION_CURL
+
+#define MSG_PICKUP_SERVER_ERROR "Unable to send pickup request; contact the server admin\n"
+#define MSG_PICKUP_SERVER_SUCCESS "Pickup request sent\n"
+#define MSG_PICKUP_TOO_EARLY "It is too early to send another request, please wait\n"
+void Cmd_Pickup_f( edict_t * ent );
+#endif
+#define MSG_PICKUP_UNSUPPORTED "This server does not support pickup requests.\n"

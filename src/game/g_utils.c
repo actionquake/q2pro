@@ -257,7 +257,7 @@ float vectoyaw(vec3_t vec)
         else if (vec[YAW] < 0)
             yaw = -90;
     } else {
-        yaw = (int)RAD2DEG(atan2(vec[YAW], vec[PITCH]));
+        yaw = (int)RAD2DEG(atan2f(vec[YAW], vec[PITCH]));
         if (yaw < 0)
             yaw += 360;
     }
@@ -278,7 +278,7 @@ void vectoangles(vec3_t value1, vec3_t angles)
             pitch = 270;
     } else {
         if (value1[0])
-            yaw = (int)RAD2DEG(atan2(value1[1], value1[0]));
+            yaw = (int)RAD2DEG(atan2f(value1[1], value1[0]));
         else if (value1[1] > 0)
             yaw = 90;
         else
@@ -287,7 +287,7 @@ void vectoangles(vec3_t value1, vec3_t angles)
             yaw += 360;
 
         forward = sqrtf(value1[0] * value1[0] + value1[1] * value1[1]);
-        pitch = (int)RAD2DEG(atan2(value1[2], forward));
+        pitch = (int)RAD2DEG(atan2f(value1[2], forward));
         if (pitch < 0)
             pitch += 360;
     }
@@ -396,34 +396,6 @@ void G_TouchTriggers(edict_t *ent)
         if (!hit->touch)
             continue;
         hit->touch(hit, ent, NULL, NULL);
-    }
-}
-
-/*
-============
-G_TouchSolids
-
-Call after linking a new trigger in during gameplay
-to force all entities it covers to immediately touch it
-============
-*/
-void G_TouchSolids(edict_t *ent)
-{
-    int         i, num;
-    edict_t     *touch[MAX_EDICTS_OLD], *hit;
-
-    num = gi.BoxEdicts(ent->absmin, ent->absmax, touch, q_countof(touch), AREA_SOLID);
-
-    // be careful, it is possible to have an entity in this
-    // list removed before we get to it (killtriggered)
-    for (i = 0; i < num; i++) {
-        hit = touch[i];
-        if (!hit->inuse)
-            continue;
-        if (ent->touch)
-            ent->touch(hit, ent, NULL, NULL);
-        if (!ent->inuse)
-            break;
     }
 }
 

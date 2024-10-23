@@ -22,8 +22,40 @@ with this program; if not, write to the Free Software Foundation, Inc.,
 // shared.h -- included first by ALL program modules
 //
 
+//rekkie -- CMAKE -- s
+#if _MSC_VER >= 1920 && !__INTEL_COMPILER
+    //#define NDEBUG 1
+//#define VERSION "ReKTeK"
+//#define BUILDSTRING "1"
+//#define CPUSTRING "1"
+//#define BASEGAME "baseq2"
+//#define DEFGAME "baseq2"
+#define PLATFORM "Win64"
+//#define USE_MVD_SERVER 1
+//#define USE_SERVER 1
+//#define USE_CLIENT 1
+//#define USE_DBGHELP 1
+#pragma warning(disable:4305) // warning C4305: 'initializing': truncation from 'double' to 'const vec_t'
+#pragma warning(disable:4244) // warning C4244: '=': conversion from 'int64_t' to 'unsigned int', possible loss of data
+#pragma warning(disable:4267) // warning C4267: 'return': conversion from 'size_t' to 'int', possible loss of data
+#pragma warning(disable:4018) // warning C4018: '>': signed/unsigned mismatch
+#pragma warning(disable:4013) // warning C4013: 'MSG_ShowSVC' undefined; assuming extern returning int
+#pragma warning(disable:4047) // warning C4047: 'function': 'HDC' differs in levels of indirection from 'int'
+#pragma warning(disable:4133) // warning C4133: 'function': incompatible types - from 'HGLRC' to 'HDC'
+#pragma warning(disable:4146) // warning C4146: unary minus operator applied to unsigned type, result still unsigned
+#endif
+//rekkie -- CMAKE -- e
+
 #if HAVE_CONFIG_H
 #include "config.h"
+#endif
+
+#ifndef USE_PROTOCOL_EXTENSIONS
+#define USE_PROTOCOL_EXTENSIONS (USE_CLIENT || USE_SERVER)
+#endif
+
+#ifndef USE_NEW_GAME_API
+#define USE_NEW_GAME_API (USE_CLIENT || USE_SERVER)
 #endif
 
 #include <math.h>
@@ -106,7 +138,7 @@ typedef enum {
     PRINT_NOTICE        // print in cyan color
 } print_type_t;
 
-#ifdef AQTION_EXTENSION
+#if AQTION_EXTENSION
 #include "shared/ghud.h"
 #endif
 
@@ -225,16 +257,18 @@ void Q_strncatz (char *dest, const char *src, size_t size );
 
 // end action functionality
 
-void    Com_LPrintf(print_type_t type, const char *fmt, ...)
-q_printf(2, 3);
-void    Com_Error(error_type_t code, const char *fmt, ...)
-q_cold q_noreturn q_printf(2, 3);
+q_printf(2, 3)
+void    Com_LPrintf(print_type_t type, const char *fmt, ...);
+
+q_cold q_noreturn q_printf(2, 3)
+void    Com_Error(error_type_t code, const char *fmt, ...);
 
 #define Com_Printf(...) Com_LPrintf(PRINT_ALL, __VA_ARGS__)
 #define Com_WPrintf(...) Com_LPrintf(PRINT_WARNING, __VA_ARGS__)
 #define Com_EPrintf(...) Com_LPrintf(PRINT_ERROR, __VA_ARGS__)
 #define Com_NPrintf(...) Com_LPrintf(PRINT_NOTICE, __VA_ARGS__)
 
+// an assertion that's ALWAYS enabled. `expr' may have side effects.
 #define Q_assert(expr) \
     do { if (!(expr)) Com_Error(ERR_FATAL, "%s: assertion `%s' failed", __func__, #expr); } while (0)
 
@@ -285,17 +319,26 @@ typedef union {
 
 extern const vec3_t vec3_origin;
 
-typedef struct vrect_s {
-    int             x, y, width, height;
+typedef struct {
+    int x, y, width, height;
 } vrect_t;
 
-#define DEG2RAD(a)      ((a) * (M_PI / 180))
-#define RAD2DEG(a)      ((a) * (180 / M_PI))
+#ifndef M_PIf
+#define M_PIf       3.14159265358979323846f
+#define M_SQRT2f    1.41421356237309504880f
+#define M_SQRT1_2f  0.70710678118654752440f
+#endif
 
-#define ALIGN(x, a)     (((x) + (a) - 1) & ~((a) - 1))
+#define DEG2RAD(a)      ((a) * (M_PIf / 180))
+#define RAD2DEG(a)      ((a) * (180 / M_PIf))
+
+#define Q_ALIGN(x, a)   (((x) + (a) - 1) & ~((a) - 1))
 
 #define BIT(n)          (1U << (n))
 #define BIT_ULL(n)      (1ULL << (n))
+
+#define MASK(n)         (BIT(n) - 1U)
+#define MASK_ULL(n)     (BIT_ULL(n) - 1ULL)
 
 #define SWAP(type, a, b) \
     do { type SWAP_tmp = a; a = b; b = SWAP_tmp; } while (0)
@@ -334,6 +377,11 @@ typedef struct vrect_s {
         ((d)[0]=(a)[0]+(b)[0]*(c)[0], \
          (d)[1]=(a)[1]+(b)[1]*(c)[1], \
          (d)[2]=(a)[2]+(b)[2]*(c)[2])
+#define VectorRotate(in,axis,out) \
+        ((out)[0]=DotProduct(in,(axis)[0]), \
+         (out)[1]=DotProduct(in,(axis)[1]), \
+         (out)[2]=DotProduct(in,(axis)[2]))
+
 #define VectorEmpty(v) ((v)[0]==0&&(v)[1]==0&&(v)[2]==0)
 #define VectorCompare(v1,v2)    ((v1)[0]==(v2)[0]&&(v1)[1]==(v2)[1]&&(v1)[2]==(v2)[2])
 #define VectorLength(v)     (sqrtf(DotProduct((v),(v))))
@@ -374,6 +422,11 @@ typedef struct vrect_s {
 #define Vector4Compare(v1,v2)       ((v1)[0]==(v2)[0]&&(v1)[1]==(v2)[1]&&(v1)[2]==(v2)[2]&&(v1)[3]==(v2)[3])
 #define Dot4Product(x, y)           ((x)[0]*(y)[0]+(x)[1]*(y)[1]+(x)[2]*(y)[2]+(x)[3]*(y)[3])
 
+//rekkie -- ENGINE_DLL -- s
+void VectorRotate2(vec3_t v, float degrees);
+void RotatePointAroundVector(vec3_t dst, const vec3_t dir, const vec3_t point, float degrees);
+//#endif // End of ENGINE_DLL
+
 void AngleVectors(const vec3_t angles, vec3_t forward, vec3_t right, vec3_t up);
 vec_t VectorNormalize(vec3_t v);        // returns vector length
 vec_t VectorNormalize2(const vec3_t v, vec3_t out);
@@ -398,11 +451,8 @@ static inline void TransposeAxis(vec3_t axis[3])
 static inline void RotatePoint(vec3_t point, const vec3_t axis[3])
 {
     vec3_t temp;
-
     VectorCopy(point, temp);
-    point[0] = DotProduct(temp, axis[0]);
-    point[1] = DotProduct(temp, axis[1]);
-    point[2] = DotProduct(temp, axis[2]);
+    VectorRotate(temp, axis, point);
 }
 
 static inline uint32_t Q_npot32(uint32_t k)
@@ -420,6 +470,22 @@ static inline uint32_t Q_npot32(uint32_t k)
     return k + 1;
 }
 
+static inline int Q_log2(uint32_t k)
+{
+#if q_has_builtin(__builtin_clz)
+    return 31 - __builtin_clz(k | 1);
+#elif (defined _MSC_VER)
+    unsigned long index;
+    _BitScanReverse(&index, k | 1);
+    return index;
+#else
+    for (int i = 31; i > 0; i--)
+        if (k & BIT(i))
+            return i;
+    return 0;
+#endif
+}
+
 static inline float LerpAngle(float a2, float a1, float frac)
 {
     if (a1 - a2 > 180)
@@ -435,7 +501,13 @@ static inline float anglemod(float a)
     return a;
 }
 
-static inline int Q_align(int value, int align)
+static inline int Q_align_down(int value, int align)
+{
+    int mod = value % align;
+    return value - mod;
+}
+
+static inline int Q_align_up(int value, int align)
 {
     int mod = value % align;
     return mod ? value + align - mod : value;
@@ -451,9 +523,19 @@ static inline int Q_gcd(int a, int b)
     return a;
 }
 
+void ProjectPointOnPlane (vec3_t dst, const vec3_t p, const vec3_t normal);
+void PerpendicularVector (vec3_t dst, const vec3_t src);
+void RotatePointAroundVector (vec3_t dst, const vec3_t dir,
+			      const vec3_t point, float degrees);
+
+//void VectorRotate( vec3_t in, vec3_t angles, vec3_t out );  // a_doorkick.c
+void VectorRotate2( vec3_t v, float degrees );
+
 void Q_srand(uint32_t seed);
 uint32_t Q_rand(void);
 uint32_t Q_rand_uniform(uint32_t n);
+
+#define bound(a,b,c) ((a) >= (c) ? (a) : (b) < (a) ? (a) : (b) > (c) ? (c) : (b))
 
 static inline int Q_clip(int a, int b, int c)
 {
@@ -529,9 +611,9 @@ static inline uint16_t Q_clip_uint16(int a)
 
 #define Q_rint(x)   ((x) < 0 ? ((int)((x) - 0.5f)) : ((int)((x) + 0.5f)))
 
-#define Q_IsBitSet(data, bit)   (((data)[(bit) >> 3] & (1 << ((bit) & 7))) != 0)
-#define Q_SetBit(data, bit)     ((data)[(bit) >> 3] |= (1 << ((bit) & 7)))
-#define Q_ClearBit(data, bit)   ((data)[(bit) >> 3] &= ~(1 << ((bit) & 7)))
+#define Q_IsBitSet(data, bit)   ((((const byte *)(data))[(bit) >> 3] >> ((bit) & 7)) & 1)
+#define Q_SetBit(data, bit)     (((byte *)(data))[(bit) >> 3] |= (1 << ((bit) & 7)))
+#define Q_ClearBit(data, bit)   (((byte *)(data))[(bit) >> 3] &= ~(1 << ((bit) & 7)))
 
 //=============================================
 
@@ -660,6 +742,8 @@ size_t Q_strnlen(const char *s, size_t maxlen);
 int Q_atoi(const char *s);
 #endif
 
+#define Q_atof(s) strtof(s, NULL)
+
 char *COM_SkipPath(const char *pathname);
 size_t COM_StripExtension(char *out, const char *in, size_t size);
 size_t COM_DefaultExtension(char *path, const char *ext, size_t size);
@@ -675,6 +759,10 @@ bool COM_IsUint(const char *s);
 bool COM_IsPath(const char *s);
 bool COM_IsWhite(const char *s);
 
+extern unsigned com_linenum;
+
+#define COM_SkipToken(data_p) COM_ParseToken(data_p, NULL, 0)
+size_t COM_ParseToken(const char **data_p, char *buffer, size_t size);
 char *COM_Parse(const char **data_p);
 // data is an in/out parm, returns a parsed out token
 char *COM_ParseC(char **data_p);
@@ -708,15 +796,23 @@ char    *vtos(const vec3_t v);
 
 static inline uint16_t ShortSwap(uint16_t s)
 {
+#if q_has_builtin(__builtin_bswap16)
+    return __builtin_bswap16(s);
+#else
     s = (s >> 8) | (s << 8);
     return s;
+#endif
 }
 
 static inline uint32_t LongSwap(uint32_t l)
 {
+#if q_has_builtin(__builtin_bswap32)
+    return __builtin_bswap32(l);
+#else
     l = ((l >> 8) & 0x00ff00ff) | ((l << 8) & 0xff00ff00);
     l = (l >> 16) | (l << 16);
     return l;
+#endif
 }
 
 static inline float FloatSwap(float f)
@@ -748,28 +844,29 @@ static inline int32_t SignExtend(uint32_t v, int bits)
 }
 
 #if USE_LITTLE_ENDIAN
-#define BigShort    ShortSwap
-#define BigLong     LongSwap
-#define BigFloat    FloatSwap
-#define LittleShort(x)    ((uint16_t)(x))
-#define LittleLong(x)     ((uint32_t)(x))
-#define LittleFloat(x)    ((float)(x))
-#define MakeRawLong(b1,b2,b3,b4) (((unsigned)(b4)<<24)|((b3)<<16)|((b2)<<8)|(b1))
+#define BigShort(x)     ShortSwap(x)
+#define BigLong(x)      LongSwap(x)
+#define BigFloat(x)     FloatSwap(x)
+#define LittleShort(x)  ((uint16_t)(x))
+#define LittleLong(x)   ((uint32_t)(x))
+#define LittleFloat(x)  ((float)(x))
+#define MakeRawLong(b1,b2,b3,b4) MakeLittleLong(b1,b2,b3,b4)
 #define MakeRawShort(b1,b2) (((b2)<<8)|(b1))
 #elif USE_BIG_ENDIAN
 #define BigShort(x)     ((uint16_t)(x))
 #define BigLong(x)      ((uint32_t)(x))
 #define BigFloat(x)     ((float)(x))
-#define LittleShort ShortSwap
-#define LittleLong  LongSwap
-#define LittleFloat FloatSwap
-#define MakeRawLong(b1,b2,b3,b4) (((unsigned)(b1)<<24)|((b2)<<16)|((b3)<<8)|(b4))
+#define LittleShort(x)  ShortSwap(x)
+#define LittleLong(x)   LongSwap(x)
+#define LittleFloat(x)  FloatSwap(x)
+#define MakeRawLong(b1,b2,b3,b4) MakeBigLong(b1,b2,b3,b4)
 #define MakeRawShort(b1,b2) (((b1)<<8)|(b2))
 #else
 #error Unknown byte order
 #endif
 
-#define MakeLittleLong(b1,b2,b3,b4) (((unsigned)(b4)<<24)|((b3)<<16)|((b2)<<8)|(b1))
+#define MakeLittleLong(b1,b2,b3,b4) (((uint32_t)(b4)<<24)|((uint32_t)(b3)<<16)|((uint32_t)(b2)<<8)|(uint32_t)(b1))
+#define MakeBigLong(b1,b2,b3,b4) (((uint32_t)(b1)<<24)|((uint32_t)(b2)<<16)|((uint32_t)(b3)<<8)|(uint32_t)(b4))
 
 #define LittleVector(a,b) \
     ((b)[0]=LittleFloat((a)[0]),\
@@ -836,12 +933,14 @@ typedef struct cvar_s {
     struct cvar_s *next;
 
 // ------ new stuff ------
-#if USE_CLIENT || USE_SERVER
-#ifdef AQTION_EXTENSION
+#if AQTION_EXTENSION
 	int			sync_index;
 #endif
+#if USE_NEW_GAME_API
     int         integer;
     char        *default_string;
+#endif
+#if USE_CLIENT || USE_SERVER
     xchanged_t      changed;
     xgenerator_t    generator;
     struct cvar_s   *hashNext;
@@ -905,7 +1004,7 @@ COLLISION DETECTION
 #define SURF_FLOWING            BIT(6)      // scroll towards angle
 #define SURF_NODRAW             BIT(7)      // don't bother referencing the texture
 
-#define SURF_ALPHATEST          BIT(25)     // used by kmquake2
+#define SURF_ALPHATEST          BIT(25)     // used by KMQuake2
 
 //KEX
 #define SURF_N64_UV             BIT(28)
@@ -931,7 +1030,7 @@ COLLISION DETECTION
 #define AREA_TRIGGERS   2
 
 // plane_t structure
-typedef struct cplane_s {
+typedef struct {
     vec3_t  normal;
     float   dist;
     byte    type;           // for fast side tests
@@ -945,7 +1044,7 @@ typedef struct cplane_s {
 #define PLANE_Z         2
 #define PLANE_NON_AXIAL 6
 
-typedef struct csurface_s {
+typedef struct {
     char        name[16];
     int         flags;
     int         value;
@@ -989,12 +1088,13 @@ typedef enum {
 
 //KEX
 #define PMF_IGNORE_PLAYER_COLLISION     BIT(7)
+#define PMF_ON_LADDER                   BIT(8)
 //KEX
 
-
-#ifdef AQTION_EXTENSION
+#if AQTION_EXTENSION
 // pmove->pm_aq2_flags
 #define PMF_AQ2_LIMP		0x01 // used to predict limping
+#define PMF_AQ2_FRICTION    0x02 //rekkie -- Increase friction for bots
 #endif
 
 // this structure needs to be communicated bit-accurate
@@ -1012,12 +1112,31 @@ typedef struct {
     short       gravity;
     short       delta_angles[3];    // add to command angles to get view direction
                                     // changed by spawns, rotating objects, and teleporters
-#ifdef AQTION_EXTENSION
+#if AQTION_EXTENSION
 	short       pm_aq2_flags;   // limping, bandaging, etc
 	unsigned short pm_timestamp; // timestamp, resets every 60 seconds
 	byte		pm_aq2_leghits;		 // number of leg hits
 #endif
-} pmove_state_t;
+} pmove_state_old_t;
+
+#if USE_NEW_GAME_API
+typedef struct {
+    pmtype_t    pm_type;
+
+    int32_t     origin[3];      // 19.3
+    int32_t     velocity[3];    // 19.3
+    uint16_t    pm_flags;       // ducked, jump_held, etc
+    uint16_t    pm_time;        // in msec
+    int16_t     gravity;
+    int16_t     delta_angles[3];    // add to command angles to get view direction
+                                    // changed by spawns, rotating objects, and teleporters
+#if AQTION_EXTENSION
+	short       pm_aq2_flags;   // limping, bandaging, etc
+	unsigned short pm_timestamp; // timestamp, resets every 60 seconds
+	byte		pm_aq2_leghits;		 // number of leg hits
+#endif
+} pmove_state_new_t;
+#endif
 
 //
 // button bits
@@ -1027,7 +1146,7 @@ typedef struct {
 #define BUTTON_ANY      BIT(7)  // any key whatsoever
 
 // usercmd_t is sent to the server each client frame
-typedef struct usercmd_s {
+typedef struct {
     byte    msec;
     byte    buttons;
     short   angles[3];
@@ -1037,16 +1156,17 @@ typedef struct usercmd_s {
 } usercmd_t;
 
 #define MAXTOUCH    32
+
 typedef struct {
     // state (in / out)
-    pmove_state_t   s;
+    pmove_state_old_t   s;
 
     // command (in)
     usercmd_t       cmd;
     qboolean        snapinitial;    // if s has been changed outside pmove
 
     // results (out)
-    int         numtouch;
+    int             numtouch;
     struct edict_s  *touchents[MAXTOUCH];
 
     vec3_t      viewangles;         // clamped
@@ -1055,13 +1175,41 @@ typedef struct {
     vec3_t      mins, maxs;         // bounding box size
 
     struct edict_s  *groundentity;
-    int         watertype;
-    int         waterlevel;
+    int             watertype;
+    int             waterlevel;
 
     // callbacks to test the world
     trace_t     (* q_gameabi trace)(const vec3_t start, const vec3_t mins, const vec3_t maxs, const vec3_t end);
     int         (*pointcontents)(const vec3_t point);
-} pmove_t;
+} pmove_old_t;
+
+#if USE_NEW_GAME_API
+typedef struct {
+    // state (in / out)
+    pmove_state_new_t   s;
+
+    // command (in)
+    usercmd_t       cmd;
+    qboolean        snapinitial;    // if s has been changed outside pmove
+
+    // results (out)
+    int             numtouch;
+    struct edict_s  *touchents[MAXTOUCH];
+
+    vec3_t      viewangles;         // clamped
+    float       viewheight;
+
+    vec3_t      mins, maxs;         // bounding box size
+
+    struct edict_s  *groundentity;
+    int             watertype;
+    int             waterlevel;
+
+    // callbacks to test the world
+    trace_t     (* q_gameabi trace)(const vec3_t start, const vec3_t mins, const vec3_t maxs, const vec3_t end);
+    int         (*pointcontents)(const vec3_t point);
+} pmove_new_t;
+#endif
 
 // entity_state_t->effects
 // Effects are things handled on the client side (lights, particles, frame animations)
@@ -1292,6 +1440,8 @@ typedef enum {
     TE_EXPLOSION2_NL,
 //[Paril-KEX]
 
+    TE_DAMAGE_DEALT = 128,
+
     TE_NUM_ENTITIES
 } temp_event_t;
 
@@ -1366,11 +1516,15 @@ enum {
     STAT_GRENADES,
     STAT_TEAM3_PIC,
     STAT_TEAM3_SCORE,
-    STAT_TEAM1_HEADER,
-    STAT_TEAM2_HEADER,
 
     MAX_STATS = 32
 };
+
+#define STAT_TEAM1_HEADER  30
+#define STAT_TEAM2_HEADER  31
+
+#define MAX_STATS_OLD   32
+#define MAX_STATS_NEW   64
 
 // STAT_LAYOUTS flags
 #define LAYOUTS_LAYOUT          BIT(0)
@@ -1398,8 +1552,12 @@ enum {
 #define DF_QUAD_DROP        BIT(14)
 #define DF_FIXED_FOV        BIT(15)
 
+// ACTION
+#define DF_WEAPON_RESPAWN   BIT(16)
+
 // RAFAEL
-#define DF_QUADFIRE_DROP    BIT(16)
+// Note: DF_QUADFIRE_DROP shares the same bit as DF_WEAPON_RESPAWN, never use simultaneously
+#define DF_QUADFIRE_DROP    DF_WEAPON_RESPAWN
 
 //ROGUE
 #define DF_NO_MINES         BIT(17)
@@ -1415,6 +1573,19 @@ enum {
 #define UF_MUTE_OBSERVERS   BIT(4)
 #define UF_MUTE_MISC        BIT(5)
 #define UF_PLAYERFOV        BIT(6)
+
+// PaTMaN - Flags for ToGgle
+#define	TG_LASER            BIT(0)
+#define	TG_SLIPPERS         BIT(1)
+#define	TG_SILENCER         BIT(2)
+#define	TG_VEST             BIT(3)
+#define	TG_KICKABLE         BIT(4)
+#define TG_HELMET           BIT(5)
+
+#define	TG_HUD_RANGE        BIT(7)
+
+#define	TG_IR               BIT(13)
+// Why the gaps, I do not know?
 
 /*
 ==========================================================
@@ -1543,7 +1714,7 @@ typedef enum {
 // entity_state_t is the information conveyed from the server
 // in an update message about entities that the client will
 // need to render in some way
-typedef struct entity_state_s {
+typedef struct {
     int     number;         // edict index
 
     vec3_t  origin;
@@ -1571,7 +1742,7 @@ typedef struct entity_state_s {
 // but the number of pmove_state_t changes will be reletive to client
 // frame rates
 typedef struct {
-    pmove_state_t   pmove;      // for prediction
+    pmove_state_old_t   pmove;  // for prediction
 
     // these fields do not need to be communicated bit-precise
 
@@ -1585,15 +1756,43 @@ typedef struct {
     int         gunindex;
     int         gunframe;
 
-    float       blend[4];       // rgba full screen effect
+    vec4_t      blend;          // rgba full screen effect
 
     float       fov;            // horizontal field of view
 
     int         rdflags;        // refdef flags
 
-    short       stats[MAX_STATS];       // fast status bar updates
-} player_state_t;
+    short       stats[MAX_STATS_OLD];   // fast status bar updates
+} player_state_old_t;
 
+#if USE_NEW_GAME_API
+typedef struct {
+    pmove_state_new_t   pmove;  // for prediction
+
+    // these fields do not need to be communicated bit-precise
+
+    vec3_t      viewangles;     // for fixed views
+    vec3_t      viewoffset;     // add to pmovestate->origin
+    vec3_t      kick_angles;    // add to view direction to get render angles
+                                // set by weapon kicks, pain effects, etc
+
+    vec3_t      gunangles;
+    vec3_t      gunoffset;
+    int         gunindex;
+    int         gunframe;
+
+    vec4_t      blend;          // rgba full screen effect
+    vec4_t      damage_blend;
+
+    float       fov;            // horizontal field of view
+
+    int         rdflags;        // refdef flags
+
+    int         reserved[4];
+
+    int16_t     stats[MAX_STATS_NEW];   // fast status bar updates
+} player_state_new_t;
+#endif
 
 // Reki : Cvar Sync info shared between engine and game
 #define CVARSYNC_MAXSIZE	64
@@ -1609,10 +1808,10 @@ typedef char cvarsyncvalue_t[CVARSYNC_MAXSIZE];
 #if USE_PROTOCOL_EXTENSIONS
 
 #define ENTITYNUM_BITS      13
-#define ENTITYNUM_MASK      (BIT(ENTITYNUM_BITS) - 1)
+#define ENTITYNUM_MASK      MASK(ENTITYNUM_BITS)
 
 #define GUNINDEX_BITS       13  // upper 3 bits are skinnum
-#define GUNINDEX_MASK       (BIT(GUNINDEX_BITS) - 1)
+#define GUNINDEX_MASK       MASK(GUNINDEX_BITS)
 
 typedef struct {
     int         morefx;
@@ -1621,5 +1820,21 @@ typedef struct {
     float       loop_volume;
     float       loop_attenuation;
 } entity_state_extension_t;
+
+#endif
+
+#if USE_NEW_GAME_API
+
+#define MAX_STATS           MAX_STATS_NEW
+typedef pmove_new_t         pmove_t;
+typedef pmove_state_new_t   pmove_state_t;
+typedef player_state_new_t  player_state_t;
+
+#else
+
+#define MAX_STATS           MAX_STATS_OLD
+typedef pmove_old_t         pmove_t;
+typedef pmove_state_old_t   pmove_state_t;
+typedef player_state_old_t  player_state_t;
 
 #endif

@@ -59,30 +59,33 @@ OPENGL STUFF
 
 static void set_gl_attributes(void)
 {
-    r_opengl_config_t *cfg = R_GetGLConfig();
+    r_opengl_config_t cfg = R_GetGLConfig();
 
-    int colorbits = cfg->colorbits > 16 ? 8 : 5;
+    int colorbits = cfg.colorbits > 16 ? 8 : 5;
     SDL_GL_SetAttribute(SDL_GL_RED_SIZE, colorbits);
     SDL_GL_SetAttribute(SDL_GL_GREEN_SIZE, colorbits);
     SDL_GL_SetAttribute(SDL_GL_BLUE_SIZE, colorbits);
 
-    SDL_GL_SetAttribute(SDL_GL_DEPTH_SIZE, cfg->depthbits);
-    SDL_GL_SetAttribute(SDL_GL_STENCIL_SIZE, cfg->stencilbits);
+    SDL_GL_SetAttribute(SDL_GL_DEPTH_SIZE, cfg.depthbits);
+    SDL_GL_SetAttribute(SDL_GL_STENCIL_SIZE, cfg.stencilbits);
     SDL_GL_SetAttribute(SDL_GL_DOUBLEBUFFER, 1);
 
-    if (cfg->multisamples) {
+    if (cfg.multisamples) {
         SDL_GL_SetAttribute(SDL_GL_MULTISAMPLEBUFFERS, 1);
-        SDL_GL_SetAttribute(SDL_GL_MULTISAMPLESAMPLES, cfg->multisamples);
-    }
-    if (cfg->debug) {
-        SDL_GL_SetAttribute(SDL_GL_CONTEXT_FLAGS, SDL_GL_CONTEXT_DEBUG_FLAG);
+        SDL_GL_SetAttribute(SDL_GL_MULTISAMPLESAMPLES, cfg.multisamples);
     }
 
-#if USE_GLES
-    SDL_GL_SetAttribute(SDL_GL_CONTEXT_PROFILE_MASK, SDL_GL_CONTEXT_PROFILE_ES);
-    SDL_GL_SetAttribute(SDL_GL_CONTEXT_MAJOR_VERSION, 1);
-    SDL_GL_SetAttribute(SDL_GL_CONTEXT_MINOR_VERSION, 1);
-#endif
+    if (cfg.debug)
+        SDL_GL_SetAttribute(SDL_GL_CONTEXT_FLAGS, SDL_GL_CONTEXT_DEBUG_FLAG);
+
+    if (cfg.profile) {
+        if (cfg.profile == QGL_PROFILE_ES)
+            SDL_GL_SetAttribute(SDL_GL_CONTEXT_PROFILE_MASK, SDL_GL_CONTEXT_PROFILE_ES);
+        else
+            SDL_GL_SetAttribute(SDL_GL_CONTEXT_PROFILE_MASK, SDL_GL_CONTEXT_PROFILE_CORE);
+        SDL_GL_SetAttribute(SDL_GL_CONTEXT_MAJOR_VERSION, cfg.major_ver);
+        SDL_GL_SetAttribute(SDL_GL_CONTEXT_MINOR_VERSION, cfg.minor_ver);
+    }
 }
 
 static void *get_proc_addr(const char *sym)
@@ -251,6 +254,26 @@ static void shutdown(void)
     memset(&sdl, 0, sizeof(sdl));
 }
 
+static bool create_window_and_context(const vrect_t *rc)
+{
+    sdl.window = SDL_CreateWindow(PRODUCT, rc->x, rc->y, rc->width, rc->height,
+                                  SDL_WINDOW_RESIZABLE | SDL_WINDOW_OPENGL | SDL_WINDOW_ALLOW_HIGHDPI);
+    if (!sdl.window) {
+        Com_EPrintf("Couldn't create SDL window: %s\n", SDL_GetError());
+        return false;
+    }
+
+    sdl.context = SDL_GL_CreateContext(sdl.window);
+    if (!sdl.context) {
+        Com_EPrintf("Couldn't create OpenGL context: %s\n", SDL_GetError());
+        SDL_DestroyWindow(sdl.window);
+        sdl.window = NULL;
+        return false;
+    }
+
+    return true;
+}
+
 static bool init(void)
 {
     vrect_t rc;
@@ -269,11 +292,13 @@ static bool init(void)
         rc.y = SDL_WINDOWPOS_UNDEFINED;
     }
 
-    sdl.window = SDL_CreateWindow(PRODUCT, rc.x, rc.y, rc.width, rc.height,
-                                  SDL_WINDOW_RESIZABLE | SDL_WINDOW_OPENGL | SDL_WINDOW_ALLOW_HIGHDPI);
-    if (!sdl.window) {
-        Com_EPrintf("Couldn't create SDL window: %s\n", SDL_GetError());
-        goto fail;
+    if (!create_window_and_context(&rc)) {
+        Com_Printf("Falling back to failsafe config\n");
+        SDL_GL_ResetAttributes();
+        if (!create_window_and_context(&rc)) {
+            shutdown();
+            return false;
+        }
     }
 
     SDL_SetWindowMinimumSize(sdl.window, 320, 240);
@@ -289,12 +314,6 @@ static bool init(void)
         SDL_SetColorKey(icon, SDL_TRUE, 0);
         SDL_SetWindowIcon(sdl.window, icon);
         SDL_FreeSurface(icon);
-    }
-
-    sdl.context = SDL_GL_CreateContext(sdl.window);
-    if (!sdl.context) {
-        Com_EPrintf("Couldn't create OpenGL context: %s\n", SDL_GetError());
-        goto fail;
     }
 
     cvar_t *vid_hwgamma = Cvar_Get("vid_hwgamma", "0", CVAR_REFRESH);
@@ -317,10 +336,6 @@ static bool init(void)
     sdl.wayland = !strcmp(SDL_GetCurrentVideoDriver(), "wayland");
 
     return true;
-
-fail:
-    shutdown();
-    return false;
 }
 
 /*

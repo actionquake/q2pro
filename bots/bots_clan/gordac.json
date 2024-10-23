@@ -1,0 +1,35 @@
+{
+    "name": "Gordac",
+    "clan_id": 96,
+    "skin": "terror/jungleterr",
+    "weaponPreferences": {
+        "mk23": 0.5,
+        "dual_mk23": 0.6,
+        "mp5": 0.8,
+        "m4": 0.6,
+        "m3": 0.6,
+        "hc": 0.5,
+        "sniper": 0.5,
+        "knives": 0.4,
+        "grenades": 0.2
+    },
+    "itemPreferences": {
+        "vest": 0.5,
+        "helm": 0.5,
+        "laser": 0.6,
+        "silencer": 0.9,
+        "slippers": 0.6,
+        "bandolier": 0.4
+    },
+    "coreTraits": {
+        "aggressiveness": 0.2,
+        "teamwork": 0.4,
+        "curiosity": 0.7,
+        "aimingSkill": 0.5,
+        "reactionTime": 0.4,
+        "communicationFreq": 0.5,
+        "communicationTone": 0.4,
+        "movementStyle": 0.5,
+        "objectiveFocus": 0.4
+    }
+}

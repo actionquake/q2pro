@@ -315,7 +315,7 @@ int CTFOtherTeam(int team)
 
 /*--------------------------------------------------------------------------*/
 
-void ResetPlayers()
+void ResetPlayers(void)
 {
 	edict_t *ent;
 	int i;
@@ -479,6 +479,10 @@ void CTFFragBonuses(edict_t * targ, edict_t * inflictor, edict_t * attacker)
 
 	carrier = NULL;
 
+	// NULL checks
+	if (!targ || !inflictor || !attacker)
+		return;
+
 	// no bonus for fragging yourself
 	if (!targ->client || !attacker->client || targ == attacker)
 		return;
@@ -515,10 +519,10 @@ void CTFFragBonuses(edict_t * targ, edict_t * inflictor, edict_t * attacker)
 		// fragged a guy who hurt our flag carrier
 		attacker->client->resp.score += CTF_CARRIER_DANGER_PROTECT_BONUS;
 		gi.bprintf(PRINT_MEDIUM,
-			   "%s defends %s's flag carrier against an agressive enemy\n",
+			   "%s defends %s's flag carrier against an aggressive enemy\n",
 			   attacker->client->pers.netname, CTFTeamName(attacker->client->resp.team));
 		IRC_printf(IRC_T_GAME,
-			   "%n defends %n's flag carrier against an agressive enemy\n",
+			   "%n defends %n's flag carrier against an aggressive enemy\n",
 			   attacker->client->pers.netname,
 			   CTFTeamName(attacker->client->resp.team));
 		return;
@@ -931,13 +935,9 @@ void CTFCalcScores(void)
 			ctfgame.total2 += game.clients[i].resp.score;
 	}
 
-	#if USE_AQTION
 	// Needed to add this here because this is called separately from TallyEndOfLevelTeamScores (teamplay)
-		if (stat_logs->value) {
-			LogMatch();  // Generates end of match logs
-			LogEndMatchStats();  // Generates end of match stats
-		}
-	#endif
+	LOG_MATCH(); // Generates end of game stats
+	LOG_END_MATCH_STATS(); // Generates end of match stats
 	// Stats: Reset roundNum
 	game.roundNum = 0;
 	// Stats end
@@ -1386,7 +1386,7 @@ void CTFCapReward(edict_t * ent)
 		ReadySpecialWeapon(ent);
 	}
 
-	// give health times cap streak
+	// give health times cap streak and awards
 	ent->health = ent->max_health * (ent->client->resp.ctf_capstreak > 4 ? 4 : ent->client->resp.ctf_capstreak);
 
 	if(ent->client->resp.ctf_capstreak == 2)
@@ -1398,5 +1398,25 @@ void CTFCapReward(edict_t * ent)
 	else if(ent->client->resp.ctf_capstreak > 4)
 		gi.centerprintf(ent, "CAPTURED YET AGAIN!\n\nYou have been rewarded QUAD health and %d times your ammo!\n\nNow go get some more!",
 				ent->client->resp.ctf_capstreak);
-	else	gi.centerprintf(ent, "CAPTURED!\n\nYou have been rewarded.\n\nNow go get some more!");
+	if (use_rewards->value) {
+		if(ent->client->resp.ctf_capstreak == 5)
+			Announce_Reward(ent, DOMINATING);
+		if(ent->client->resp.ctf_capstreak == 10)
+			Announce_Reward(ent, UNSTOPPABLE);
+	}
+	else	gi.cprintf(ent, PRINT_MEDIUM, "CAPTURED!\n\nYou have been rewarded.\n\nNow go get some more!");
+
+	LogCapture(ent);
+}
+
+void CTFSetupStatusbar( void )
+{
+	Q_strncatz(level.statusbar,
+		// Red Team
+		"yb -164 " "if 24 " "xr -24 " "pic 24 " "endif " "xr -60 " "num 2 26 "
+		// Blue Team
+		"yb -140 " "if 25 " "xr -24 " "pic 25 " "endif " "xr -60 " "num 2 27 "
+		// Flag carried
+		"if 23 " "yt 26 " "xr -24 " "pic 23 " "endif ",
+	sizeof(level.statusbar) );
 }

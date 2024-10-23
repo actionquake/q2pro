@@ -201,7 +201,7 @@ static bool start_udp_download(dlqueue_t *q)
     ret = FS_OpenFile(cls.download.temp, &f, FS_MODE_RDWR);
     if (ret > INT_MAX) {
         FS_CloseFile(f);
-        ret = -EFBIG;
+        ret = Q_ERR(EFBIG);
     }
     if (ret >= 0) {  // it exists
         cls.download.file = f;
@@ -291,7 +291,7 @@ static void finish_udp_download(const char *msg)
     CL_StartNextDownload();
 }
 
-static bool write_udp_download(byte *data, int size)
+static bool write_udp_download(const byte *data, int size)
 {
     int ret;
 
@@ -309,7 +309,7 @@ static bool write_udp_download(byte *data, int size)
 #if USE_ZLIB
 // handles both continuous deflate stream for entire download and chunked
 // per-packet streams for compatibility.
-static bool inflate_udp_download(byte *data, int size, int decompressed_size)
+static bool inflate_udp_download(const byte *data, int size, int decompressed_size)
 {
     z_streamp   z = &cls.download.z;
     byte        buffer[0x10000];
@@ -322,14 +322,14 @@ static bool inflate_udp_download(byte *data, int size, int decompressed_size)
         return true;
 
     // run inflate() until output buffer not full
-    z->next_in = data;
+    z->next_in = (Bytef *)data;
     z->avail_in = size;
     do {
         z->next_out = buffer;
         z->avail_out = sizeof(buffer);
 
         ret = inflate(z, Z_SYNC_FLUSH);
-        if (ret != Z_OK && ret != Z_STREAM_END) {
+        if (ret != Z_OK && ret != Z_STREAM_END && ret != Z_BUF_ERROR) {
             Com_EPrintf("[UDP] Error %d decompressing download\n", ret);
             finish_udp_download(NULL);
             return false;
@@ -362,7 +362,7 @@ CL_HandleDownload
 An UDP download data has been received from the server.
 =====================
 */
-void CL_HandleDownload(byte *data, int size, int percent, int decompressed_size)
+void CL_HandleDownload(const byte *data, int size, int percent, int decompressed_size)
 {
     dlqueue_t *q = cls.download.current;
     int ret;
@@ -453,8 +453,8 @@ bool CL_CheckDownloadExtension(const char *ext)
 static int check_file_len(const char *path, size_t len, dltype_t type)
 {
     char buffer[MAX_QPATH], *ext;
+    path_valid_t valid;
     int ret;
-    int valid;
 
     // check for oversize path
     if (len >= MAX_QPATH)
@@ -807,12 +807,8 @@ void CL_RequestNextDownload(void)
         }
 
         if (allow_download_textures->integer) {
-            static const char env_suf[6][3] = {
-                "rt", "bk", "lf", "ft", "up", "dn"
-            };
-
             for (i = 0; i < 6; i++) {
-                len = Q_concat(fn, sizeof(fn), "env/", cl.configstrings[CS_SKY], env_suf[i], ".tga");
+                len = Q_concat(fn, sizeof(fn), "env/", cl.configstrings[CS_SKY], com_env_suf[i], ".tga");
                 check_file_len(fn, len, DL_OTHER);
             }
         }
@@ -831,28 +827,13 @@ void CL_RequestNextDownload(void)
         CL_RegisterBspModels();
 
         if (allow_download_textures->integer) {
-            // Only download jpg textures along with wal if r_override_textures = 1 and
-            // r_texture_overrides bitmap is -1 (all), 16 (walls), 32 (skies) or 48 (walls and skies)
-            if (r_override_textures->value && 
-                (r_texture_overrides->value == -1 
-                || r_texture_overrides->value == 16 
-                || r_texture_overrides->value == 32 
-                || r_texture_overrides->value == 48)) 
-                {
-                // Some textures do not have high def versions, for those we still default to wal, 
-                // so we download both of them
-                for (i = 0; i < cl.bsp->numtexinfo; i++) {
-                    len = Q_concat(fn, sizeof(fn), "textures/", cl.bsp->texinfo[i].name, ".jpg");
-                    check_file_len(fn, len, DL_OTHER);
-                    len = Q_concat(fn, sizeof(fn), "textures/", cl.bsp->texinfo[i].name, ".wal");
-                    check_file_len(fn, len, DL_OTHER);
-                }
-            }
-            else { // Only download wal due to the user's settings not wanting hi res textures
-                for (i = 0; i < cl.bsp->numtexinfo; i++) {
-                    len = Q_concat(fn, sizeof(fn), "textures/", cl.bsp->texinfo[i].name, ".wal");
-                    check_file_len(fn, len, DL_OTHER);
-                }
+            for (i = 0; i < cl.bsp->numtexinfo; i++) {
+                if (cl.bsp->texinfo[i].c.flags & SURF_NODRAW)
+                    continue;
+                len = Q_concat(fn, sizeof(fn), "textures/", cl.bsp->texinfo[i].name, ".jpg");
+                check_file_len(fn, len, DL_OTHER);
+                len = Q_concat(fn, sizeof(fn), "textures/", cl.bsp->texinfo[i].name, ".wal");
+                check_file_len(fn, len, DL_OTHER);
             }
         }
 

@@ -1,0 +1,28 @@
+[esp]
+type=etv
+author=darksaint
+name=Escape 1984
+
+[respawn]
+red=7
+blue=7
+
+[spawns]
+red=<-2859 -814 16 90>,<-1608 -559 0 148>,<-2208 -34 0 121>
+blue=<188 -145 74 138>,<-737 164 74 -40>,<-897 1780 -38 -97>
+
+[target]
+escort=<-208 1877 -34>
+name=Proof of Innocence
+
+[red_team]
+name=Free Minds
+leader_name=Winston Smith
+skin=male/ctf_r
+leader_skin=male/ctf_vip_r
+
+[blue_team]
+name=Thought Police
+leader_name=O'Brien
+skin=male/ctf_b
+leader_skin=male/ctf_vip_b

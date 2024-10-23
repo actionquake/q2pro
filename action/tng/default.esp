@@ -1,0 +1,33 @@
+[esp]
+type=atl
+author=darksaint
+name=Show No Mercy
+
+[respawn]
+red=7
+blue=7
+green=7
+
+[spawns]
+red=<-1087 1552 302 -90>,<8 952 46 -90>,<200 1369 430 -92>
+blue=<-1311 -831 62 0>,<160 -1183 814 135>,<-1445 -1264 494 87>
+green=<-1311 -831 62 0>,<160 -1183 814 135>,<-1445 -1264 494 87>
+
+[red_team]
+name=The B-Team
+leader_name=Mr. Tabasco
+skin=male/ctf_r
+leader_skin=male/ctf_vip_r
+
+[blue_team]
+name=Peacekeepers
+leader_name=Serpico
+skin=male/ctf_b
+leader_skin=male/ctf_vip_b
+
+[green_team]
+name=Gardening Crew
+leader_name=Dr. Cannabis
+skin=male/ctf_g
+leader_skin=male/ctf_vip_g
+

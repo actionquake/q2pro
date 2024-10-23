@@ -1,0 +1,35 @@
+{
+    "name": "Bones",
+    "clan_id": 87,
+    "skin": "male/SEALU",
+    "weaponPreferences": {
+        "mk23": 0.5,
+        "dual_mk23": 0.7,
+        "mp5": 0.4,
+        "m4": 0.8,
+        "m3": 0.3,
+        "hc": 0.6,
+        "sniper": 0.2,
+        "knives": 0.3,
+        "grenades": 0.4
+    },
+    "itemPreferences": {
+        "vest": 0.6,
+        "helm": 0.3,
+        "laser": 0.5,
+        "silencer": 0.6,
+        "slippers": 0.4,
+        "bandolier": 0.6
+    },
+    "coreTraits": {
+        "aggressiveness": 0.1,
+        "teamwork": 0.1,
+        "curiosity": 0.6,
+        "aimingSkill": 0.6,
+        "reactionTime": 0.5,
+        "communicationFreq": 0.6,
+        "communicationTone": 0.3,
+        "movementStyle": 0.2,
+        "objectiveFocus": 0.9
+    }
+}

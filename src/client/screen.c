@@ -40,11 +40,12 @@ static struct {
     color_t     crosshair_color;
     int         scope_width, scope_height;
 
+    qhandle_t   hit_marker_pic;
+    int         hit_marker_width, hit_marker_height;
+
     qhandle_t   pause_pic;
-    int         pause_width, pause_height;
 
     qhandle_t   loading_pic;
-    int         loading_width, loading_height;
     bool        draw_loading;
 
     qhandle_t   sb_pics[2][STAT_PICS];
@@ -60,6 +61,7 @@ static struct {
     int         hud_width, hud_height;
     float       hud_scale;
     int         lag_draw_scale;
+    qboolean    currently_scoped_in;
 } scr;
 
 static cvar_t   *scr_viewsize;
@@ -80,9 +82,6 @@ static cvar_t   *scr_lag_min;
 static cvar_t   *scr_lag_max;
 static cvar_t   *scr_lag_draw_scale;
 static cvar_t   *scr_alpha;
-
-static cvar_t   *scr_hudborder_x;
-static cvar_t   *scr_hudborder_y;
 
 static cvar_t   *scr_demobar;
 static cvar_t   *scr_font;
@@ -121,18 +120,11 @@ static cvar_t   *ch_scale;
 static cvar_t   *ch_x;
 static cvar_t   *ch_y;
 
-vrect_t     scr_vrect;      // position of render window on screen
+static cvar_t   *scr_hit_marker_time;
 
-static const char *const sb_nums[2][STAT_PICS] = {
-    {
-        "num_0", "num_1", "num_2", "num_3", "num_4", "num_5",
-        "num_6", "num_7", "num_8", "num_9", "num_minus"
-    },
-    {
-        "anum_0", "anum_1", "anum_2", "anum_3", "anum_4", "anum_5",
-        "anum_6", "anum_7", "anum_8", "anum_9", "anum_minus"
-    }
-};
+static cvar_t   *ch_hide_while_zoomed;
+
+vrect_t     scr_vrect;      // position of render window on screen
 
 const uint32_t colorTable[8] = {
     U32_BLACK, U32_RED, U32_GREEN, U32_YELLOW,
@@ -340,10 +332,10 @@ static void draw_progress_bar(float progress, bool paused, int framenum)
     R_DrawString(x, h, 0, MAX_STRING_CHARS, buffer, scr.font_pic);
 
     if (scr_demobar->integer > 1) {
-        int sec = framenum / 10;
+        int sec = framenum / BASE_FRAMERATE;
         int min = sec / 60; sec %= 60;
 
-        Q_scnprintf(buffer, sizeof(buffer), "%d:%02d.%d", min, sec, framenum % 10);
+        Q_scnprintf(buffer, sizeof(buffer), "%d:%02d.%d", min, sec, framenum % BASE_FRAMERATE);
         R_DrawString(0, h, 0, MAX_STRING_CHARS, buffer, scr.font_pic);
     }
 
@@ -367,7 +359,7 @@ static void SCR_DrawDemo(void)
     }
 
     if (cls.demo.playback) {
-        if (cls.demo.file_size) {
+        if (cls.demo.file_size && !cls.demo.compat) {
             draw_progress_bar(
                 cls.demo.file_progress,
                 sv_paused->integer &&
@@ -1145,14 +1137,14 @@ static void SCR_Sky_f(void)
     }
 
     if (argc > 2)
-        rotate = atof(Cmd_Argv(2));
+        rotate = Q_atof(Cmd_Argv(2));
     else
         rotate = 0;
 
     if (argc == 6) {
-        axis[0] = atof(Cmd_Argv(3));
-        axis[1] = atof(Cmd_Argv(4));
-        axis[2] = atof(Cmd_Argv(5));
+        axis[0] = Q_atof(Cmd_Argv(3));
+        axis[1] = Q_atof(Cmd_Argv(4));
+        axis[2] = Q_atof(Cmd_Argv(5));
     } else
         VectorSet(axis, 0, 0, 1);
 
@@ -1203,47 +1195,53 @@ static void SCR_TimeRefresh_f(void)
 
 //============================================================================
 
-static void scr_crosshair_changed(cvar_t *self)
+static void ch_scale_changed(cvar_t *self)
 {
-    char buffer[16];
     int w, h;
     float scale;
     qhandle_t scope_pic;
 
-    if (scr_crosshair->integer > 0) {
-        Q_snprintf(buffer, sizeof(buffer), "ch%i", scr_crosshair->integer);
-        scr.crosshair_pic = R_RegisterPic(buffer);
-        R_GetPicSize(&w, &h, scr.crosshair_pic);
+    // Cut the scale by half to try to match the original AQ2 behavior?
+    scale = Cvar_ClampValue(self, 0.1f, 9.0f) / 2.0f;
 
-        // prescale
-        scale = Cvar_ClampValue(ch_scale, 0.1f, 9.0f) * scr.hud_scale;
-        scr.crosshair_width = w * scale;
-        scr.crosshair_height = h * scale;
-        if (scr.crosshair_width < 1)
-            scr.crosshair_width = 1;
-        if (scr.crosshair_height < 1)
-            scr.crosshair_height = 1;
+    // action mod scope scaling
+    scope_pic = R_RegisterPic("scope2x");
+    if (scope_pic) {
+        R_GetPicSize(&w, &h, scope_pic);
+        scr.scope_width = w * scale;
+        scr.scope_height = h * scale;
+        if (scr.scope_width < 1)
+            scr.scope_width = 1;
+        if (scr.scope_height < 1)
+            scr.scope_height = 1;
+    }
+    // prescale
+    R_GetPicSize(&w, &h, scr.crosshair_pic);
+    scr.crosshair_width = Q_rint(w * scale);
+    scr.crosshair_height = Q_rint(h * scale);
 
-        // action mod scope scaling
-        scope_pic = R_RegisterPic("scope2x");;
-        if (scope_pic) {
-            R_GetPicSize(&w, &h, scope_pic);
-            scr.scope_width = w * scale;
-            scr.scope_height = h * scale;
-            if (scr.scope_width < 1)
-                scr.scope_width = 1;
-            if (scr.scope_height < 1)
-                scr.scope_height = 1;
-        }
+    R_GetPicSize(&w, &h, scr.hit_marker_pic);
+    scr.hit_marker_width = Q_rint(w * scale);
+    scr.hit_marker_height = Q_rint(h * scale);
+}
 
-        if (ch_health->integer) {
-            SCR_SetCrosshairColor();
-        } else {
-            scr.crosshair_color.u8[0] = Cvar_ClampValue(ch_red, 0, 1) * 255;
-            scr.crosshair_color.u8[1] = Cvar_ClampValue(ch_green, 0, 1) * 255;
-            scr.crosshair_color.u8[2] = Cvar_ClampValue(ch_blue, 0, 1) * 255;
-        }
-        scr.crosshair_color.u8[3] = Cvar_ClampValue(ch_alpha, 0, 1) * 255;
+static void ch_color_changed(cvar_t *self)
+{
+    if (ch_health->integer) {
+        SCR_SetCrosshairColor();
+    } else {
+        scr.crosshair_color.u8[0] = Cvar_ClampValue(ch_red, 0, 1) * 255;
+        scr.crosshair_color.u8[1] = Cvar_ClampValue(ch_green, 0, 1) * 255;
+        scr.crosshair_color.u8[2] = Cvar_ClampValue(ch_blue, 0, 1) * 255;
+    }
+    scr.crosshair_color.u8[3] = Cvar_ClampValue(ch_alpha, 0, 1) * 255;
+}
+
+static void scr_crosshair_changed(cvar_t *self)
+{
+    if (self->integer > 0) {
+        scr.crosshair_pic = R_RegisterPic(va("ch%i", self->integer));
+        ch_scale_changed(ch_scale);
     } else {
         scr.crosshair_pic = 0;
     }
@@ -1295,6 +1293,15 @@ void SCR_ModeChanged(void)
         scr.hud_scale = R_ClampScale(scr_scale);
 }
 
+static void scr_font_changed(cvar_t *self)
+{
+    scr.font_pic = R_RegisterFont(self->string);
+    if (!scr.font_pic && strcmp(self->string, self->default_string)) {
+        Cvar_Reset(self);
+        scr.font_pic = R_RegisterFont(self->default_string);
+    }
+}
+
 /*
 ==================
 SCR_RegisterMedia
@@ -1302,32 +1309,26 @@ SCR_RegisterMedia
 */
 void SCR_RegisterMedia(void)
 {
-    int     i, j;
+    int     i;
 
-    for (i = 0; i < 2; i++)
-        for (j = 0; j < STAT_PICS; j++)
-            scr.sb_pics[i][j] = R_RegisterPic(sb_nums[i][j]);
+    for (i = 0; i < STAT_MINUS; i++)
+        scr.sb_pics[0][i] = R_RegisterPic(va("num_%d", i));
+    scr.sb_pics[0][i] = R_RegisterPic("num_minus");
+
+    for (i = 0; i < STAT_MINUS; i++)
+        scr.sb_pics[1][i] = R_RegisterPic(va("anum_%d", i));
+    scr.sb_pics[1][i] = R_RegisterPic("anum_minus");
 
     scr.inven_pic = R_RegisterPic("inventory");
     scr.field_pic = R_RegisterPic("field_3");
-
     scr.backtile_pic = R_RegisterImage("backtile", IT_PIC, IF_PERMANENT | IF_REPEAT);
-
     scr.pause_pic = R_RegisterPic("pause");
-    R_GetPicSize(&scr.pause_width, &scr.pause_height, scr.pause_pic);
-
     scr.loading_pic = R_RegisterPic("loading");
-    R_GetPicSize(&scr.loading_width, &scr.loading_height, scr.loading_pic);
-
     scr.net_pic = R_RegisterPic("net");
-    scr.font_pic = R_RegisterFont(scr_font->string);
+    scr.hit_marker_pic = R_RegisterImage("marker", IT_PIC, IF_PERMANENT | IF_OPTIONAL);
 
     scr_crosshair_changed(scr_crosshair);
-}
-
-static void scr_font_changed(cvar_t *self)
-{
-    scr.font_pic = R_RegisterFont(self->string);
+    scr_font_changed(scr_font);
 }
 
 static void scr_scale_changed(cvar_t *self)
@@ -1403,20 +1404,22 @@ void SCR_Init(void)
     r_maxfps = Cvar_Get("r_maxfps","0",0);
 
     ch_health = Cvar_Get("ch_health", "0", 0);
-    ch_health->changed = scr_crosshair_changed;
+    ch_health->changed = ch_color_changed;
     ch_red = Cvar_Get("ch_red", "1", 0);
-    ch_red->changed = scr_crosshair_changed;
+    ch_red->changed = ch_color_changed;
     ch_green = Cvar_Get("ch_green", "1", 0);
-    ch_green->changed = scr_crosshair_changed;
+    ch_green->changed = ch_color_changed;
     ch_blue = Cvar_Get("ch_blue", "1", 0);
-    ch_blue->changed = scr_crosshair_changed;
+    ch_blue->changed = ch_color_changed;
     ch_alpha = Cvar_Get("ch_alpha", "1", 0);
-    ch_alpha->changed = scr_crosshair_changed;
+    ch_alpha->changed = ch_color_changed;
 
     ch_scale = Cvar_Get("ch_scale", "1", 0);
-    ch_scale->changed = scr_crosshair_changed;
+    ch_scale->changed = ch_scale_changed;
     ch_x = Cvar_Get("ch_x", "0", 0);
     ch_y = Cvar_Get("ch_y", "0", 0);
+
+    ch_hide_while_zoomed = Cvar_Get("ch_hide_while_zoomed", "1", 0);
 
     scr_draw2d = Cvar_Get("scr_draw2d", "2", 0);
     scr_showturtle = Cvar_Get("scr_showturtle", "1", 0);
@@ -1427,18 +1430,17 @@ void SCR_Init(void)
     scr_lag_max = Cvar_Get("scr_lag_max", "200", 0);
     scr_alpha = Cvar_Get("scr_alpha", "1", 0);
 
-	scr_hudborder_x = Cvar_Get("scr_hudborder_x", "0", 0);
-	scr_hudborder_y = Cvar_Get("scr_hudborder_y", "0", 0);
 #if USE_DEBUG
     scr_showstats = Cvar_Get("scr_showstats", "0", 0);
     scr_showpmove = Cvar_Get("scr_showpmove", "0", 0);
 #endif
 
+    scr_hit_marker_time = Cvar_Get("scr_hit_marker_time", "500", 0);
+
     Cmd_Register(scr_cmds);
 
     scr_scale_changed(scr_scale);
-    scr_crosshair_changed(scr_crosshair);
-    scr_lag_draw_scale_changed(scr_lag_draw_scale);
+    ch_color_changed(NULL);
 
     scr.initialized = true;
 }
@@ -1680,25 +1682,25 @@ static void SCR_SkipToEndif(const char **s)
             !strcmp(token, "yt") || !strcmp(token, "yb") || !strcmp(token, "yv") ||
             !strcmp(token, "pic") || !strcmp(token, "picn") || !strcmp(token, "color") ||
             strstr(token, "string")) {
-            COM_Parse(s);
+            COM_SkipToken(s);
             continue;
         }
 
         if (!strcmp(token, "client")) {
             for (i = 0; i < 6; i++)
-                COM_Parse(s);
+                COM_SkipToken(s);
             continue;
         }
 
         if (!strcmp(token, "ctf")) {
             for (i = 0; i < 5; i++)
-                COM_Parse(s);
+                COM_SkipToken(s);
             continue;
         }
 
-        if (!strcmp(token, "num")) {
-            COM_Parse(s);
-            COM_Parse(s);
+        if (!strcmp(token, "num") || !strcmp(token, "health_bars")) {
+            COM_SkipToken(s);
+            COM_SkipToken(s);
             continue;
         }
 
@@ -1707,7 +1709,7 @@ static void SCR_SkipToEndif(const char **s)
         if (!strcmp(token, "rnum")) continue;
 
         if (!strcmp(token, "if")) {
-            COM_Parse(s);
+            COM_SkipToken(s);
             skip++;
             continue;
         }
@@ -1718,6 +1720,21 @@ static void SCR_SkipToEndif(const char **s)
             return;
         }
     }
+}
+
+static void SCR_DrawHealthBar(int x, int y, int value)
+{
+    if (!value)
+        return;
+
+    int bar_width = scr.hud_width / 3;
+    float percent = (value - 1) / 254.0f;
+    int w = bar_width * percent + 0.5f;
+    int h = CHAR_HEIGHT / 2;
+
+    x -= bar_width / 2;
+    R_DrawFill8(x, y, w, h, 240);
+    R_DrawFill8(x + w, y, bar_width - w, h, 4);
 }
 
 static void SCR_ExecuteLayoutString(const char *s)
@@ -1735,6 +1752,7 @@ static void SCR_ExecuteLayoutString(const char *s)
 
     x = scr.hud_x;
     y = scr.hud_y;
+    qboolean parsed_scope_pic = false;
 
     while (s) {
         token = COM_Parse(&s);
@@ -1796,6 +1814,7 @@ static void SCR_ExecuteLayoutString(const char *s)
                 qhandle_t pic = cl.image_precache[value];
                 // hack for action mod scope scaling
                 if (Com_WildCmp("scope?x", token) || Com_WildCmp("scopes/*/scope?x", token)) {
+                    parsed_scope_pic = true;
                     int x = scr.hud_x + (scr.hud_width - scr.scope_width) / 2;
                     int y = scr.hud_y + (scr.hud_height - scr.scope_height) / 2;
 
@@ -1810,7 +1829,8 @@ static void SCR_ExecuteLayoutString(const char *s)
             }
             continue;
         }
-
+        //save whether we parsed a scope pic
+        scr.currently_scoped_in = parsed_scope_pic;
         if (!strcmp(token, "client")) {
             // draw a deathmatch client block
             int     score, ping, time;
@@ -2059,6 +2079,26 @@ static void SCR_ExecuteLayoutString(const char *s)
             }
             continue;
         }
+
+        if (!strcmp(token, "health_bars")) {
+            token = COM_Parse(&s);
+            value = Q_atoi(token);
+            if (value < 0 || value >= MAX_STATS) {
+                Com_Error(ERR_DROP, "%s: invalid stat index", __func__);
+            }
+            value = cl.frame.ps.stats[value];
+
+            token = COM_Parse(&s);
+            index = Q_atoi(token);
+            if (index < 0 || index >= cl.csr.end) {
+                Com_Error(ERR_DROP, "%s: invalid string index", __func__);
+            }
+
+            HUD_DrawCenterString(x + 320 / 2, y, cl.configstrings[index]);
+            SCR_DrawHealthBar(x + 320 / 2, y + CHAR_HEIGHT + 4, value & 0xff);
+            SCR_DrawHealthBar(x + 320 / 2, y + CHAR_HEIGHT + 12, (value >> 8) & 0xff);
+            continue;
+        }
     }
 
     R_ClearColor();
@@ -2069,7 +2109,7 @@ static void SCR_ExecuteLayoutString(const char *s)
 
 static void SCR_DrawPause(void)
 {
-    int x, y;
+    int x, y, w, h;
 
     if (!sv_paused->integer)
         return;
@@ -2078,15 +2118,16 @@ static void SCR_DrawPause(void)
     if (scr_showpause->integer != 1)
         return;
 
-    x = scr.hud_x + (scr.hud_width - scr.pause_width) / 2;
-    y = scr.hud_y + (scr.hud_height - scr.pause_height) / 2;
+    R_GetPicSize(&w, &h, scr.pause_pic);
+    x = (scr.hud_width - w) / 2;
+    y = (scr.hud_height - h) / 2;
 
     R_DrawPic(x, y, scr.pause_pic);
 }
 
 static void SCR_DrawLoading(void)
 {
-    int x, y;
+    int x, y, w, h;
 
     if (!scr.draw_loading)
         return;
@@ -2095,8 +2136,9 @@ static void SCR_DrawLoading(void)
 
     R_SetScale(scr.hud_scale);
 
-    x = (r_config.width * scr.hud_scale - scr.loading_width) / 2;
-    y = (r_config.height * scr.hud_scale - scr.loading_height) / 2;
+    R_GetPicSize(&w, &h, scr.loading_pic);
+    x = (r_config.width * scr.hud_scale - w) / 2;
+    y = (r_config.height * scr.hud_scale - h) / 2;
 
     R_DrawPic(x, y, scr.loading_pic);
 
@@ -2133,7 +2175,7 @@ static xhair_weapon_cfg_t xhair_weapon_cfgs[9] = {
     {"models/weapons/v_handgr/tris.md2", XHAIR_MAX_GAP, 1, 1, -1, -1, 1}
 };
 static int XHAIR_GetWeaponIndex(void) {
-    char* wepname = cl.configstrings[CS_MODELS + cl.frame.ps.gunindex];
+    char* wepname = cl.configstrings[cl.csr.models + cl.frame.ps.gunindex];
     for(int i=0; i<9; i++) {
         if (Q_stricmp(wepname, xhair_weapon_cfgs[i].wepname) == 0) {
             return i;
@@ -2195,6 +2237,8 @@ static xhair_state_t XHAIR_ApplyFiringInaccuracy(xhair_state_t xh, int wep_index
     //Con_Printf("%d\n",cl.frame.ps.gunframe);
     return xh;
 }
+
+// mikota's xhair
 static void SCR_DrawXhair(void) {
     //Con_Printf("deltatime_factor: %g\n",deltatime_factor);
     R_SetColor(scr.crosshair_color.u32);
@@ -2286,25 +2330,64 @@ static void SCR_DrawXhair(void) {
         }
     } 
 }
+
+// mikota's xhair
 static void SCR_DrawClassicCrosshair(void) {
     R_SetColor(scr.crosshair_color.u32);
+}
+
+static void SCR_DrawHitMarker(void)
+{
+    if (!cl.hit_marker_count)
+        return;
+    if (!scr.hit_marker_pic || scr_hit_marker_time->integer <= 0 ||
+        cls.realtime - cl.hit_marker_time > scr_hit_marker_time->integer) {
+        cl.hit_marker_count = 0;
+        return;
+    }
+
+    float frac = (float)(cls.realtime - cl.hit_marker_time) / scr_hit_marker_time->integer;
+    float alpha = 1.0f - (frac * frac);
+
+    int x = (scr.hud_width - scr.hit_marker_width) / 2;
+    int y = (scr.hud_height - scr.hit_marker_height) / 2;
+
+    R_SetColor(MakeColor(255, 0, 0, alpha * 255));
+
+    R_DrawStretchPic(x + ch_x->integer,
+                     y + ch_y->integer,
+                     scr.hit_marker_width,
+                     scr.hit_marker_height,
+                     scr.hit_marker_pic);
+}
+
+static void SCR_DrawCrosshair(void)
+{
     int x, y;
 
     if (!scr_crosshair->integer)
         return;
     if (cl.frame.ps.stats[STAT_LAYOUTS] & (LAYOUTS_HIDE_HUD | LAYOUTS_HIDE_CROSSHAIR))
         return;
+    if (scr.currently_scoped_in && ch_hide_while_zoomed->integer)
+        return;
 
-    x = scr.hud_x + (scr.hud_width - scr.crosshair_width) / 2;
-    y = scr.hud_y + (scr.hud_height - scr.crosshair_height) / 2;
-    
+    x = (scr.hud_width - scr.crosshair_width) / 2;
+    y = (scr.hud_height - scr.crosshair_height) / 2;
+
+    R_SetColor(scr.crosshair_color.u32);
+
     R_DrawStretchPic(x + ch_x->integer,
                      y + ch_y->integer,
                      scr.crosshair_width,
                      scr.crosshair_height,
                      scr.crosshair_pic);
+
+    SCR_DrawHitMarker();
 }
-#ifdef AQTION_EXTENSION
+
+
+#if AQTION_EXTENSION
 void CL_Clear3DGhudQueue(void)
 {
 	ghud_3delement_t *link;
@@ -2427,7 +2510,7 @@ static void SCR_DrawGhud(void)
 			//
 
 			float mult = 300 / link->distance;
-			Q_clip(mult, 0.25, 5);
+			Q_clipf(mult, 0.25, 5);
 
 			int sizex = element->size[0] * mult;
 			int sizey = element->size[1] * mult;
@@ -2546,6 +2629,7 @@ draw:
     SCR_ExecuteLayoutString(cl.layout);
 }
 
+
 static void SCR_Draw2D(void)
 {
     if (scr_draw2d->integer <= 0)
@@ -2554,23 +2638,19 @@ static void SCR_Draw2D(void)
     if (cls.key_dest & KEY_MENU)
         return;
 
-    if (xhair_enabled->integer)
-        SCR_DrawXhair();
-
     R_SetScale(scr.hud_scale);
 
+    scr.hud_height = Q_rint(scr.hud_height * scr.hud_scale);
+    scr.hud_width = Q_rint(scr.hud_width * scr.hud_scale);
 
-	scr.hud_x = Q_rint(scr_hudborder_x->integer);
-	scr.hud_y = Q_rint(scr_hudborder_y->integer);
-    scr.hud_width = Q_rint((scr.hud_width - scr.hud_x) * scr.hud_scale);
-	scr.hud_height = Q_rint((scr.hud_height - scr.hud_y) * scr.hud_scale);
-	scr.hud_x *= scr.hud_scale / 2;
-	scr.hud_y *= scr.hud_scale / 2;
+// mikota's xhair
+//     if (!xhair_enabled->integer) {
+//         SCR_DrawClassicCrosshair();
+//     }    
 
-    if (!xhair_enabled->integer) {
-        SCR_DrawClassicCrosshair();
-    }    
-    
+    // crosshair has its own color and alpha
+    SCR_DrawCrosshair();
+
     // the rest of 2D elements share common alpha
     R_ClearColor();
     R_SetAlpha(Cvar_ClampValue(scr_alpha, 0, 1));
@@ -2578,8 +2658,7 @@ static void SCR_Draw2D(void)
     SCR_DrawStats();
 
     SCR_DrawLayout();
-
-#ifdef AQTION_EXTENSION
+#if AQTION_EXTENSION
 	// Draw game defined hud elements
 	SCR_DrawGhud();
 
@@ -2587,7 +2666,6 @@ static void SCR_Draw2D(void)
 	R_ClearColor();
 	R_SetAlpha(Cvar_ClampValue(scr_alpha, 0, 1));
 #endif
-
     SCR_DrawInventory();
 
     SCR_DrawCenterString();
@@ -2600,7 +2678,7 @@ static void SCR_Draw2D(void)
 
     SCR_DrawTurtle();
 
-	SCR_DrawPause();
+    SCR_DrawPause();
 
     // debug stats have no alpha
     R_ClearColor();
@@ -2609,7 +2687,6 @@ static void SCR_Draw2D(void)
     SCR_DrawDebugStats();
     SCR_DrawDebugPmove();
 #endif
-    R_ClearColor();
 
     R_SetScale(1.0f);
 }

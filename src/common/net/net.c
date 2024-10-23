@@ -73,14 +73,14 @@ with this program; if not, write to the Free Software Foundation, Inc.,
 #define MAX_LOOPBACK    4
 
 typedef struct {
-    byte    data[MAX_PACKETLEN];
-    size_t  datalen;
+    byte        data[MAX_PACKETLEN];
+    unsigned    datalen;
 } loopmsg_t;
 
 typedef struct {
-    loopmsg_t       msgs[MAX_LOOPBACK];
-    unsigned long   get;
-    unsigned long   send;
+    loopmsg_t   msgs[MAX_LOOPBACK];
+    unsigned    get;
+    unsigned    send;
 } loopback_t;
 
 static loopback_t   loopbacks[NS_COUNT];
@@ -156,11 +156,13 @@ static size_t NET_NetadrToSockadr(const netadr_t *a, struct sockaddr_storage *s)
     memset(s, 0, sizeof(*s));
 
     switch (a->type) {
+#if USE_CLIENT
     case NA_BROADCAST:
         s4->sin_family = AF_INET;
         s4->sin_addr.s_addr = INADDR_BROADCAST;
         s4->sin_port = a->port;
         return sizeof(*s4);
+#endif
     case NA_IP:
         s4->sin_family = AF_INET;
         memcpy(&s4->sin_addr, &a->ip, 4);
@@ -208,21 +210,23 @@ static void NET_SockadrToNetadr(const struct sockaddr_storage *s, netadr_t *a)
     }
 }
 
-char *NET_BaseAdrToString(const netadr_t *a)
+const char *NET_BaseAdrToString(const netadr_t *a)
 {
     static char s[MAX_QPATH];
 
     switch (a->type) {
     case NA_UNSPECIFIED:
-        return strcpy(s, "<unspecified>");
+        return "<unspecified>";
+#if USE_CLIENT
     case NA_LOOPBACK:
-        return strcpy(s, "loopback");
-    case NA_IP:
+        return "loopback";
     case NA_BROADCAST:
+#endif
+    case NA_IP:
         if (inet_ntop(AF_INET, &a->ip, s, sizeof(s)))
             return s;
         else
-            return strcpy(s, "<invalid>");
+            return "<invalid>";
     case NA_IP6:
         if (a->scope_id) {
             struct sockaddr_storage addr;
@@ -236,7 +240,7 @@ char *NET_BaseAdrToString(const netadr_t *a)
         if (inet_ntop(AF_INET6, &a->ip, s, sizeof(s)))
             return s;
         else
-            return strcpy(s, "<invalid>");
+            return "<invalid>";
     default:
         Q_assert(!"bad address type");
     }
@@ -249,15 +253,17 @@ char *NET_BaseAdrToString(const netadr_t *a)
 NET_AdrToString
 ===================
 */
-char *NET_AdrToString(const netadr_t *a)
+const char *NET_AdrToString(const netadr_t *a)
 {
     static char s[MAX_QPATH];
 
     switch (a->type) {
     case NA_UNSPECIFIED:
-        return strcpy(s, "<unspecified>");
+        return "<unspecified>";
+#if USE_CLIENT
     case NA_LOOPBACK:
-        return strcpy(s, "loopback");
+        return "loopback";
+#endif
     default:
         Q_snprintf(s, sizeof(s), (a->type == NA_IP6) ? "[%s]:%u" : "%s:%u",
                    NET_BaseAdrToString(a), BigShort(a->port));
@@ -524,12 +530,12 @@ static void NET_Stats_f(void)
 
 static size_t NET_UpRate_m(char *buffer, size_t size)
 {
-    return Q_scnprintf(buffer, size, "%zu", net_rate_up);
+    return Q_snprintf(buffer, size, "%zu", net_rate_up);
 }
 
 static size_t NET_DnRate_m(char *buffer, size_t size)
 {
-    return Q_scnprintf(buffer, size, "%zu", net_rate_dn);
+    return Q_snprintf(buffer, size, "%zu", net_rate_dn);
 }
 
 //=============================================================================
@@ -539,28 +545,27 @@ static size_t NET_DnRate_m(char *buffer, size_t size)
 static void NET_GetLoopPackets(netsrc_t sock, void (*packet_cb)(void))
 {
     loopback_t *loop;
-    loopmsg_t *loopmsg;
+    loopmsg_t *msg;
 
     loop = &loopbacks[sock];
 
-    if (loop->send - loop->get > MAX_LOOPBACK - 1) {
-        loop->get = loop->send - MAX_LOOPBACK + 1;
+    if (loop->send - loop->get > MAX_LOOPBACK) {
+        loop->get = loop->send - MAX_LOOPBACK;
     }
 
-    while (loop->get < loop->send) {
-        loopmsg = &loop->msgs[loop->get & (MAX_LOOPBACK - 1)];
+    while (loop->get != loop->send) {
+        msg = &loop->msgs[loop->get & (MAX_LOOPBACK - 1)];
         loop->get++;
 
-        memcpy(msg_read_buffer, loopmsg->data, loopmsg->datalen);
+        memcpy(msg_read_buffer, msg->data, msg->datalen);
 
-        NET_LogPacket(&net_from, "LP recv", loopmsg->data, loopmsg->datalen);
+        NET_LogPacket(&net_from, "LP recv", msg->data, msg->datalen);
 
         if (sock == NS_CLIENT) {
-            net_rate_rcvd += loopmsg->datalen;
+            net_rate_rcvd += msg->datalen;
         }
 
-        SZ_Init(&msg_read, msg_read_buffer, sizeof(msg_read_buffer));
-        msg_read.cursize = loopmsg->datalen;
+        SZ_InitRead(&msg_read, msg_read_buffer, msg->datalen);
 
         (*packet_cb)();
     }
@@ -601,7 +606,7 @@ static bool NET_SendLoopPacket(netsrc_t sock, const void *data,
 
 static const char *os_error_string(int err);
 
-static void NET_ErrorEvent(qsocket_t sock, netadr_t *from,
+static void NET_ErrorEvent(qsocket_t sock, const netadr_t *from,
                            int ee_errno, int ee_info)
 {
     struct pollfd *s;
@@ -778,8 +783,7 @@ static void NET_GetUdpPackets(struct pollfd *sock, void (*packet_cb)(void))
         net_bytes_rcvd += ret;
         net_packets_rcvd++;
 
-        SZ_Init(&msg_read, msg_read_buffer, sizeof(msg_read_buffer));
-        msg_read.cursize = ret;
+        SZ_InitRead(&msg_read, msg_read_buffer, ret);
 
         (*packet_cb)();
     }
@@ -837,9 +841,9 @@ bool NET_SendPacket(netsrc_t sock, const void *data,
 #if USE_CLIENT
     case NA_LOOPBACK:
         return NET_SendLoopPacket(sock, data, len, to);
+    case NA_BROADCAST:
 #endif
     case NA_IP:
-    case NA_BROADCAST:
         s = udp_sockets[sock];
         break;
     case NA_IP6:
@@ -1635,7 +1639,7 @@ error:
 
 //===================================================================
 
-static void dump_addrinfo(struct addrinfo *ai)
+static void dump_addrinfo(const struct addrinfo *ai)
 {
     char buf1[MAX_QPATH], buf2[MAX_STRING_CHARS];
     const char *fa = ai->ai_addr->sa_family == AF_INET6 ? "6" : "";
@@ -1649,7 +1653,7 @@ static void dump_addrinfo(struct addrinfo *ai)
         Com_Printf("IP%1s     : %s\n", fa, buf1);
 }
 
-static void dump_socket(struct pollfd *s, const char *s1, const char *s2)
+static void dump_socket(const struct pollfd *s, const char *s1, const char *s2)
 {
     netadr_t adr;
 

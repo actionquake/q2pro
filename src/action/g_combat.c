@@ -151,6 +151,17 @@ qboolean CanDamage (edict_t * targ, edict_t * inflictor)
 		return false;
 	}
 
+	// Allows grenades to destroy func_buttons if they have health (city radio room for example)
+	// in coop mode or training mode only (training maps for example)
+	if (coop->value || training_mode->value) {
+		if ((0 == Q_stricmp("func_button", targ->classname)) && 0 == Q_stricmp("hgrenade", inflictor->classname)) {
+			PRETRACE ();
+			trace = gi.trace (inflictor->s.origin, vec3_origin, vec3_origin, targ->s.origin, inflictor, MASK_SOLID);
+			POSTTRACE();
+			return true;
+		}
+	}
+
 	PRETRACE ();
 	trace = gi.trace (inflictor->s.origin, vec3_origin, vec3_origin, targ->s.origin, inflictor, MASK_SOLID);
 	if (trace.fraction == 1.0) {
@@ -193,6 +204,7 @@ qboolean CanDamage (edict_t * targ, edict_t * inflictor)
 	if (trace.fraction == 1.0)
 		return true;
 
+	//gi.dprintf("CanDamage: %s can't damage %s\n", inflictor->classname, targ->classname);
 	return false;
 }
 
@@ -396,7 +408,7 @@ void spray_sniper_blood(edict_t *self, vec3_t start, const vec3_t dir)
 	spray_blood( self, start, dir, 0, mod );
 }
 
-void VerifyHeadShot(vec3_t point, const vec3_t dir, float height, vec3_t newpoint)
+void VerifyHeadShot(vec3_t point, vec3_t dir, float height, vec3_t newpoint)
 {
 	vec3_t normdir;
 
@@ -412,12 +424,30 @@ void VerifyHeadShot(vec3_t point, const vec3_t dir, float height, vec3_t newpoin
 
 #define HEAD_HEIGHT 12.0f
 
+qboolean check_head_success(const vec3_t point, const vec3_t dir, vec3_t targ_origin, float targ_maxs2) {
+    vec3_t new_point, deconst_point, deconst_dir;
+
+    // De-constify the point and dir
+    VectorCopy(point, deconst_point);
+    VectorCopy(dir, deconst_dir);
+    VerifyHeadShot(deconst_point, deconst_dir, HEAD_HEIGHT, new_point);
+    VectorSubtract(new_point, targ_origin, new_point);
+
+    if ((targ_maxs2 - new_point[2]) < HEAD_HEIGHT
+        && (fabsf(new_point[1])) < HEAD_HEIGHT * .8
+        && (fabsf(new_point[0])) < HEAD_HEIGHT * .8)
+    {
+        return true;
+    }
+    return false;
+}
+
 void T_Damage (edict_t * targ, edict_t * inflictor, edict_t * attacker, const vec3_t dir,
-	  vec3_t point, const vec3_t normal, int damage, int knockback, int dflags,
+	  const vec3_t point, const vec3_t normal, int damage, int knockback, int dflags,
 	  int mod)
 {
 	gclient_t *client;
-	char buf[256];
+	//char buf[256]; // Unused
 	int take, save;
 	int asave, psave;
 	int te_sparks, do_sparks = 0;
@@ -431,6 +461,8 @@ void T_Damage (edict_t * targ, edict_t * inflictor, edict_t * attacker, const ve
 	vec_t dist;
 	float targ_maxs2;		//FB 6/1/99
 
+	if ((targ->flags & FL_GODMODE) || targ->solid == SOLID_NOT) return; //rekkie -- specators don't take damage
+
 	// do this before teamplay check
 	if (!targ->takedamage)
 		return;
@@ -442,8 +474,9 @@ void T_Damage (edict_t * targ, edict_t * inflictor, edict_t * attacker, const ve
 	//FIREBLADE
 	if (mod != MOD_TELEFRAG)
 	{
-		if (lights_camera_action)
+		if (lights_camera_action) {
 			return;
+		}
 
 		if (client)
 		{
@@ -495,6 +528,7 @@ void T_Damage (edict_t * targ, edict_t * inflictor, edict_t * attacker, const ve
 		case MOD_SNIPER:
 		case MOD_KNIFE:
 		case MOD_KNIFE_THROWN:
+		case MOD_GRENADE_IMPACT:
 
 			z_rel = point[2] - targ->s.origin[2];
 			from_top = targ_maxs2 - z_rel;
@@ -503,19 +537,8 @@ void T_Damage (edict_t * targ, edict_t * inflictor, edict_t * attacker, const ve
 			bleeding = 1;
 			instant_dam = 0;
 
-			if (from_top < 2 * HEAD_HEIGHT)
-			{
-				vec3_t new_point;
-				VerifyHeadShot(point, dir, HEAD_HEIGHT, new_point);
-				VectorSubtract(new_point, targ->s.origin, new_point);
-				//gi.cprintf(attacker, PRINT_HIGH, "z: %d y: %d x: %d\n", (int)(targ_maxs2 - new_point[2]),(int)(new_point[1]) , (int)(new_point[0]) );
-
-				if ((targ_maxs2 - new_point[2]) < HEAD_HEIGHT
-					&& (abs (new_point[1])) < HEAD_HEIGHT * .8
-					&& (abs (new_point[0])) < HEAD_HEIGHT * .8)
-				{
-					head_success = 1;
-				}
+			if (from_top < 2 * HEAD_HEIGHT) {
+				head_success = check_head_success(point, dir, targ->s.origin, targ_maxs2);
 			}
 
 			if (head_success)
@@ -538,28 +561,8 @@ void T_Damage (edict_t * targ, edict_t * inflictor, edict_t * attacker, const ve
 
 						if(attacker->client->resp.streakHS % 3 == 0)
 						{
-							if (use_rewards->value)
-							{
-								Q_snprintf(buf, sizeof(buf), "ACCURACY %s!", attacker->client->pers.netname);
-								CenterPrintAll(buf);
-								gi.sound(&g_edicts[0], CHAN_VOICE | CHAN_NO_PHS_ADD, gi.soundindex("tng/accuracy.wav"), 1.0, ATTN_NONE, 0.0);
-
-								#if USE_AQTION
-
-								#ifndef NO_BOTS
-									// Check if there's an AI bot in the game, if so, do nothing
-									if (game.ai_ent_found) {
-										return;
-									}
-								#endif
-								if (stat_logs->value) {
-									char steamid[24];
-									char discordid[24];
-									Q_strncpyz(steamid, Info_ValueForKey(attacker->client->pers.userinfo, "steamid"), sizeof(steamid));
-									Q_strncpyz(discordid, Info_ValueForKey(attacker->client->pers.userinfo, "cl_discord_id"), sizeof(discordid));
-									LogAward(steamid, discordid, ACCURACY);
-								}
-								#endif
+							if (use_rewards->value) {
+								Announce_Reward(attacker, ACCURACY);
 							}
 						}
 					}
@@ -572,8 +575,11 @@ void T_Damage (edict_t * targ, edict_t * inflictor, edict_t * attacker, const ve
 					if (attacker->client)
 						gi.cprintf(attacker, PRINT_HIGH, "You hit %s in the head\n", client->pers.netname);
 
-					if (mod != MOD_KNIFE && mod != MOD_KNIFE_THROWN)
+					if (mod == MOD_GRENADE_IMPACT)
+						gi.sound(targ, CHAN_VOICE, level.snd_grenhead, 1, ATTN_NORM, 0);
+					else if (mod != MOD_KNIFE && mod != MOD_KNIFE_THROWN)
 						gi.sound(targ, CHAN_VOICE, level.snd_headshot, 1, ATTN_NORM, 0);
+
 				}
 				else if (mod == MOD_SNIPER)
 				{
@@ -595,10 +601,18 @@ void T_Damage (edict_t * targ, edict_t * inflictor, edict_t * attacker, const ve
 					{
 						gi.cprintf( attacker, PRINT_HIGH, "%s has a Kevlar Helmet - AIM FOR THE BODY!\n",
 							client->pers.netname );
-						gi.cprintf( targ, PRINT_HIGH, "Kevlar Helmet absorbed a part of %s's shot\n",
-							attacker->client->pers.netname );
+						if (mod == MOD_GRENADE_IMPACT) {
+							gi.cprintf( targ, PRINT_HIGH, "Kevlar Helmet absorbed a part of %s's grenade\n",
+								attacker->client->pers.netname );
+						} else {
+							gi.cprintf( targ, PRINT_HIGH, "Kevlar Helmet absorbed a part of %s's shot\n",
+								attacker->client->pers.netname );
+						}
 					}
-					gi.sound(targ, CHAN_ITEM, level.snd_vesthit, 1, ATTN_NORM, 0);
+					if (mod == MOD_GRENADE_IMPACT)
+						gi.sound(targ, CHAN_ITEM, level.snd_grenhelm, 1, ATTN_NORM, 0);
+					else
+						gi.sound(targ, CHAN_ITEM, level.snd_vesthit, 1, ATTN_NORM, 0);
 					damage = (int)(damage / 2);
 					bleeding = 0;
 					instant_dam = 1;
@@ -681,7 +695,10 @@ void T_Damage (edict_t * targ, edict_t * inflictor, edict_t * attacker, const ve
 						gi.cprintf(targ, PRINT_HIGH, "Kevlar Vest absorbed most of %s's shot\n",
 							attacker->client->pers.netname);
 					}
-					gi.sound(targ, CHAN_ITEM, level.snd_vesthit, 1, ATTN_NORM, 0);
+					if (mod == MOD_GRENADE_IMPACT)
+						gi.sound(targ, CHAN_ITEM, level.snd_grenbody, 1, ATTN_NORM, 0);
+					else
+						gi.sound(targ, CHAN_ITEM, level.snd_vesthit, 1, ATTN_NORM, 0);
 					damage = (int)(damage / 10);
 					bleeding = 0;
 					instant_dam = 1;
@@ -849,10 +866,18 @@ void T_Damage (edict_t * targ, edict_t * inflictor, edict_t * attacker, const ve
 			{
 				if (!friendlyFire && !in_warmup) {
 					attacker->client->resp.damage_dealt += damage;
+					// Hit markers
+					attacker->client->damage_dealt += damage;
 					if (mod > 0 && mod < MAX_GUNSTAT) {
 						attacker->client->resp.gunstats[mod].damage += damage;
 					}
 				}
+
+				if (targ != attacker && attacker->client && targ->health > 0 &&
+					!(targ->svflags % SVF_DEADMONSTER) && !(targ->flags & FL_NO_DAMAGE_EFFECTS) &&
+					mod != MOD_TARGET_LASER) {
+						attacker->client->damage_dealt += take + psave + asave;
+					}
 			
 				client->attacker = attacker;
 				client->attacker_mod = mod;
@@ -861,7 +886,9 @@ void T_Damage (edict_t * targ, edict_t * inflictor, edict_t * attacker, const ve
 
 			if ((targ->svflags & SVF_MONSTER) || client)
 				targ->flags |= FL_NO_KNOCKBACK;
-			Killed(targ, inflictor, attacker, take, point);
+			vec3_t non_const_origin; // Convert to non-const
+			VectorCopy(vec3_origin, non_const_origin);
+			Killed(targ, inflictor, attacker, take, non_const_origin);
 			return;
 		}
 	}
@@ -904,7 +931,18 @@ void T_Damage (edict_t * targ, edict_t * inflictor, edict_t * attacker, const ve
 		{
 			if (!friendlyFire && !in_warmup) {
 				attacker->client->resp.damage_dealt += damage;
+				// Hit markers
+				attacker->client->damage_dealt += damage;
+				// All normal weapon damage
 				if (mod > 0 && mod < MAX_GUNSTAT) {
+					attacker->client->resp.gunstats[mod].damage += damage;
+				}
+				// Grenade splash, grenade impact, kicks and punch damage
+				if (mod > 0 &&
+				((mod == MOD_HG_SPLASH) ||
+				(mod == MOD_KICK) ||
+				(mod == MOD_PUNCH) ||
+				(mod == MOD_GRENADE_IMPACT))) {
 					attacker->client->resp.gunstats[mod].damage += damage;
 				}
 			}
@@ -924,8 +962,7 @@ void T_Damage (edict_t * targ, edict_t * inflictor, edict_t * attacker, const ve
   T_RadiusDamage
   ============
 */
-void
-T_RadiusDamage (edict_t * inflictor, edict_t * attacker, float damage,
+void T_RadiusDamage (edict_t * inflictor, edict_t * attacker, float damage,
 		edict_t * ignore, float radius, int mod)
 {
 	float points;

@@ -1,0 +1,28 @@
+[esp]
+type=etv
+author=darksaint
+name=Get the Hay out of here!
+
+[respawn]
+red=6
+blue=6
+
+[spawns]
+red=<1039 -1974 -742 180>,<330 -542 -870 -42>,<833 -258 -850 -90><787 -697 -870 145>
+blue=<2351 -1650 -742 -180>,<1674 -2372 -742 85>,<2355 -959 -615 -140><2104 -431 -326 -142>
+
+[target]
+escort=<1428 -1090 -694>
+name=Haybale on the truck
+
+[red_team]
+name=Ranchers
+leader_name=Old MacDonald
+skin=male/ctf_r
+leader_skin=male/ctf_vip_r
+
+[blue_team]
+name=Farmers
+leader_name=John Deere
+skin=male/ctf_b
+leader_skin=male/ctf_vip_b

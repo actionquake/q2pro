@@ -101,8 +101,8 @@
 static qboolean is_quad;
 
 
-void P_ProjectSource(gclient_t* client, const vec3_t point, const vec3_t distance,
-	const vec3_t forward, const vec3_t right, vec3_t result)
+void P_ProjectSource(gclient_t* client, vec3_t point, vec3_t distance,
+	vec3_t forward, vec3_t right, vec3_t result)
 {
 	vec3_t _distance;
 
@@ -126,8 +126,8 @@ void P_ProjectSource(gclient_t* client, const vec3_t point, const vec3_t distanc
 
 // used for setting up the positions of the guns in shell ejection
 void
-Old_ProjectSource(gclient_t* client, const vec3_t point, const vec3_t distance,
-	const vec3_t forward, const vec3_t right, vec3_t result)
+Old_ProjectSource(gclient_t* client, vec3_t point, vec3_t distance,
+	vec3_t forward, vec3_t right, vec3_t result)
 {
 	vec3_t _distance;
 
@@ -144,8 +144,8 @@ Old_ProjectSource(gclient_t* client, const vec3_t point, const vec3_t distance,
 
 // this one is the real old project source
 void
-Knife_ProjectSource(gclient_t* client, const vec3_t point, const vec3_t distance,
-	const vec3_t forward, const vec3_t right, vec3_t result)
+Knife_ProjectSource(gclient_t* client, vec3_t point, vec3_t distance,
+	vec3_t forward, vec3_t right, vec3_t result)
 {
 	vec3_t _distance;
 
@@ -171,7 +171,7 @@ PlayerNoise
 		to a noise in hopes of seeing the player from there.
 		===============
 */
-void PlayerNoise(edict_t* who, const vec3_t where, int type)
+void PlayerNoise(edict_t* who, vec3_t where, int type)
 {
 	/*
 	if (type == PNOISE_WEAPON)
@@ -620,8 +620,7 @@ Use_Weapon(edict_t* ent, gitem_t* item)
 
 
 
-edict_t*
-FindSpecWeapSpawn(edict_t* ent)
+edict_t *FindSpecWeapSpawn(edict_t* ent)
 {
 	edict_t* spot = NULL;
 
@@ -643,8 +642,7 @@ FindSpecWeapSpawn(edict_t* ent)
 	return spot;
 }
 
-static void
-SpawnSpecWeap(gitem_t* item, edict_t* spot)
+static void SpawnSpecWeap(gitem_t* item, edict_t* spot)
 {
 	/*        edict_t *ent;
 			vec3_t  forward, right;
@@ -683,41 +681,66 @@ SpawnSpecWeap(gitem_t* item, edict_t* spot)
 	gi.linkentity(spot);
 }
 
-void temp_think_specweap(edict_t* ent)
+void SpecialWeaponRespawnTimer(edict_t* ent)
 {
 	ent->touch = Touch_Item;
 
+	/*
+	G_FreeEdict frees the weapon after the nextthink timer expires
+	Placeholder is used to keep the weapon around for a very long time
+	ThinkSpecWeap is used to respawn the weapon at a different spawn point
+	*/
+
+	// Allweapon setting makes dropped weapons disappear in 1s
 	if (allweapon->value) { // allweapon set
-		ent->nextthink = level.framenum + 1 * HZ;
+		ent->nextthink = eztimer(1);
 		ent->think = G_FreeEdict;
 		return;
 	}
-
+	// Removes weapons more often during warmup (10s)
+	if (in_warmup) {
+		ent->nextthink = eztimer(10);
+		ent->think = G_FreeEdict;
+		return;
+	}
+	// Espionage, CTF and Domination weapons disappear after 30s
+	if (esp->value || dom->value || ctf->value) {
+		ent->nextthink = eztimer(30);
+		ent->think = G_FreeEdict;
+		return;
+	}
+	// Normal teamplay, weapons basically never disappear
 	if (gameSettings & GS_ROUNDBASED) {
-		ent->nextthink = level.framenum + 1000 * HZ;
+		ent->nextthink = eztimer(1000);
 		ent->think = PlaceHolder;
 		return;
 	}
-
+	// Deathmatch with weapon choose, weapons disappear in 6s (w/bots, 2 seconds)
 	if (gameSettings & GS_WEAPONCHOOSE) {
-		ent->nextthink = level.framenum + 6 * HZ;
+		if (bot_enable->value && bot_connections.total_bots > 0) {
+			// Reduce time that items stick around if bots are loaded
+			ent->nextthink = eztimer(2);
+		} else {
+			ent->nextthink = eztimer(6);
+		}
 		ent->think = ThinkSpecWeap;
+		return;
 	}
+	// unless weapon respawn dmflag is set, then use the weapon_respawn cvar
 	else if (DMFLAGS(DF_WEAPON_RESPAWN)) {
 		ent->nextthink = level.framenum + (weapon_respawn->value * 0.6f) * HZ;
 		ent->think = G_FreeEdict;
+		return;
 	}
-	else {
-		ent->nextthink = level.framenum + weapon_respawn->value * HZ;
-		ent->think = ThinkSpecWeap;
-	}
+	// Catch-all, should just remove weapons after weapon_respawn setting
+	// and then indicate that the weapon should respawn at its set spawn point
+	ent->nextthink = level.framenum + eztimer((int)weapon_respawn->value / 10) * HZ;
+	ent->think = ThinkSpecWeap;
+	return;
 }
 
-
-
 // zucc make dropped weapons respawn elsewhere
-void
-ThinkSpecWeap(edict_t* ent)
+void ThinkSpecWeap(edict_t* ent)
 {
 	edict_t* spot;
 
@@ -728,7 +751,7 @@ ThinkSpecWeap(edict_t* ent)
 	}
 	else
 	{
-		ent->nextthink = level.framenum + 1 * HZ;
+		ent->nextthink = eztimer(1);
 		ent->think = G_FreeEdict;
 	}
 }
@@ -790,7 +813,7 @@ void Drop_Weapon(edict_t* ent, gitem_t* item)
 		}
 		ent->client->unique_weapon_total--;	// dropping 1 unique weapon
 		temp = Drop_Item(ent, item);
-		temp->think = temp_think_specweap;
+		temp->think = SpecialWeaponRespawnTimer;
 		ent->client->inventory[index]--;
 	}
 	else if (item->typeNum == M4_NUM)
@@ -807,7 +830,7 @@ void Drop_Weapon(edict_t* ent, gitem_t* item)
 		}
 		ent->client->unique_weapon_total--;	// dropping 1 unique weapon
 		temp = Drop_Item(ent, item);
-		temp->think = temp_think_specweap;
+		temp->think = SpecialWeaponRespawnTimer;
 		ent->client->inventory[index]--;
 	}
 	else if (item->typeNum == M3_NUM)
@@ -823,7 +846,7 @@ void Drop_Weapon(edict_t* ent, gitem_t* item)
 		}
 		ent->client->unique_weapon_total--;	// dropping 1 unique weapon
 		temp = Drop_Item(ent, item);
-		temp->think = temp_think_specweap;
+		temp->think = SpecialWeaponRespawnTimer;
 		ent->client->inventory[index]--;
 	}
 	else if (item->typeNum == HC_NUM)
@@ -838,7 +861,7 @@ void Drop_Weapon(edict_t* ent, gitem_t* item)
 		}
 		ent->client->unique_weapon_total--;	// dropping 1 unique weapon
 		temp = Drop_Item(ent, item);
-		temp->think = temp_think_specweap;
+		temp->think = SpecialWeaponRespawnTimer;
 		ent->client->inventory[index]--;
 	}
 	else if (item->typeNum == SNIPER_NUM)
@@ -856,7 +879,7 @@ void Drop_Weapon(edict_t* ent, gitem_t* item)
 		}
 		ent->client->unique_weapon_total--;	// dropping 1 unique weapon
 		temp = Drop_Item(ent, item);
-		temp->think = temp_think_specweap;
+		temp->think = SpecialWeaponRespawnTimer;
 		ent->client->inventory[index]--;
 	}
 	else if (item->typeNum == DUAL_NUM)
@@ -911,7 +934,9 @@ void Drop_Weapon(edict_t* ent, gitem_t* item)
 				if (ent->client->quad_framenum > level.framenum)
 					damage *= 1.5f;
 
-				fire_grenade2(ent, ent->s.origin, vec3_origin, damage, 0, 2 * HZ, damage * 2, false);
+				vec3_t non_const_origin; // Convert to non-const
+      			VectorCopy(vec3_origin, non_const_origin);
+				fire_grenade2(ent, ent->s.origin, non_const_origin, damage, 0, 2 * HZ, damage * 2, false);
 
 				INV_AMMO(ent, GRENADE_NUM)--;
 				ent->client->newweapon = GET_ITEM(MK23_NUM);
@@ -1449,7 +1474,10 @@ Weapon_Generic(edict_t* ent, int FRAME_ACTIVATE_LAST, int FRAME_FIRE_LAST,
 		if (ent->client->ps.gunframe == FRAME_DEACTIVATE_LAST)
 		{
 			ent->client->weaponstate = WEAPON_BUSY;
-			ent->client->idle_weapon = BANDAGE_TIME;
+			if (esp->value && esp_leaderenhance->value && IS_LEADER(ent))
+				ent->client->idle_weapon = ENHANCED_BANDAGE_TIME;
+			else
+				ent->client->idle_weapon = BANDAGE_TIME;
 			return;
 		}
 		ent->client->ps.gunframe++;
@@ -2050,10 +2078,15 @@ int AdjustSpread(edict_t* ent, int spread)
 	if (ent->client->ps.pmove.pm_flags & PMF_DUCKED)	// crouching
 		return (spread * .65);
 
-	if (INV_AMMO(ent, LASER_NUM) && (ent->client->curr_weap == MK23_NUM
-		|| ent->client->curr_weap == MP5_NUM || ent->client->curr_weap == M4_NUM))
+	if (INV_AMMO(ent, LASER_NUM) &&
+		(ent->client->curr_weap == MK23_NUM ||
+		ent->client->curr_weap == MP5_NUM ||
+		ent->client->curr_weap == M4_NUM))
 		laser = 1;
 
+	// Include the Dual MK23 pistol if enabled
+	if (gun_dualmk23_enhance->value && (INV_AMMO(ent, LASER_NUM)) && (ent->client->curr_weap == DUAL_NUM))
+		laser = 1;
 
 	// running
 	if (xyspeed > running* running)
@@ -2917,6 +2950,8 @@ void Dual_Fire(edict_t* ent)
 
 
 			ent->client->weapon_sound = MZ_BLASTER2;  // Becomes MZ_BLASTER.
+			if (gun_dualmk23_enhance->value && INV_AMMO(ent, SIL_NUM))
+				ent->client->weapon_sound |= MZ_SILENCED;
 			PlayWeaponSound(ent);
 		}
 		else
@@ -2989,6 +3024,8 @@ void Dual_Fire(edict_t* ent)
 
 
 	ent->client->weapon_sound = MZ_BLASTER2;  // Becomes MZ_BLASTER.
+	if (gun_dualmk23_enhance->value && INV_AMMO(ent, SIL_NUM))
+		ent->client->weapon_sound |= MZ_SILENCED;
 	PlayWeaponSound(ent);
 }
 
@@ -3186,7 +3223,10 @@ Weapon_Generic_Knife(edict_t* ent, int FRAME_ACTIVATE_LAST,
 		if (ent->client->ps.gunframe == FRAME_DEACTIVATE_LAST)
 		{
 			ent->client->weaponstate = WEAPON_BUSY;
-			ent->client->idle_weapon = BANDAGE_TIME;
+			if (esp->value && esp_leaderenhance->value && IS_LEADER(ent))
+				ent->client->idle_weapon = ENHANCED_BANDAGE_TIME;
+			else
+				ent->client->idle_weapon = BANDAGE_TIME;
 			return;
 		}
 		ent->client->ps.gunframe++;
@@ -3681,7 +3721,10 @@ void Weapon_Gas(edict_t* ent)
 		if (ent->client->ps.gunframe == 0)
 		{
 			ent->client->weaponstate = WEAPON_BUSY;
-			ent->client->idle_weapon = BANDAGE_TIME;
+			if (esp->value && esp_leaderenhance->value && IS_LEADER(ent))
+				ent->client->idle_weapon = ENHANCED_BANDAGE_TIME;
+			else
+				ent->client->idle_weapon = BANDAGE_TIME;
 			return;
 		}
 		ent->client->ps.gunframe--;
@@ -3712,7 +3755,9 @@ void Weapon_Gas(edict_t* ent)
 			if (is_quad)
 				damage *= 1.5f;
 
-			fire_grenade2(ent, ent->s.origin, vec3_origin, damage, 0, 2 * HZ, damage * 2, false);
+			vec3_t non_const_origin; // Convert to non-const
+      		VectorCopy(vec3_origin, non_const_origin);
+			fire_grenade2(ent, ent->s.origin, non_const_origin, damage, 0, 2 * HZ, damage * 2, false);
 
 			INV_AMMO(ent, GRENADE_NUM)--;
 			if (INV_AMMO(ent, GRENADE_NUM) <= 0)
@@ -3742,10 +3787,8 @@ void Weapon_Gas(edict_t* ent)
 	{
 		if (((ent->client->latched_buttons | ent->client->buttons) & BUTTON_ATTACK)
 			&& (ent->solid != SOLID_NOT || ent->deadflag == DEAD_DEAD) &&
-			!lights_camera_action && !ent->client->uvTime)
+			!ent->client->uvTime && (lca_grenade->value || !lights_camera_action))
 		{
-
-
 			if (ent->client->ps.gunframe <= GRENADE_PINIDLE_LAST &&
 				ent->client->ps.gunframe >= GRENADE_PINIDLE_FIRST)
 			{
@@ -3768,14 +3811,18 @@ void Weapon_Gas(edict_t* ent)
 		if (ent->client->ps.gunframe >= GRENADE_IDLE_FIRST &&
 			ent->client->ps.gunframe <= GRENADE_IDLE_LAST)
 		{
-			ent->client->ps.gunframe = GRENADE_THROW_FIRST;
-			if (ent->client->ps.pmove.pm_flags & PMF_DUCKED)
-				SetAnimation( ent, FRAME_crattak1 - 1, FRAME_crattak9, ANIM_ATTACK );
-			else
-				SetAnimation( ent, FRAME_attack1 - 1, FRAME_attack8, ANIM_ATTACK );
-			ent->client->weaponstate = WEAPON_FIRING;
+			// Only allow the player to throw the grenade if lights_camera_action is 0
+			// This is so we can enable lca_grenade
+			if (!lights_camera_action)
+			{
+				ent->client->ps.gunframe = GRENADE_THROW_FIRST;
+				if (ent->client->ps.pmove.pm_flags & PMF_DUCKED)
+					SetAnimation( ent, FRAME_crattak1 - 1, FRAME_crattak9, ANIM_ATTACK );
+				else
+					SetAnimation( ent, FRAME_attack1 - 1, FRAME_attack8, ANIM_ATTACK );
+				ent->client->weaponstate = WEAPON_FIRING;
+			}
 			return;
-
 		}
 
 		if (ent->client->ps.gunframe == GRENADE_PINIDLE_LAST)

@@ -114,6 +114,30 @@ int _numclients (void)
 		if (!other->inuse || !other->client || !other->client->pers.connected || other->client->pers.mvdspec)
 			continue;
 #ifndef NO_BOTS
+		// If bot_countashuman is enabled, then do not continue/ignore bots
+		if(!bot_countashuman->value) {
+			if (other->is_bot)
+				continue;
+		}
+#endif
+
+		count++;
+	}
+	return count;
+}
+
+// The difference between this one and _numclients is that bots don't vote, so don't count them
+int _numvoteclients (void)
+{
+	int count, i;
+	edict_t *other;
+
+	count = 0;
+	for (i = 0, other = g_edicts + 1; i < game.maxclients; i++, other++)
+	{
+		if (!other->inuse || !other->client || !other->client->pers.connected || other->client->pers.mvdspec)
+			continue;
+#ifndef NO_BOTS
 		if (other->is_bot)
 			continue;
 #endif
@@ -550,7 +574,7 @@ votelist_t *MapWithMostVotes (float *p)
 		return (NULL);
 
 	//find map_num_clients
-	map_num_clients = _numclients();
+	map_num_clients = _numvoteclients();
 
 	if (map_num_clients == 0)
 		return (NULL);
@@ -583,7 +607,7 @@ votelist_t *MapWithMostAllVotes( void )
 	votelist_t *search = NULL, *most = NULL;
 	int highest_total = 0;
 
-	if( ! _numclients() )
+	if( ! _numvoteclients() )
 		return NULL;
 
 	for( search = map_votes; search != NULL; search = search->next )
@@ -987,7 +1011,7 @@ void _CheckKickVote (void)
 		return;
 
 	kickvotechanged = false;
-	playernum = _numclients ();
+	playernum = _numvoteclients ();
 
 	maxvotes = 0;
 	mtarget = NULL;
@@ -1188,7 +1212,7 @@ void Cmd_Kicklist_f(edict_t *ent)
 	   "kicked players %s be temporarily banned.\n\n",
 	   (int) (kickvote_min->value),
 	   (kickvote_min->value == 1) ? "" : "s",
-	   _numclients(),
+	   _numvoteclients(),
 	   kickvote_need->value, Allkickvotes,
 	   kickvote_pass->value, Mostkickpercent,
 	   Mostkickvotes == NULL ? "nobody" : Mostkickvotes->client->pers.netname,
@@ -1521,7 +1545,7 @@ configlist_t *ConfigWithMostVotes (float *p)
     return (NULL);
 
   //find config_num_clients
-  config_num_clients = _numclients();
+  config_num_clients = _numvoteclients();
 
   if (config_num_clients == 0)
     return (NULL);
@@ -2016,7 +2040,8 @@ cvar_t *_InitScrambleVote (ini_t * ini)
 qboolean ScrambleTeams(void)
 {
 	int i, j, numplayers, newteam;
-	edict_t *ent, *players[MAX_CLIENTS], *oldCaptains[TEAM_TOP] = {NULL};
+	edict_t *ent, *players[MAX_CLIENTS], *oldCaptains[TEAM_TOP] = {NULL}, *oldLeaders[TEAM_TOP] = {NULL};
+
 
 	numplayers = 0;
 	for (i = 0, ent = &g_edicts[1]; i < game.maxclients; i++, ent++)
@@ -2044,6 +2069,8 @@ qboolean ScrambleTeams(void)
 		for (i = TEAM1; i <= teamCount; i++) {
 			oldCaptains[i] = teams[i].captain;
 			teams[i].captain = NULL;
+			if (esp->value)
+				teams[i].leader = NULL;
 		}
 	}
 
@@ -2055,6 +2082,10 @@ qboolean ScrambleTeams(void)
 
 		if (oldCaptains[ent->client->resp.team] == ent && !teams[newteam].captain)
 			teams[newteam].captain = ent;
+		
+		if (esp->value)
+			if (oldLeaders[ent->client->resp.team] == ent && !teams[newteam].leader)
+			teams[newteam].leader = ent;
 
 		ent->client->resp.team = newteam;
 
@@ -2083,7 +2114,7 @@ void _CalcScrambleVotes (int *numclients, int *numvotes, float *percent)
 	int i;
 	edict_t *ent;
 
-	*numclients = _numclients ();
+	*numclients = _numvoteclients();
 	*numvotes = 0;
 	*percent = 0.00f;
 

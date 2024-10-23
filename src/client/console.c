@@ -45,10 +45,9 @@ typedef struct {
     char    text[CON_LINEWIDTH];
 } consoleLine_t;
 
-typedef struct console_s {
-    bool    initialized;
-
+typedef struct {
     consoleLine_t   text[CON_TOTALLINES];
+
     int     current;        // line where next message will be printed
     int     x;              // offset in current line for next print
     int     display;        // bottom of console displays this line
@@ -63,6 +62,7 @@ typedef struct console_s {
     unsigned    times[CON_TIMES];   // cls.realtime time the line was generated
                                     // for transparent notify lines
     bool    skipNotify;
+    bool    initialized;
 
     qhandle_t   backImage;
     qhandle_t   charsetImage;
@@ -209,7 +209,8 @@ Con_Clear_f
 static void Con_Clear_f(void)
 {
     memset(con.text, 0, sizeof(con.text));
-    con.display = con.current;
+    con.display = con.current = 0;
+    con.newline = '\r';
 }
 
 static void Con_Dump_c(genctx_t *ctx, int argnum)
@@ -253,7 +254,7 @@ static void Con_Dump_f(void)
     // write the remaining lines
     for (; l <= con.current; l++) {
         char buffer[CON_LINEWIDTH + 1];
-        char *p = con.text[l & CON_TOTALLINES_MASK].text;
+        const char *p = con.text[l & CON_TOTALLINES_MASK].text;
         int i;
 
         for (i = 0; i < CON_LINEWIDTH && p[i]; i++)
@@ -465,7 +466,7 @@ void Con_Init(void)
     con_background = Cvar_Get("con_background", "conback", 0);
     con_background->changed = con_media_changed;
     con_scroll = Cvar_Get("con_scroll", "0", 0);
-    con_history = Cvar_Get("con_history", "0", 0);
+    con_history = Cvar_Get("con_history", STRINGIFY(HISTORY_SIZE), 0);
     con_timestamps = Cvar_Get("con_timestamps", "0", 0);
     con_timestamps->changed = con_width_changed;
     con_timestampsformat = Cvar_Get("con_timestampsformat", "%H:%M:%S ", 0);
@@ -486,7 +487,7 @@ void Con_Init(void)
     con.linewidth = -1;
     con.scale = 1;
     con.color = COLOR_NONE;
-    con.text[0].color = COLOR_NONE;
+    con.newline = '\r';
 
     Con_CheckResize();
 
@@ -547,6 +548,12 @@ static void Con_Linefeed(void)
     } else {
         Con_CheckTop();
     }
+
+    // wrap to avoid integer overflow
+    if (con.current >= CON_TOTALLINES * 2) {
+        con.current -= CON_TOTALLINES;
+        con.display -= CON_TOTALLINES;
+    }
 }
 
 void Con_SetColor(color_index_t color)
@@ -563,8 +570,8 @@ void CL_LoadState(load_state_t state)
 {
     con.loadstate = state;
     SCR_UpdateScreen();
-    if (vid.pump_events)
-        vid.pump_events();
+    if (vid)
+        vid->pump_events();
 }
 
 /*
@@ -620,6 +627,10 @@ void Con_Print(const char *txt)
 
         txt++;
     }
+
+    // update time for transparent overlay
+    if (!con.skipNotify)
+        con.times[con.current & CON_TIMES_MASK] = cls.realtime;
 }
 
 /*
@@ -677,15 +688,17 @@ DRAWING
 ==============================================================================
 */
 
-static int Con_DrawLine(int v, int row, float alpha)
+static int Con_DrawLine(int v, int row, float alpha, bool notify)
 {
-    consoleLine_t *line = &con.text[row & CON_TOTALLINES_MASK];
-    char *s = line->text;
+    const consoleLine_t *line = &con.text[row & CON_TOTALLINES_MASK];
+    const char *s = line->text;
     int flags = 0;
     int x = CHAR_WIDTH;
     int w = con.linewidth;
 
-    if (line->ts_len) {
+    if (notify) {
+        s += line->ts_len;
+    } else if (line->ts_len) {
         R_SetColor(con.ts_color.u32);
         R_SetAlpha(alpha);
         x = R_DrawString(x, v, 0, line->ts_len, s, con.charsetImage);
@@ -760,7 +773,7 @@ static void Con_DrawNotify(void)
             alpha = 1;  // don't fade
         }
 
-        Con_DrawLine(v, i, alpha);
+        Con_DrawLine(v, i, alpha, true);
 
         v += CHAR_HEIGHT;
     }
@@ -846,7 +859,7 @@ static void Con_DrawSolidConsole(void)
         if (con.current - row > CON_TOTALLINES - 1)
             break;      // past scrollback wrap point
 
-        x = Con_DrawLine(y, row, 1);
+        x = Con_DrawLine(y, row, 1, false);
         if (i < 2) {
             widths[i] = x;
         }
@@ -1048,7 +1061,7 @@ void Con_DrawConsole(void)
 ==============================================================================
 */
 
-static void Con_Say(char *msg)
+static void Con_Say(const char *msg)
 {
     CL_ClientCommand(va("say%s \"%s\"", con.chat == CHAT_TEAM ? "_team" : "", msg));
 }
@@ -1063,7 +1076,7 @@ static void Con_InteractiveMode(void)
 
 static void Con_Action(void)
 {
-    char *cmd = Prompt_Action(&con.prompt);
+    const char *cmd = Prompt_Action(&con.prompt);
 
     Con_InteractiveMode();
 
@@ -1138,8 +1151,8 @@ static void Con_Paste(char *(*func)(void))
 // console lines are not necessarily NUL-terminated
 static void Con_ClearLine(char *buf, int row)
 {
-    consoleLine_t *line = &con.text[row & CON_TOTALLINES_MASK];
-    char *s = line->text + line->ts_len;
+    const consoleLine_t *line = &con.text[row & CON_TOTALLINES_MASK];
+    const char *s = line->text + line->ts_len;
     int w = con.linewidth - line->ts_len;
 
     while (w-- > 0 && *s)
@@ -1150,7 +1163,7 @@ static void Con_ClearLine(char *buf, int row)
 static void Con_SearchUp(void)
 {
     char buf[CON_LINEWIDTH + 1];
-    char *s = con.prompt.inputLine.text;
+    const char *s = con.prompt.inputLine.text;
     int top = con.current - CON_TOTALLINES + 1;
 
     if (top < 0)
@@ -1171,7 +1184,7 @@ static void Con_SearchUp(void)
 static void Con_SearchDown(void)
 {
     char buf[CON_LINEWIDTH + 1];
-    char *s = con.prompt.inputLine.text;
+    const char *s = con.prompt.inputLine.text;
 
     if (!*s)
         return;
@@ -1210,12 +1223,14 @@ void Key_Console(int key)
     }
 
     if (key == 'v' && Key_IsDown(K_CTRL)) {
-        Con_Paste(vid.get_clipboard_data);
+        if (vid)
+            Con_Paste(vid->get_clipboard_data);
         goto scroll;
     }
 
     if ((key == K_INS && Key_IsDown(K_SHIFT)) || key == K_MOUSE3) {
-        Con_Paste(vid.get_selection_data);
+        if (vid)
+            Con_Paste(vid->get_selection_data);
         goto scroll;
     }
 
@@ -1320,7 +1335,7 @@ void Key_Message(int key)
     }
 
     if (key == K_ENTER || key == K_KP_ENTER) {
-        char *cmd = Prompt_Action(&con.chatPrompt);
+        const char *cmd = Prompt_Action(&con.chatPrompt);
 
         if (cmd) {
             Con_Say(cmd);

@@ -215,7 +215,7 @@
 #include "m_player.h"
 
 #ifndef NO_BOTS
-void Cmd_Placenode_f( edict_t *ent );
+//void Cmd_Placenode_f( edict_t *ent );
 
 static void Cmd_PlaceTrigger_f( edict_t *ent )
 {
@@ -738,7 +738,7 @@ Cmd_Noclip_f
 argv(0) noclip
 ==================
 */
-static void Cmd_Noclip_f (edict_t * ent)
+void Cmd_Noclip_f (edict_t * ent)
 {
 	char *msg;
 
@@ -945,6 +945,12 @@ void Cmd_Inven_f (edict_t * ent)
 	}
 
 	cl->pers.menu_shown = true;
+
+	// PaTMaN's Jmod menu support
+	if (jump->value) {
+		OpenPMItemMenu (ent);
+		return;
+	}
 
 	if (teamplay->value && !ent->client->resp.team) {
 		OpenJoinMenu (ent);
@@ -1177,41 +1183,40 @@ Cmd_Players_f
 */
 static void Cmd_Players_f (edict_t * ent)
 {
-	int i;
-	int count = 0;
-	char small[64];
-	char large[1024];
-	gclient_t *sortedClients[MAX_CLIENTS], *cl;
+    int i;
+    int count = 0;
+    char playerInfo[64];
+    char playerList[1024];
+    gclient_t *sortedClients[MAX_CLIENTS], *cl;
 
+    if (!teamplay->value || !noscore->value)
+        count = G_SortedClients( sortedClients );
+    else
+        count = G_NotSortedClients( sortedClients );
 
-	if (!teamplay->value || !noscore->value)
-		count = G_SortedClients( sortedClients );
-	else
-		count = G_NotSortedClients( sortedClients );
+    // print information
+    playerList[0] = 0;
 
-	// print information
-	large[0] = 0;
+    for (i = 0; i < count; i++)
+    {
+        cl = sortedClients[i];
+        if (!teamplay->value || !noscore->value)
+            Q_snprintf(playerInfo, sizeof(playerInfo), "%3i %s\n",
+                cl->ps.stats[STAT_FRAGS],
+                cl->pers.netname);
+        else
+            Q_snprintf(playerInfo, sizeof(playerInfo), "%s\n",
+                cl->pers.netname);
 
-	for (i = 0; i < count; i++)
-	{
-		cl = sortedClients[i];
-		if (!teamplay->value || !noscore->value)
-			Q_snprintf (small, sizeof (small), "%3i %s\n",
-				cl->ps.stats[STAT_FRAGS],
-				cl->pers.netname );
-		else
-			Q_snprintf (small, sizeof (small), "%s\n",
-				cl->pers.netname);
+        if (strlen(playerInfo) + strlen(playerList) > sizeof(playerList) - 20)
+        {			// can't print all of them in one packet
+            strcat(playerList, "...\n");
+            break;
+        }
+        strcat(playerList, playerInfo);
+    }
 
-		if (strlen(small) + strlen(large) > sizeof (large) - 20)
-		{			// can't print all of them in one packet
-			strcat (large, "...\n");
-			break;
-		}
-		strcat (large, small);
-	}
-
-	gi.cprintf(ent, PRINT_HIGH, "%s\n%i players\n", large, count);
+    gi.cprintf(ent, PRINT_HIGH, "%s\n%i players\n", playerList, count);
 }
 
 /*
@@ -1460,6 +1465,9 @@ void Cmd_Say_f (edict_t * ent, qboolean team, qboolean arg0, qboolean partner_ms
 		}
 	}
 
+	// Send message to Discord -- this must come before the newline add or it screws up formatting in-game
+	CALL_DISCORD_WEBHOOK(text, CHAT_MSG, AWARD_NONE);
+
 	Q_strncatz(text, "\n", sizeof(text));
 
 	if (FloodCheck(ent))
@@ -1585,9 +1593,9 @@ static void dmflagsSettings( char *s, size_t size, int flags )
 	if (flags & DF_NO_FRIENDLY_FIRE)
 		Q_strncatz( s, "256 = no ff ", size );
 	if (flags & DF_SPAWN_FARTHEST)
-		Q_strncatz( s, "512 = spawn fartherst ", size );
+		Q_strncatz( s, "512 = spawn farthest ", size );
 	if (flags & DF_FORCE_RESPAWN)
-		Q_strncatz( s, "1024 = forse respawn ", size );
+		Q_strncatz( s, "1024 = force respawn ", size );
 	//if(flags & DF_NO_ARMOR)
 	//	Q_strncatz(s, "2048 = no armor ", size);
 	if (flags & DF_ALLOW_EXIT)
@@ -1674,8 +1682,8 @@ static void Cmd_PrintSettings_f( edict_t * ent )
 		length = strlen( text );
 	}
 
-        Q_snprintf( text + length, sizeof( text ) - length, "sv_antilag = %d\n", (int)sv_antilag->value );
-        length = strlen( text );
+	Q_snprintf( text + length, sizeof( text ) - length, "sv_antilag = %d\n", (int)sv_antilag->value );
+	length = strlen( text );
 	
 	Q_snprintf( text + length, sizeof( text ) - length, "dmflags %i: ", (int)dmflags->value );
 	dmflagsSettings( text, sizeof( text ), (int)dmflags->value );
@@ -1689,15 +1697,25 @@ static void Cmd_PrintSettings_f( edict_t * ent )
 	itmflagsSettings( text, sizeof( text ), (int)itm_flags->value );
 
 	length = strlen( text );
+	#if AQTION_EXTENSION
 	Q_snprintf( text + length, sizeof( text ) - length, "\n"
 		"timelimit   %2d roundlimit  %2d roundtimelimit %2d\n"
-		"limchasecam %2d tgren       %2d hc_single      %2d\n"
-		"use_punch   %2d use_classic %2d\n",
+		"limchasecam %2d tgren       %2d antilag_interp %2d\n"
+		"use_xerp    %2d llsound     %2d stats %2d\n",
 		(int)timelimit->value, (int)roundlimit->value, (int)roundtimelimit->value,
-		(int)limchasecam->value, (int)tgren->value, (int)hc_single->value,
-		(int)use_punch->value, (int)use_classic->value );
+		(int)limchasecam->value, (int)tgren->value, (int)sv_antilag_interp->value,
+		(int)use_xerp->value, (int)llsound->value, (int)stat_logs->value );
+	#else
+	Q_snprintf( text + length, sizeof( text ) - length, "\n"
+		"timelimit   %2d roundlimit  %2d roundtimelimit %2d\n"
+		"limchasecam %2d tgren       %2d antilag_interp %2d\n"
+		"use_xerp    %2d llsound     %2d\n",
+		(int)timelimit->value, (int)roundlimit->value, (int)roundtimelimit->value,
+		(int)limchasecam->value, (int)tgren->value, (int)sv_antilag_interp->value,
+		(int)llsound->value );
+	#endif
 
-	gi.cprintf( ent, PRINT_HIGH, "%s", text );
+	gi.cprintf( ent, PRINT_HIGH, "%s", text);
 }
 
 static void Cmd_Follow_f( edict_t *ent )
@@ -1806,9 +1824,55 @@ static void Cmd_CPSI_f (edict_t * ent)
 		ent->client->resp.gllockpvs = atoi(gi.argv(2));
 		ent->client->resp.glclear = atoi(gi.argv(3));
 		ent->client->resp.gldynamic = atoi(gi.argv(4));
-		Q_strncpyz(ent->client->resp.gldriver, gi.argv (5), sizeof(ent->client->resp.gldriver));
+		ent->client->resp.glbrightness = atof(gi.argv(5));
+		Q_strncpyz(ent->client->resp.gldriver, gi.argv (6), sizeof(ent->client->resp.gldriver));
 		//      strncpy(ent->client->resp.vidref,gi.argv(4),sizeof(ent->client->resp.vidref-1));
 		//      ent->client->resp.vidref[15] = 0;
+	}
+}
+
+void Cmd_HighScores_f(edict_t *ent)
+{
+    int i;
+    char date[MAX_QPATH];
+    struct tm *tm;
+    highscore_t *s;
+
+    if (!level.numscores) {
+        gi.cprintf(ent, PRINT_HIGH, "No high scores available.\n");
+        return;
+    }
+
+	if (teamplay->value){
+		gi.cprintf(ent, PRINT_HIGH,
+				"\n"
+				" # Name            Score  FPR    Acc   Date\n"
+				"-- --------------- -----  ----   ---   -------------\n");
+		for (i = 0; i < level.numscores; i++) {
+			s = &level.scores[i];
+
+			tm = localtime(&s->time);
+			if (!tm || !strftime(date, sizeof(date), "%Y-%m-%d %H:%M", tm))
+				strcpy(date, "???");
+			gi.cprintf(ent, PRINT_HIGH, "%2d %-15.15s %5d %5.1i %5.1f %2s\n",
+					i + 1, s->name, s->score, (int)s->fragsper, s->accuracy, date);
+		}
+
+	} else {
+		gi.cprintf(ent, PRINT_HIGH,
+				"\n"
+				" # Name            Score  FPH    Acc   Date\n"
+				"-- --------------- -----  ----   ---   -------------\n");
+
+		for (i = 0; i < level.numscores; i++) {
+			s = &level.scores[i];
+
+			tm = localtime(&s->time);
+			if (!tm || !strftime(date, sizeof(date), "%Y-%m-%d %H:%M", tm))
+				strcpy(date, "???");
+			gi.cprintf(ent, PRINT_HIGH, "%2d %-15.15s %5d %5.1i %5.1f %2s\n",
+					i + 1, s->name, s->score, (int)s->fragsper, s->accuracy, date);
+		}
 	}
 }
 
@@ -1913,7 +1977,7 @@ static cmdList_t commandList[] =
 	{ "gamesettings", Cmd_PrintSettings_f, 0 },
 	{ "follow", Cmd_Follow_f, 0 },
 #ifndef NO_BOTS
-	{ "placenode", Cmd_Placenode_f, 0 },
+	// { "placenode", Cmd_Placenode_f, 0 },
 	{ "placetrigger", Cmd_PlaceTrigger_f, 0 },
 #endif
 	//vote stuff
@@ -1930,8 +1994,15 @@ static cmdList_t commandList[] =
 	{ "voteconfig", Cmd_Voteconfig_f, 0 },
 	{ "configlist", Cmd_Configlist_f, 0 },
 	{ "votescramble", Cmd_Votescramble_f, 0 },
-	// JumpMod
-	{ "jmod", Cmd_Jmod_f, 0 }
+	{ "printrules", Cmd_PrintRules_f, 0},
+	// JumpMod / jmod -- all commands are prefaced with 'jmod' ex: 'jmod spawnc'
+	{ "jmod", Cmd_Jmod_f, 0 },
+	// Espionage, aliased command so it's easy to remember
+	{ "volunteer", Cmd_Volunteer_f, 0},
+	{ "leader", Cmd_Volunteer_f, 0},
+	{ "highscores", Cmd_HighScores_f, 0},
+	{ "pickup", Cmd_Pickup_f, 0},
+
 };
 
 #define MAX_COMMAND_HASH 64
@@ -1984,8 +2055,8 @@ void ClientCommand (edict_t * ent)
 		return;			// not fully in game yet
 
 #ifndef NO_BOTS
-	if( ACECM_Commands(ent) )
-		return;
+        if (ACECM_Commands(ent)) return; // LTK commands
+        if (BOTLIB_Commands(ent)) return; // Botlib commands
 #endif
 
 	// if (level.intermission_framenum)
@@ -1996,6 +2067,11 @@ void ClientCommand (edict_t * ent)
 	hash = Cmd_HashValue( text ) & (MAX_COMMAND_HASH - 1);
 	for (cmd = commandHash[hash]; cmd; cmd = cmd->hashNext) {
 		if (!Q_stricmp( text, cmd->name )) {
+			// if ((cmd->flags & CMDF_JMOD) && !jump->value) {
+			// 	gi.cprintf(ent, PRINT_HIGH, "You must run the server with '+set jump 1' to enable this command.\n");
+			// 	return;
+			// }
+
 			if ((cmd->flags & CMDF_CHEAT) && !sv_cheats->value) {
 				gi.cprintf(ent, PRINT_HIGH, "You must run the server with '+set cheats 1' to enable this command.\n");
 				return;
@@ -2003,6 +2079,8 @@ void ClientCommand (edict_t * ent)
 
 			if ((cmd->flags & CMDF_PAUSE) && level.pauseFrames)
 				return;
+
+			
 
 			cmd->function( ent );
 			return;

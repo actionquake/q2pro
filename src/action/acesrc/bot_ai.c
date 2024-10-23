@@ -4,6 +4,7 @@
 
 #include "../g_local.h"
 #include "../m_player.h"
+#include "acebot.h"
 
 /*
  * $Log: /LTK2/src/acesrc/bot_ai.c $

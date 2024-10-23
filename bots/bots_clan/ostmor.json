@@ -1,0 +1,35 @@
+{
+    "name": "Ostmor",
+    "clan_id": 89,
+    "skin": "messiah/suit",
+    "weaponPreferences": {
+        "mk23": 0.5,
+        "dual_mk23": 0.5,
+        "mp5": 0.6,
+        "m4": 0.6,
+        "m3": 0.4,
+        "hc": 0.5,
+        "sniper": 0.9,
+        "knives": 0.5,
+        "grenades": 0.3
+    },
+    "itemPreferences": {
+        "vest": 0.2,
+        "helm": 0.4,
+        "laser": 0.9,
+        "silencer": 0.6,
+        "slippers": 0.4,
+        "bandolier": 0.9
+    },
+    "coreTraits": {
+        "aggressiveness": 0.7,
+        "teamwork": 0.5,
+        "curiosity": 0.6,
+        "aimingSkill": 0.4,
+        "reactionTime": 0.7,
+        "communicationFreq": 0.5,
+        "communicationTone": 0.4,
+        "movementStyle": 0.3,
+        "objectiveFocus": 0.6
+    }
+}

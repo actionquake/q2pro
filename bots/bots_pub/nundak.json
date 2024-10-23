@@ -1,0 +1,35 @@
+{
+    "name": "Nundak",
+    "clan_id": null,
+    "skin": "male/kw_white",
+    "weaponPreferences": {
+        "mk23": 0.3,
+        "dual_mk23": 0.3,
+        "mp5": 0.2,
+        "m4": 0.7,
+        "m3": 0.7,
+        "hc": 0.6,
+        "sniper": 0.7,
+        "knives": 0.6,
+        "grenades": 0.5
+    },
+    "itemPreferences": {
+        "vest": 0.6,
+        "helm": 0.5,
+        "laser": 0.6,
+        "silencer": 0.7,
+        "slippers": 0.9,
+        "bandolier": 0.6
+    },
+    "coreTraits": {
+        "aggressiveness": 0.3,
+        "teamwork": 0.5,
+        "curiosity": 0.5,
+        "aimingSkill": 0.6,
+        "reactionTime": 0.6,
+        "communicationFreq": 0.2,
+        "communicationTone": 0.4,
+        "movementStyle": 0.2,
+        "objectiveFocus": 0.6
+    }
+}

@@ -1,5 +1,5 @@
 #include "server.h"
-#ifdef AQTION_EXTENSION
+#if AQTION_EXTENSION
 
 
 void SV_Ghud_Clear(void)

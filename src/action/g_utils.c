@@ -16,7 +16,7 @@
 #include "g_local.h"
 
 
-void G_ProjectSource (const vec3_t point, const vec3_t distance, const vec3_t forward, const vec3_t right,
+void G_ProjectSource (vec3_t point, vec3_t distance, vec3_t forward, vec3_t right,
 		 vec3_t result)
 {
 	result[0] = point[0] + forward[0] * distance[0] + right[0] * distance[1];
@@ -70,7 +70,7 @@ Returns entities that have origins within a spherical area
 findradius (origin, radius)
 =================
 */
-edict_t *findradius (edict_t * from, const vec3_t org, float rad)
+edict_t *findradius (edict_t * from, vec3_t org, float rad)
 {
 	vec3_t eorg;
 	int j;
@@ -288,11 +288,8 @@ VectorToString
 
 This is just a convenience function
 for printing vectors
-
-// No longer needed as Q2Pro inc/shared/shared.h provides this
 =============
 */
-
 // char *vtos (const vec3_t v)
 // {
 // 	static int index;
@@ -358,7 +355,7 @@ float vectoyaw (vec3_t vec)
 }
 
 
-void vectoangles (const vec3_t value1, vec3_t angles)
+void vectoangles (vec3_t value1, vec3_t angles)
 {
 	float forward;
 	float yaw, pitch;
@@ -537,13 +534,13 @@ G_TouchTriggers
 void G_TouchTriggers (edict_t * ent)
 {
 	int i, num;
-	edict_t *touch[MAX_EDICTS], *hit;
+	edict_t *touch[MAX_EDICTS_OLD], *hit;
 
 	// dead things don't activate triggers!
 	if ((ent->client || (ent->svflags & SVF_MONSTER)) && (ent->health <= 0))
 		return;
 
-	num = gi.BoxEdicts (ent->absmin, ent->absmax, touch, MAX_EDICTS, AREA_TRIGGERS);
+	num = gi.BoxEdicts (ent->absmin, ent->absmax, touch, q_countof(touch), AREA_TRIGGERS);
 
 	// be careful, it is possible to have an entity in this
 	// list removed before we get to it (killtriggered)
@@ -569,9 +566,9 @@ to force all entities it covers to immediately touch it
 void G_TouchSolids (edict_t * ent)
 {
 	int i, num;
-	edict_t *touch[MAX_EDICTS], *hit;
+	edict_t *touch[MAX_EDICTS_OLD], *hit;
 
-	num = gi.BoxEdicts (ent->absmin, ent->absmax, touch, MAX_EDICTS, AREA_SOLID);
+	num = gi.BoxEdicts (ent->absmin, ent->absmax, touch, q_countof(touch), AREA_SOLID);
 
 	// be careful, it is possible to have an entity in this
 	// list removed before we get to it (killtriggered)
@@ -628,6 +625,8 @@ qboolean KillBox (edict_t * ent)
 		tr = gi.trace (ent->s.origin, ent->mins, ent->maxs, ent->s.origin, NULL, MASK_PLAYERSOLID);
 		if (!tr.ent)
 			break;
+
+		if (tr.ent && tr.ent == ent) break; //rekkie -- prevent bots from killing themselves on first spawn
 
 		// nail it
 		T_Damage (tr.ent, ent, ent, vec3_origin, ent->s.origin, vec3_origin,
@@ -722,3 +721,64 @@ qboolean infront( edict_t *self, edict_t *other )
 	return false;
 }
 #endif
+
+/*
+=============
+Toggle Cvars
+=============
+*/
+
+void disablecvar(cvar_t *cvar, char *msg)
+{
+	// Cvar is already disabled, do nothing
+	if (!cvar->value)
+		return;
+
+	if (msg)
+		gi.dprintf("DISABLING %s: %s\n", cvar->name, msg);
+	else
+		gi.dprintf("DISABLING %s\n", cvar->name);
+
+	gi.cvar_forceset(cvar->name, "0");
+}
+
+void enablecvar(cvar_t *cvar, char *msg)
+{
+	// Cvar is already enabled, do nothing
+	if (cvar->value)
+		return;
+
+	if (msg)
+		gi.dprintf("ENABLING %s: %s\n", cvar->name, msg);
+	else
+		gi.dprintf("ENABLING %s\n", cvar->name);
+
+	gi.cvar_forceset(cvar->name, "1");
+}
+
+/*
+Supply integer in seconds, calculates number of seconds
+based on variable FPS (HZ)
+*/
+int eztimer(int seconds){
+	return (level.framenum + seconds * HZ);
+}
+
+float sigmoid(float x) {
+    return 1 / (1 + exp(-x));
+}
+
+/*
+Reverse-lookup, find the edict belonging to the gclient
+*/
+edict_t* FindEdictByClient(gclient_t* client)
+{
+    int index = client - game.clients; // Calculate the index of the client in the clients array
+
+    if (index >= 0 && index < game.maxclients)
+    {
+        return &g_edicts[index + 1]; // g_edicts[0] is the world entity, so players start from g_edicts[1]
+    }
+
+    return NULL; // Return NULL if the client is not valid
+}

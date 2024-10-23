@@ -91,7 +91,7 @@ fire_lead
 This is an internal support routine used for bullet/pellet based weapons.
 =================
 */
-static void fire_lead (edict_t *self, const vec3_t start, vec3_t aimdir, int damage, int kick, int te_impact, int hspread, int vspread, int mod)
+static void fire_lead (edict_t *self, vec3_t start, vec3_t aimdir, int damage, int kick, int te_impact, int hspread, int vspread, int mod)
 {
 	trace_t tr;
 	vec3_t dir, forward, right, up, end;
@@ -258,7 +258,7 @@ Fires a single round.  Used for machinegun and chaingun.  Would be fine for
 pistols, rifles, etc....
 =================
 */
-void fire_bullet(edict_t *self, const vec3_t start, vec3_t aimdir, int damage, int kick, int hspread, int vspread, int mod)
+void fire_bullet(edict_t *self, vec3_t start, vec3_t aimdir, int damage, int kick, int hspread, int vspread, int mod)
 {
 	setFFState(self);
 	antilag_rewind_all(self);
@@ -268,7 +268,7 @@ void fire_bullet(edict_t *self, const vec3_t start, vec3_t aimdir, int damage, i
 
 
 // zucc fire_load_ap for rounds that pass through soft targets and keep going
-static void fire_lead_ap(edict_t *self, const vec3_t start, vec3_t aimdir, int damage, int kick, int te_impact, int hspread, int vspread, int mod)
+static void fire_lead_ap(edict_t *self, vec3_t start, vec3_t aimdir, int damage, int kick, int te_impact, int hspread, int vspread, int mod)
 {
 	trace_t tr;
 	vec3_t dir, forward, right, up, end;
@@ -466,7 +466,7 @@ static void fire_lead_ap(edict_t *self, const vec3_t start, vec3_t aimdir, int d
 }
 
 // zucc - for the M4
-void fire_bullet_sparks (edict_t *self, const vec3_t start, vec3_t aimdir, int damage, int kick, int hspread, int vspread, int mod)
+void fire_bullet_sparks (edict_t *self, vec3_t start, vec3_t aimdir, int damage, int kick, int hspread, int vspread, int mod)
 {
 	setFFState(self);
 	antilag_rewind_all(self);
@@ -475,7 +475,7 @@ void fire_bullet_sparks (edict_t *self, const vec3_t start, vec3_t aimdir, int d
 }
 
 // zucc - for sniper
-void fire_bullet_sniper (edict_t *self, const vec3_t start, vec3_t aimdir, int damage, int kick, int hspread, int vspread, int mod)
+void fire_bullet_sniper (edict_t *self, vec3_t start, vec3_t aimdir, int damage, int kick, int hspread, int vspread, int mod)
 {
 	setFFState (self);
 	antilag_rewind_all(self);
@@ -492,11 +492,56 @@ void ProduceShotgunDamageReport (edict_t *self)
 	int i, total = 0, total_to_print, printed = 0;
 	char *textbuf;
 	gclient_t *cl;
+	int hc_boost_multiplier = 0;
 
 	for (i = 0, cl = game.clients; i < game.maxclients; i++, cl++) {
 		if (cl->took_damage)
 			total++;
 	}
+
+	//rekkie -- allow HC to 'boost' the player -- s
+	if (hc_boost->value && !total && self->groundentity == NULL && self->client->curr_weap == HC_NUM)
+	{
+		//vec3_t start;
+		vec3_t forward;
+		//vec3_t offset;
+		AngleVectors(self->client->v_angle, forward, NULL, NULL);
+		//VectorSet(offset, 0, 8, self->viewheight);
+		//P_ProjectSource(self->client, self->s.origin, offset, forward, right, start);
+		//trace_t tr = gi.trace(self->s.origin, NULL, NULL, start, self, MASK_SOLID);
+		//if ()
+		VectorInverse(forward);
+
+		// Sanity check
+		if (hc_boost_percent->value <= 0)
+			hc_boost_multiplier = 100;
+			//gi.cvar_set("hc_boost_multiplier", va("%d", 100));
+		if (hc_boost_percent->value > 1000)
+			hc_boost_multiplier = 1000;
+			//gi.cvar_set("hc_boost_multiplier", va("%d", 1000));
+
+		float knockback = 300; // Double barrel
+		if (self->client->pers.hc_mode) knockback = 150; // Single barrel
+		float mass = max(self->mass, 50);
+		vec3_t flydir = { 0.f,0.f,0.f }, kvel = { 0.f,0.f,0.f };
+		float accel_scale = hc_boost_percent->value; //100.f; // the rocket jump hack...
+		VectorNormalize2(forward, flydir);
+		flydir[2] += 0.4f;
+		VectorScale(flydir, accel_scale * knockback / mass, kvel);
+		VectorAdd(self->velocity, kvel, self->velocity);
+		VectorAdd(self->client->oldvelocity, kvel, self->client->oldvelocity);
+
+		//if (self->is_bot == false) Com_Printf("%s %f %f %f\n", __func__, self->client->v_angle[0], self->client->v_angle[1], self->client->v_angle[2]);
+		// if (hc_boost_multiplier < 0)
+		// 	gi.cvar_set("hc_boost_multiplier", va("%d", 0));
+		// if (hc_boost_multiplier->value > 10)
+		// 	gi.cvar_set("hc_boost_multiplier", va("%d", 10));
+		if (self->client->pers.hc_mode == 0) // Double barrel
+			self->velocity[2] += (300 * hc_boost_multiplier);
+		else // self->client->pers.hc_mode == 1 // Single barrel
+			self->velocity[2] += (150 * hc_boost_multiplier);
+	}
+	//rekkie -- allow HC to 'boost' the player -- e
 
 	if (!total)
 		return;
@@ -548,7 +593,7 @@ fire_shotgun
 Shoots shotgun pellets.  Used by shotgun and super shotgun.
 =================
 */
-void fire_shotgun(edict_t *self, const vec3_t start, vec3_t aimdir, int damage, int kick, int hspread, int vspread, int count, int mod)
+void fire_shotgun(edict_t *self, vec3_t start, vec3_t aimdir, int damage, int kick, int hspread, int vspread, int count, int mod)
 {
 	int i;
 
@@ -605,7 +650,7 @@ void blaster_touch (edict_t *self, edict_t *other, cplane_t *plane, csurface_t *
 }
 
 //SLIC2 changed argument name hyper to hyperb
-void fire_blaster(edict_t *self, const vec3_t start, vec3_t dir, int damage, int speed, int effect, qboolean hyperb)
+void fire_blaster(edict_t *self, vec3_t start, vec3_t dir, int damage, int speed, int effect, qboolean hyperb)
 {
 	edict_t *bolt;
 	trace_t tr;
@@ -739,14 +784,36 @@ static void Grenade_Touch (edict_t *ent, edict_t *other, cplane_t *plane, csurfa
 		}
 		return;
 	}
+	// From JukS mod:
+	// New stuff: Make some damage if grenade hits to someone -JukS-
+	// Grenade velocities by Throw type around: Long(920), Medium(720), Short(400)
+	if (use_gren_bonk->value) {
+		float grenSpeed = VectorNormalize(ent->velocity);
 
+		if (grenSpeed > 500) // Don't make damage with slow speeds
+		{
+			trace_t tr;
+			vec3_t end;
+			// Formula to handle damage amount. With /25-20 we'll get 0 dmg at minimum speed (500)
+			int dmgBySpeed = (int)(grenSpeed) / 25 - 20;
+
+			// Calculate the end position for the trace
+			VectorMA(ent->s.origin, 8192, ent->velocity, end); // Trace 8192 units in the direction of the velocity
+
+			PRETRACE();
+			tr = gi.trace(ent->s.origin, NULL, NULL, end, ent->owner, MASK_SHOT);
+			POSTTRACE();
+
+			T_Damage(other, ent, ent->owner, ent->s.origin, tr.endpos, tr.plane.normal, dmgBySpeed, 0, DAMAGE_NO_ARMOR, MOD_GRENADE_IMPACT);
+		}
+	}
 	// zucc not needed since grenades don't blow up on contact
 	//ent->enemy = other;
 	//Grenade_Explode(ent);
 }
 
-void fire_grenade2(edict_t *self, const vec3_t start, const vec3_t aimdir, int damage,
-	       int speed, int timer, float damage_radius, qboolean held)
+void fire_grenade2 (edict_t * self, vec3_t start, vec3_t aimdir, int damage,
+	int speed, int timer, float damage_radius, qboolean held)
 {
 	edict_t *grenade;
 	vec3_t dir;
@@ -792,8 +859,8 @@ void fire_grenade2(edict_t *self, const vec3_t start, const vec3_t aimdir, int d
 }
 
 
-void P_ProjectSource (gclient_t *client, const vec3_t point, const vec3_t distance,
-		      const vec3_t forward, const vec3_t right, vec3_t result);
+void P_ProjectSource (gclient_t *client, vec3_t point, vec3_t distance,
+		      vec3_t forward, vec3_t right, vec3_t result);
 
 void kick_attack (edict_t *ent)
 {
@@ -833,9 +900,14 @@ void kick_attack (edict_t *ent)
 		if (tr.ent->health <= 0)
 			return;
 
+		// PaTMaN's jmod kickable toggle
+		if (tr.ent->client && jump->value)
+			if (!(tr.ent->client->resp.toggles & TG_KICKABLE))
+				return;
+
 		if (tr.ent->client)
 		{
-			if (tr.ent->client->uvTime)
+			if (tr.ent->client->uvTime && !esp_punishment_phase)
 				return;
 			
 			if (tr.ent != ent && ent->client && OnSameTeam( tr.ent, ent ))
@@ -854,6 +926,9 @@ void kick_attack (edict_t *ent)
 		else
 			T_Damage(tr.ent, ent, ent, forward, tr.endpos, tr.plane.normal, damage, kick, 0, MOD_KICK);
 
+		// Stat add
+		Stats_AddHit(ent, MOD_KICK, LOC_NO);
+		// Stat end
 		gi.sound(ent, CHAN_WEAPON, level.snd_kick, 1, ATTN_NORM, 0);
 		PlayerNoise (ent, ent->s.origin, PNOISE_SELF);
 		if (tr.ent->client && (tr.ent->client->curr_weap == M4_NUM
@@ -907,7 +982,7 @@ void punch_attack(edict_t * ent)
 
 			if (tr.ent->client)
 			{
-				if (tr.ent->client->uvTime)
+				if (tr.ent->client->uvTime && !esp_punishment_phase)
 					return;
 
 				if (tr.ent != ent && ent->client && OnSameTeam(tr.ent, ent))
@@ -934,6 +1009,9 @@ void punch_attack(edict_t * ent)
 
 			T_Damage(tr.ent, ent, ent, forward, tr.endpos, tr.plane.normal,
 				damage, kick, 0, MOD_PUNCH);
+			// Stat add
+			Stats_AddHit(ent, MOD_PUNCH, LOC_NO);
+			// Stat end
 			gi.sound(ent, CHAN_WEAPON, level.snd_kick, 1, ATTN_NORM, 0);
 			PlayerNoise(ent, ent->s.origin, PNOISE_SELF);
 
@@ -974,7 +1052,7 @@ void punch_attack(edict_t * ent)
 // 1 - hit player
 // 2 - hit wall
 
-int knife_attack (edict_t *self, const vec3_t start, vec3_t aimdir, int damage, int kick)
+int knife_attack (edict_t *self, vec3_t start, vec3_t aimdir, int damage, int kick)
 {
 	trace_t tr;
 	vec3_t end;
@@ -1121,7 +1199,7 @@ void knife_touch(edict_t *ent, edict_t *other, cplane_t *plane, csurface_t *surf
 }
 
 
-void knife_throw(edict_t *self, const vec3_t start, vec3_t dir, int damage, int speed)
+void knife_throw(edict_t *self, vec3_t start, vec3_t dir, int damage, int speed)
 {
 	edict_t *knife;
 	trace_t tr;

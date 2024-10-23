@@ -150,12 +150,12 @@ sv_lan_force_rate::
 
 sv_min_rate::
     Server clamps minimum value of ‘rate’ userinfo parameter to this value.
-    Default value is 1500 bytes/sec. This parameter can't be greater than
+    Default value is 15000 bytes/sec. This parameter can't be greater than
     ‘sv_max_rate’ value or less than 1500 bytes/sec.
 
 sv_max_rate::
     Server clamps maximum value of ‘rate’ userinfo parameter to this value.
-    Default value is 15000 bytes/sec.
+    Default value is 60000 bytes/sec.
 
 sv_calcpings_method::
     Specifies the way client pings are calculated. Default ping calculation
@@ -244,7 +244,8 @@ WARNING: Be sure to read ‘recycle’ command description below before enabling
 sv_allow_map::
     Controls the ‘map’ command behavior. ‘map’ is often mistakingly used by
     server operators to change maps instead of the more lightweight ‘gamemap’.
-    Thus, this variable exists to prevent misuse of ‘map’. Default value is 0.
+    Thus, this variable exists to prevent misuse of ‘map’. Default value is 0
+    for dedicated servers, 1 otherwise.
        - 0 — disallow ‘map’ and print a warning unless there are pending
        latched cvars
        - 1 — handle ‘map’ command normally
@@ -272,8 +273,19 @@ sv_cinematics::
     is 1.
 
 sv_max_packet_entities::
-    Maximum number of entities in client frame. Default value is 0, which picks
-    optimal value automatically.
+    Maximum number of entities in client frame. Default value is 0, which is
+    equivalent to 128 for non-extended servers and 512 for extended servers.
+
+sv_trunc_packet_entities::
+    Truncates packetentities instead of dropping client frame on overflow. This
+    does not break delta compression and should be generally safe to use. Only
+    relevant for legacy clients not using Q2PRO network channel implementation.
+    Default value is 1 (enabled).
+
+sv_prioritize_entities::
+    Sort entities by priority if number of entities in client frame exceeds
+    ‘sv_max_packet_entities’ limit. Default value is 0, which simply throws
+    out entities with higher numbers that don't fit into frame.
 
 Downloads
 ~~~~~~~~~
@@ -289,10 +301,6 @@ allow_download::
 
 allow_download_maps::
     Enables downloading of files from ‘maps/’ subdirectory. Default value is 1.
-     - 0 — map downloads are disabled
-     - 1 — map downloads are enabled for physical files and disabled for files
-     from packs
-     - 2 — map downloads are enabled for all files
 
 allow_download_models::
     Enables downloading of files from ‘models/’ and ‘sprites/’ subdirectories.
@@ -508,6 +516,11 @@ sys_console::
       is a terminal
       - 2 — enable command line editing and colored text output
 
+sys_history::
+    Specifies how many lines to save into system console history file before
+    exiting Q2PRO, to be reloaded on next startup. Maximum number of history
+    lines is 128. Default value is 128.
+
 .System console key bindings
 ****************************
 The following key bindings are available in Windows console and in TTY console
@@ -539,13 +552,6 @@ In Windows console additional key bindings are supported:
 * Ctrl+PGUP — scroll to console top
 * Ctrl+PGDN — scroll to console bottom
 ****************************
-
-sys_parachute::
-    On UNIX-like systems, specifies if a fatal termination handler is
-    installed. Default value is 1, which means Q2PRO will do some cleanup when
-    it crashes, like restoring terminal settings.  However, this will prevent
-    core dump from being generated. To enable core dumps, set this variable to
-    0.
 
 sys_forcegamelib::
     Specifies the full path to the game library server should attempt to load

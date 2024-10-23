@@ -28,10 +28,11 @@ typedef enum {
     ss_pic,             // showing static picture
     ss_broadcast,       // running MVD client
     ss_cinematic,       // playing a cinematic
+    ss_demo = -1,       // hack for demomap command, not a real server state
 } server_state_t;
 
 #if USE_ICMP
-void SV_ErrorEvent(netadr_t *from, int ee_errno, int ee_info);
+void SV_ErrorEvent(const netadr_t *from, int ee_errno, int ee_info);
 #endif
 void SV_Init(void);
 void SV_Shutdown(const char *finalmsg, error_type_t type);

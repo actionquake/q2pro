@@ -144,13 +144,15 @@ gib_touch (edict_t * self, edict_t * other, cplane_t * plane,
     }
 }
 
-void gib_die (edict_t *self, edict_t *inflictor, edict_t *attacker, int damage, vec3_t point)
+void
+gib_die (edict_t * self, edict_t * inflictor, edict_t * attacker, int damage,
+	 vec3_t point)
 {
   G_FreeEdict (self);
 }
 
 void
-ThrowGib (edict_t *self, char *gibname, int damage, int type)
+ThrowGib (edict_t * self, char *gibname, int damage, int type)
 {
   edict_t *gib;
   vec3_t vd;
@@ -252,16 +254,8 @@ ThrowClientHead (edict_t * self, int damage)
   vec3_t vd;
   char *gibname;
 
-  if (rand () & 1)
-    {
-      gibname = "models/objects/gibs/head2/tris.md2";
-      self->s.skinnum = 1;	// second skin is player
-    }
-  else
-    {
-      gibname = "models/objects/gibs/skull/tris.md2";
-      self->s.skinnum = 0;
-    }
+  gibname = "models/objects/gibs/skull/tris.md2";
+  self->s.skinnum = 0;
 
   self->s.origin[2] += 32;
   self->s.frame = 0;
@@ -302,7 +296,7 @@ debris_die (edict_t * self, edict_t * inflictor, edict_t * attacker,
 }
 
 void
-ThrowDebris (edict_t * self, char *modelname, float speed, const vec3_t origin)
+ThrowDebris (edict_t * self, char *modelname, float speed, vec3_t origin)
 {
   edict_t *chunk;
   vec3_t v;
@@ -523,22 +517,6 @@ Default _cone value is 10 (used to set size of light for spotlights)
 
 #define START_OFF       1
 
-/*
-static void
-light_use (edict_t * self, edict_t * other, edict_t * activator)
-{
-  if (self->spawnflags & START_OFF)
-    {
-      gi.configstring (CS_LIGHTS + self->style, "m");
-      self->spawnflags &= ~START_OFF;
-    }
-  else
-    {
-      gi.configstring (CS_LIGHTS + self->style, "a");
-      self->spawnflags |= START_OFF;
-    }
-}
-*/
 
 void SP_light (edict_t * self)
 {
@@ -547,16 +525,6 @@ void SP_light (edict_t * self)
 	//{
 		G_FreeEdict (self);
 		return;
-	/*}
-
-	if (self->style >= 32)
-	{
-		self->use = light_use;
-		if (self->spawnflags & START_OFF)
-			gi.configstring (CS_LIGHTS + self->style, "a");
-		else
-			gi.configstring (CS_LIGHTS + self->style, "m");
-	}*/
 }
 
 
@@ -723,8 +691,8 @@ SP_func_object (edict_t * self)
 
 /*QUAKED func_explosive (0 .5 .8) ? Trigger_Spawn ANIMATED ANIMATED_FAST
 Any brush that you want to explode or break apart.  If you want an
-explosion, set dmg and it will do a radius explosion of that amount
-at the center of the brush.
+ex0plosion, set dmg and it will do a radius explosion of that amount
+at the center of the bursh.
 
 If targeted it will not be shootable.
 
@@ -734,7 +702,8 @@ mass defaults to 75.  This determines how much debris is emitted when
 it explodes.  You get one large chunk per 100 of mass (up to 8) and
 one small chunk per 25 of mass (up to 16).  So 800 gives the most.
 */
-void func_explosive_explode (edict_t * self, edict_t * inflictor,
+void
+func_explosive_explode (edict_t * self, edict_t * inflictor,
 			edict_t * attacker, int damage, vec3_t point)
 {
   vec3_t origin;
@@ -801,12 +770,17 @@ void func_explosive_explode (edict_t * self, edict_t * inflictor,
     G_FreeEdict (self);
 }
 
-void func_explosive_use (edict_t * self, edict_t * other, edict_t * activator)
+void
+func_explosive_use (edict_t * self, edict_t * other, edict_t * activator)
 {
-  func_explosive_explode (self, self, other, self->health, vec3_origin);
+  vec3_t origin;
+  VectorCopy(vec3_origin, origin);
+  // This needs to be non-const
+  func_explosive_explode (self, self, other, self->health, origin);
 }
 
-void func_explosive_spawn (edict_t * self, edict_t * other, edict_t * activator)
+void
+func_explosive_spawn (edict_t * self, edict_t * other, edict_t * activator)
 {
   self->solid = SOLID_BSP;
   self->svflags &= ~SVF_NOCLIENT;

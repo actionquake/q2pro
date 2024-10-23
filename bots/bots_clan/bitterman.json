@@ -1,0 +1,35 @@
+{
+    "name": "Bitterman",
+    "clan_id": 59,
+    "skin": "messiah/neo",
+    "weaponPreferences": {
+        "mk23": 0.3,
+        "dual_mk23": 0.4,
+        "mp5": 0.6,
+        "m4": 0.4,
+        "m3": 0.7,
+        "hc": 0.3,
+        "sniper": 0.3,
+        "knives": 0.3,
+        "grenades": 0.1
+    },
+    "itemPreferences": {
+        "vest": 0.3,
+        "helm": -0.0,
+        "laser": 0.8,
+        "silencer": 0.6,
+        "slippers": 0.8,
+        "bandolier": 0.6
+    },
+    "coreTraits": {
+        "aggressiveness": 0.8,
+        "teamwork": 0.3,
+        "curiosity": 0.7,
+        "aimingSkill": 0.3,
+        "reactionTime": 0.5,
+        "communicationFreq": 0.3,
+        "communicationTone": 0.4,
+        "movementStyle": 0.4,
+        "objectiveFocus": 0.2
+    }
+}

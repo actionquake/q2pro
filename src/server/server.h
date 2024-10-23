@@ -23,6 +23,7 @@ with this program; if not, write to the Free Software Foundation, Inc.,
 #include "shared/shared.h"
 #include "shared/list.h"
 #include "shared/game.h"
+#include "shared/gameext.h"
 
 #include "common/bsp.h"
 #include "common/cmd.h"
@@ -57,8 +58,6 @@ with this program; if not, write to the Free Software Foundation, Inc.,
 #define SV_Malloc(size)         Z_TagMalloc(size, TAG_SERVER)
 #define SV_Mallocz(size)        Z_TagMallocz(size, TAG_SERVER)
 #define SV_CopyString(s)        Z_TagCopyString(s, TAG_SERVER)
-#define SV_LoadFile(path, buf)  FS_LoadFileEx(path, buf, 0, TAG_SERVER)
-#define SV_FreeFile(buf)        Z_Free(buf)
 
 #if USE_DEBUG
 #define SV_DPrintf(level,...) \
@@ -95,6 +94,10 @@ with this program; if not, write to the Free Software Foundation, Inc.,
                      GMF_IPV6_ADDRESS_AWARE | GMF_ALLOW_INDEX_OVERFLOW | \
                      GMF_PROTOCOL_EXTENSIONS)
 
+// flag indicating if game uses gclient_new_t or gclient_old_t.
+// doesn't enable protocol extensions by itself.
+#define IS_NEW_GAME_API    (ge->apiversion == GAME_API_VERSION_NEW)
+
 // ugly hack for SV_Shutdown
 #define MVD_SPAWN_DISABLED  0
 #define MVD_SPAWN_ENABLED   BIT(30)
@@ -111,7 +114,7 @@ typedef struct {
     byte        areabits[MAX_MAP_AREA_BYTES];  // portalarea visibility bits
     unsigned    sentTime;                   // for ping calculations
     int         latency;
-#ifdef AQTION_EXTENSION
+#if AQTION_EXTENSION
 	ghud_element_t ghud[MAX_GHUDS];
 #endif
 } client_frame_t;
@@ -154,10 +157,6 @@ typedef struct {
     server_state_t  state;      // precache commands are only valid during load
     int             spawncount; // random number generated each server spawn
 
-#if USE_SAVEGAMES
-    int         gamedetecthack;
-#endif
-
 #if USE_FPS
     int         framerate;
     frametime_t frametime;
@@ -181,17 +180,6 @@ typedef struct {
 #define NUM_FOR_EDICT(e) ((int)(((byte *)(e) - (byte *)ge->edicts) / ge->edict_size))
 
 #define MAX_TOTAL_ENT_LEAFS        128
-
-// hack for smooth BSP model rotation
-#define Q2PRO_SHORTANGLES(c, e) \
-	((((c)->protocol == PROTOCOL_VERSION_Q2PRO && \
-	 (c)->version >= PROTOCOL_VERSION_Q2PRO_SHORT_ANGLES) || \
-	 (c)->protocol == PROTOCOL_VERSION_AQTION) && \
-     sv.state == ss_game && \
-     EDICT_POOL(c, e)->solid == SOLID_BSP)
-#define CLIENT_COMPATIBLE(csr, c) \
-    (!(csr)->extended || ((c)->protocol == PROTOCOL_VERSION_Q2PRO && \
-                          (c)->version >= PROTOCOL_VERSION_Q2PRO_EXTENDED_LIMITS))
 
 #define ENT_EXTENSION(csr, ent)  ((csr)->extended ? &(ent)->x : NULL)
 
@@ -231,7 +219,8 @@ typedef enum {
 
 #define ZPACKET_HEADER      5
 
-#define MAX_SOUND_PACKET   14
+#define MAX_SOUND_PACKET    15
+#define SOUND_PACKET        0       // special value for cursize
 
 typedef struct {
     list_t              entry;
@@ -245,7 +234,7 @@ typedef struct {
             uint8_t     volume;
             uint8_t     attenuation;
             uint8_t     timeofs;
-            int16_t     pos[3];     // saved in case entity is freed
+            int32_t     pos[3];     // saved in case entity is freed
         };
     };
 } message_packet_t;
@@ -348,6 +337,7 @@ typedef struct client_s {
 
     pmoveParams_t   pmp;        // spectator speed, etc
     msgEsFlags_t    esFlags;    // entity protocol flags
+    msgPsFlags_t    psFlags;
 
     // packetized messages
     list_t              msg_free_list;
@@ -360,19 +350,24 @@ typedef struct client_s {
     // per-client baseline chunks
     entity_packed_t     *baselines[SV_BASELINES_CHUNKS];
 
+    // per-client packet entities
+    unsigned            num_entities;   // UPDATE_BACKUP*MAX_PACKET_ENTITIES(_OLD)
+    unsigned            next_entity;    // next state to use
+    entity_packed_t     *entities;      // [num_entities]
+
     // server state pointers (hack for MVD channels implementation)
     configstring_t      *configstrings;
     const cs_remap_t    *csr;
     char                *gamedir, *mapname;
     const game_export_t *ge;
     cm_t                *cm;
-    int                 slot;
+    int                 infonum;    // slot number visible to client
     int                 spawncount;
     int                 maxclients;
 
     // netchan type dependent methods
-    void            (*AddMessage)(struct client_s *, byte *, size_t, bool);
-    void            (*WriteFrame)(struct client_s *);
+    void            (*AddMessage)(struct client_s *, const byte *, size_t, bool);
+    bool            (*WriteFrame)(struct client_s *, unsigned);
     void            (*WriteDatagram)(struct client_s *);
 
     // netchan
@@ -393,7 +388,7 @@ typedef struct client_s {
     char            *ac_token;
 #endif
 
-#ifdef AQTION_EXTENSION
+#if AQTION_EXTENSION
 	ghud_element_t	ghud[MAX_GHUDS];
 #endif
 } client_t;
@@ -476,15 +471,11 @@ typedef struct {
     cm_t            cm;
 } mapcmd_t;
 
-typedef struct server_static_s {
+typedef struct {
     bool        initialized;        // sv_init has completed
     unsigned    realtime;           // always increasing, no clamping, etc
 
     client_t    *client_pool;   // [maxclients]
-
-    unsigned        num_entities;   // maxclients*UPDATE_BACKUP*MAX_PACKET_ENTITIES
-    unsigned        next_entity;    // next state to use
-    entity_packed_t *entities;      // [num_entities]
 
 #if USE_ZLIB
     z_stream        z;  // for compressing messages at once
@@ -492,7 +483,12 @@ typedef struct server_static_s {
     unsigned        z_buffer_size;
 #endif
 
+#if USE_SAVEGAMES
+    int             gamedetecthack;
+#endif
+
     cs_remap_t      csr;
+    pmoveParams_t   pmp;
 
     unsigned        last_heartbeat;
     unsigned        last_timescale_check;
@@ -505,7 +501,7 @@ typedef struct server_static_s {
 
     challenge_t     challenges[MAX_CHALLENGES]; // to prevent invalid IPs from connecting
 
-#ifdef AQTION_EXTENSION
+#if AQTION_EXTENSION
 	// Reki: cvar sync entries
 	cvarsync_t	cvarsync_list[CVARSYNC_MAX];
 	byte		cvarsync_length;
@@ -528,8 +524,6 @@ extern list_t       sv_clientlist;  // linked list of non-free clients
 
 extern server_static_t      svs;        // persistant server info
 extern server_t             sv;         // local server
-
-extern pmoveParams_t    sv_pmp;
 
 extern cvar_t       *sv_hostname;
 extern cvar_t       *sv_maxclients;
@@ -554,6 +548,8 @@ extern cvar_t       *sv_calcpings_method;
 extern cvar_t       *sv_changemapcmd;
 extern cvar_t       *sv_max_download_size;
 extern cvar_t       *sv_max_packet_entities;
+extern cvar_t       *sv_trunc_packet_entities;
+extern cvar_t       *sv_prioritize_entities;
 
 extern cvar_t       *sv_strafejump_hack;
 #if USE_PACKETDUP
@@ -561,7 +557,7 @@ extern cvar_t       *sv_packetdup_hack;
 #endif
 extern cvar_t       *sv_allow_map;
 extern cvar_t       *sv_cinematics;
-#if !USE_CLIENT
+#if USE_SERVER
 extern cvar_t       *sv_recycle;
 #endif
 extern cvar_t       *sv_enhanced_setplayer;
@@ -586,7 +582,7 @@ extern cvar_t       *sv_ghostime;
 extern client_t     *sv_client;
 extern edict_t      *sv_player;
 
-
+extern cvar_t       *sv_load_ent;
 //===========================================================
 
 //
@@ -604,7 +600,7 @@ bool SV_RateLimited(ratelimit_t *r);
 void SV_RateRecharge(ratelimit_t *r);
 void SV_RateInit(ratelimit_t *r, const char *s);
 
-addrmatch_t *SV_MatchAddress(list_t *list, netadr_t *address);
+addrmatch_t *SV_MatchAddress(const list_t *list, const netadr_t *address);
 
 int SV_CountClients(void);
 
@@ -619,6 +615,7 @@ void sv_min_timeout_changed(cvar_t *self);
 //
 // sv_init.c
 //
+
 void SV_ClientReset(client_t *client);
 void SV_SetState(server_state_t state);
 void SV_SpawnServer(const mapcmd_t *cmd);
@@ -639,7 +636,7 @@ typedef enum {RD_NONE, RD_CLIENT, RD_PACKET} redirect_t;
 
 extern char sv_outputbuf[SV_OUTPUTBUF_LENGTH];
 
-void SV_FlushRedirect(int redirected, char *outputbuf, size_t len);
+void SV_FlushRedirect(int redirected, const char *outputbuf, size_t len);
 
 void SV_SendClientMessages(void);
 void SV_SendAsyncPackets(void);
@@ -668,8 +665,8 @@ void SV_MvdStatus_f(void);
 void SV_MvdMapChanged(void);
 void SV_MvdClientDropped(client_t *client);
 
-void SV_MvdUnicast(edict_t *ent, int clientNum, bool reliable);
-void SV_MvdMulticast(int leafnum, multicast_t to);
+void SV_MvdUnicast(const edict_t *ent, int clientNum, bool reliable);
+void SV_MvdMulticast(const mleaf_t *leaf, multicast_t to, bool reliable);
 void SV_MvdConfigstring(int index, const char *string, size_t len);
 void SV_MvdBroadcastPrint(int level, const char *string);
 void SV_MvdStartSound(int entnum, int channel, int flags,
@@ -707,7 +704,7 @@ void SV_ListSounds_f(void);
 // sv_ac.c
 //
 #if USE_AC_SERVER
-char *AC_ClientConnect(client_t *cl);
+const char *AC_ClientConnect(client_t *cl);
 void AC_ClientDisconnect(client_t *cl);
 bool AC_ClientBegin(client_t *cl);
 void AC_ClientAnnounce(client_t *cl);
@@ -772,10 +769,20 @@ void SV_PrintMiscInfo(void);
 #define HAS_EFFECTS(ent) \
     ((ent)->s.modelindex || (ent)->s.effects || (ent)->s.sound || (ent)->s.event)
 
+static inline void SV_CheckEntityNumber(edict_t *ent, int e, const char *func)
+{
+    if (q_unlikely(ent->s.number != e)) {
+        Com_WPrintf("%s: fixing ent->s.number: %d to %d\n", func, ent->s.number, e);
+        ent->s.number = e;
+    }
+}
+
+#define SV_CheckEntityNumber(ent, e) SV_CheckEntityNumber(ent, e, __func__)
+
 void SV_BuildClientFrame(client_t *client);
-void SV_WriteFrameToClient_Default(client_t *client);
-void SV_WriteFrameToClient_Enhanced(client_t *client);
-void SV_WriteFrameToClient_Aqtion(client_t *client);
+bool SV_WriteFrameToClient_Default(client_t *client, unsigned maxsize);
+bool SV_WriteFrameToClient_Enhanced(client_t *client, unsigned maxsize);
+bool SV_WriteFrameToClient_Aqtion(client_t *client, unsigned maxsize);
 
 //
 // sv_game.c
@@ -785,11 +792,10 @@ extern const game_export_ex_t   *gex;
 
 void SV_InitGameProgs(void);
 void SV_ShutdownGameProgs(void);
-void SV_InitEdict(edict_t *e);
 
-void PF_Pmove(pmove_t *pm);
+void PF_Pmove(void *pm);
 
-#ifdef AQTION_EXTENSION
+#if AQTION_EXTENSION
 void G_InitializeExtensions(void);
 #endif
 
@@ -810,7 +816,7 @@ void SV_RegisterSavegames(void);
 #define SV_RegisterSavegames()          (void)0
 #endif
 
-#ifdef AQTION_EXTENSION
+#if AQTION_EXTENSION
 //
 // sv_ghud.c
 //
@@ -827,10 +833,48 @@ void SV_Ghud_SetColor(edict_t *ent, int i, int r, int g, int b, int a);
 void SV_Ghud_SetSize(edict_t *ent, int i, int x, int y);
 #endif
 
-#ifdef AQTION_EXTENSION
+#if AQTION_EXTENSION
 extern int(*GE_customizeentityforclient)(edict_t *client, edict_t *ent, entity_state_t *state); // 0 don't send, 1 send normally
 extern void(*GE_CvarSync_Updated)(int index, edict_t *clent);
 #endif
+//
+// ugly gclient_(old|new)_t accessors
+//
+
+static inline void SV_GetClient_ViewOrg(const client_t *client, vec3_t org)
+{
+    if (IS_NEW_GAME_API) {
+        const gclient_new_t *cl = client->edict->client;
+        VectorMA(cl->ps.viewoffset, 0.125f, cl->ps.pmove.origin, org);
+    } else {
+        const gclient_old_t *cl = client->edict->client;
+        VectorMA(cl->ps.viewoffset, 0.125f, cl->ps.pmove.origin, org);
+    }
+}
+
+static inline int SV_GetClient_ClientNum(const client_t *client)
+{
+    if (IS_NEW_GAME_API)
+        return ((const gclient_new_t *)client->edict->client)->clientNum;
+    else
+        return ((const gclient_old_t *)client->edict->client)->clientNum;
+}
+
+static inline int SV_GetClient_Stat(const client_t *client, int stat)
+{
+    if (IS_NEW_GAME_API)
+        return ((const gclient_new_t *)client->edict->client)->ps.stats[stat];
+    else
+        return ((const gclient_old_t *)client->edict->client)->ps.stats[stat];
+}
+
+static inline void SV_SetClient_Ping(const client_t *client, int ping)
+{
+    if (IS_NEW_GAME_API)
+        ((gclient_new_t *)client->edict->client)->ping = ping;
+    else
+        ((gclient_old_t *)client->edict->client)->ping = ping;
+}
 
 //============================================================
 
@@ -845,7 +889,7 @@ void PF_UnlinkEdict(edict_t *ent);
 // call before removing an entity, and before trying to move one,
 // so it doesn't clip against itself
 
-void SV_LinkEdict(cm_t *cm, edict_t *ent);
+void SV_LinkEdict(const cm_t *cm, edict_t *ent);
 void PF_LinkEdict(edict_t *ent);
 // Needs to be called any time an entity changes origin, mins, maxs,
 // or solid.  Automatically unlinks if needed.
@@ -886,3 +930,22 @@ trace_t q_gameabi SV_Trace(const vec3_t start, const vec3_t mins,
 trace_t q_gameabi SV_Clip(const vec3_t start, const vec3_t mins,
                           const vec3_t maxs, const vec3_t end,
                           edict_t *clip, int contentmask);
+
+bsp_t* SV_BSP(void);
+nav_t* CS_NAV(void);
+debug_draw_t* CS_DebugDraw(void);
+void SV_BotInit(void);
+void SV_BotUpdateInfo(char* name, int ping, int score);
+void SV_BotConnect(char* name);
+void SV_BotDisconnect(char* name);
+void SV_BotClearClients(void);
+typedef struct bot_client_s {
+    qboolean in_use;
+    char name[16];
+    int ping;
+    short score;
+    int number;
+} bot_client_t;
+extern bot_client_t bot_clients[MAX_CLIENTS];
+
+//rekkie -- Fake Bot Client -- e

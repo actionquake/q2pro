@@ -1,0 +1,35 @@
+{
+    "name": "Gorre",
+    "clan_id": 35,
+    "skin": "aqmarine/urban",
+    "weaponPreferences": {
+        "mk23": 0.6,
+        "dual_mk23": 1.2,
+        "mp5": 0.8,
+        "m4": 0.5,
+        "m3": 0.4,
+        "hc": 0.1,
+        "sniper": 0.6,
+        "knives": 0.4,
+        "grenades": 0.6
+    },
+    "itemPreferences": {
+        "vest": 0.4,
+        "helm": 0.5,
+        "laser": 0.3,
+        "silencer": 0.5,
+        "slippers": 0.4,
+        "bandolier": 0.6
+    },
+    "coreTraits": {
+        "aggressiveness": 0.2,
+        "teamwork": 0.3,
+        "curiosity": 0.5,
+        "aimingSkill": 0.5,
+        "reactionTime": 0.5,
+        "communicationFreq": 0.4,
+        "communicationTone": 0.4,
+        "movementStyle": 0.3,
+        "objectiveFocus": 0.6
+    }
+}

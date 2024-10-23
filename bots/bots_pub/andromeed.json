@@ -1,0 +1,35 @@
+{
+    "name": "Andromeed",
+    "clan_id": null,
+    "skin": "male/habs",
+    "weaponPreferences": {
+        "mk23": 0.7,
+        "dual_mk23": 0.6,
+        "mp5": 0.6,
+        "m4": 0.5,
+        "m3": 0.4,
+        "hc": 0.4,
+        "sniper": 0.3,
+        "knives": 0.7,
+        "grenades": 0.8
+    },
+    "itemPreferences": {
+        "vest": 0.4,
+        "helm": 0.4,
+        "laser": 0.4,
+        "silencer": 0.4,
+        "slippers": 0.7,
+        "bandolier": 0.2
+    },
+    "coreTraits": {
+        "aggressiveness": 0.3,
+        "teamwork": 0.5,
+        "curiosity": 0.5,
+        "aimingSkill": 0.3,
+        "reactionTime": 0.6,
+        "communicationFreq": 0.8,
+        "communicationTone": 0.4,
+        "movementStyle": 0.2,
+        "objectiveFocus": 0.3
+    }
+}

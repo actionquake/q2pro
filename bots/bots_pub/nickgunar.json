@@ -1,0 +1,35 @@
+{
+    "name": "Nick Gunar",
+    "clan_id": null,
+    "skin": "male/grunt",
+    "weaponPreferences": {
+        "mk23": 0.8,
+        "dual_mk23": 0.5,
+        "mp5": 0.2,
+        "m4": 0.5,
+        "m3": 0.4,
+        "hc": 0.4,
+        "sniper": 0.2,
+        "knives": 0.5,
+        "grenades": 0.8
+    },
+    "itemPreferences": {
+        "vest": 0.6,
+        "helm": 0.2,
+        "laser": 0.5,
+        "silencer": 0.5,
+        "slippers": 0.5,
+        "bandolier": 0.6
+    },
+    "coreTraits": {
+        "aggressiveness": 0.5,
+        "teamwork": 0.4,
+        "curiosity": 0.3,
+        "aimingSkill": 0.4,
+        "reactionTime": 0.5,
+        "communicationFreq": 0.7,
+        "communicationTone": 0.5,
+        "movementStyle": 0.7,
+        "objectiveFocus": 0.4
+    }
+}

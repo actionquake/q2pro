@@ -67,7 +67,6 @@
 //-----------------------------------------------------------------------------
 
 #include "g_local.h"
-#include "shared/shared.h"
 
 
 qboolean Pickup_Weapon (edict_t * ent, edict_t * other);
@@ -415,14 +414,14 @@ void Drop_Special (edict_t * ent, gitem_t * item)
 void DropSpecialItem (edict_t * ent)
 {
 	// this is the order I'd probably want to drop them in...       
-	if (INV_AMMO(ent, LASER_NUM))
-		Drop_Special (ent, GET_ITEM(LASER_NUM));
-	else if (INV_AMMO(ent, SLIP_NUM))
-		Drop_Special (ent, GET_ITEM(SLIP_NUM));
-	else if (INV_AMMO(ent, SIL_NUM))
+	if (INV_AMMO(ent, SIL_NUM))
 		Drop_Special (ent, GET_ITEM(SIL_NUM));
 	else if (INV_AMMO(ent, BAND_NUM))
 		Drop_Special (ent, GET_ITEM(BAND_NUM));
+	else if (INV_AMMO(ent, LASER_NUM))
+		Drop_Special (ent, GET_ITEM(LASER_NUM));
+	else if (INV_AMMO(ent, SLIP_NUM))
+		Drop_Special (ent, GET_ITEM(SLIP_NUM));
 	else if (INV_AMMO(ent, HELM_NUM))
 		Drop_Special (ent, GET_ITEM(HELM_NUM));
 	else if (INV_AMMO(ent, KEV_NUM))
@@ -862,7 +861,7 @@ void Touch_Item (edict_t * ent, edict_t * other, cplane_t * plane,
 		else
 			other->client->ps.stats[STAT_PICKUP_ICON] = gi.imageindex(ent->item->icon);
 
-		other->client->ps.stats[STAT_PICKUP_STRING] = CS_ITEMS + ITEM_INDEX (ent->item);
+		other->client->ps.stats[STAT_PICKUP_STRING] = game.csr.items + ITEM_INDEX (ent->item);
 		other->client->pickup_msg_framenum = level.realFramenum + 3 * HZ;
 
 		// change selected item
@@ -1388,7 +1387,7 @@ world_model_flags int               copied to 'ent->s.effects' (see s.effects fo
    IT_WEAPON,
    NULL,
    0,
-   "weapons/m4a1fire.wav weapons/m4a1in.wav weapons/m4a1out.wav weapons/m4a1slide.wav weapons/rocklf1a.wav weapons/rocklr1b.wav",
+   "weapons/m4a1fire.wav weapons/m4a1in.wav weapons/m4a1out.wav weapons/m4a1slide.wav weapons/rocklf1a.wav",
   M4_NUM}
   ,
   {
@@ -1410,7 +1409,7 @@ world_model_flags int               copied to 'ent->s.effects' (see s.effects fo
    IT_WEAPON,
    NULL,
    0,
-   "weapons/m3in.wav weapons/shotgr1b.wav weapons/shotgf1b.wav",
+   "weapons/m3in.wav weapons/shotgf1b.wav",
   M3_NUM}
   ,
   {
@@ -1507,7 +1506,7 @@ world_model_flags int               copied to 'ent->s.effects' (see s.effects fo
    Drop_Weapon,
    Weapon_Gas,
    NULL,
-   "models/items/ammo/grenades/medium/tris.md2",
+   "models/objects/grenade2/tris.md2",
    0,
    "models/weapons/v_handgr/tris.md2",
    "a_m61frag",
@@ -1704,7 +1703,7 @@ always owned, never in the world^M
    Drop_Special,
    NULL,
    "misc/veston.wav",		// sound
-   "models/items/slippers/slippers.md2",
+   "models/items/slippers/tris.md2",
    0,
    NULL,
 /* icon */ "slippers",
@@ -1999,7 +1998,6 @@ void SetItemNames (void)
 	for (i = 0; i < game.num_items; i++)
 	{
 		it = &itemlist[i];
-		gi.configstring (CS_ITEMS + i, it->pickup_name);
+		gi.configstring (game.csr.items + i, it->pickup_name);
 	}
-
 }

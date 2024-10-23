@@ -3,8 +3,8 @@ project('q2pro', 'c',
   version: run_command(find_program('python3'), 'version.py', check: true).stdout().strip(),
   meson_version: '>= 0.59.0',
   default_options: [
-    meson.version().version_compare('>=1.3.0') ? 'c_std=gnu11,c11' : 'c_std=gnu11',
-    'buildtype=debugoptimized',
+    'c_std=c11',
+    'buildtype=release',
   ],
 )
 
@@ -24,7 +24,9 @@ common_src = [
   'src/common/msg.c',
   'src/common/net/chan.c',
   'src/common/net/net.c',
-  'src/common/pmove.c',
+  'src/common/pmove/common.c',
+  'src/common/pmove/new.c',
+  'src/common/pmove/old.c',
   'src/common/prompt.c',
   'src/common/sizebuf.c',
   'src/common/utils.c',
@@ -165,6 +167,7 @@ action_src = [
   'src/action/a_ctf.c',
   'src/action/a_dom.c',
   'src/action/a_doorkick.c',
+  'src/action/a_esp.c',
   'src/action/a_game.c',
   'src/action/a_items.c',
   'src/action/a_match.c',
@@ -230,6 +233,24 @@ ltk_src = [
   'src/action/acesrc/botscan.c'
 ]
 
+botlib_src = [
+  'src/action/botlib/botlib_ai.c',
+  'src/action/botlib/botlib_cmd.c',
+  'src/action/botlib/botlib_communication.c',
+  'src/action/botlib/botlib_ctf.c',
+  'src/action/botlib/botlib_esp.c',
+  'src/action/botlib/botlib_items.c',
+  'src/action/botlib/botlib_math.c',
+  'src/action/botlib/botlib_movement.c',
+  'src/action/botlib/botlib_nav.c',
+  'src/action/botlib/botlib_nodes.c',
+  'src/action/botlib/botlib_spawn.c',
+  'src/action/botlib/botlib_spawnpoints.c',
+  'src/action/botlib/botlib_weapons.c',
+  'src/action/botlib/botlib_personality.c',
+  'src/action/botlib/botlib_utils.c',
+]
+
 cc = meson.get_compiler('c')
 
 win32 = host_machine.system() == 'windows'
@@ -239,6 +260,8 @@ cpuremap = {
   'x86': win32 ? 'x86' : 'i386',
   'aarch64': 'arm64',
 }
+
+inc_dirs = ['inc']
 
 cpu = host_machine.cpu_family()
 if cpu in cpuremap
@@ -266,14 +289,21 @@ if system_wide
   homedir = get_option('homedir')
 endif
 
-common_args = ['-DHAVE_CONFIG_H', '-DUSE_PROTOCOL_EXTENSIONS=1']
-if not win32
+common_args = ['-DHAVE_CONFIG_H']
+if win32
+  common_args += '-D_USE_MATH_DEFINES'
+else
   common_args += '-D_GNU_SOURCE'
 endif
 
-engine_args = []
+engine_args = ['-DUSE_NEW_GAME_API=1']
 if win32
   engine_args += '-D_WIN32_WINNT=0x0601'
+endif
+
+game_args = []
+if get_option('game-new-api')
+  game_args += '-DUSE_NEW_GAME_API=1'
 endif
 
 common_link_args = []
@@ -289,13 +319,16 @@ if cc.get_argument_syntax() == 'gcc'
     '-fsigned-char',
     '-fms-extensions',
     '-fno-math-errno',
-    '-Wno-microsoft-anon-tag',
-    '-Wno-tautological-constant-out-of-range-compare',
+    '-fno-trapping-math',
     '-Wpointer-arith',
     '-Wformat-security',
     '-Werror=vla',
     '-Wstrict-prototypes',
   ]
+
+  if cc.get_id() == 'clang'
+    test_args += ['-Wno-microsoft-anon-tag']
+  endif
 
   common_args += cc.get_supported_arguments(test_args)
   engine_args += cc.get_supported_arguments(['-Wmissing-prototypes'])
@@ -312,13 +345,19 @@ if cc.get_argument_syntax() == 'gcc'
     dll_link_args += '-static-libgcc'
   endif
 elif cc.get_id() == 'msvc'
-  common_args += ['/D_USE_MATH_DEFINES', '/wd4146', '/wd4244', '/wd4305']
+  common_args += ['/wd4146', '/wd4244', '/wd4305']
+else
+  dll_link_args += '--no-relax'
 endif
 
 add_project_arguments(common_args, language: 'c')
 add_project_link_arguments(common_link_args, language: 'c')
+# add_project_arguments('-fsanitize=address', language: 'c')
+# add_project_link_arguments('-fsanitize=address', language: 'c')
 
 config = configuration_data()
+
+texture_formats = []
 
 fallback_opt = ['default_library=static']
 
@@ -336,9 +375,18 @@ png = dependency('libpng',
   required:        get_option('libpng'),
   default_options: fallback_opt,
 )
+if png.found()
+  texture_formats += 'png'
+endif
 
 config.set10('USE_ZLIB', zlib.found())
 config.set10('USE_PNG', png.found())
+
+sdl2 = dependency('sdl2', required: get_option('sdl2'))
+if sdl2.found()
+  client_src += 'src/unix/video/sdl.c'
+  config.set('USE_SDL', 'USE_CLIENT')
+endif
 
 curl = dependency('libcurl',
   version:         '>= 7.68.0',
@@ -351,12 +399,6 @@ if curl.found()
   config.set10('USE_CURL', true)
 endif
 
-sdl2 = dependency('sdl2', required: get_option('sdl2'))
-if sdl2.found()
-  client_src += 'src/unix/video/sdl.c'
-  config.set('USE_SDL', 'USE_CLIENT')
-endif
-
 common_deps = [zlib]
 client_deps = [png, curl, sdl2]
 server_deps = []
@@ -364,7 +406,7 @@ game_deps = [zlib]
 
 jpeg = dependency('libjpeg',
   required:        get_option('libjpeg'),
-  default_options: fallback_opt + [ 'jpeg-turbo=disabled', 'tests=disabled' ]
+  default_options: fallback_opt + [ 'jpeg-turbo=disabled', 'tests=disabled' ],
 )
 
 if jpeg.found()
@@ -378,11 +420,17 @@ if jpeg.found()
   endif
   if has_rgba
     client_deps += jpeg
+    texture_formats += 'jpg'
     config.set10('USE_JPG', true)
   endif
 endif
 
+if get_option('tga')
+  texture_formats += 'tga'
+endif
+
 openal = dependency('openal',
+  version:         '>= 1.18.0',
   required:        get_option('openal'),
   default_options: fallback_opt,
 )
@@ -392,21 +440,47 @@ if openal.found()
   config.set10('USE_OPENAL', true)
 endif
 
+# libjansson required for botlib
+jansson_dep = dependency('jansson',
+  version:         '>= 2.8',
+  fallback:        ['jansson', 'jansson_dep'],
+  required:        true,  # Or set to true/false as needed
+  static:          true
+)
+if jansson_dep.found()
+  game_deps += jansson_dep
+endif
+
 if not win32
   uuid = dependency('uuid',
     required:        get_option('uuid'),
     allow_fallback:  win32,
     default_options: fallback_opt,
+    static:          true
   )
-  game_deps += uuid
+  
+  if uuid.found()
+    client_deps += uuid
+    config.set10('USE_UUID', true)
+    dll_link_args += '-luuid'
+  endif
 endif
 
 if host_machine.system() == 'darwin'
+  # Darwin is warning-spamming because of its SDL_config defines
+  add_project_arguments('-Wno-macro-redefined', language : 'c')
   opengl = dependency('opengl',
     allow_fallback:  win32,
     default_options: fallback_opt,
   )
   client_deps += opengl
+  if host_machine.cpu_family() == 'x86_64' # Intel
+    inc_dirs += '/usr/local/include'
+    dll_link_args += '-L/usr/local/lib'
+  else                                     # Apple Silicon
+    inc_dirs += '/opt/homebrew/include'
+    dll_link_args += '-L/opt/homebrew/lib'
+  endif
 endif
 
 # require FFmpeg >= 5.1.3
@@ -482,11 +556,20 @@ if get_option('aqtion-build')
   config.set10('AQTION_EXTENSION', true)
   config.set10('AQTION_HUD', true)
   action_src += ltk_src
+  action_src += botlib_src
 
   # Win32 winsock compat
   if win32
     dll_link_args += '-lws2_32'
+    dll_link_args += '-lcrypt32'
+    dll_link_args += '-lwsock32'
   endif
+endif
+
+if get_option('aqtion-curl')
+  config.set10('AQTION_CURL', true)
+  action_src += 'src/action/tng_net.c'
+  game_deps += curl
 endif
 
 if get_option('discord-sdk')
@@ -495,12 +578,14 @@ if get_option('discord-sdk')
     # Discord does not have an SDK for this platform yet, setting USE_DISCORD to false
     config.set10('USE_DISCORD', false)
   else
-    config.set10('USE_DISCORD', true)
+    config.set10('USE_DISCORD', true) # Disabling Discord for now
     discord_inc_path = join_paths('extern/discord/lib/', host_machine.cpu_family())
     dis_inc = include_directories(discord_inc_path)
     discord_dep_path = join_paths(meson.current_source_dir(), discord_inc_path)
     discord_dep = cc.find_library('discord_game_sdk', dirs : discord_dep_path)
     client_deps += discord_dep
+
+    client_src += ['src/client/discord.c']
   endif
   #endif
 endif
@@ -517,6 +602,10 @@ if get_option('tests')
   config.set10('USE_TESTS', true)
 endif
 
+if get_option('debug')
+  refresh_src += 'src/refresh/debug.c'
+endif
+
 if get_option('game-abi-hack').require(x86 and cc.get_id() == 'gcc' and cc.has_argument('-mstackrealign')).allowed()
   config.set10('USE_GAME_ABI_HACK', true)
   engine_args += '-mstackrealign'
@@ -524,7 +613,7 @@ endif
 
 executable('q2pro', common_src, client_src, refresh_src,
   dependencies:          common_deps + client_deps,
-  include_directories:   'inc',
+  include_directories:   inc_dirs,
   gnu_symbol_visibility: 'hidden',
   win_subsystem:         'windows,6.0',
   link_args:             exe_link_args,
@@ -534,7 +623,7 @@ executable('q2pro', common_src, client_src, refresh_src,
 
 executable('q2proded', common_src, server_src,
   dependencies:          common_deps + server_deps,
-  include_directories:   'inc',
+  include_directories:   inc_dirs,
   gnu_symbol_visibility: 'hidden',
   win_subsystem:         'console,6.0',
   link_args:             exe_link_args,
@@ -542,18 +631,17 @@ executable('q2proded', common_src, server_src,
   install:               system_wide,
 )
 
-## Disabling building gamelib for now, no need
-
-# shared_library('game' + cpu, action_src,
-#   name_prefix:           '',
-#   dependencies:          game_deps,
-#   include_directories:   'inc',
-#   gnu_symbol_visibility: 'hidden',
-#   link_args:             dll_link_args,
-#   install:               system_wide,
-#   install_dir:           libdir / get_option('base-game'),
-#   override_options:      get_option('game-build-options'),
-# )
+shared_library('game' + cpu, action_src,
+  name_prefix:           '',
+  dependencies:          game_deps,
+  include_directories:   inc_dirs,
+  gnu_symbol_visibility: 'hidden',
+  link_args:             dll_link_args,
+  c_args:                game_args,
+  install:               system_wide,
+  install_dir:           libdir / get_option('base-game'),
+  override_options:      get_option('game-build-options'),
+)
 
 config.set('REVISION',            meson.project_version().substring(1).split('~')[0].to_int())
 config.set_quoted('VERSION',      meson.project_version())
@@ -566,18 +654,37 @@ if not win32
   config.set_quoted('LIBDIR',     libdir)
   config.set_quoted('HOMEDIR',    homedir)
 endif
+config.set_quoted('R_TEXTURE_FORMATS', ' '.join(texture_formats))
 config.set_quoted('VID_GEOMETRY', get_option('vid-geometry'))
 config.set_quoted('VID_MODELIST', get_option('vid-modelist'))
 
 config.set10('USE_AUTOREPLY',     get_option('auto-reply'))
 config.set10('USE_DEBUG',         get_option('debug'))
 config.set10('USE_FPS',           get_option('variable-fps'))
+config.set10('USE_GLES',          get_option('opengl-es1'))
 config.set10('USE_ICMP',          get_option('icmp-errors').require(win32 or cc.has_header('linux/errqueue.h')).allowed())
 config.set10('USE_MD3',           get_option('md3'))
 config.set10('USE_MD5',           get_option('md5'))
 config.set10('USE_PACKETDUP',     get_option('packetdup-hack'))
 config.set10('USE_TGA',           get_option('tga'))
 config.set10('USE_' + host_machine.endian().to_upper() + '_ENDIAN', true)
+
+if host_machine.system() == 'darwin'
+  config.set_quoted('DEFGLPROFILE', 'gl3.2')
+elif get_option('opengl-es1')
+  config.set_quoted('DEFGLPROFILE', 'es1')
+else
+  config.set_quoted('DEFGLPROFILE', '')
+endif
+
+# protocol extensions are always on
+config.set10('USE_PROTOCOL_EXTENSIONS', true)
+
+# new game API flag is *always on* for engine,
+# and can be enabled here for game as well
+if get_option('game-new-api')
+  config.set10('USE_NEW_GAME_API', true)
+endif
 
 configure_file(output: 'config.h', configuration: config)
 
@@ -593,6 +700,7 @@ summary({
   'client-ui'          : config.get('USE_UI', 0) != 0,
   'debug'              : config.get('USE_DEBUG', 0) != 0,
   'game-abi-hack'      : config.get('USE_GAME_ABI_HACK', 0) != 0,
+  'game-new-api'       : config.get('USE_NEW_GAME_API', 0) != 0,
   'icmp-errors'        : config.get('USE_ICMP', 0) != 0,
   'libcurl'            : config.get('USE_CURL', 0) != 0,
   'libjpeg'            : config.get('USE_JPG', 0) != 0,

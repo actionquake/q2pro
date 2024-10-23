@@ -1,0 +1,35 @@
+{
+    "name": "Fexel",
+    "clan_id": 2,
+    "skin": "actionmale/seagull",
+    "weaponPreferences": {
+        "mk23": 0.9,
+        "dual_mk23": 0.2,
+        "mp5": 0.9,
+        "m4": 0.4,
+        "m3": 0.6,
+        "hc": 0.1,
+        "sniper": 0.4,
+        "knives": 1.0,
+        "grenades": 0.4
+    },
+    "itemPreferences": {
+        "vest": 0.3,
+        "helm": 0.8,
+        "laser": 0.3,
+        "silencer": 0.2,
+        "slippers": 0.7,
+        "bandolier": 0.5
+    },
+    "coreTraits": {
+        "aggressiveness": 0.2,
+        "teamwork": 0.2,
+        "curiosity": 0.4,
+        "aimingSkill": 0.5,
+        "reactionTime": 0.4,
+        "communicationFreq": 0.5,
+        "communicationTone": 0.8,
+        "movementStyle": 0.5,
+        "objectiveFocus": 0.8
+    }
+}

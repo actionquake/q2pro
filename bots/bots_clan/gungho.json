@@ -1,0 +1,35 @@
+{
+    "name": "Gung Ho",
+    "clan_id": 92,
+    "skin": "terror/terror",
+    "weaponPreferences": {
+        "mk23": 0.6,
+        "dual_mk23": 0.6,
+        "mp5": 0.6,
+        "m4": 0.3,
+        "m3": 0.0,
+        "hc": 0.4,
+        "sniper": 0.9,
+        "knives": 0.6,
+        "grenades": 0.3
+    },
+    "itemPreferences": {
+        "vest": 0.3,
+        "helm": 0.4,
+        "laser": 0.7,
+        "silencer": 0.6,
+        "slippers": 0.2,
+        "bandolier": 0.5
+    },
+    "coreTraits": {
+        "aggressiveness": 0.4,
+        "teamwork": 0.7,
+        "curiosity": 0.6,
+        "aimingSkill": 0.5,
+        "reactionTime": 0.7,
+        "communicationFreq": 0.5,
+        "communicationTone": 0.4,
+        "movementStyle": 0.5,
+        "objectiveFocus": 0.6
+    }
+}

@@ -19,6 +19,7 @@ with this program; if not, write to the Free Software Foundation, Inc.,
 #define CURL_DISABLE_DEPRECATION
 
 #include "client.h"
+#include <assert.h>
 #include <curl/curl.h>
 
 #include "shared/atomic.h"
@@ -112,6 +113,7 @@ static int progress_func(void *clientp, curl_off_t dltotal, curl_off_t dlnow, cu
 }
 
 // libcurl callback for filelists.
+// must be thread safe!
 static size_t recv_func(void *ptr, size_t size, size_t nmemb, void *stream)
 {
     dlhandle_t *dl = (dlhandle_t *)stream;
@@ -120,20 +122,16 @@ static size_t recv_func(void *ptr, size_t size, size_t nmemb, void *stream)
     if (!size || !nmemb)
         return 0;
 
-    if (size > SIZE_MAX / nmemb)
-        return 0;
-
-    if (dl->position > MAX_DLSIZE)
-        return 0;
+    assert(size <= SIZE_MAX / nmemb);
+    assert(dl->position < MAX_DLSIZE);
 
     bytes = size * nmemb;
     if (bytes >= MAX_DLSIZE - dl->position)
         return 0;
 
     // grow buffer in MIN_DLSIZE chunks. +1 for NUL.
-    new_size = ALIGN(dl->position + bytes + 1, MIN_DLSIZE);
+    new_size = Q_ALIGN(dl->position + bytes + 1, MIN_DLSIZE);
     if (new_size > dl->size) {
-        // can't use Z_Realloc here because it's not threadsafe!
         char *buf = realloc(dl->buffer, new_size);
         if (!buf)
             return 0;
@@ -153,9 +151,11 @@ static size_t recv_func(void *ptr, size_t size, size_t nmemb, void *stream)
 static void escape_path(char *escaped, const char *path)
 {
     while (*path) {
-        int c = *path++;
+        byte c = *path++;
         if (!Q_isalnum(c) && !strchr("/-_.~", c)) {
-            sprintf(escaped, "%%%02x", c);
+            escaped[0] = '%';
+            escaped[1] = com_hexchars[c >> 4];
+            escaped[2] = com_hexchars[c & 15];
             escaped += 3;
         } else {
             *escaped++ = c;
@@ -375,7 +375,7 @@ int HTTP_FetchFile(const char *url, void **data)
     Com_EPrintf("[HTTP] Failed to fetch '%s': %s\n",
                 url, ret == CURLE_HTTP_RETURNED_ERROR ?
                 http_strerror(response) : curl_easy_strerror(ret));
-    free(tmp.buffer);
+    HTTP_FreeFile(tmp.buffer);
     return -1;
 }
 
@@ -584,7 +584,7 @@ int HTTP_QueueDownload(const char *path, dltype_t type)
 
         //this is a nasty hack to let the server know what we're doing so admins don't
         //get confused by a ton of people stuck in CNCT state. it's assumed the server
-        //is running r1q2 if we're even able to do http downloading so hopefully this
+        //is running R1Q2 if we're even able to do http downloading so hopefully this
         //won't spew an error msg.
         if (!download_default_repo)
             CL_ClientCommand("download http\n");
@@ -593,11 +593,9 @@ int HTTP_QueueDownload(const char *path, dltype_t type)
     //special case for map file lists, i really wanted a server-push mechanism for this, but oh well
     len = strlen(path);
     if (len > 4 && !Q_stricmp(path + len - 4, ".bsp")) {
-        len = Q_snprintf(temp, sizeof(temp), "%s/%s", http_gamedir(), path);
-        if (len < sizeof(temp) - 5) {
-            memcpy(temp + len - 4, ".filelist", 10);
+        len = Q_snprintf(temp, sizeof(temp), "%s/%.*s.filelist", http_gamedir(), (int)(len - 4), path);
+        if (len < sizeof(temp))
             CL_QueueDownload(temp, DL_LIST);
-        }
     }
 
     return Q_ERR_SUCCESS;
@@ -606,11 +604,11 @@ int HTTP_QueueDownload(const char *path, dltype_t type)
 // Validate a path supplied by a filelist.
 static void check_and_queue_download(char *path)
 {
-    size_t      len;
-    char        *ext;
-    dltype_t    type;
-    unsigned    flags;
-    int         valid;
+    size_t          len;
+    char            *ext;
+    dltype_t        type;
+    unsigned        flags;
+    path_valid_t    valid;
 
     len = strlen(path);
     if (len >= MAX_QPATH)
@@ -923,6 +921,10 @@ static void start_next_download(void)
     if (!cls.download.pending) {
         return;
     }
+
+    // Check if HTTP download was aborted
+    if (!curl_multi)
+        return;
 
     //not enough downloads running, queue some more!
     FOR_EACH_DLQ(q) {

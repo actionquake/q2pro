@@ -1,0 +1,35 @@
+{
+    "name": "Ivor",
+    "clan_id": 108,
+    "skin": "sas/sas-urban",
+    "weaponPreferences": {
+        "mk23": 0.6,
+        "dual_mk23": 0.1,
+        "mp5": 0.3,
+        "m4": 0.3,
+        "m3": 0.3,
+        "hc": 0.4,
+        "sniper": 0.6,
+        "knives": 0.7,
+        "grenades": 0.4
+    },
+    "itemPreferences": {
+        "vest": 0.3,
+        "helm": 0.5,
+        "laser": 0.3,
+        "silencer": 0.8,
+        "slippers": 0.5,
+        "bandolier": 0.5
+    },
+    "coreTraits": {
+        "aggressiveness": 0.7,
+        "teamwork": 0.5,
+        "curiosity": 0.5,
+        "aimingSkill": 0.4,
+        "reactionTime": 0.6,
+        "communicationFreq": 0.5,
+        "communicationTone": 0.4,
+        "movementStyle": 0.4,
+        "objectiveFocus": 0.5
+    }
+}

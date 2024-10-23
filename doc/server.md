@@ -96,6 +96,7 @@
     - [map\_visibility\_patch](#map_visibility_patch)
     - [com\_fatal\_error](#com_fatal_error)
     - [com\_debug\_break](#com_debug_break)
+    - [g\_protocol\_extensions](#g_protocol_extensions)
 - [Commands](#commands)
   - [Generic](#generic-1)
     - [status \[mode\]](#status-mode)
@@ -828,6 +829,9 @@ also create an alias for the map. How to create such files is out of
 scope of this manual (search the internet for ‘r1q2 map override file
 generator’).
 
+This is togglable with `sv_load_ent` -- default enabled (`1`), a setting of
+`0` will disable loading overrides of either type
+
 ### map\_visibility\_patch  
 Attempt to patch miscalculated visibility data for some well-known maps
 (q2dm1, q2dm3 and q2dm8 are patched so far), fixing disappearing walls
@@ -840,6 +844,12 @@ exit. Default value is 0 (disabled).
 ### com\_debug\_break  
 Development variable that turns all errors into debug breakpoints.
 Default value is 0 (disabled).
+
+### g\_protocol\_extensions
+Server operators can enable protocol extensions, which is not compatible with
+clients that do not have protocol extensions.  The benefit is that
+the limits around items such as sounds, images, map sizes and such are
+significantly heightened.
 
 # Commands
 

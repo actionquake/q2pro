@@ -1,0 +1,35 @@
+{
+    "name": "Dharmesh",
+    "clan_id": 24,
+    "skin": "actionmale/aqgthugboss",
+    "weaponPreferences": {
+        "mk23": 0.3,
+        "dual_mk23": 0.5,
+        "mp5": 0.5,
+        "m4": 0.3,
+        "m3": 0.4,
+        "hc": 0.2,
+        "sniper": 0.6,
+        "knives": 0.4,
+        "grenades": 0.4
+    },
+    "itemPreferences": {
+        "vest": 0.7,
+        "helm": 0.6,
+        "laser": 0.4,
+        "silencer": 0.3,
+        "slippers": 0.5,
+        "bandolier": 0.7
+    },
+    "coreTraits": {
+        "aggressiveness": 0.7,
+        "teamwork": 0.6,
+        "curiosity": 0.5,
+        "aimingSkill": 0.4,
+        "reactionTime": 0.7,
+        "communicationFreq": 0.6,
+        "communicationTone": 0.3,
+        "movementStyle": 0.6,
+        "objectiveFocus": 0.5
+    }
+}

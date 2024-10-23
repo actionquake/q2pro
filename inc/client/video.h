@@ -52,9 +52,9 @@ extern cvar_t       *vid_modelist;
 extern cvar_t       *vid_fullscreen;
 extern cvar_t       *_vid_fullscreen;
 
-extern vid_driver_t vid;
+extern const vid_driver_t   *vid;
 
 bool VID_GetFullscreen(vrect_t *rc, int *freq_p, int *depth_p);
 bool VID_GetGeometry(vrect_t *rc);
-void VID_SetGeometry(vrect_t *rc);
+void VID_SetGeometry(const vrect_t *rc);
 void VID_ToggleFullscreen(void);

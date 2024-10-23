@@ -1,0 +1,29 @@
+[esp]
+type=etv
+author=darksaint
+name=Get the Fish!
+
+[respawn]
+red=8
+blue=8
+green=8
+
+[spawns]
+red=<1079 206 -660 180>,<1043 -496 -570 140>
+blue=<-1495 94 -550 90>,<-1574 684 -550 -50>
+
+[target]
+escort=<-1467 466 -154>
+name=The Bait
+
+[red_team]
+name=Master Baiters
+leader_name=Captain Handy
+skin=male/aqgthug
+leader_skin=male/aqgvillain
+
+[blue_team]
+name=The EPA
+leader_name=Gordon
+skin=male/ctf_b
+leader_skin=male/ctf_vip_b

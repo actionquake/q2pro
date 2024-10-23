@@ -275,6 +275,7 @@ game_locals_t game;
 level_locals_t level;
 game_import_t gi;
 game_export_t globals;
+const game_import_ex_t *gix;
 spawn_temp_t st;
 
 int sm_meat_index;
@@ -305,6 +306,7 @@ cvar_t *hud_noscore;
 cvar_t *use_newscore;
 cvar_t *scoreboard;
 cvar_t *actionversion;
+cvar_t *net_port;
 cvar_t *needpass;
 cvar_t *use_voice;
 cvar_t *ppl_idletime;
@@ -338,6 +340,7 @@ cvar_t *use_warnings;
 cvar_t *use_mapvote;
 cvar_t *use_scramblevote;
 cvar_t *deathmatch;
+cvar_t *coop;
 cvar_t *dmflags;
 cvar_t *fraglimit;
 cvar_t *timelimit;
@@ -347,6 +350,7 @@ cvar_t *password;
 cvar_t *maxclients;
 cvar_t *maxentities;
 cvar_t *g_select_empty;
+cvar_t *g_protocol_extensions;
 cvar_t *dedicated;
 cvar_t *steamid;
 cvar_t *filterban;
@@ -395,6 +399,9 @@ cvar_t *video_force_restart;
 cvar_t *video_check_lockpvs;
 cvar_t *video_check_glclear;
 cvar_t *hc_single;
+cvar_t *hc_boost; //rekkie -- allow HC to 'boost' the player
+cvar_t *hc_boost_percent; //rekkie -- allow HC to 'boost' the player
+cvar_t *hc_silencer;
 cvar_t *wp_flags;		// Weapon Banning
 cvar_t *itm_flags;		// Item Banning
 cvar_t *matchmode;
@@ -456,14 +463,18 @@ cvar_t *radio_repeat;		// same as radio_max, only for repeats
 cvar_t *radio_repeat_time;
 
 cvar_t *use_classic;		// Used to reset spread/gren strength to 1.52
+cvar_t *use_gren_bonk;
 
 cvar_t *warmup;
+cvar_t *warmup_bots;
 cvar_t *round_begin;
 cvar_t *spectator_hud;
 
 cvar_t *medkit_drop;
 cvar_t *medkit_time;
 cvar_t *medkit_instant;
+cvar_t *medkit_max;
+cvar_t *medkit_value;
 
 #ifndef NO_BOTS
 cvar_t *ltk_jumpy;
@@ -473,16 +484,58 @@ cvar_t *ltk_chat;
 cvar_t *ltk_routing;
 cvar_t *ltk_botfile;
 cvar_t *ltk_loadbots;
-cvar_t *ltk_showbots;
+//rekkie -- DEV_1 -- s
+cvar_t* bot_enable;		// Enable/Disable bots
+cvar_t* bot_showpath;
+cvar_t* bot_skill;		// Skill setting for bots, range 0-10. 0 = easy, 10 = aimbot!
+cvar_t* bot_skill_threshold; // Dynamic skill adjustment kicks in if a threshold has been hit
+cvar_t* bot_remember;	// How long (in seconds) the bot remembers an enemy after visibility has been lost
+cvar_t* bot_reaction;	// How long (in seconds) until the bot reacts to an enemy in sight
+cvar_t* bot_maxteam;	// Max bots allowed in autoteam, default 10 (10 max bots per team)
+cvar_t* bot_playercount;  // Preferred number of total clients (bots + humans) on the server
+cvar_t* bot_rush;		// Bots rush players by going directly for them
+cvar_t* bot_randvoice;	// Bots use random user voice wavs - percentage [min: 0 max: 100]
+cvar_t* bot_randskill;	// When random bot join a game, they pick a random skill [min: 1, max: 10]. Using 0 will turn this off.
+cvar_t* bot_randname;	// Allow bots to pick a random name
+cvar_t* bot_chat; 		// Enable generic bot chat
+cvar_t* bot_personality;   // Enable bot personality functionality [0 disable, 1 enable, 2 mixed with random bots]
+cvar_t* bot_ragequit;	// Enable bot rage quitting (requires bot_personality to be enabled as well)
+cvar_t* bot_countashuman;	// Allows bots to play teamplay games without humans (see a_vote.c _numclients() ) also enforces timelimit on DM games
+cvar_t* bot_debug;		// Enable bot debug mode
+cvar_t* bot_count_min;	// Minimum number of bots to keep on the server (will range between this and bot_count_max)
+cvar_t* bot_count_max;	// Maximum number of bots to keep on the server (will range between this and bot_count_min)
+cvar_t* bot_rotate;		// Disable/enable rotating bots on the server
+cvar_t* bot_reportasclient; // Report bots as clients to the server browser
+cvar_t* bot_navautogen;	// Enable/Disable automatic generation of navigation files
+//cvar_t* bot_randteamskin; // Bots can randomize team skins each map
+
+
+cvar_t* gl_shaders;  // Temporarily adding gl_shaders so we can disable it for navmesh generation
+
+//rekkie -- DEV_1 -- e
 #endif
 
 cvar_t *jump;			// jumping mod
 
 // BEGIN AQ2 ETE
-cvar_t *e_enhancedSlippers;
+cvar_t *esp;
+cvar_t *atl;
+cvar_t *etv;
+cvar_t *esp_atl;
+cvar_t *esp_punish;
+cvar_t *esp_etv_halftime;
+cvar_t *esp_showleader;
+cvar_t *esp_showtarget;
+cvar_t *esp_leaderequip;
+cvar_t *esp_leaderenhance;
+cvar_t *esp_enhancedslippers;
+cvar_t *esp_matchmode;
+cvar_t *esp_respawn_uvtime;
+cvar_t *esp_debug;
 // END AQ2 ETE
 
 // 2022
+
 cvar_t *sv_limp_highping;
 cvar_t *server_id;
 cvar_t *stat_logs;
@@ -493,6 +546,49 @@ cvar_t *gm;
 cvar_t *gmf;
 cvar_t *sv_idleremove;
 cvar_t *g_spawn_items;
+
+// 2023
+cvar_t *use_killcounts;  // Display kill counts in console to clients on frag
+cvar_t *am;  // Attract mode toggle
+cvar_t *zoom_comp; // Compensates zoom-in frames with ping (high ping = fewer frames)
+cvar_t *item_kit_mode;  // Toggles item kit mode
+cvar_t *gun_dualmk23_enhance; // Enables laser sight for dual mk23 pistols
+cvar_t *printrules;  // Centerprint game rules when the countdown begins
+cvar_t *timedmsgs; // Toggles timed messages
+cvar_t *mm_captain_teamname; // Toggles if we want to use the captain's name for the team in matchmode
+cvar_t *sv_killgib; // Gibs on 'kill' command
+
+// 2024
+cvar_t *warmup_unready; // Toggles warmup if captains unready
+// cURL integration / tng_net.c
+cvar_t *sv_curl_enable;					// Enable cURL integration
+cvar_t *sv_discord_announce_enable;		// Enable Discord announcements
+cvar_t *sv_curl_stat_enable;			// Enable cURL stat logging
+cvar_t *sv_aws_access_key;				// AWS Access Key (stat logs)
+cvar_t *sv_aws_secret_key;				// AWS Secret Key (stat logs)
+cvar_t *sv_curl_discord_info_url;		// Discord webhook (#info-feed channel)
+cvar_t *sv_curl_discord_pickup_url;		// Discord webhook (#pickup channel)
+cvar_t *server_ip;						// Server IP
+cvar_t *server_port;					// Server port
+cvar_t *sv_last_announce_interval;		// Interval between announcements
+cvar_t *sv_last_announce_time;			// Last announcement time
+cvar_t *server_announce_url;			// Server announce URL
+cvar_t *msgflags;						// Message flags (like dmflags) see Discord_Notifications enum for more info
+cvar_t *use_pickup;						// Enable pickup notifications from the server
+// end cURL integration cvars
+
+cvar_t *training_mode; // Sets training mode vars
+cvar_t *g_highscores_dir; // Sets the highscores directory
+cvar_t *g_highscores_countbots; // Toggles if we save highscores achieved by bots
+cvar_t *lca_grenade; // Allows grenade pin pulling during LCA
+cvar_t *breakableglass; // Moved from cgf_sfx_glass, enables breakable glass (0,1,2)
+cvar_t *glassfragmentlimit; // Moved from cgf_sfx_glass, sets glass fragment limit
+
+#if AQTION_EXTENSION
+cvar_t *use_newirvision;
+cvar_t *use_indicators;
+cvar_t *use_xerp;
+#endif
 
 // Discord SDK integration with Q2Pro
 cvar_t *cl_discord;
@@ -536,6 +632,10 @@ void ShutdownGame (void)
 	IRC_exit ();
 #ifndef NO_BOTS
 	ACECM_Store();
+	BOTLIB_FreeNodes(); //rekkie -- DEV_1 -- Hard map change. Free any existing node memory used
+	BOTLIB_FreeAreaNodes(); //rekkie -- DEV_1 -- Soft map change. Free all area node memory used
+	DC_Free_Spawnpoints();  //rekkie -- DEV_1 -- Hard map change. Free any existing spawnpoint memory used
+	BOTLIB_SaveBotsFromPreviousMap(); //rekkie -- Hard map change.
 #endif
 	//PG BUND
 	vExitGame ();
@@ -554,7 +654,7 @@ void ShutdownGame (void)
   and global variables
   =================
 */
-q_exported game_export_t *GetGameAPI (game_import_t * import)
+q_exported game_export_t *GetGameAPI(game_import_t *import)
 {
 	gi = *import;
 #ifndef NO_BOTS
@@ -587,44 +687,53 @@ q_exported game_export_t *GetGameAPI (game_import_t * import)
 
 	globals.edict_size = sizeof (edict_t);
 
-
-#ifdef AQTION_EXTENSION
-	G_InitExtEntrypoints();
-	globals.FetchGameExtension = G_FetchGameExtension;
-
-	engine_Client_GetProtocol = gi.CheckForExtension("Client_GetProtocol");
-	engine_Client_GetVersion = gi.CheckForExtension("Client_GetVersion");
-
-	engine_Ghud_SendUpdates = gi.CheckForExtension("Ghud_SendUpdates");
-	engine_Ghud_NewElement = gi.CheckForExtension("Ghud_NewElement");
-	engine_Ghud_SetFlags = gi.CheckForExtension("Ghud_SetFlags");
-	engine_Ghud_UnicastSetFlags = gi.CheckForExtension("Ghud_UnicastSetFlags");
-	engine_Ghud_SetInt = gi.CheckForExtension("Ghud_SetInt");
-	engine_Ghud_SetText = gi.CheckForExtension("Ghud_SetText");
-	engine_Ghud_SetPosition = gi.CheckForExtension("Ghud_SetPosition");
-	engine_Ghud_SetAnchor = gi.CheckForExtension("Ghud_SetAnchor");
-	engine_Ghud_SetColor = gi.CheckForExtension("Ghud_SetColor");
-	engine_Ghud_SetSize = gi.CheckForExtension("Ghud_SetSize");
-#endif
-
-
 	return &globals;
 }
 
-#ifndef GAME_HARD_LINKED
-// this is only here so the functions in q_shared.c and q_shwin.c can link
-void Sys_Error (const char *error, ...)
+const game_export_ex_t gex = {
+    .apiversion = GAME_API_VERSION_EX,
+    .structsize = sizeof(game_export_ex_t),
+
+	// // Functionality examples?
+	// // https://github.com/skullernet/q2pro/issues/294#issuecomment-1476818818
+    //.GetExtension = GetExtension,
+
+};
+
+q_exported const game_export_ex_t *GetGameAPIEx(game_import_ex_t *importx)
 {
-  va_list argptr;
-  char text[1024];
+    gix = importx;   // assign pointer, don't copy!
+	
+	//gex.CheckForExtension = G_FetchGameExtension;
+	G_InitExtEntrypoints();
+	engine_Client_GetProtocol = gix->CheckForExtension("Client_GetProtocol");
+	engine_Client_GetVersion = gix->CheckForExtension("Client_GetVersion");
 
-  va_start (argptr, error);
-  vsnprintf (text, sizeof(text),error, argptr);
-  va_end (argptr);
+	engine_Ghud_ClearForClient = gix->CheckForExtension("Ghud_ClearForClient");
+	engine_Ghud_NewElement = gix->CheckForExtension("Ghud_NewElement");
+	engine_Ghud_RemoveElement = gix->CheckForExtension("Ghud_RemoveElement");
+	engine_Ghud_SetFlags = gix->CheckForExtension("Ghud_SetFlags");
+	engine_Ghud_SetInt = gix->CheckForExtension("Ghud_SetInt");
+	engine_Ghud_SetText = gix->CheckForExtension("Ghud_SetText");
+	engine_Ghud_SetPosition = gix->CheckForExtension("Ghud_SetPosition");
+	engine_Ghud_SetAnchor = gix->CheckForExtension("Ghud_SetAnchor");
+	engine_Ghud_SetColor = gix->CheckForExtension("Ghud_SetColor");
+	engine_Ghud_SetSize = gix->CheckForExtension("Ghud_SetSize");
 
-  gi.error("%s", text);
+	engine_CvarSync_Set = gix->CheckForExtension("CvarSync_Set");
+
+	SV_BSP = gix->CheckForExtension("Bsp");
+	CS_NAV = gix->CheckForExtension("Nav");
+	CS_DebugDraw = gix->CheckForExtension("DebugDraw");
+	SV_BotConnect = gix->CheckForExtension("SV_BotConnect");
+	SV_BotDisconnect = gix->CheckForExtension("SV_BotDisconnect");
+	SV_BotUpdateInfo = gix->CheckForExtension("SV_BotUpdateInfo");
+	SV_BotClearClients = gix->CheckForExtension("SV_BotClearClients");
+
+    return &gex;
 }
 
+#ifndef GAME_HARD_LINKED
 // this is only here so the functions in q_shared.c can link
 void Com_LPrintf(print_type_t type, const char *fmt, ...)
 {
@@ -653,6 +762,32 @@ void Com_Error(error_type_t type, const char *fmt, ...)
 
     gi.error("%s", text);
 }
+
+// // this is only here so the functions in q_shared.c and q_shwin.c can link
+// void Sys_Error (const char *error, ...)
+// {
+//   va_list argptr;
+//   char text[1024];
+
+//   va_start (argptr, error);
+//   vsnprintf (text, sizeof(text),error, argptr);
+//   va_end (argptr);
+
+//   gi.error("%s", text);
+// }
+
+// void Com_Printf (const char *msg, ...)
+// {
+//   va_list argptr;
+//   char text[1024];
+
+//   va_start (argptr, msg);
+//   vsnprintf (text, sizeof(text), msg, argptr);
+//   va_end (argptr);
+
+//   gi.dprintf("%s", text);
+// }
+
 #endif
 
 
@@ -738,6 +873,12 @@ void ClientEndServerFrames (void)
 		if (ent->client->chase_target)
 			UpdateChaseCam(ent);
 	}
+
+	if (timedmsgs->value)
+		FireTimedMessages();
+
+	// Botlib chat
+	UpdateBotChat();
 }
 
 /*
@@ -769,6 +910,10 @@ void EndDMLevel (void)
 	(void) strftime (ltm, 64, "%A %d %B %H:%M:%S", now);
 	gi.bprintf (PRINT_HIGH, "Game ending at: %s\n", ltm);
 	IRC_printf (IRC_T_GAME, "Game ending at: %s", ltm);
+
+	// High scores from OpenFFA
+	if (!matchmode->value) // Non-disruptive matchmode constraint
+		G_RegisterScore();
 
 	// JBravo: Stop q2pro MVD2 recording
 	if (use_mvd2->value)
@@ -940,6 +1085,31 @@ void CheckDMRules (void)
 	if (level.intermission_framenum)
 		return;
 
+//rekkie -- DEV_1 -- s
+#ifndef NO_BOTS
+	if (FRAMESYNC)
+	{
+		BOTLIB_CheckBotRules();
+
+		// Reduce noise timers
+		for (int i = 0; i < MAX_CLIENTS; i++)
+		{
+			if (botlib_noises.self_time[i] > 0)
+				botlib_noises.self_time[i]--;
+
+			if (botlib_noises.weapon_time[i] > 0)
+			{
+				botlib_noises.weapon_time[i]--;
+				//Com_Printf("%s %s counting PNOISE_WEAPON %d\n", __func__, botlib_noises.owner[i]->client->pers.netname, botlib_noises.weapon_time[i]);
+			}
+
+			if (botlib_noises.impact_time[i] > 0)
+				botlib_noises.impact_time[i]--;
+		}
+	}
+#endif
+	//rekkie -- DEV_1 -- e
+
 	//FIREBLADE
 	if (teamplay->value)
 	{
@@ -948,29 +1118,6 @@ void CheckDMRules (void)
 
 		if (!FRAMESYNC)
 			return;
-
-#ifdef AQTION_EXTENSION
-#ifdef AQTION_HUD
-		// Reki
-		// Update our ghud values for the team score
-		int i;
-		for (i = TEAM1; i < TEAM_TOP; i++)
-		{
-			if (teams[i].ghud_num <= 0)
-				continue;
-
-			if (teams[i].ghud_resettime && level.time > teams[i].ghud_resettime)
-			{
-				teams[i].ghud_resettime = 0;
-				Ghud_SetFlags(teams[i].ghud_icon, 0);
-				Ghud_SetFlags(teams[i].ghud_num, 0);
-			}
-
-			Ghud_SetInt(teams[i].ghud_num, teams[i].score);
-		}
-#endif
-#endif
-
 
 		if (CheckTeamRules())
 			return;
@@ -1000,7 +1147,7 @@ void CheckDMRules (void)
 			{
 				gi.bprintf (PRINT_HIGH, "Fraglimit hit.\n");
 				IRC_printf (IRC_T_GAME, "Fraglimit hit.");
-				if (ctf->value)
+				if (ctf->value || esp->value)
 					ResetPlayers ();
 				EndDMLevel ();
 				return;
@@ -1045,6 +1192,8 @@ void ExitLevel (void)
 	int i;
 	edict_t *ent;
 	char command[256];
+
+	BOTLIB_SaveBotsFromPreviousMap(); //rekkie -- Soft map change (timelimit, fraglimit)
 
 	if(softquit) {
 		gi.bprintf(PRINT_HIGH, "Soft quit was requested by admin. The server will now exit.\n");
@@ -1111,7 +1260,7 @@ void CycleLights (void)
 		}
 		temp[0] = brightness[day_cycle_at];
 		temp[1] = 0;
-		gi.configstring (CS_LIGHTS + 0, temp);
+		gi.configstring (game.csr.lights + 0, temp);
 		day_next_cycle = level.time + day_cycle->value;
 	}
 }
@@ -1135,6 +1284,7 @@ void G_RunFrame (void)
 
 	// If the server is empty, don't wait at intermission.
 	empty = ! _numclients();
+
 	if( level.intermission_framenum && empty )
 		level.intermission_exit = 1;
 
@@ -1151,6 +1301,14 @@ void G_RunFrame (void)
 		int updateStatMode = (level.framenum % (80 * FRAMEDIV)) ? 0 : 1;
 
 		CycleLights ();
+
+		//Run pending curl requests
+		#if USE_CURL
+		#if AQTION_CURL
+		if (sv_curl_enable->value)
+			lc_once_per_gameframe();
+		#endif
+		#endif
 
 		//
 		// treat each object in turn
@@ -1270,3 +1428,40 @@ void CheckNeedPass (void)
 }
 
 //FROM 3.20 END
+
+// This doesn't work yet but I'll keep trying
+edict_t *ChooseRandomPlayer(int teamNum, qboolean allowBot)
+{
+	int i, j;
+	edict_t *ent;
+	int pcount = 0;
+	edict_t *plist[ MAX_CLIENTS ] = {NULL};
+
+	// Supplied paramter must be a valid team number
+	if (teamNum < TEAM1 && teamNum > TEAM3)
+		return 0;
+	if (teamCount == 2 && teamNum == 3) {
+		// Somehow passing team 3 in a 2-team match?
+		gi.dprintf("Warning: Unable to ChooseRandomPlayer for a team that doesn't exist\n");
+		return 0;
+	}
+
+	for (i = 0, ent = &g_edicts[1]; i < game.maxclients; i++, ent++)
+	{
+		// Client must exist and be on a team, and not be a sub
+		if (!ent->inuse || !ent->client || !ent->client->resp.team || ent->client->resp.subteam)
+			continue;
+		if (!allowBot)
+			if (ent->is_bot)
+				continue;
+		pcount++;
+		players[i] = ent;
+		//gi.dprintf("%s\n", players[i]->client->pers.netname);
+	}
+
+	j = rand() % pcount;
+
+	ent = plist[j];
+	// Returns a random player
+	return ent;
+}

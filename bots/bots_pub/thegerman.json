@@ -1,0 +1,35 @@
+{
+    "name": "The German",
+    "clan_id": null,
+    "skin": "male/police",
+    "weaponPreferences": {
+        "mk23": 0.3,
+        "dual_mk23": 0.3,
+        "mp5": 0.2,
+        "m4": 0.3,
+        "m3": 0.5,
+        "hc": 1.1,
+        "sniper": 0.3,
+        "knives": 0.5,
+        "grenades": 0.0
+    },
+    "itemPreferences": {
+        "vest": 0.8,
+        "helm": 0.4,
+        "laser": 0.7,
+        "silencer": -0.0,
+        "slippers": 0.7,
+        "bandolier": 0.7
+    },
+    "coreTraits": {
+        "aggressiveness": 0.4,
+        "teamwork": 0.5,
+        "curiosity": 0.7,
+        "aimingSkill": 0.7,
+        "reactionTime": 0.4,
+        "communicationFreq": 0.5,
+        "communicationTone": 0.5,
+        "movementStyle": 0.6,
+        "objectiveFocus": 0.7
+    }
+}

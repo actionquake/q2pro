@@ -1,0 +1,28 @@
+[esp]
+type=etv
+author=darksaint
+name=Turn out the lights!
+
+[respawn]
+red=6
+blue=6
+
+[spawns]
+red=<-1185 969 520 -37>,<-465 2062 510 -82>,<-352 1368 616 90>
+blue=<-70 -858 305 58>,<556 176 248 0>,<306 528 648 90>
+
+[target]
+escort=<934 -873 686>
+name=Lighthouse Beacon
+
+[red_team]
+name=No Good Teenagers
+leader_name=Simi the Slasher
+skin=male/ctf_r
+leader_skin=male/ctf_vip_r
+
+[blue_team]
+name=Lightkeepers
+leader_name=Sir Per Kele
+skin=male/ctf_b
+leader_skin=male/ctf_vip_b

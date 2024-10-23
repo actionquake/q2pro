@@ -96,6 +96,9 @@ static void PF_Unicast(edict_t *ent, qboolean reliable)
         goto clear;
     }
 
+    if (msg_write.overflowed)
+        Com_Error(ERR_DROP, "%s: message buffer overflowed", __func__);
+
     clientNum = NUM_FOR_EDICT(ent) - 1;
     if (clientNum < 0 || clientNum >= sv_maxclients->integer) {
         Com_WPrintf("%s to a non-client %d\n", __func__, clientNum);
@@ -202,10 +205,10 @@ static void PF_dprintf(const char *fmt, ...)
 
 #if USE_SAVEGAMES
     // detect YQ2 game lib by unique first two messages
-    if (!sv.gamedetecthack)
-        sv.gamedetecthack = 1 + !strcmp(fmt, "Game is starting up.\n");
-    else if (sv.gamedetecthack == 2)
-        sv.gamedetecthack = 3 + !strcmp(fmt, "Game is %s built on %s.\n");
+    if (!svs.gamedetecthack)
+        svs.gamedetecthack = 1 + !strcmp(fmt, "Game is starting up.\n");
+    else if (svs.gamedetecthack == 2)
+        svs.gamedetecthack = 3 + !strcmp(fmt, "Game is %s built on %s.\n");
 #endif
 
     va_start(argptr, fmt);
@@ -339,8 +342,6 @@ Also sets mins and maxs for inline bmodels
 */
 static void PF_setmodel(edict_t *ent, const char *name)
 {
-    mmodel_t    *mod;
-
     if (!ent || !name)
         Com_Error(ERR_DROP, "PF_setmodel: NULL");
 
@@ -348,7 +349,7 @@ static void PF_setmodel(edict_t *ent, const char *name)
 
 // if it is an inline model, get the size information for it
     if (name[0] == '*') {
-        mod = CM_InlineModel(&sv.cm, name);
+        const mmodel_t *mod = CM_InlineModel(&sv.cm, name);
         VectorCopy(mod->mins, ent->mins);
         VectorCopy(mod->maxs, ent->maxs);
         PF_LinkEdict(ent);
@@ -390,7 +391,7 @@ static void PF_configstring(int index, const char *val)
     }
 
     // print a warning and truncate everything else
-    maxlen = CS_SIZE(&svs.csr, index);
+    maxlen = Com_ConfigstringSize(&svs.csr, index);
     if (len >= maxlen) {
         Com_WPrintf(
             "%s: index %d overflowed: %zu > %zu\n",
@@ -442,9 +443,14 @@ static void PF_WriteFloat(float f)
     Com_Error(ERR_DROP, "PF_WriteFloat not implemented");
 }
 
+static void PF_WritePos(const vec3_t pos)
+{
+    MSG_WritePos(pos, svs.csr.extended && IS_NEW_GAME_API);
+}
+
 static qboolean PF_inVIS(const vec3_t p1, const vec3_t p2, vis_t vis)
 {
-    mleaf_t *leaf1, *leaf2;
+    const mleaf_t *leaf1, *leaf2;
     byte mask[VIS_MAX_BYTES];
 
     leaf1 = CM_PointLeaf(&sv.cm, p1);
@@ -455,7 +461,9 @@ static qboolean PF_inVIS(const vec3_t p1, const vec3_t p2, vis_t vis)
         return false;
     if (!Q_IsBitSet(mask, leaf2->cluster))
         return false;
-    if (!(vis & VIS_NOAREAS) && !CM_AreasConnected(&sv.cm, leaf1->area, leaf2->area))
+    if (vis & VIS_NOAREAS)
+        return true;
+    if (!CM_AreasConnected(&sv.cm, leaf1->area, leaf2->area))
         return false;       // a door blocks it
     return true;
 }
@@ -518,7 +526,7 @@ static void SV_StartSound(const vec3_t origin, edict_t *edict,
     vec3_t      origin_v;
     client_t    *client;
     byte        mask[VIS_MAX_BYTES];
-    mleaf_t     *leaf1, *leaf2;
+    const mleaf_t       *leaf1, *leaf2;
     message_packet_t    *msg;
     bool        force_pos;
 
@@ -534,8 +542,11 @@ static void SV_StartSound(const vec3_t origin, edict_t *edict,
         Com_Error(ERR_DROP, "%s: soundindex = %d", __func__, soundindex);
 
     vol = volume * 255;
-    att = min(attenuation * 64, 255);   // need to clip due to check above
+    att = attenuation * 64;
     ofs = timeofs * 1000;
+
+    // need to clip due to faulty range check above
+    att = min(att, 255);
 
     ent = NUM_FOR_EDICT(edict);
 
@@ -583,7 +594,7 @@ static void SV_StartSound(const vec3_t origin, edict_t *edict,
         MSG_WriteByte(ofs);
 
     MSG_WriteShort(sendchan);
-    MSG_WritePos(origin);
+    PF_WritePos(origin);
 
     // if the sound doesn't attenuate, send it to everyone
     // (global radio chatter, voiceovers, etc)
@@ -592,19 +603,12 @@ static void SV_StartSound(const vec3_t origin, edict_t *edict,
 
     // multicast if force sending origin
     if (force_pos) {
-        if (channel & CHAN_NO_PHS_ADD) {
-            if (channel & CHAN_RELIABLE) {
-                SV_Multicast(NULL, MULTICAST_ALL_R);
-            } else {
-                SV_Multicast(NULL, MULTICAST_ALL);
-            }
-        } else {
-            if (channel & CHAN_RELIABLE) {
-                SV_Multicast(origin, MULTICAST_PHS_R);
-            } else {
-                SV_Multicast(origin, MULTICAST_PHS);
-            }
-        }
+        multicast_t to = MULTICAST_PHS;
+        if (channel & CHAN_NO_PHS_ADD)
+            to = MULTICAST_ALL;
+        if (channel & CHAN_RELIABLE)
+            to += MULTICAST_ALL_R;
+        SV_Multicast(origin, to);
         return;
     }
 
@@ -653,7 +657,7 @@ static void SV_StartSound(const vec3_t origin, edict_t *edict,
 
         msg = LIST_FIRST(message_packet_t, &client->msg_free_list, entry);
 
-        msg->cursize = 0;
+        msg->cursize = SOUND_PACKET;
         msg->flags = flags;
         msg->index = soundindex;
         msg->volume = vol;
@@ -666,7 +670,7 @@ static void SV_StartSound(const vec3_t origin, edict_t *edict,
 
         List_Remove(&msg->entry);
         List_Append(&client->msg_unreliable_list, &msg->entry);
-        client->msg_unreliable_bytes += MAX_SOUND_PACKET;
+        client->msg_unreliable_bytes += msg_write.cursize;
     }
 
     // clear multicast buffer
@@ -708,13 +712,14 @@ static void PF_LocalSound(edict_t *target, const vec3_t origin,
     PF_Unicast(target, !!(channel & CHAN_RELIABLE));
 }
 
-void PF_Pmove(pmove_t *pm)
+void PF_Pmove(void *pm)
 {
-    if (sv_client) {
-        Pmove(pm, &sv_client->pmp);
-    } else {
-        Pmove(pm, &sv_pmp);
-    }
+    const pmoveParams_t *pmp = sv_client ? &sv_client->pmp : &svs.pmp;
+
+    if (IS_NEW_GAME_API)
+        PmoveNew(pm, pmp);
+    else
+        PmoveOld(pm, pmp);
 }
 
 static cvar_t *PF_cvar(const char *name, const char *value, int flags)
@@ -817,7 +822,7 @@ static const game_import_t game_import = {
     .WriteLong = MSG_WriteLong,
     .WriteFloat = PF_WriteFloat,
     .WriteString = MSG_WriteString,
-    .WritePosition = MSG_WritePos,
+    .WritePosition = PF_WritePos,
     .WriteDir = MSG_WriteDir,
     .WriteAngle = MSG_WriteAngle,
 
@@ -857,14 +862,56 @@ static const filesystem_api_v1_t filesystem_api_v1 = {
     .ErrorString = Q_ErrorString,
 };
 
+#if USE_REF && USE_DEBUG
+static const debug_draw_api_v1_t debug_draw_api_v1 = {
+    .ClearDebugLines = R_ClearDebugLines,
+    .AddDebugLine = R_AddDebugLine,
+    .AddDebugPoint = R_AddDebugPoint,
+    .AddDebugAxis = R_AddDebugAxis,
+    .AddDebugBounds = R_AddDebugBounds,
+    .AddDebugSphere = R_AddDebugSphere,
+    .AddDebugCircle = R_AddDebugCircle,
+    .AddDebugCylinder = R_AddDebugCylinder,
+    .AddDebugArrow = R_AddDebugArrow,
+    .AddDebugCurveArrow = R_AddDebugCurveArrow,
+    .AddDebugText = R_AddDebugText,
+};
+#endif
+
+static const rektek_bots_api_v1_t rektek_bots_api_v1 = {
+    .Bsp = SV_BSP,
+    .Nav = CS_NAV,
+    .Draw = CS_DebugDraw,
+    .SV_BotUpdateInfo = SV_BotUpdateInfo,
+    .SV_BotConnect = SV_BotConnect,
+    .SV_BotDisconnect = SV_BotDisconnect,
+    .SV_BotClearClients = SV_BotClearClients,
+};
+
 static void *PF_GetExtension(const char *name)
 {
-    if (!name)
+    if (!name){
         return NULL;
-    if (!strcmp(name, "FILESYSTEM_API_V1"))
+    }
+
+    if (!strcmp(name, FILESYSTEM_API_V1)){
         return (void *)&filesystem_api_v1;
+    }
+
+	if (!strcmp(name, REKTEK_BOTS_API_V1)){
+		return (void *)&rektek_bots_api_v1;
+    }
+
+
+#if USE_REF && USE_DEBUG
+    if (!strcmp(name, DEBUG_DRAW_API_V1) && !dedicated->integer){
+        return (void *)&debug_draw_api_v1;
+    }
+#endif
+
     return NULL;
 }
+static void* G_CheckForExtension(char *text);
 
 static const game_import_ex_t game_import_ex = {
     .apiversion = GAME_API_VERSION_EX,
@@ -877,6 +924,7 @@ static const game_import_ex_t game_import_ex = {
 
     .GetExtension = PF_GetExtension,
     .TagRealloc = PF_TagRealloc,
+    .CheckForExtension = G_CheckForExtension,
 };
 
 static void *game_library;
@@ -904,7 +952,7 @@ void SV_ShutdownGameProgs(void)
     Cvar_Set("g_view_predict", "0");
     Z_LeakTest(TAG_FREE);
 	
-#ifdef AQTION_EXTENSION
+#if AQTION_EXTENSION
 	GE_customizeentityforclient = NULL;
 	GE_CvarSync_Updated = NULL;
 #endif
@@ -944,7 +992,7 @@ static void *SV_LoadGameLibrary(const char *libdir, const char *gamedir)
 }
 
 
-#ifdef AQTION_EXTENSION
+#if AQTION_EXTENSION
 typedef struct extension_func_s
 {
 	char		name[MAX_QPATH];
@@ -1059,6 +1107,16 @@ void G_InitializeExtensions(void)
 
 	// cvar sync
 	g_addextension("CvarSync_Set", G_Ext_CvarSync_Set);
+
+    // botlib
+    g_addextension("Bsp", SV_BSP);
+    g_addextension("Nav", CS_NAV);
+    g_addextension("DebugDraw", CS_DebugDraw);
+    g_addextension("SV_BotConnect", SV_BotConnect);
+    g_addextension("SV_BotDisconnect", SV_BotDisconnect);
+    g_addextension("SV_BotClearClients", SV_BotClearClients);
+    g_addextension("SV_BotUpdateInfo", SV_BotUpdateInfo);
+
 }
 
 
@@ -1080,7 +1138,7 @@ void SV_InitGameProgs(void)
     // unload anything we have now
     SV_ShutdownGameProgs();
 
-#ifdef AQTION_EXTENSION
+#if AQTION_EXTENSION
 	SV_Ghud_Clear();
 	SV_CvarSync_Clear();
 #endif
@@ -1112,24 +1170,32 @@ void SV_InitGameProgs(void)
     // load a new game dll
     import = game_import;
 
-#ifdef AQTION_EXTENSION
-	import.CheckForExtension = G_CheckForExtension;
-#endif
-
     ge = entry(&import);
     if (!ge) {
         Com_Error(ERR_DROP, "Game library returned NULL exports");
     }
 
-    if (ge->apiversion != GAME_API_VERSION) {
+    Com_DPrintf("Game API version: %d\n", ge->apiversion);
+
+    if (ge->apiversion != GAME_API_VERSION_OLD && ge->apiversion != GAME_API_VERSION_AQTION && ge->apiversion != GAME_API_VERSION_NEW) {
         Com_Error(ERR_DROP, "Game library is version %d, expected %d",
-                  ge->apiversion, GAME_API_VERSION);
+                  ge->apiversion, GAME_API_VERSION_OLD);
     }
 
     // get extended api if present
     game_entry_ex_t entry_ex = Sys_GetProcAddress(game_library, "GetGameAPIEx");
-    if (entry_ex)
+    Com_Printf("==== Extended Protocol ====\n");
+    if (entry_ex) {
         gex = entry_ex(&game_import_ex);
+        if (gex == NULL) {
+            Com_Printf("Disabled: Failed to get extended game API.\n");
+        } else if (gex->apiversion < GAME_API_VERSION_EX_MINIMUM) {
+            gex = NULL;
+            Com_Printf("Disabled: Extended game API version is too old.\n");
+        } else {
+            Com_Printf("Game supports Q2PRO extended API version %d.\n", gex->apiversion);
+        }
+    }
 
     // initialize
     ge->Init();
@@ -1138,22 +1204,18 @@ void SV_InitGameProgs(void)
         Com_Printf("Game supports Q2PRO protocol extensions.\n");
         svs.csr = cs_remap_new;
     }
+    Com_Printf("Extended protocol: %s\n", svs.csr.extended ? "enabled" : "disabled");
 
     // sanitize edict_size
     unsigned min_size = svs.csr.extended ? sizeof(edict_t) : q_offsetof(edict_t, x);
     unsigned max_size = INT_MAX / svs.csr.max_edicts;
 
     if (ge->edict_size < min_size || ge->edict_size > max_size || ge->edict_size % q_alignof(edict_t)) {
-        Com_Error(ERR_DROP, "Game library returned bad size of edict_t");
+        Com_Error(ERR_DROP, "Game library returned bad size of edict_t: %i", ge->edict_size);
     }
 
     // sanitize max_edicts
     if (ge->max_edicts <= sv_maxclients->integer || ge->max_edicts > svs.csr.max_edicts) {
-        Com_Error(ERR_DROP, "Game library returned bad number of max_edicts");
+        Com_Error(ERR_DROP, "Game library returned bad number of max_edicts: %i", ge->max_edicts);
     }
-
-#ifdef AQTION_EXTENSION
-	GE_customizeentityforclient = ge->FetchGameExtension("customizeentityforclient");
-	GE_CvarSync_Updated = ge->FetchGameExtension("CvarSync_Updated");
-#endif
 }

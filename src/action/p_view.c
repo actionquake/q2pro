@@ -290,61 +290,78 @@ void SV_CalcViewOffset (edict_t * ent)
 	float delta;
 	vec3_t v = {0, 0, 0};
 
-	//if (!FRAMESYNC)
-	//	return;
-
 	// base angles
 	angles = ent->client->ps.kick_angles;
+
+	if (ent->movetype == MOVETYPE_NOCLIP) {
+        // don't add any kicks/bobs for spectators
+        VectorClear(ent->client->ps.kick_angles);
+        VectorSet(ent->client->ps.viewoffset, 0, 0, ent->viewheight);
+        return;
+    }
 
 	// if dead, fix the angle and don't add any kick
 	if (ent->deadflag)
 	{
-		VectorClear (angles);
+		VectorClear(angles);
 
 		ent->client->ps.viewangles[ROLL] = 40;
 		ent->client->ps.viewangles[PITCH] = -15;
 		ent->client->ps.viewangles[YAW] = ent->client->killer_yaw;
 	}
-	else
-	{
+
+	if (!FRAMESYNC)
+		return;
+
+	if (!ent->deadflag) {
 		// add angles based on weapon kick
-		VectorCopy (ent->client->kick_angles, angles);
+		if ((level.framenum % (int)(0.1f * HZ)) == 0) {
+			VectorCopy (ent->client->kick_angles, angles);
 
-		// add angles based on damage kick
-		ratio = (ent->client->v_dmg_time - level.time) / DAMAGE_TIME;
-		if (ratio < 0)
-		{
-			ratio = 0;
-			ent->client->v_dmg_pitch = 0;
-			ent->client->v_dmg_roll = 0;
+			// add angles based on damage kick
+			ratio = (ent->client->v_dmg_time - level.time) / DAMAGE_TIME;
+			// from OpenTDM
+			//ratio = (ent->client->v_dmg_time - level.framenum) / (float)DAMAGE_FRAMES;
+
+			if (ratio < 0)
+			{
+				ratio = 0;
+				ent->client->v_dmg_pitch = 0;
+				ent->client->v_dmg_roll = 0;
+			}
+			angles[PITCH] += ratio * ent->client->v_dmg_pitch;
+			angles[ROLL] += ratio * ent->client->v_dmg_roll;
+
+			// add pitch based on fall kick
+			ratio = (ent->client->fall_time - level.time) / FALL_TIME;
+			// from OpenTDM
+			//ratio = (ent->client->fall_time - level.framenum) / (float)FALL_FRAMES;
+
+			if (ratio < 0)
+				ratio = 0;
+			angles[PITCH] += ratio * ent->client->fall_value;
+
+			// add angles based on velocity
+			delta = DotProduct (ent->velocity, forward);
+			angles[PITCH] += delta * run_pitch->value;
+
+			delta = DotProduct (ent->velocity, right);
+			angles[ROLL] += delta * run_roll->value;
+
+			// add angles based on bob
+			delta = bobfracsin * bob_pitch->value * xyspeed;
+			if (ent->client->ps.pmove.pm_flags & PMF_DUCKED)
+				delta *= 6;		// crouching
+			angles[PITCH] += delta;
+			delta = bobfracsin * bob_roll->value * xyspeed;
+			if (ent->client->ps.pmove.pm_flags & PMF_DUCKED)
+				delta *= 6;		// crouching
+			if (bobcycle & 1)
+				delta = -delta;
+			angles[ROLL] += delta;
+		} else {
+			VectorCopy (ent->client->kick_angles, angles);
 		}
-		angles[PITCH] += ratio * ent->client->v_dmg_pitch;
-		angles[ROLL] += ratio * ent->client->v_dmg_roll;
-
-		// add pitch based on fall kick
-		ratio = (ent->client->fall_time - level.time) / FALL_TIME;
-		if (ratio < 0)
-			ratio = 0;
-		angles[PITCH] += ratio * ent->client->fall_value;
-
-		// add angles based on velocity
-		delta = DotProduct (ent->velocity, forward);
-		angles[PITCH] += delta * run_pitch->value;
-
-		delta = DotProduct (ent->velocity, right);
-		angles[ROLL] += delta * run_roll->value;
-
-		// add angles based on bob
-		delta = bobfracsin * bob_pitch->value * xyspeed;
-		if (ent->client->ps.pmove.pm_flags & PMF_DUCKED)
-			delta *= 6;		// crouching
-		angles[PITCH] += delta;
-		delta = bobfracsin * bob_roll->value * xyspeed;
-		if (ent->client->ps.pmove.pm_flags & PMF_DUCKED)
-			delta *= 6;		// crouching
-		if (bobcycle & 1)
-			delta = -delta;
-		angles[ROLL] += delta;
 	}
 
 	//===================================
@@ -370,9 +387,9 @@ void SV_CalcViewOffset (edict_t * ent)
 
 	// absolutely bound offsets
 	// so the view can never be outside the player box
-	clamp(v[0], -14, 14);
-	clamp(v[1], -14, 14);
-	clamp(v[2], -22, 30);
+	ent->client->ps.viewoffset[0] = Q_clipf(v[0], -14, 14);
+    ent->client->ps.viewoffset[1] = Q_clipf(v[1], -14, 14);
+    ent->client->ps.viewoffset[2] = Q_clipf(v[2], -22, 30);
 
 	VectorCopy (v, ent->client->ps.viewoffset);
 }
@@ -595,6 +612,11 @@ qboolean OnLadder( edict_t *ent )
 /*
 =================
 P_FallingDamage
+
+With esp_enhancedslippers, the player will take less damage from falls:
+0 = no change
+1 = 50% less damage
+2 = 25% increased fall height before damage
 =================
 */
 void P_FallingDamage (edict_t * ent)
@@ -602,6 +624,7 @@ void P_FallingDamage (edict_t * ent)
 	float delta;
 	int damage;
 	vec3_t dir, oldvelocity;
+	int fallheight = 30;  // Minimum height to fall to take damage, in quake units?
 
 	//if (!FRAMESYNC)
 	//	return;
@@ -613,6 +636,10 @@ void P_FallingDamage (edict_t * ent)
 	ent->client->ladder = OnLadder(ent);
 
 	if (lights_camera_action || ent->client->uvTime > 0)
+		return;
+	
+	// PaTMaN's jmod/jump LCA invulnerable
+	if (jump->value && ent->client->resp.toggle_lca)
 		return;
 	
 	if (ent->s.modelindex != 255)
@@ -634,7 +661,13 @@ void P_FallingDamage (edict_t * ent)
 		delta = ent->velocity[2] - oldvelocity[2];
 		ent->client->jumping = 0;
 	}
+
 	delta = delta * delta * 0.0001;
+
+	// If slippers are equipped and the cvar is set to 2, increase height before fall damage occurs
+	if (esp_enhancedslippers->value == 2 && INV_AMMO(ent, SLIP_NUM)) {
+        delta *= 0.75;
+	}
 
 	// never take damage if just release grapple or on grapple
 	if (level.framenum - ent->client->ctf_grapplereleaseframe <= 2*FRAMEDIV ||
@@ -687,33 +720,35 @@ void P_FallingDamage (edict_t * ent)
 		return;
 	}
 
-
+	// Play falling/landing sound
 	if (ent->health > 0)
 	{
 		if (delta >= 55)
 			ent->s.event = EV_FALLFAR;
-		else			// all falls are far
+		else
 			ent->s.event = EV_FALLFAR;
+		// Play different sound if wearing slippers
+		if (esp_enhancedslippers->value && INV_AMMO(ent, SLIP_NUM))
+			ent->s.event = EV_FALL;
 	}
 
 	ent->pain_debounce_framenum = KEYFRAME(FRAMEDIV);	// no normal pain sound
 
 	if (!DMFLAGS(DF_NO_FALLING))
 	{
-		damage = (int) (((delta - 30) / 2));
+		damage = (int) (((delta - fallheight) / 2));
 		if (damage < 1)
 			damage = 1;
 		// zucc scale this up
 		damage *= 10;
 
-		// darksaint - reduce damage if e_enhancedSlippers are on and equipped
-		if (e_enhancedSlippers->value && INV_AMMO(ent, SLIP_NUM))
+		// darksaint - reduce damage if esp_enhancedslippers are 1 and equipped
+		if (esp_enhancedslippers->value == 1 && INV_AMMO(ent, SLIP_NUM))
 			damage /= 2;
 
 		VectorSet (dir, 0, 0, 1);
 
-		if (jump->value)
-		{
+		if (jump->value && (!ent->client->resp.toggle_lca || lights_camera_action)) {
 			gi.cprintf(ent, PRINT_HIGH, "Fall Damage: %d\n", damage);
 			ent->client->resp.jmp_falldmglast = damage;
 		} else {
@@ -732,7 +767,7 @@ P_WorldEffects
 */
 void P_WorldEffects (void)
 {
-	qboolean breather;
+	//qboolean breather; // AQ2 doesn't use the breather
 	qboolean envirosuit;
 	int waterlevel, old_waterlevel;
 
@@ -746,7 +781,7 @@ void P_WorldEffects (void)
 	old_waterlevel = current_client->old_waterlevel;
 	current_client->old_waterlevel = waterlevel;
 
-	breather = current_client->breather_framenum > level.framenum;
+	//breather = current_client->breather_framenum > level.framenum;
 	envirosuit = current_client->enviro_framenum > level.framenum;
 
 	//
@@ -815,24 +850,25 @@ void P_WorldEffects (void)
 	if (waterlevel == 3)
 	{
 		// breather or envirosuit give air
-		if (breather || envirosuit)
-		{
-			current_player->air_finished_framenum = level.framenum + 10 * HZ;
+		// AQ2 doesn't use the rebreather
+		// if (breather || envirosuit)
+		// {
+		// 	current_player->air_finished_framenum = level.framenum + 10 * HZ;
 
-			if (((current_client->breather_framenum - level.framenum) % (25 * FRAMEDIV)) == 0)
-			{
-				if (!current_client->breather_sound)
-					gi.sound (current_player, CHAN_AUTO,
-					gi.soundindex("player/u_breath1.wav"), 1, ATTN_NORM, 0);
-				else
-					gi.sound (current_player, CHAN_AUTO,
-					gi.soundindex("player/u_breath2.wav"), 1, ATTN_NORM, 0);
-				current_client->breather_sound ^= 1;
-				PlayerNoise (current_player, current_player->s.origin,
-				PNOISE_SELF);
-				//FIXME: release a bubble?
-			}
-		}
+		// 	if (((current_client->breather_framenum - level.framenum) % (25 * FRAMEDIV)) == 0)
+		// 	{
+		// 		if (!current_client->breather_sound)
+		// 			gi.sound (current_player, CHAN_AUTO,
+		// 			gi.soundindex("player/u_breath1.wav"), 1, ATTN_NORM, 0);
+		// 		else
+		// 			gi.sound (current_player, CHAN_AUTO,
+		// 			gi.soundindex("player/u_breath2.wav"), 1, ATTN_NORM, 0);
+		// 		current_client->breather_sound ^= 1;
+		// 		PlayerNoise (current_player, current_player->s.origin,
+		// 		PNOISE_SELF);
+		// 		//FIXME: release a bubble?
+		// 	}
+		// }
 
 		// if out of air, start drowning
 		if (current_player->air_finished_framenum < level.framenum)
@@ -1225,17 +1261,28 @@ void Do_MedKit( edict_t *ent )
 	if( ent->client->bandaging && (ent->client->bleeding || ent->client->leg_damage) )
 		return;
 
-	for( i = 0; i < 2; i ++ )
-	{
-		// Make sure we have any medkit and need to use it.
-		if( ent->client->medkit <= 0 )
+	// Don't use a medkit if ent doesn't have one, and don't use one if ent is at max_health
+	if( ent->client->medkit <= 0 )
 			return;
-		if( ent->health >= ent->max_health )
-			return;
+	if( ent->health >= ent->max_health )
+		return;
 
-		ent->health ++;
-		ent->client->medkit --;
+	// Espionage handles medkits differently, it uses medkits like healthpacks
+	if (!esp->value) {
+		for( i = 0; i < 2; i ++ ){
+			// One medkit == One health point, use all medkits in one bandage attempt
+			ent->health++;
+			ent->client->medkit--;
+		}
+	} else {
+		// Subtract one medkit, gain health per medkit_value
+		ent->health = ent->health + (int)medkit_value->value;
+		ent->client->medkit--;
 	}
+
+	// Handle overheals
+	if (ent->health > 100)
+		ent->health = 100;
 }
 
 
@@ -1351,6 +1398,27 @@ void ClientEndServerFrame (edict_t * ent)
 	current_player = ent;
 	current_client = ent->client;
 
+#if AQTION_EXTENSION
+	if (current_client->arrow)
+	{
+		// set new origin
+		VectorCopy(ent->s.origin, current_client->arrow->s.origin);
+		current_client->arrow->s.origin[2] += ent->maxs[2];
+		current_client->arrow->s.origin[2] += 8 + sin(level.time * 2);
+		//
+
+		// fix oldorigin
+		VectorCopy(ent->s.old_origin, current_client->arrow->s.old_origin);
+		current_client->arrow->s.old_origin[2] += ent->maxs[2];
+		current_client->arrow->s.old_origin[2] += 8 + sin((level.time - FRAMETIME) * 2);
+		//
+
+		current_client->arrow->s.modelindex = level.model_arrow + (current_client->resp.team - 1);
+		current_client->arrow->s.renderfx = RF_INDICATOR;
+		current_client->arrow->dimension_visible = (1 << current_client->resp.team);
+	}
+#endif
+
 	//AQ2:TNG - Slicer : Stuffs the client x seconds after he enters the server, needed for Video check
 	if (ent->client->resp.checkframe[0] <= level.framenum)
 	{
@@ -1373,7 +1441,7 @@ void ClientEndServerFrame (edict_t * ent)
 			|| video_check_glclear->value || darkmatch->value)
 		{
 			if (ent->client->resp.vidref && Q_stricmp(ent->client->resp.vidref, "soft"))
-				stuffcmd (ent, "%cpsi $gl_modulate $gl_lockpvs $gl_clear $gl_dynamic $gl_driver\n");
+				stuffcmd (ent, "%cpsi $gl_modulate $gl_lockpvs $gl_clear $gl_dynamic $gl_brightness $gl_driver\n");
 		}
 
 	}
@@ -1625,4 +1693,14 @@ void ClientEndServerFrame (edict_t * ent)
 	*/
 
 	RadioThink(ent);
+
+	// Paril's hit markers (don't draw for bots!)
+	// if (ent->client->damage_dealt > 0 && !ent->is_bot)
+	// {
+	// 	gi.WriteByte(svc_temp_entity);
+	// 	gi.WriteByte(TE_DAMAGE_DEALT);
+	// 	gi.WriteShort(min(ent->client->damage_dealt, INT16_MAX));
+	// 	gi.unicast(ent, false);
+	// 	ent->client->damage_dealt = 0;
+	// }
 }

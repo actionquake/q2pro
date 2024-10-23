@@ -27,9 +27,9 @@ with this program; if not, write to the Free Software Foundation, Inc.,
 #define MIN_MATCHES     64
 #define MAX_MATCHES     250000000
 
-typedef struct commandPrompt_s {
-    int     inputLineNum;
-    int     historyLineNum;
+typedef struct {
+    unsigned    inputLineNum;
+    unsigned    historyLineNum;
 
     inputField_t inputLine;
     char        *history[HISTORY_SIZE];
@@ -50,5 +50,5 @@ char *Prompt_Action(commandPrompt_t *prompt);
 void Prompt_HistoryUp(commandPrompt_t *prompt);
 void Prompt_HistoryDown(commandPrompt_t *prompt);
 void Prompt_Clear(commandPrompt_t *prompt);
-void Prompt_SaveHistory(commandPrompt_t *prompt, const char *filename, int lines);
+void Prompt_SaveHistory(const commandPrompt_t *prompt, const char *filename, int lines);
 void Prompt_LoadHistory(commandPrompt_t *prompt, const char *filename);

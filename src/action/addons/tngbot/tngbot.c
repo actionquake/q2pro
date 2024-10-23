@@ -70,18 +70,24 @@
  */
 
 #include <stdio.h>
-#include <unistd.h>
 #include <stdlib.h>
+#include <errno.h>
+#include <string.h>
+#include <fcntl.h>
+
+#ifdef _WIN32
+#include <io.h>
+#include <winsock2.h>
+#define bzero(a,b) memset(a,0,b)
+#else
+#include <unistd.h>
 #include <sys/types.h>
 #include <sys/socket.h>
 #include <netdb.h>
 #include <netinet/in.h>
 #include <arpa/inet.h>
-#include <errno.h>
-#include <string.h>
 #include <sys/time.h>
-#include <fcntl.h>
-
+#endif
 
 #define IRC_PORT 6667
 #define BUFLEN   2048

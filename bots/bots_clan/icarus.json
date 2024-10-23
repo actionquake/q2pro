@@ -1,0 +1,35 @@
+{
+    "name": "Icarus",
+    "clan_id": 70,
+    "skin": "male/chowda",
+    "weaponPreferences": {
+        "mk23": 0.6,
+        "dual_mk23": 0.5,
+        "mp5": 0.5,
+        "m4": 0.1,
+        "m3": 0.3,
+        "hc": 0.6,
+        "sniper": 0.4,
+        "knives": 0.7,
+        "grenades": 0.4
+    },
+    "itemPreferences": {
+        "vest": 0.7,
+        "helm": 0.8,
+        "laser": 0.3,
+        "silencer": 0.7,
+        "slippers": 0.8,
+        "bandolier": 0.5
+    },
+    "coreTraits": {
+        "aggressiveness": 0.5,
+        "teamwork": 0.0,
+        "curiosity": 0.7,
+        "aimingSkill": 0.7,
+        "reactionTime": 0.5,
+        "communicationFreq": 0.3,
+        "communicationTone": 0.6,
+        "movementStyle": 0.7,
+        "objectiveFocus": 0.6
+    }
+}

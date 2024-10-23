@@ -88,7 +88,7 @@ int motd_num_lines;
  * the "###" designator at end of sections.
  * -Fireblade
  */
-void ReadConfigFile()
+void ReadConfigFile(void)
 {
 	FILE *config_file;
 	char buf[MAX_STR_LEN], reading_section[MAX_STR_LEN], inipath[MAX_STR_LEN];
@@ -174,7 +174,7 @@ void ReadConfigFile()
 	fclose(config_file);
 }
 
-void ReadMOTDFile()
+void ReadMOTDFile(void)
 {
 	FILE *motd_file;
 	char buf[1000];
@@ -215,6 +215,104 @@ void ReadMOTDFile()
 	fclose(motd_file);
 }
 
+void _PrintGameMsgToClient(char* msg, edict_t* ent)
+{
+	if (!auto_menu->value || ent->client->pers.menu_shown) {
+		gi.centerprintf(ent, "%s", msg);
+	} else {
+		gi.cprintf(ent, PRINT_LOW, "%s", msg);
+	}
+}
+
+/*
+Take great care with this function.  It will continuously print
+a message to players after the MOTD, so it should be something
+that has a condition where it would stop printing.  Otherwise,
+you'll have a lot of pissed off players who will complain about
+text on their screen.
+
+Only return true if conditions are met, else return false.
+*/
+
+qboolean PrintGameMessage(edict_t *ent)
+{
+	/* 
+		Each condition is checked in order, and the first one that is true
+		will be the message that is sent.  If none are true, then no message
+		will be sent (return false)
+
+		Always always ALWAYS remember to add
+			msg_ready = true;
+		if you add a new message, else the condition check will not work and the
+		function will return false.
+	*/
+
+	char msg_buf[1024];
+	qboolean msg_ready = false;
+
+	/*
+		This message is printed before a game starts in Espionage, and tells players what they need to do
+		in order to begin the match.  Once both teams have leaders, this message will no longer be printed.
+	*/
+	if (esp->value) {
+		edict_t* t1leader = HAVE_LEADER(TEAM1) ? teams[TEAM1].leader : NULL;
+		edict_t* t2leader = HAVE_LEADER(TEAM2) ? teams[TEAM2].leader : NULL;
+		edict_t* t3leader = HAVE_LEADER(TEAM3) ? teams[TEAM3].leader : NULL;
+
+		if (!team_round_going && !AllTeamsHaveLeaders()) {
+			if (espsettings.esp_mode == ESPMODE_ATL) {
+				if (teamCount == 2)
+					Q_snprintf(msg_buf, sizeof(msg_buf), "Waiting for each team to have a leader\nType 'leader' in console to volunteer for duty.\n\n Team 1 Leader: %s\n Team 2 Leader: %s", t1leader ? t1leader->client->pers.netname : "None", t2leader ? t2leader->client->pers.netname : "None");
+				else if (teamCount == 3)
+					Q_snprintf(msg_buf, sizeof(msg_buf), "Waiting for each team to have a leader\nType 'leader' in console to volunteer for duty.\n\n Team 1 Leader: %s\n Team 2 Leader: %s\n Team 3 Leader: %s", t1leader ? t1leader->client->pers.netname : "None", t2leader ? t2leader->client->pers.netname : "None", t3leader ? t3leader->client->pers.netname : "None");
+				msg_ready = true;
+			} else if (espsettings.esp_mode == ESPMODE_ETV) {
+				if (ent->client->resp.team == TEAM1)
+					Q_snprintf(msg_buf, sizeof(msg_buf), "Your team needs a leader!\nType 'leader' in console to volunteer for duty.");
+				else
+					Q_snprintf(msg_buf, sizeof(msg_buf), "Waiting for team 1 to have a leader...\n");
+				msg_ready = true;
+			}
+		}
+	}
+
+	// ****
+	/* Add all other messages before this one */
+	// ****
+	/*
+		This should be the last message to be evaluated, and will only be printed if the match is about to start.  It will
+		present the game rules to the players for a given game type during the countdown, and disappear when the countdown ends
+	*/
+
+	if (!team_game_going && (team_round_countdown > 20 && team_round_countdown < 101)) {
+		char* matchRules = PrintMatchRules();
+		if (matchRules != NULL && matchRules[0] != '\0') {
+			Q_snprintf(msg_buf, sizeof(msg_buf), "%s", matchRules);
+			msg_ready = true;
+		}
+	}
+
+	// ----- No more messages after this point ----- //
+	if (msg_ready) {
+		_PrintGameMsgToClient(msg_buf, ent);
+		return true;
+	}
+	// By default, return false to stop printing
+	return false;
+}
+
+void Cmd_PrintRules_f(edict_t *ent)
+{
+	char msg_buf[1024];
+
+	char* matchRules = PrintMatchRules();
+	if (matchRules != NULL && matchRules[0] != '\0') {
+		Q_snprintf(msg_buf, sizeof(msg_buf), "%s", matchRules);
+	}
+
+	_PrintGameMsgToClient(msg_buf, ent);
+}
+
 // AQ2:TNG Deathwatch - Ohh, lovely MOTD - edited it
 void PrintMOTD(edict_t * ent)
 {
@@ -224,7 +322,7 @@ void PrintMOTD(edict_t * ent)
 
 
 	//Welcome Message. This shows the Version Number and website URL, followed by an empty line
-	strcpy(msg_buf, TNG_TITLE " v" VERSION "\n" "http://aq2-tng.sourceforge.net/" "\n\n");
+	strcpy(msg_buf, TNG_TITLE " v" VERSION "\n" TNG_WEBSITE " -- " AQ2_DISCORD "\n");
 	lines = 3;
 
 	/*
@@ -261,6 +359,10 @@ void PrintMOTD(edict_t * ent)
 					server_type = "3 Team Deathmatch";
 				else
 					server_type = "Team Deathmatch";
+			}
+			else if (esp->value) // Is it Espionage?
+			{
+				server_type = "Espionage";
 			}
 			else if (use_tourney->value) // Is it Tourney?
 				server_type = "Tourney";
@@ -345,6 +447,58 @@ void PrintMOTD(edict_t * ent)
 			}
 		}
 
+		/* new Espionage settings added here for better readability */
+		if(esp->value) {
+			strcat(msg_buf, "\n");
+			lines++;
+
+			if(espsettings.esp_mode == ESPMODE_ATL)
+				sprintf(msg_buf + strlen(msg_buf), "Espionage Mode: Assassinate the Leader\n");
+			else if(espsettings.esp_mode == ESPMODE_ETV)
+				sprintf(msg_buf + strlen(msg_buf), "Espionage Mode: Escort the VIP\n");
+			else
+				strcat(msg_buf, "\n");
+			lines++;
+
+			if(teams[TEAM1].respawn_timer > -1 || teams[TEAM2].respawn_timer > -1 || teams[TEAM3].respawn_timer > -1) {
+				sprintf(msg_buf + strlen(msg_buf), "Spawn times:\n");
+				if(teams[TEAM1].respawn_timer > -1)
+					sprintf(msg_buf + strlen(msg_buf), "%s: %ds\n", teams[TEAM1].name, teams[TEAM1].respawn_timer);
+				if(teams[TEAM2].respawn_timer > -1)
+					sprintf(msg_buf + strlen(msg_buf), "%s: %ds\n", teams[TEAM2].name, teams[TEAM2].respawn_timer);
+				if(use_3teams->value){
+					if(teams[TEAM3].respawn_timer > -1)
+						sprintf(msg_buf + strlen(msg_buf), "%s: %ds\n", teams[TEAM3].name, teams[TEAM3].respawn_timer);
+					}
+				strcat(msg_buf, "\n");
+				lines++;
+			}
+
+			qboolean espcspawns = false;
+			if (espsettings.custom_spawns[0] != NULL)
+				espcspawns = true;
+			sprintf(msg_buf + strlen(msg_buf), "Using %s spawns\n",
+					(espcspawns ? "CUSTOM" : "ORIGINAL"));
+			lines++;
+
+			if(strlen(espsettings.author) > 0) {
+				strcat(msg_buf, "\n");
+				lines++;
+
+				sprintf(msg_buf + strlen(msg_buf), "Espionage configuration by %s\n",
+						espsettings.author);
+				lines++;
+
+				/* no comment without author, grr */
+				if(strlen(espsettings.name) > 0) {
+					/* max line length is 39 chars + new line */
+					Q_strncatz(msg_buf + strlen(msg_buf), espsettings.name, 39);
+					strcat(msg_buf, "\n");
+					lines++;
+				}
+			}
+		}
+
 		/*
 		   Darkmatch
 		 */
@@ -383,10 +537,19 @@ void PrintMOTD(edict_t * ent)
 			else
 				strcat(msg_buf, "Roundlimit: none");
 
-			if ((int)roundtimelimit->value) // What is the roundtimelimit?
-				sprintf(msg_buf + strlen(msg_buf), "  Roundtimelimit: %d\n", (int)roundtimelimit->value);
-			else
-				strcat(msg_buf, "  Roundtimelimit: none\n");
+			if (!esp->value) { // No Roundtimelimits on Espionage
+				if ((int)roundtimelimit->value) // What is the roundtimelimit?
+					sprintf(msg_buf + strlen(msg_buf), "  Roundtimelimit: %d\n", (int)roundtimelimit->value);
+				else
+					strcat(msg_buf, "  Roundtimelimit: none\n");
+			}
+
+			if (esp->value && espsettings.esp_mode == ESPMODE_ETV) {
+				if ((int) capturelimit->value) // What is the capturelimit?
+					sprintf(msg_buf + strlen(msg_buf), "  Capturelimit: %d\n", (int) capturelimit->value);
+				else
+					strcat(msg_buf, "  Capturelimit: none\n");
+			}
 			lines++;
 		}
 		else if (ctf->value) // If we're in CTF, we want to know the capturelimit
@@ -417,7 +580,7 @@ void PrintMOTD(edict_t * ent)
 			if (tgren->value > 0)
 				sprintf(grenade_num, "%d grenade%s", (int)tgren->value, (int)tgren->value == 1 ? "" : "s");
 
-			sprintf(msg_buf + strlen(msg_buf), "Bandolier w/ %s%s%s\n",
+			sprintf(msg_buf + strlen(msg_buf), " Bandolier w/ %s%s%s\n",
 				!(ir->value) ? "no IR" : "",
 				(tgren->value > 0 && !(ir->value)) ? " & " : "",
 				tgren->value > 0 ? grenade_num : "");
@@ -1108,6 +1271,60 @@ void AddSplat(edict_t * self, vec3_t point, trace_t * tr)
 	gi.linkentity(splat);
 }
 
+const char* PrintWeaponName( int weapon )
+{
+	switch( weapon )
+	{
+		case MK23_NUM:
+			return MK23_NAME;
+		case MP5_NUM:
+			return MP5_NAME;
+		case M4_NUM:
+			return M4_NAME;
+		case M3_NUM:
+			return M3_NAME;
+		case HC_NUM:
+			return HC_NAME;
+		case SNIPER_NUM:
+			return SNIPER_NAME;
+		case DUAL_NUM:
+			return DUAL_NAME;
+		case KNIFE_NUM:
+			return KNIFE_NAME;
+		case GRENADE_NUM:
+			return GRENADE_NAME;
+		default:
+			return "unknown";
+	}
+}
+
+const char* PrintItemName( int item )
+{
+	switch( item )
+	{
+		case KEV_NUM:
+			return KEV_NAME;
+		case LASER_NUM:
+			return LASER_NAME;
+		case SLIP_NUM:
+			return SLIP_NAME;
+		case SIL_NUM:
+			return SIL_NAME;
+		case BAND_NUM:
+			return BAND_NAME;
+		case HELM_NUM:
+			return HELM_NAME;
+		case C_KIT_NUM:
+			return C_KIT_NAME;
+		case S_KIT_NUM:
+			return S_KIT_NAME;
+		case A_KIT_NUM:
+			return A_KIT_NAME;
+		default:
+			return "unknown";
+	}
+}
+
 /* %-variables for chat msgs */
 
 void GetWeaponName( edict_t *ent, char *buf )
@@ -1243,4 +1460,52 @@ void GetNearbyTeammates( edict_t *self, char *buf )
 
 		Q_strncatz( buf, nearby_teammates[l]->client->pers.netname, PARSE_BUFSIZE );
 	}
+}
+
+void Cmd_Pickup_f(edict_t* ent)
+{
+	// Check if pickup messaging is enabled first
+
+	if (!use_pickup->value) {
+		gi.cprintf(ent, PRINT_HIGH, MSG_PICKUP_UNSUPPORTED);
+		return;
+	}
+
+	#if AQTION_CURL
+		char msg[256];
+		// Check if msgflags supports this
+		if (!(MSGFLAGS(PICKUP_REQ_MSG))) {
+			gi.cprintf(ent, PRINT_HIGH, MSG_PICKUP_SERVER_ERROR);
+			gi.dprintf("%s: %s attempted to send a pickup request but msgflags needs to be %d\n", __func__, ent->client->pers.netname, PICKUP_REQ_MSG);
+			return;
+		}
+
+		// Check if we have requisite information to send a pickup request
+		if (hostname->string != NULL && strcmp(server_ip->string, "") != 0 && net_port->string != NULL) {
+			snprintf(msg, sizeof(msg), "**%s** is requesting a pickup match at **%s (%s:%s)**", ent->client->pers.netname, hostname->string, server_ip->string, net_port->string);
+		} else {
+			gi.cprintf(ent, PRINT_HIGH, MSG_PICKUP_SERVER_ERROR);
+			gi.dprintf("%s: %s attempted to send a pickup request but the server is missing hostname, server_ip and/or net_port\n", __func__, ent->client->pers.netname);
+			return;
+		}
+
+		// Check if we're within the 5 minute timer (spam prevention)
+		if(message_timer_check(300)) {
+			CALL_DISCORD_WEBHOOK(msg, PICKUP_REQ_MSG, AWARD_NONE);
+			gi.bprintf(PRINT_HIGH, MSG_PICKUP_SERVER_SUCCESS);
+			gi.dprintf("** Pickup request sent by %s **\n", ent->client->pers.netname);
+		} else {
+			gi.cprintf(ent, PRINT_HIGH, MSG_PICKUP_TOO_EARLY);
+		}
+	#else
+		gi.cprintf(ent, PRINT_HIGH, MSG_PICKUP_UNSUPPORTED);
+	#endif
+}
+
+// Menu item
+void _PickupRequest (edict_t * ent, pmenu_t * p)
+{
+	PMenu_Close(ent);
+
+	Cmd_Pickup_f(ent);
 }

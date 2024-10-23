@@ -1,0 +1,35 @@
+{
+    "name": "Barbarian",
+    "clan_id": null,
+    "skin": "male/adidas",
+    "weaponPreferences": {
+        "mk23": 0.8,
+        "dual_mk23": 0.6,
+        "mp5": 0.3,
+        "m4": 0.3,
+        "m3": 0.6,
+        "hc": 0.7,
+        "sniper": 0.3,
+        "knives": 0.3,
+        "grenades": 0.4
+    },
+    "itemPreferences": {
+        "vest": 0.7,
+        "helm": 0.4,
+        "laser": 0.3,
+        "silencer": 0.5,
+        "slippers": 0.6,
+        "bandolier": 0.3
+    },
+    "coreTraits": {
+        "aggressiveness": 0.0,
+        "teamwork": 0.6,
+        "curiosity": 0.3,
+        "aimingSkill": 0.4,
+        "reactionTime": 0.6,
+        "communicationFreq": 0.5,
+        "communicationTone": 0.8,
+        "movementStyle": 0.3,
+        "objectiveFocus": 0.5
+    }
+}

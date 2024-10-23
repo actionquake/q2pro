@@ -23,17 +23,16 @@ env:
 
   MESON_ARGS_WIN: >-
     -Dsdl2=disabled
-    -Dwayland=disabled
-    -Dwrap_mode=forcefallback
     -Dx11=disabled
-
-  MESON_ARGS_LINUX_WAYLAND: >-
-    -Dwindows-crash-dumps=disabled
-    -Dwrap_mode=nofallback
-
-  MESON_ARGS_LINUX_X11: >-
-    -Dwindows-crash-dumps=disabled
     -Dwayland=disabled
+    -Dwindows-egl=true
+    -Dwrap_mode=forcefallback
+
+  MESON_ARGS_LINUX: >-
+    -Dx11=enabled
+    -Dwayland=enabled
+    -Dsdl2=enabled
+    -Dwindows-crash-dumps=disabled
     -Dwrap_mode=nofallback
 
   MESON_ARGS_MAC: >-
@@ -116,51 +115,7 @@ jobs:
             builddir/q2proded.exe
             builddir/gamex86_64.dll
 
-  linux64-x11:
-    runs-on: ubuntu-20.04
-    #runs-on: [self-hosted, x86]
-    strategy:
-      matrix:
-        cc: [gcc, clang]
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Install dependencies
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y python3 python3-pip libsdl2-dev libopenal-dev \
-          libpng-dev libjpeg-dev zlib1g-dev mesa-common-dev \
-          libcurl4-openssl-dev libx11-dev libxi-dev \
-          libavcodec-dev libavformat-dev libavutil-dev \
-          libswresample-dev libswscale-dev \
-          uuid-dev patchelf
-          pip3 install meson ninja
-
-      - name: Build
-        run: |
-          meson setup ${{ env.MESON_ARGS }} ${{ env.MESON_ARGS_LINUX_X11 }} builddir
-          meson compile -C builddir
-        env:
-          CC: ${{ matrix.cc }}
-
-      - name: patchelf path to discord_game_sdk.so
-        run: |
-          patchelf --replace-needed /home/runner/work/q2pro/q2pro/extern/discord/lib/x86_64/discord_game_sdk.so ./discord_game_sdk.so builddir/q2pro
-
-      - name: Set binaries as executable
-        run: |
-          chmod +x builddir/q2pro*
-          
-      - name: Generate Linux x64 archives
-        uses: actions/upload-artifact@v4
-        with:
-          name: q2pro-lin-${{ matrix.cc }}
-          path: |
-            builddir/q2pro
-            builddir/q2proded
-            builddir/gamex86_64.so
-
-  linux64-wayland:
+  linux64:
     runs-on: ubuntu-22.04
     #runs-on: [self-hosted, x86]
     strategy:
@@ -180,9 +135,16 @@ jobs:
           libswresample-dev libswscale-dev \
           uuid-dev patchelf
 
+      - name: Install libjansson libs from source
+        run: |
+          wget https://github.com/akheron/jansson/releases/download/v2.14/jansson-2.14.tar.gz
+          tar xfz jansson-2.14.tar.gz && cd jansson-2.14
+          CFLAGS="-fPIC" ./configure
+          make && sudo make install
+
       - name: Build
         run: |
-          meson setup ${{ env.MESON_ARGS }} ${{ env.MESON_ARGS_LINUX_WAYLAND }} builddir
+          meson setup ${{ env.MESON_ARGS }} ${{ env.MESON_ARGS_LINUX }} builddir
           meson compile -C builddir
         env:
           CC: ${{ matrix.cc }}
@@ -198,7 +160,7 @@ jobs:
       - name: Generate Linux x64 archives
         uses: actions/upload-artifact@v4
         with:
-          name: q2pro-lin-wayland-${{ matrix.cc }}
+          name: q2pro-lin-${{ matrix.cc }}-x86_64
           path: |
             builddir/q2pro
             builddir/q2proded
@@ -223,7 +185,7 @@ jobs:
 
       - name: Build
         run: |
-          meson setup ${{ env.MESON_ARGS }} ${{ env.MESON_ARGS_LINUX_X11 }} builddir
+          meson setup ${{ env.MESON_ARGS }} ${{ env.MESON_ARGS_LINUX }} builddir
           meson compile -vC builddir
         env:
           CC: ${{ matrix.cc }}
@@ -239,7 +201,7 @@ jobs:
           path: |
             builddir/q2pro
             builddir/q2proded
-            builddir/gamearm.so
+            builddir/gamearm64.so
 
   darwin:
     runs-on: macos-13
@@ -248,7 +210,9 @@ jobs:
 
       - name: Install dependencies
         run: |
-          brew install pkg-config meson libpng sdl2 openal-soft zlib curl ffmpeg jpeg-turbo
+          brew install pkg-config meson libpng sdl2 \
+          openal-soft zlib curl ffmpeg jpeg-turbo \
+          ossp-uuid jansson
 
       - name: Build
         run: |
@@ -279,7 +243,7 @@ jobs:
 
       - name: Install dependencies
         run: |
-          brew install pkg-config meson libpng sdl2 openal-soft zlib curl ffmpeg jpeg-turbo
+          brew install pkg-config meson libpng sdl2 openal-soft zlib curl ffmpeg jpeg-turbo jansson ossp-uuid
 
       - name: Build
         run: |
@@ -301,4 +265,4 @@ jobs:
           path: |
             builddir/q2pro
             builddir/q2proded
-            builddir/gamex86_64.dylib
+            builddir/gamearm64.dylib

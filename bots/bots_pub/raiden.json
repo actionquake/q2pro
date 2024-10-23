@@ -1,0 +1,35 @@
+{
+    "name": "Raiden",
+    "clan_id": null,
+    "skin": "messiah/cptahab",
+    "weaponPreferences": {
+        "mk23": 0.2,
+        "dual_mk23": 0.6,
+        "mp5": 1.0,
+        "m4": 0.4,
+        "m3": 0.6,
+        "hc": 0.3,
+        "sniper": 0.6,
+        "knives": 0.5,
+        "grenades": 0.3
+    },
+    "itemPreferences": {
+        "vest": 0.6,
+        "helm": 0.3,
+        "laser": 0.4,
+        "silencer": 0.6,
+        "slippers": 0.4,
+        "bandolier": 0.0
+    },
+    "coreTraits": {
+        "aggressiveness": 0.4,
+        "teamwork": 0.4,
+        "curiosity": 0.2,
+        "aimingSkill": 0.1,
+        "reactionTime": 0.5,
+        "communicationFreq": 0.3,
+        "communicationTone": 0.3,
+        "movementStyle": 0.6,
+        "objectiveFocus": 0.2
+    }
+}

@@ -155,12 +155,23 @@
 #include "g_local.h"
 
 
+typedef struct {
+	char* name;
+	void (*spawn)(edict_t* ent);
+} spawn_func_t;
+
+typedef struct {
+	char* name;
+	unsigned ofs;
+	fieldtype_t type;
+	int flags;
+} spawn_field_t;
+
 typedef struct
 {
   const char *name;
   void (*spawn) (edict_t * ent);
-}
-spawn_t;
+} spawn_t;
 
 
 void SP_item_health (edict_t * self);
@@ -242,6 +253,7 @@ void SP_misc_teleporter (edict_t * self);
 void SP_misc_teleporter_dest (edict_t * self);
 void SP_misc_blackhole (edict_t * self);
 
+
 //zucc - item replacement function
 void CheckItem (edict_t * ent);
 int LoadFlagsFromFile (const char *mapname);
@@ -255,80 +267,229 @@ char ml_creator[101];
 placedata_t locationbase[MAX_LOCATIONS_IN_BASE];
 
 //AQ2:M
-static const spawn_t spawns[] = {
-  {"item_health", SP_item_health},
-  {"item_health_small", SP_item_health_small},
-  {"item_health_large", SP_item_health_large},
-  {"item_health_mega", SP_item_health_mega},
-  {"info_player_start", SP_info_player_start},
-  {"info_player_deathmatch", SP_info_player_deathmatch},
-  {"info_player_intermission", SP_info_player_intermission},
-  {"info_player_team1", SP_info_player_team1},
-  {"info_player_team2", SP_info_player_team2},
-  {"func_plat", SP_func_plat},
-  {"func_button", SP_func_button},
-  {"func_door", SP_func_door},
-  {"func_door_secret", SP_func_door_secret},
-  {"func_door_rotating", SP_func_door_rotating},
-  {"func_rotating", SP_func_rotating},
-  {"func_train", SP_func_train},
-  {"func_water", SP_func_water},
-  {"func_conveyor", SP_func_conveyor},
-  {"func_areaportal", SP_func_areaportal},
-  {"func_clock", SP_func_clock},
-  {"func_wall", SP_func_wall},
-  {"func_object", SP_func_object},
-  {"func_timer", SP_func_timer},
-  {"func_explosive", SP_func_explosive},
-  {"func_killbox", SP_func_killbox},
-  {"trigger_always", SP_trigger_always},
-  {"trigger_once", SP_trigger_once},
-  {"trigger_multiple", SP_trigger_multiple},
-  {"trigger_relay", SP_trigger_relay},
-  {"trigger_push", SP_trigger_push},
-  {"trigger_hurt", SP_trigger_hurt},
-  {"trigger_key", SP_trigger_key},
-  {"trigger_counter", SP_trigger_counter},
-  {"trigger_elevator", SP_trigger_elevator},
-  {"trigger_gravity", SP_trigger_gravity},
-  {"trigger_monsterjump", SP_trigger_monsterjump},
-  {"target_temp_entity", SP_target_temp_entity},
-  {"target_speaker", SP_target_speaker},
-  {"target_explosion", SP_target_explosion},
-  {"target_changelevel", SP_target_changelevel},
-  {"target_splash", SP_target_splash},
-  {"target_spawner", SP_target_spawner},
-  {"target_blaster", SP_target_blaster},
-  {"target_crosslevel_trigger", SP_target_crosslevel_trigger},
-  {"target_crosslevel_target", SP_target_crosslevel_target},
-  {"target_laser", SP_target_laser},
-  {"target_earthquake", SP_target_earthquake},
-  {"target_character", SP_target_character},
-  {"target_string", SP_target_string},
-  {"worldspawn", SP_worldspawn},
-  {"viewthing", SP_viewthing},
-  {"light_mine1", SP_light_mine1},
-  {"light_mine2", SP_light_mine2},
-  {"info_null", SP_info_null},
-  {"func_group", SP_info_null},
-  {"info_notnull", SP_info_notnull},
-  {"path_corner", SP_path_corner},
-  {"misc_banner", SP_misc_banner},
-  {"misc_ctf_banner", SP_misc_ctf_banner},
-  {"misc_ctf_small_banner", SP_misc_ctf_small_banner},
-  {"misc_satellite_dish", SP_misc_satellite_dish},
-  {"misc_viper", SP_misc_viper},
-  {"misc_viper_bomb", SP_misc_viper_bomb},
-  {"misc_bigviper", SP_misc_bigviper},
-  {"misc_strogg_ship", SP_misc_strogg_ship},
-  {"misc_teleporter", SP_misc_teleporter},
-  {"misc_teleporter_dest", SP_misc_teleporter_dest},
-  {"trigger_teleport", SP_trigger_teleport},
-  {"info_teleport_destination", SP_info_teleport_destination},
-  {"misc_blackhole", SP_misc_blackhole},
 
-  {NULL, NULL}
+static const spawn_func_t spawn_funcs[] = {
+	{"item_health", SP_item_health},
+	{"item_health_small", SP_item_health_small},
+	{"item_health_large", SP_item_health_large},
+	{"item_health_mega", SP_item_health_mega},
+
+	{"info_player_start", SP_info_player_start},
+	{"info_player_deathmatch", SP_info_player_deathmatch},
+	{"info_player_intermission", SP_info_player_intermission},
+
+	{"info_player_team1", SP_info_player_team1},
+	{"info_player_team2", SP_info_player_team2},
+
+	{"func_plat", SP_func_plat},
+	{"func_button", SP_func_button},
+	{"func_door", SP_func_door},
+	{"func_door_secret", SP_func_door_secret},
+	{"func_door_rotating", SP_func_door_rotating},
+	{"func_rotating", SP_func_rotating},
+	{"func_train", SP_func_train},
+	{"func_water", SP_func_water},
+	{"func_conveyor", SP_func_conveyor},
+	{"func_areaportal", SP_func_areaportal},
+	{"func_clock", SP_func_clock},
+	{"func_wall", SP_func_wall},
+	{"func_object", SP_func_object},
+	{"func_timer", SP_func_timer},
+	{"func_explosive", SP_func_explosive},
+	{"func_killbox", SP_func_killbox},
+
+	{"trigger_always", SP_trigger_always},
+	{"trigger_once", SP_trigger_once},
+	{"trigger_multiple", SP_trigger_multiple},
+	{"trigger_relay", SP_trigger_relay},
+	{"trigger_push", SP_trigger_push},
+	{"trigger_hurt", SP_trigger_hurt},
+	{"trigger_key", SP_trigger_key},
+	{"trigger_counter", SP_trigger_counter},
+	{"trigger_elevator", SP_trigger_elevator},
+	{"trigger_gravity", SP_trigger_gravity},
+	{"trigger_monsterjump", SP_trigger_monsterjump},
+
+	{"target_temp_entity", SP_target_temp_entity},
+	{"target_speaker", SP_target_speaker},
+	{"target_explosion", SP_target_explosion},
+	{"target_changelevel", SP_target_changelevel},
+	//  {"target_secret", SP_target_secret},
+	//  {"target_goal", SP_target_goal},
+	{"target_splash", SP_target_splash},
+	{"target_spawner", SP_target_spawner},
+	{"target_blaster", SP_target_blaster},
+	{"target_crosslevel_trigger", SP_target_crosslevel_trigger},
+	{"target_crosslevel_target", SP_target_crosslevel_target},
+	{"target_laser", SP_target_laser},
+	//  {"target_help", SP_target_help},
+	// monster      {"target_actor", SP_target_actor},
+	//  {"target_lightramp", SP_target_lightramp},
+	{"target_earthquake", SP_target_earthquake},
+	{"target_character", SP_target_character},
+	{"target_string", SP_target_string},
+
+	{"worldspawn", SP_worldspawn},
+	{"viewthing", SP_viewthing},
+
+	//  {"light", SP_light},
+	{"light_mine1", SP_light_mine1},
+	{"light_mine2", SP_light_mine2},
+	{"info_null", SP_info_null},
+	{"func_group", SP_info_null},
+	{"info_notnull", SP_info_notnull},
+	{"path_corner", SP_path_corner},
+	{"misc_banner", SP_misc_banner},
+	{"misc_ctf_banner", SP_misc_ctf_banner},
+	{"misc_ctf_small_banner", SP_misc_ctf_small_banner},
+	{"misc_satellite_dish", SP_misc_satellite_dish},
+	{"misc_viper", SP_misc_viper},
+	{"misc_viper_bomb", SP_misc_viper_bomb},
+	{"misc_bigviper", SP_misc_bigviper},
+	{"misc_strogg_ship", SP_misc_strogg_ship},
+	{"misc_teleporter", SP_misc_teleporter},
+	{"misc_teleporter_dest", SP_misc_teleporter_dest},
+	{"trigger_teleport", SP_trigger_teleport},
+	{"info_teleport_destination", SP_info_teleport_destination},
+	{"misc_blackhole", SP_misc_blackhole},
+
+	{NULL, NULL}
 };
+
+static const spawn_field_t spawn_fields[] = {
+	{"classname", FOFS(classname), F_LSTRING},
+	{"model", FOFS(model), F_LSTRING},
+	{"spawnflags", FOFS(spawnflags), F_INT},
+	{"speed", FOFS(speed), F_FLOAT},
+	{"accel", FOFS(accel), F_FLOAT},
+	{"decel", FOFS(decel), F_FLOAT},
+	{"target", FOFS(target), F_LSTRING},
+	{"targetname", FOFS(targetname), F_LSTRING},
+	{"pathtarget", FOFS(pathtarget), F_LSTRING},
+	{"deathtarget", FOFS(deathtarget), F_LSTRING},
+	{"killtarget", FOFS(killtarget), F_LSTRING},
+	{"combattarget", FOFS(combattarget), F_LSTRING},
+	{"message", FOFS(message), F_LSTRING},
+	{"team", FOFS(team), F_LSTRING},
+	{"wait", FOFS(wait), F_FLOAT},
+	{"delay", FOFS(delay), F_FLOAT},
+	{"random", FOFS(random), F_FLOAT},
+	{"move_origin", FOFS(move_origin), F_VECTOR},
+	{"move_angles", FOFS(move_angles), F_VECTOR},
+	{"style", FOFS(style), F_INT},
+	{"count", FOFS(count), F_INT},
+	{"health", FOFS(health), F_INT},
+	{"sounds", FOFS(sounds), F_INT},
+	{"light", 0, F_IGNORE},
+	{"dmg", FOFS(dmg), F_INT},
+	{"mass", FOFS(mass), F_INT},
+	{"volume", FOFS(volume), F_FLOAT},
+	{"attenuation", FOFS(attenuation), F_FLOAT},
+	{"map", FOFS(map), F_LSTRING},
+	{"origin", FOFS(s.origin), F_VECTOR},
+	{"angles", FOFS(s.angles), F_VECTOR},
+	{"angle", FOFS(s.angles), F_ANGLEHACK},
+
+	{NULL}
+};
+
+// temp spawn vars -- only valid when the spawn function is called
+static const spawn_field_t temp_fields[] = {
+	{"lip", STOFS(lip), F_INT},
+	{"distance", STOFS(distance), F_INT},
+	{"height", STOFS(height), F_INT},
+	{"noise", STOFS(noise), F_LSTRING},
+	{"pausetime", STOFS(pausetime), F_FLOAT},
+	{"item", STOFS(item), F_LSTRING},
+
+	{"gravity", STOFS(gravity), F_LSTRING},
+	{"sky", STOFS(sky), F_LSTRING},
+	{"skyrotate", STOFS(skyrotate), F_FLOAT},
+	{"skyaxis", STOFS(skyaxis), F_VECTOR},
+	{"minyaw", STOFS(minyaw), F_FLOAT},
+	{"maxyaw", STOFS(maxyaw), F_FLOAT},
+	{"minpitch", STOFS(minpitch), F_FLOAT},
+	{"maxpitch", STOFS(maxpitch), F_FLOAT},
+	{"nextmap", STOFS(nextmap), F_LSTRING},
+
+	{NULL}
+};
+
+// Unused legacy spawns
+// static const spawn_t spawns[] = {
+//   {"item_health", SP_item_health},
+//   {"item_health_small", SP_item_health_small},
+//   {"item_health_large", SP_item_health_large},
+//   {"item_health_mega", SP_item_health_mega},
+//   {"info_player_start", SP_info_player_start},
+//   {"info_player_deathmatch", SP_info_player_deathmatch},
+//   {"info_player_intermission", SP_info_player_intermission},
+//   {"info_player_team1", SP_info_player_team1},
+//   {"info_player_team2", SP_info_player_team2},
+//   {"func_plat", SP_func_plat},
+//   {"func_button", SP_func_button},
+//   {"func_door", SP_func_door},
+//   {"func_door_secret", SP_func_door_secret},
+//   {"func_door_rotating", SP_func_door_rotating},
+//   {"func_rotating", SP_func_rotating},
+//   {"func_train", SP_func_train},
+//   {"func_water", SP_func_water},
+//   {"func_conveyor", SP_func_conveyor},
+//   {"func_areaportal", SP_func_areaportal},
+//   {"func_clock", SP_func_clock},
+//   {"func_wall", SP_func_wall},
+//   {"func_object", SP_func_object},
+//   {"func_timer", SP_func_timer},
+//   {"func_explosive", SP_func_explosive},
+//   {"func_killbox", SP_func_killbox},
+//   {"trigger_always", SP_trigger_always},
+//   {"trigger_once", SP_trigger_once},
+//   {"trigger_multiple", SP_trigger_multiple},
+//   {"trigger_relay", SP_trigger_relay},
+//   {"trigger_push", SP_trigger_push},
+//   {"trigger_hurt", SP_trigger_hurt},
+//   {"trigger_key", SP_trigger_key},
+//   {"trigger_counter", SP_trigger_counter},
+//   {"trigger_elevator", SP_trigger_elevator},
+//   {"trigger_gravity", SP_trigger_gravity},
+//   {"trigger_monsterjump", SP_trigger_monsterjump},
+//   {"target_temp_entity", SP_target_temp_entity},
+//   {"target_speaker", SP_target_speaker},
+//   {"target_explosion", SP_target_explosion},
+//   {"target_changelevel", SP_target_changelevel},
+//   {"target_splash", SP_target_splash},
+//   {"target_spawner", SP_target_spawner},
+//   {"target_blaster", SP_target_blaster},
+//   {"target_crosslevel_trigger", SP_target_crosslevel_trigger},
+//   {"target_crosslevel_target", SP_target_crosslevel_target},
+//   {"target_laser", SP_target_laser},
+//   {"target_earthquake", SP_target_earthquake},
+//   {"target_character", SP_target_character},
+//   {"target_string", SP_target_string},
+//   {"worldspawn", SP_worldspawn},
+//   {"viewthing", SP_viewthing},
+//   {"light_mine1", SP_light_mine1},
+//   {"light_mine2", SP_light_mine2},
+//   {"info_null", SP_info_null},
+//   {"func_group", SP_info_null},
+//   {"info_notnull", SP_info_notnull},
+//   {"path_corner", SP_path_corner},
+//   {"misc_banner", SP_misc_banner},
+//   {"misc_ctf_banner", SP_misc_ctf_banner},
+//   {"misc_ctf_small_banner", SP_misc_ctf_small_banner},
+//   {"misc_satellite_dish", SP_misc_satellite_dish},
+//   {"misc_viper", SP_misc_viper},
+//   {"misc_viper_bomb", SP_misc_viper_bomb},
+//   {"misc_bigviper", SP_misc_bigviper},
+//   {"misc_strogg_ship", SP_misc_strogg_ship},
+//   {"misc_teleporter", SP_misc_teleporter},
+//   {"misc_teleporter_dest", SP_misc_teleporter_dest},
+//   {"trigger_teleport", SP_trigger_teleport},
+//   {"info_teleport_destination", SP_info_teleport_destination},
+//   {"misc_blackhole", SP_misc_blackhole},
+
+//   {NULL, NULL}
+// };
 
 /*
 ===============
@@ -339,7 +500,8 @@ Finds the spawn function for the entity and calls it
 */
 void ED_CallSpawn (edict_t * ent)
 {
-	const spawn_t *s;
+	const spawn_func_t* s;
+	//const spawn_t *s;
 	gitem_t *item;
 	int i;
 
@@ -377,7 +539,7 @@ void ED_CallSpawn (edict_t * ent)
 				else
 					G_FreeEdict(ent);
 			}
-			else if (ctf->value)
+			else if (ctf->value || esp->value)
 			{
 				if(item->flags & IT_FLAG)
 					SpawnItem(ent, item);
@@ -395,15 +557,24 @@ void ED_CallSpawn (edict_t * ent)
 		}
 	}
 
+
 	// check normal spawn functions
-	for (s = spawns; s->name; s++)
-	{
-		if (!strcmp (s->name, ent->classname))
-		{			// found it
-			s->spawn (ent);
+	for (s = spawn_funcs; s->name; s++) {
+		if (!strcmp(s->name, ent->classname)) {
+			// found it
+			s->spawn(ent);
 			return;
 		}
 	}
+	// check normal spawn functions
+	// for (s = spawns; s->name; s++)
+	// {
+	// 	if (!strcmp (s->name, ent->classname))
+	// 	{			// found it
+	// 		s->spawn (ent);
+	// 		return;
+	// 	}
+	// }
 
 	/*if(strcmp (ent->classname, "freed") != 0) {
 		gi.dprintf ("%s doesn't have a spawn function\n", ent->classname);
@@ -466,21 +637,19 @@ void CheckItem (edict_t * ent)
 ED_NewString
 =============
 */
-char *ED_NewString (char *string)
+char* ED_NewString(const char* string)
 {
-	char *newb, *new_p;
-	int i, l;
+	char* newb, * new_p;
+	int     i, l;
 
-	l = strlen (string) + 1;
+	l = strlen(string) + 1;
 
-	newb = gi.TagMalloc (l, TAG_LEVEL);
+	newb = gi.TagMalloc(l, TAG_LEVEL);
 
 	new_p = newb;
 
-	for (i = 0; i < l; i++)
-	{
-		if (string[i] == '\\' && i < l - 1)
-		{
+	for (i = 0; i < l; i++) {
+		if (string[i] == '\\' && i < l - 1) {
 			i++;
 			if (string[i] == 'n')
 				*new_p++ = '\n';
@@ -494,8 +663,24 @@ char *ED_NewString (char *string)
 	return newb;
 }
 
+/*
+===============
+FindField
 
+Finds valid fields in the fields array
+Returns NULL if not found
+===============
+*/
 
+field_t* FindField(const char* key) {
+    field_t* f;
+    for (f = fields; f->name; f++) {
+        if (!Q_stricmp(f->name, key)) {
+            return f;
+        }
+    }
+    return NULL;
+}
 
 /*
 ===============
@@ -505,58 +690,64 @@ Takes a key/value pair and sets the binary values
 in an edict
 ===============
 */
-void ED_ParseField (char *key, char *value, edict_t * ent)
+static bool ED_ParseField(const spawn_field_t* fields, const char* key, const char* value, byte* b)
 {
-	field_t *f;
-	byte *b;
-	float v;
-	vec3_t vec;
+	const spawn_field_t* f;
+	float   v;
+	vec3_t  vec;
 
-	for (f = fields; f->name; f++)
-	{
-		// FFL_NOSPAWN check in the following added in 3.20.  Adding here.  -FB
-		if (!(f->flags & FFL_NOSPAWN) && !Q_stricmp (f->name, key))
-		{			// found it
-			if (f->flags & FFL_SPAWNTEMP)
-				b = (byte *)&st;
-			else
-				b = (byte *)ent;
+	if (FindField(key) == NULL) {
+		gi.dprintf("ED_ParseField: %s is not a valid field\n", key);
+		return false;
+	}
+
+	// for (f = fields; f->name; f++)
+	// {
+	// 	// FFL_NOSPAWN check in the following added in 3.20.  Adding here.  -FB
+	// 	if (!(f->flags & FFL_NOSPAWN) && !Q_stricmp (f->name, key))
+	// 	{			// found it
+	// 		if (f->flags & FFL_SPAWNTEMP)
+	// 			b = (byte *)&st;
+	// 		else
+	// 			b = (byte *)ent;
+	for (f = fields; f->name; f++) {
+		if (!Q_stricmp(f->name, key)) {
 
 			switch (f->type)
 			{
 			case F_LSTRING:
-				*(char **) (b + f->ofs) = ED_NewString (value);
+				*(char**)(b + f->ofs) = ED_NewString(value);
 				break;
 			case F_VECTOR:
-                if (sscanf(value, "%f %f %f", &vec[0], &vec[1], &vec[2]) != 3) {
-                    gi.dprintf("ED_ParseField: couldn't parse '%s'\n", key);
-                    VectorClear(vec);
-                }
-				((float *) (b + f->ofs))[0] = vec[0];
-				((float *) (b + f->ofs))[1] = vec[1];
-				((float *) (b + f->ofs))[2] = vec[2];
-			break;
+				if (sscanf(value, "%f %f %f", &vec[0], &vec[1], &vec[2]) != 3) {
+					gi.dprintf("%s: couldn't parse '%s'\n", __func__, key);
+					VectorClear(vec);
+				}
+				((float*)(b + f->ofs))[0] = vec[0];
+				((float*)(b + f->ofs))[1] = vec[1];
+				((float*)(b + f->ofs))[2] = vec[2];
+				break;
 			case F_INT:
-				*(int *) (b + f->ofs) = atoi (value);
+				*(int*)(b + f->ofs) = atoi(value);
 				break;
 			case F_FLOAT:
-				*(float *) (b + f->ofs) = atof (value);
+				*(float*)(b + f->ofs) = atof(value);
 				break;
 			case F_ANGLEHACK:
-				v = atof (value);
-				((float *) (b + f->ofs))[0] = 0;
-				((float *) (b + f->ofs))[1] = v;
-				((float *) (b + f->ofs))[2] = 0;
+				v = atof(value);
+				((float*)(b + f->ofs))[0] = 0;
+				((float*)(b + f->ofs))[1] = v;
+				((float*)(b + f->ofs))[2] = 0;
 				break;
 			case F_IGNORE:
 				break;
 			default:
 				break;
 			}
-			return;
+			return true;
 		}
 	}
-	gi.dprintf("ED_ParseField: %s is not a field\n", key);
+	return false;
 }
 
 /*
@@ -567,50 +758,47 @@ Parses an edict out of the given string, returning the new position
 ed should be a properly initialized empty edict.
 ====================
 */
-char *
-ED_ParseEdict (char *data, edict_t * ent)
+void ED_ParseEdict(const char** data, edict_t* ent)
 {
-  qboolean init;
-  char keyname[256];
-  char *com_token;
+	bool        init;
+	char* key, * value;
 
-  init = false;
-  memset (&st, 0, sizeof (st));
+	init = false;
+	memset(&st, 0, sizeof(st));
 
-// go through all the dictionary pairs
-  while (1)
-    {
-      // parse key
-      com_token = COM_ParseC(&data);
-      if (com_token[0] == '}')
-	break;
-      if (!data)
-	gi.error ("ED_ParseEntity: EOF without closing brace");
+	// go through all the dictionary pairs
+	while (1) {
+		// parse key
+		key = COM_Parse(data);
+		if (key[0] == '}')
+			break;
+		if (!*data)
+			gi.error("%s: EOF without closing brace", __func__);
 
-      Q_strncpyz(keyname, com_token, sizeof(keyname));
+		// parse value
+		value = COM_Parse(data);
+		if (!*data)
+			gi.error("%s: EOF without closing brace", __func__);
 
-      // parse value  
-      com_token = COM_ParseC(&data);
-      if (!data)
-	gi.error ("ED_ParseEntity: EOF without closing brace");
+		if (value[0] == '}')
+			gi.error("%s: closing brace without data", __func__);
 
-      if (com_token[0] == '}')
-	gi.error ("ED_ParseEntity: closing brace without data");
+		init = true;
 
-      init = true;
+		// keynames with a leading underscore are used for utility comments,
+		// and are immediately discarded by quake
+		if (key[0] == '_')
+			continue;
 
-      // keynames with a leading underscore are used for utility comments,
-      // and are immediately discarded by quake
-      if (keyname[0] == '_')
-	continue;
+		if (!ED_ParseField(spawn_fields, key, value, (byte*)ent)) {
+			if (!ED_ParseField(temp_fields, key, value, (byte*)&st)) {
+				gi.dprintf("%s: %s is not a field\n", __func__, key);
+			}
+		}
+	}
 
-      ED_ParseField (keyname, com_token, ent);
-    }
-
-  if (!init)
-    memset (ent, 0, sizeof (*ent));
-
-  return data;
+	if (!init)
+		memset(ent, 0, sizeof(*ent));
 }
 
 
@@ -816,7 +1004,48 @@ void G_LoadLocations( void )
 	gi.dprintf( "Found %d locations.\n", ml_count );
 }
 
-int Gamemode(void) // These are distinct game modes; you cannot have a teamdm tourney mode, for example
+static char *const lightstyles[] = {
+    // 0 normal
+    "m",
+
+    // 1 FLICKER (first variety)
+    "mmnmmommommnonmmonqnmmo",
+
+    // 2 SLOW STRONG PULSE
+    "abcdefghijklmnopqrstuvwxyzyxwvutsrqponmlkjihgfedcba",
+
+    // 3 CANDLE (first variety)
+    "mmmmmaaaaammmmmaaaaaabcdefgabcdefg",
+
+    // 4 FAST STROBE
+    "mamamamamama",
+
+    // 5 GENTLE PULSE 1
+    "jklmnopqrstuvwxyzyxwvutsrqponmlkj",
+
+    // 6 FLICKER (second variety)
+    "nmonqnmomnmomomno",
+
+    // 7 CANDLE (second variety)
+    "mmmaaaabcdefgmmmmaaaammmaamm",
+
+    // 8 CANDLE (third variety)
+    "mmmaaammmaaammmabcdefaaaammmmabcdefmmmaaaa",
+
+    // 9 SLOW STROBE (fourth variety)
+    "aaaaaaaazzzzzzzz",
+
+    // 10 FLUORESCENT FLICKER
+    "mmamammmmammamamaaamammma",
+
+    // 11 SLOW PULSE NOT FADE TO BLACK
+    "abcdefghijklmnopqrrqponmlkjihgfedcba",
+};
+
+/*
+These are distinct game modes; you cannot have a teamdm tourney mode, for example
+*/
+int Gamemode(void)
 {
 	int gamemode = 0;
 	if (teamdm->value) {
@@ -831,13 +1060,20 @@ int Gamemode(void) // These are distinct game modes; you cannot have a teamdm to
 		gamemode = GM_DOMINATION;
 	} else if (deathmatch->value) {
 		gamemode = GM_DEATHMATCH;
+	} else if (esp->value && espsettings.esp_mode == ESPMODE_ATL) {
+		gamemode = GM_ASSASSINATE_THE_LEADER;
+	} else if (esp->value && espsettings.esp_mode == ESPMODE_ETV) {
+		gamemode = GM_ESCORT_THE_VIP;
 	}
 	return gamemode;
 }
 
+/*
+These are gamemode flags that change the rules of gamemodes.
+For example, you can have a darkmatch matchmode 3team teamplay server
+*/
 int Gamemodeflag(void)
-// These are gamemode flags that change the rules of gamemodes.
-// For example, you can have a darkmatch matchmode 3team teamplay server
+
 {
 	int gamemodeflag = 0;
 	char gmfstr[16];
@@ -880,6 +1116,10 @@ void SpawnEntities (const char *mapname, const char *entities, const char *spawn
 		teams[i].ready = teams[i].locked = 0;
 		teams[i].pauses_used = teams[i].wantReset = 0;
 		teams[i].captain = NULL;
+		if (esp->value) {
+			teams[i].leader = NULL;
+			teams[i].leader_dead = false;
+		}
 		gi.cvar_forceset(teams[i].teamscore->name, "0");
 	}
 
@@ -894,7 +1134,15 @@ void SpawnEntities (const char *mapname, const char *entities, const char *spawn
 	if (jump->value)
 	{
 	gi.cvar_forceset(gm->name, "jump");
+
+	// Force disable settings for jump mode
 	gi.cvar_forceset(stat_logs->name, "0"); // Turn off stat logs for jump mode
+	gi.cvar_forceset(dm_choose->name, "0"); // Turn off dm_choose for jump mode
+	gi.cvar_forceset(uvtime->name, "0"); // Turn off uvtime in jump mode
+	gi.cvar_forceset(unique_items->name, "6"); // Enables holding all items at once, if toggled
+	gi.cvar_forceset(am->name, "0"); // Turns off attract mode
+	gi.cvar_forceset(ltk_loadbots->name, "0"); // Turns off bots
+	//
 		if (teamplay->value)
 		{
 			gi.dprintf ("Jump Enabled - Forcing teamplay ff\n");
@@ -979,8 +1227,57 @@ void SpawnEntities (const char *mapname, const char *entities, const char *spawn
 		Q_strncpyz(teams[TEAM2].name, "BLUE", sizeof(teams[TEAM2].name));
 		Q_strncpyz(teams[TEAM1].skin, "male/ctf_r", sizeof(teams[TEAM1].skin));
 		Q_strncpyz(teams[TEAM2].skin, "male/ctf_b", sizeof(teams[TEAM2].skin));
-		Q_strncpyz(teams[TEAM1].skin_index, "i_ctf1", sizeof(teams[TEAM1].skin_index));
-		Q_strncpyz(teams[TEAM2].skin_index, "i_ctf2", sizeof(teams[TEAM2].skin_index));
+		Q_strncpyz(teams[TEAM1].skin_index, "ctf_r", sizeof(teams[TEAM1].skin_index));
+		Q_strncpyz(teams[TEAM2].skin_index, "ctf_b", sizeof(teams[TEAM2].skin_index));
+	}
+	else if (esp->value)
+	{
+	gi.cvar_forceset(gm->name, "esp");
+		//gameSettings |= GS_WEAPONCHOOSE;
+		gameSettings |= (GS_ROUNDBASED | GS_WEAPONCHOOSE);
+
+		// Make sure teamplay is enabled
+		if (!teamplay->value)
+		{
+			gi.dprintf ("Espionage Enabled - Forcing teamplay on\n");
+			gi.cvar_forceset(teamplay->name, "1");
+		}
+		// ETV mode doesn't support 3 teams, but ATL does
+		if (espsettings.esp_mode == ESPMODE_ETV && use_3teams->value) {
+			gi.dprintf ("Espionage ETV Enabled - Incompatible with 3 Teams, reverting to ATL mode\n");
+			EspForceEspionage(ESPMODE_ATL);
+		}
+		if(teamdm->value)
+		{
+			gi.dprintf ("Espionage Enabled - Forcing Team DM off\n");
+			gi.cvar_forceset(teamdm->name, "0");
+		}
+		if (use_tourney->value)
+		{
+			gi.dprintf ("Espionage Enabled - Forcing Tourney off\n");
+			gi.cvar_forceset(use_tourney->name, "0");
+		}
+		if (dom->value)
+		{
+			gi.dprintf ("Espionage Enabled - Forcing Domination off\n");
+			gi.cvar_forceset(dom->name, "0");
+		}
+		if ((int)dmflags->value & DF_NO_FRIENDLY_FIRE)
+		{
+			gi.dprintf ("Espionage Enabled - Forcing Friendly Fire off\n");
+			gi.cvar_forceset(dmflags->name, va("%i", (int)dmflags->value | DF_NO_FRIENDLY_FIRE));
+		}
+		// uvtime is controlled via respawn logic
+		if (uvtime->value)
+		{
+			gi.cvar_forceset(uvtime->name, "0");
+		}
+		// Sane defaults for timelimit or roundlimit
+		// favoring a roundlimit over a timelimit, if not defined
+		if (!roundlimit->value)
+			gi.cvar_forceset(roundlimit->name, "20");
+		else if (!timelimit->value)
+			gi.cvar_forceset(timelimit->name, "20");
 	}
 	else if (dom->value)
 	{
@@ -1011,10 +1308,10 @@ void SpawnEntities (const char *mapname, const char *entities, const char *spawn
 		Q_strncpyz(teams[TEAM3].name, "GREEN", sizeof(teams[TEAM3].name));
 		Q_strncpyz(teams[TEAM1].skin, "male/ctf_r", sizeof(teams[TEAM1].skin));
 		Q_strncpyz(teams[TEAM2].skin, "male/ctf_b", sizeof(teams[TEAM2].skin));
-		Q_strncpyz(teams[TEAM3].skin, "male/commando", sizeof(teams[TEAM3].skin));
-		Q_strncpyz(teams[TEAM1].skin_index, "i_ctf1", sizeof(teams[TEAM1].skin_index));
-		Q_strncpyz(teams[TEAM2].skin_index, "i_ctf2", sizeof(teams[TEAM2].skin_index));
-		Q_strncpyz(teams[TEAM3].skin_index, "i_pack", sizeof(teams[TEAM3].skin_index));
+		Q_strncpyz(teams[TEAM3].skin, "male/ctf_g", sizeof(teams[TEAM3].skin));
+		Q_strncpyz(teams[TEAM1].skin_index, "ctf_r_i", sizeof(teams[TEAM1].skin_index));
+		Q_strncpyz(teams[TEAM2].skin_index, "ctf_b_i", sizeof(teams[TEAM2].skin_index));
+		Q_strncpyz(teams[TEAM3].skin_index, "ctf_g_i", sizeof(teams[TEAM3].skin_index));
 	}
 	else if(teamdm->value)
 	{
@@ -1064,6 +1361,16 @@ void SpawnEntities (const char *mapname, const char *entities, const char *spawn
 			gi.dprintf ("Matchmode Enabled - Forcing Tourney off\n");
 			gi.cvar_forceset(use_tourney->name, "0");
 		}
+		if (esp->value && esp_matchmode->value)
+		{
+			gi.dprintf ("Matchmode Enabled - Forcing Espionage defaults\n");
+			MM_EspDefaultSettings();
+		}
+		if (auto_join->value == 2)
+		{
+			gi.dprintf ("Matchmode Enabled - Forcing auto_join off\n");
+			gi.cvar_forceset(auto_join->name, "0");
+		}
 	}
 	else if (use_tourney->value)
 	{
@@ -1095,8 +1402,10 @@ void SpawnEntities (const char *mapname, const char *entities, const char *spawn
 	if (matchmode->value)
 	{
 		gameSettings |= GS_MATCHMODE;
-		gi.dprintf ("Matchmode Enabled - Forcing g_spawn_items off\n");
-		gi.cvar_forceset(g_spawn_items->name, "0"); // Turn off spawning of items for matchmode games
+		if (g_spawn_items->value) {
+			gi.dprintf ("Matchmode Enabled - Forcing g_spawn_items off\n");
+			gi.cvar_forceset(g_spawn_items->name, "0"); // Turn off spawning of items for matchmode games
+		}
 	}
 	if (use_3teams->value)
 	{
@@ -1115,10 +1424,9 @@ void SpawnEntities (const char *mapname, const char *entities, const char *spawn
 
 	// Set serverinfo correctly for gamemodeflags
 	Gamemodeflag();
+	Gamemode();
 
-	#if USE_AQTION
-	generate_uuid();  // Run this once every time a map loads to generate a unique id for stats (game.matchid)
-	#endif
+	GENERATE_UUID(); // Run this once every time a map loads to generate a unique id for stats (game.matchid)
 
 #ifndef NO_BOTS
 	// Disconnect bots before we wipe entity data and lose track of is_bot.
@@ -1155,7 +1463,7 @@ void SpawnEntities (const char *mapname, const char *entities, const char *spawn
 		{
 			client->clientNum = i;
 
-			if( auto_join->value )
+			if( auto_join->value == 1 )
 				client->resp.team = saved_team;
 
 			// combine name and skin into a configstring
@@ -1180,7 +1488,7 @@ void SpawnEntities (const char *mapname, const char *entities, const char *spawn
 		else
 			ent = G_Spawn();
 
-		entities = ED_ParseEdict(entities, ent);
+		ED_ParseEdict(&entities, ent);
 
 		// yet another map hack
 		if (!Q_stricmp (level.mapname, "command")
@@ -1224,13 +1532,21 @@ void SpawnEntities (const char *mapname, const char *entities, const char *spawn
 			}
 		}
 	}
-	else if( dom->value )
-		DomLoadConfig( level.mapname );
+	else if(dom->value)
+		DomLoadConfig(level.mapname);
+	else if (esp->value)
+		EspLoadConfig(level.mapname);
 
 	G_FindTeams();
 
 	// TNG:Freud - Ghosts
 	num_ghost_players = 0;
+
+	if (ctf->value)
+	{
+		bot_ctf_status.flag1_home_node = INVALID;
+		bot_ctf_status.flag2_home_node = INVALID;
+	}
 
 	if (!(gameSettings & GS_WEAPONCHOOSE) && !jump->value)
 	{
@@ -1247,16 +1563,45 @@ void SpawnEntities (const char *mapname, const char *entities, const char *spawn
 
 	G_LoadLocations();
 
+	// High score load file
+	if (!matchmode->value) // Non-disruptive matchmode constraint
+		G_LoadScores();
+
 	SVCmd_CheckSB_f(); //rekkie -- silence ban
 
 	UnBan_TeamKillers();
 
+
+//rekkie -- s
 #ifndef NO_BOTS
-	// Reload nodes and any persistent bots.
-	ACEND_InitNodes();
-	ACEND_LoadNodes();
-	ACESP_LoadBotConfig();
+	if (bot_enable->value) {
+		BOTLIB_InitNavigation(NULL);
+	#ifdef USE_ZLIB
+		BOTLIB_LoadNavCompressed();
+	#else
+		BOTLIB_LoadNav();
+
+	#endif
+
+	//ACEND_LoadAAS(false); // This will also generate AAS if it doesn't exist
+	//ACEND_BSP(NULL);
+
+	// Bot connections
+	memset(&bot_connections, 0, sizeof(bot_connections));
+
+	// Player noises
+	memset(&botlib_noises, 0, sizeof(botlib_noises));
+
+	//rekkie -- Fake Bot Client -- s
+	SV_BotClearClients();
+	//gi.SV_BotClearClients(); // So the server can clear all fake bot clients
+	//rekkie -- Fake Bot Client -- e
+
+	if(bot_personality->value)
+		BOTLIB_PersonalityFile();
+	}
 #endif
+//rekkie -- e
 }
 
 
@@ -1369,18 +1714,11 @@ void G_SetupStatusbar( void )
 			Q_strncatz(level.statusbar, "xr -50 yt 2 num 3 14 ", sizeof(level.statusbar));
 
 		if (ctf->value)
-		{
-			Q_strncatz(level.statusbar, 
-				// Red Team
-				"yb -164 " "if 24 " "xr -24 " "pic 24 " "endif " "xr -60 " "num 2 26 "
-				// Blue Team
-				"yb -140 " "if 25 " "xr -24 " "pic 25 " "endif " "xr -60 " "num 2 27 "
-				// Flag carried
-				"if 23 " "yt 26 " "xr -24 " "pic 23 " "endif ",
-				sizeof(level.statusbar) );
-		}
+			CTFSetupStatusbar();
 		else if( dom->value )
 			DomSetupStatusbar();
+		else if( esp->value )
+			EspSetupStatusbar();
 		else if( jump->value )
 			strcpy( level.statusbar, jump_statusbar );
 	}
@@ -1473,8 +1811,7 @@ G_UpdatePlayerStatusbar
 void G_UpdatePlayerStatusbar( edict_t * ent, int force )
 {
 	char *playerStatusbar;
-
-	if (!teamplay->value || teamCount != 2 || spectator_hud->value < 0 || (spectator_hud->value == 0 && !(ent->client->pers.spec_flags & SPECFL_SPECHUD))) {
+	if (!teamplay->value || teamCount != 2 || spectator_hud->value <= 0 || !(ent->client->pers.spec_flags & SPECFL_SPECHUD)) {
 		return;
 	}
 
@@ -1557,13 +1894,15 @@ void SP_worldspawn (edict_t * ent)
 	gi.configstring(CS_SKYROTATE, va("%f", st.skyrotate));
 	gi.configstring(CS_SKYAXIS, va("%f %f %f", st.skyaxis[0], st.skyaxis[1], st.skyaxis[2]));
 	gi.configstring(CS_CDTRACK, va("%i", ent->sounds));
-	gi.configstring(CS_MAXCLIENTS, va("%i", game.maxclients));
+	gi.configstring(game.csr.maxclients, va("%i", game.maxclients));
 
 	G_SetupStatusbar();
 	gi.configstring(CS_STATUSBAR, level.statusbar);
 
 	level.pic_health = gi.imageindex("i_health");
 	gi.imageindex("field_3");
+	level.pic_esp_respawn_icon = gi.imageindex("i_ctf1t"); // Espionage respawn icon
+	level.pic_teamplay_timer_icon = gi.imageindex("i_ctf1t"); // Teamplay timer icon
 
 	// zucc - preload sniper stuff
 	level.pic_sniper_mode[1] = gi.imageindex("scope2x");
@@ -1608,24 +1947,27 @@ void SP_worldspawn (edict_t * ent)
 			gi.imageindex("sbfctf2");
 		}
 
-		for(i = TEAM1; i <= teamCount; i++)
-		{
-			if (teams[i].skin_index[0] == 0) {
-				// If the action.ini file isn't found, set default skins rather than kill the server
-				gi.dprintf("WARNING: No skin was specified for team %i in config file, server either could not find it or is does not exist.\n", i);
-				gi.dprintf("Setting default team names, skins and skin indexes.\n");
-				Q_strncpyz(teams[TEAM1].name, "RED", sizeof(teams[TEAM1].name));
-				Q_strncpyz(teams[TEAM2].name, "BLUE", sizeof(teams[TEAM2].name));
-				Q_strncpyz(teams[TEAM3].name, "GREEN", sizeof(teams[TEAM3].name));
-				Q_strncpyz(teams[TEAM1].skin, "male/ctf_r", sizeof(teams[TEAM1].skin));
-				Q_strncpyz(teams[TEAM2].skin, "male/ctf_b", sizeof(teams[TEAM2].skin));
-				Q_strncpyz(teams[TEAM3].skin, "male/commando", sizeof(teams[TEAM3].skin));
-				Q_strncpyz(teams[TEAM1].skin_index, "i_ctf1", sizeof(teams[TEAM1].skin_index));
-				Q_strncpyz(teams[TEAM2].skin_index, "i_ctf2", sizeof(teams[TEAM2].skin_index));
-				Q_strncpyz(teams[TEAM3].skin_index, "i_pack", sizeof(teams[TEAM3].skin_index));
-				//exit(1);
+		// Espionage HUD is setup in SetEspStats()
+		if (!esp->value && !ctf->value) {
+			for(i = TEAM1; i <= teamCount; i++)
+			{
+				if (teams[i].skin_index[0] == 0) {
+					// If the action.ini file isn't found, set default skins rather than kill the server
+					// Espionage has its own defaults
+					gi.dprintf("WARNING: No skin was specified for team %i in config file, server either could not find it or is does not exist.\n", i);
+					gi.dprintf("Setting default team names, skins and skin indexes.\n");
+					Q_strncpyz(teams[TEAM1].name, "RED", sizeof(teams[TEAM1].name));
+					Q_strncpyz(teams[TEAM2].name, "BLUE", sizeof(teams[TEAM2].name));
+					Q_strncpyz(teams[TEAM3].name, "GREEN", sizeof(teams[TEAM3].name));
+					Q_strncpyz(teams[TEAM1].skin, "male/ctf_r", sizeof(teams[TEAM1].skin));
+					Q_strncpyz(teams[TEAM2].skin, "male/ctf_b", sizeof(teams[TEAM2].skin));
+					Q_strncpyz(teams[TEAM3].skin, "male/ctf_g", sizeof(teams[TEAM3].skin));
+					Q_strncpyz(teams[TEAM1].skin_index, "ctf_r", sizeof(teams[TEAM1].skin_index));
+					Q_strncpyz(teams[TEAM2].skin_index, "ctf_b", sizeof(teams[TEAM2].skin_index));
+					Q_strncpyz(teams[TEAM3].skin_index, "ctf_g", sizeof(teams[TEAM3].skin_index));
+				}
+				level.pic_teamskin[i] = gi.imageindex(teams[i].skin_index);
 			}
-			level.pic_teamskin[i] = gi.imageindex(teams[i].skin_index);
 		}
 
 		level.snd_lights = gi.soundindex("atl/lights.wav");
@@ -1638,11 +1980,14 @@ void SP_worldspawn (edict_t * ent)
 	}
 
 	level.snd_silencer = gi.soundindex("misc/silencer.wav");	// all silencer weapons
-	level.snd_headshot = gi.soundindex("misc/headshot.wav");	// headshot sound
-	level.snd_vesthit = gi.soundindex("misc/vest.wav");		// kevlar hit
+	level.snd_headshot = gi.soundindex("misc/headshot.wav");	// the glorious headshot sound
+	level.snd_vesthit = gi.soundindex("misc/vest.wav");		// kevlar hit (pew pew)
 	level.snd_knifethrow = gi.soundindex("misc/flyloop.wav");	// throwing knife
-	level.snd_kick = gi.soundindex("weapons/kick.wav");	// not loaded by any item, kick sound
-	level.snd_noammo = gi.soundindex("weapons/noammo.wav");
+	level.snd_kick = gi.soundindex("weapons/kick.wav");	// kick and punch sound
+	level.snd_noammo = gi.soundindex("weapons/noammo.wav");  // click!
+	level.snd_grenhead = gi.soundindex("weapons/grenhead.wav");  // grenade impact to head
+	level.snd_grenhelm = gi.soundindex("weapons/grenhelm.wav");  // grenade impact to helmet
+	level.snd_grenbody = gi.soundindex("weapons/grenbody.wav");  //	grenade impact to body
 
 	gi.soundindex("tng/1_minute.wav");
 	gi.soundindex("tng/3_minutes.wav");
@@ -1661,6 +2006,15 @@ void SP_worldspawn (edict_t * ent)
 	gi.soundindex("world/xian1.wav");	// intermission music
 	gi.soundindex("misc/secret.wav");	// used for ctf swap sound
 	gi.soundindex("weapons/grenlf1a.wav");	// respawn sound
+
+	// Precache insane sound effects, 11 of them total (1-11)
+	int insanesounds;
+	for (insanesounds = 1; insanesounds < 12; insanesounds++)
+	{
+		char soundname[32];
+		sprintf(soundname, "insane/insane%i.wav", insanesounds);
+		gi.soundindex(soundname);
+	}
 
 	PrecacheItems();
 	PrecacheRadioSounds();
@@ -1697,7 +2051,7 @@ void SP_worldspawn (edict_t * ent)
 	gi.soundindex("*fall2.wav");
 	gi.soundindex("*gurp1.wav");	// drowning damage
 	gi.soundindex("*gurp2.wav");
-	gi.soundindex("*jump1.wav");	// player jump
+	//gi.soundindex("*jump1.wav");	// player jump - AQ2 doesn't use this
 	gi.soundindex("*pain25_1.wav");
 	gi.soundindex("*pain25_2.wav");
 	gi.soundindex("*pain50_1.wav");
@@ -1723,6 +2077,11 @@ void SP_worldspawn (edict_t * ent)
 
 	level.model_null = gi.modelindex("sprites/null.sp2");      // null sprite
 	level.model_lsight = gi.modelindex("sprites/lsight.sp2");  // laser sight dot sprite
+#if AQTION_EXTENSION
+	level.model_arrow = gi.modelindex("models/indicator/arrow_red.md2");
+	gi.modelindex("models/indicator/arrow_blue.md2");
+	gi.modelindex("models/indicator/arrow_green.md2");
+#endif
 
 	gi.soundindex("player/gasp1.wav");	// gasping for air
 	gi.soundindex("player/gasp2.wav");	// head breaking surface, not gasping
@@ -1747,7 +2106,6 @@ void SP_worldspawn (edict_t * ent)
 
 	sm_meat_index = gi.modelindex("models/objects/gibs/sm_meat/tris.md2");
 	gi.modelindex("models/objects/gibs/skull/tris.md2");
-	gi.modelindex("models/objects/gibs/head2/tris.md2");
 
 
 //
@@ -1763,59 +2121,15 @@ void SP_worldspawn (edict_t * ent)
 		3 - using the day_cycle to change the lights every xx seconds as defined by day_cycle
 	*/
 	if (darkmatch->value == 1)
-		gi.configstring (CS_LIGHTS + 0, "a");	// Pitch Black
+		gi.configstring (game.csr.lights + 0, "a");	// Pitch Black
 	else if (darkmatch->value == 2)
-		gi.configstring (CS_LIGHTS + 0, "b");	// Dusk
+		gi.configstring (game.csr.lights + 0, "b");	// Dusk
 	else
-		gi.configstring (CS_LIGHTS + 0, "m");	// 0 normal
+			gi.configstring (game.csr.lights + 0, "m");	// 0 normal
 
-	gi.configstring(CS_LIGHTS + 1, "mmnmmommommnonmmonqnmmo");	// 1 FLICKER (first variety)
-	gi.configstring(CS_LIGHTS + 2, "abcdefghijklmnopqrstuvwxyzyxwvutsrqponmlkjihgfedcba");	// 2 SLOW STRONG PULSE
-	gi.configstring(CS_LIGHTS + 3, "mmmmmaaaaammmmmaaaaaabcdefgabcdefg");	// 3 CANDLE (first variety)
-	gi.configstring(CS_LIGHTS + 4, "mamamamamama");	// 4 FAST STROBE
-	gi.configstring(CS_LIGHTS + 5, "jklmnopqrstuvwxyzyxwvutsrqponmlkj");	// 5 GENTLE PULSE 1
-	gi.configstring(CS_LIGHTS + 6, "nmonqnmomnmomomno");	// 6 FLICKER (second variety)
-	gi.configstring(CS_LIGHTS + 7, "mmmaaaabcdefgmmmmaaaammmaamm");	// 7 CANDLE (second variety)
-	gi.configstring(CS_LIGHTS + 8, "mmmaaammmaaammmabcdefaaaammmmabcdefmmmaaaa");	// 8 CANDLE (third variety)
-	gi.configstring(CS_LIGHTS + 9, "aaaaaaaazzzzzzzz");	// 9 SLOW STROBE (fourth variety)
-	gi.configstring(CS_LIGHTS + 10, "mmamammmmammamamaaamammma");	// 10 FLUORESCENT FLICKER
-	gi.configstring(CS_LIGHTS + 11, "abcdefghijklmnopqrrqponmlkjihgfedcba");	// 11 SLOW PULSE NOT FADE TO BLACK
-	// styles 32-62 are assigned by the light program for switchable lights
-	gi.configstring(CS_LIGHTS + 63, "a");	// 63 testing
-
-
-#ifdef AQTION_EXTENSION
-#ifdef AQTION_HUD
-	if (teamplay->value)
-	{
-		int base_y = -8;
-		int team_amt = 2;
-
-		if (use_3teams->value)
-		{
-			teams[TEAM3].ghud_icon = -1; // just so we know these are unused
-			teams[TEAM3].ghud_num = -1;  // 
-
-			base_y -= 112;
-			team_amt = 3;
-		}
-		else
-			base_y -= 72;
-
-		int i;
-		for (i = 1; i <= team_amt; i++)
-		{
-			teams[i].ghud_icon = Ghud_AddIcon(8, base_y, level.pic_teamskin[i], 32, 32);
-			Ghud_SetAnchor(teams[i].ghud_icon, 0, 1);
-
-			teams[i].ghud_num = Ghud_AddNumber(44, base_y + 2, 0);
-			Ghud_SetAnchor(teams[i].ghud_num, 0, 1);
-
-			base_y += 40;
-		}
-	}
-#endif
-#endif
+	for (int i = 0; i < q_countof(lightstyles); i++)
+        gi.configstring(game.csr.lights + i, lightstyles[i]);
+	gi.configstring(game.csr.lights + 63, "a");
 }
 
 int LoadFlagsFromFile (const char *mapname)
@@ -1887,7 +2201,7 @@ int LoadFlagsFromFile (const char *mapname)
 // This function changes the nearest two spawnpoint from each flag
 // to info_player_teamX, so the other team won't restart
 // beneath the flag of the other team
-void ChangePlayerSpawns ()
+void ChangePlayerSpawns (void)
 {
 	edict_t *flag1 = NULL, *flag2 = NULL;
 	edict_t *spot, *spot1, *spot2, *spot3, *spot4;

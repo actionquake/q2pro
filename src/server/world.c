@@ -100,21 +100,17 @@ SV_ClearWorld
 */
 void SV_ClearWorld(void)
 {
-    mmodel_t *cm;
-    edict_t *ent;
-    int i;
-
     memset(sv_areanodes, 0, sizeof(sv_areanodes));
     sv_numareanodes = 0;
 
     if (sv.cm.cache) {
-        cm = &sv.cm.cache->models[0];
+        const mmodel_t *cm = &sv.cm.cache->models[0];
         SV_CreateAreaNode(0, cm->mins, cm->maxs);
     }
 
     // make sure all entities are unlinked
-    for (i = 0; i < ge->max_edicts; i++) {
-        ent = EDICT_NUM(i);
+    for (int i = 0; i < ge->max_edicts; i++) {
+        edict_t *ent = EDICT_NUM(i);
         ent->area.next = ent->area.prev = NULL;
     }
 }
@@ -127,14 +123,12 @@ General purpose routine shared between game DLL and MVD code.
 Links entity to PVS leafs.
 ===============
 */
-void SV_LinkEdict(cm_t *cm, edict_t *ent)
+void SV_LinkEdict(const cm_t *cm, edict_t *ent)
 {
-    mleaf_t     *leafs[MAX_TOTAL_ENT_LEAFS];
-    int         clusters[MAX_TOTAL_ENT_LEAFS];
-    int         num_leafs;
-    int         i, j;
-    int         area;
-    mnode_t     *topnode;
+    const mleaf_t   *leafs[MAX_TOTAL_ENT_LEAFS];
+    int             clusters[MAX_TOTAL_ENT_LEAFS];
+    int             i, j, area, num_leafs;
+    const mnode_t   *topnode;
 
     // set the size
     VectorSubtract(ent->maxs, ent->mins, ent->size);
@@ -177,9 +171,9 @@ void SV_LinkEdict(cm_t *cm, edict_t *ent)
     ent->areanum = 0;
     ent->areanum2 = 0;
 
-    //get all leafs, including solids
+    // get all leafs, including solids
     num_leafs = CM_BoxLeafs(cm, ent->absmin, ent->absmax,
-                            leafs, MAX_TOTAL_ENT_LEAFS, &topnode);
+                            leafs, q_countof(leafs), &topnode);
 
     // set areas
     for (i = 0; i < num_leafs; i++) {
@@ -189,16 +183,15 @@ void SV_LinkEdict(cm_t *cm, edict_t *ent)
             // doors may legally straggle two areas,
             // but nothing should evern need more than that
             if (ent->areanum && ent->areanum != area) {
-                if (ent->areanum2 && ent->areanum2 != area && sv.state == ss_loading) {
+                if (ent->areanum2 && ent->areanum2 != area && sv.state == ss_loading)
                     Com_DPrintf("Object touching 3 areas at %s\n", vtos(ent->absmin));
-                }
                 ent->areanum2 = area;
             } else
                 ent->areanum = area;
         }
     }
 
-    if (num_leafs >= MAX_TOTAL_ENT_LEAFS) {
+    if (num_leafs == q_countof(leafs)) {
         // assume we missed some leafs, and mark by headnode
         ent->num_clusters = -1;
         ent->headnode = CM_NumNode(cm, topnode);
@@ -234,7 +227,7 @@ void PF_UnlinkEdict(edict_t *ent)
     ent->area.next = ent->area.prev = NULL;
 }
 
-static uint32_t SV_PackSolid32(edict_t *ent)
+static uint32_t SV_PackSolid32(const edict_t *ent)
 {
     uint32_t solid32;
 
@@ -287,9 +280,8 @@ void PF_LinkEdict(edict_t *ent)
         return;
     }
 
-    if (!sv.cm.cache) {
+    if (!sv.cm.cache)
         return;
-    }
 
     entnum = NUM_FOR_EDICT(ent);
     sent = &sv.entities[entnum];
@@ -300,6 +292,8 @@ void PF_LinkEdict(edict_t *ent)
         if ((ent->svflags & SVF_DEADMONSTER) || VectorCompare(ent->mins, ent->maxs)) {
             ent->s.solid = 0;
             sent->solid32 = 0;
+        } else if (svs.csr.extended) {
+            sent->solid32 = ent->s.solid = SV_PackSolid32(ent);
         } else {
             ent->s.solid = MSG_PackSolid16(ent->mins, ent->maxs);
             sent->solid32 = SV_PackSolid32(ent);
@@ -437,21 +431,23 @@ Returns a headnode that can be used for testing or clipping an
 object of mins/maxs size.
 ================
 */
-static mnode_t *SV_HullForEntity(edict_t *ent, bool triggers)
+static const mnode_t *SV_HullForEntity(const edict_t *ent, bool triggers)
 {
     if (ent->solid == SOLID_BSP || (triggers && ent->solid == SOLID_TRIGGER)) {
-        bsp_t *bsp = sv.cm.cache;
+        const bsp_t *bsp = sv.cm.cache;
         int i = ent->s.modelindex - 1;
 
-        // account for "hole" in configstring namespace
-        if (i >= MODELINDEX_PLAYER && bsp->nummodels >= MODELINDEX_PLAYER)
-            i--;
+        if (bsp) {
+            // account for "hole" in configstring namespace
+            if (i >= MODELINDEX_PLAYER && bsp->nummodels >= MODELINDEX_PLAYER)
+                i--;
 
-        // explicit hulls in the BSP model
-        if (i > 0 && i < bsp->nummodels)
-            return bsp->models[i].headnode;
+            // explicit hulls in the BSP model
+            if (i > 0 && i < bsp->nummodels)
+                return bsp->models[i].headnode;
+        }
 
-        if (!triggers)
+        if (ent->solid == SOLID_BSP)
             Com_Error(ERR_DROP, "%s: inline model %d out of range", __func__, i);
     }
 
@@ -464,7 +460,7 @@ static mnode_t *SV_HullForEntity(edict_t *ent, bool triggers)
 SV_WorldNodes
 =============
 */
-static mnode_t *SV_WorldNodes(void)
+static const mnode_t *SV_WorldNodes(void)
 {
     return sv.cm.cache ? sv.cm.cache->nodes : NULL;
 }
@@ -500,12 +496,12 @@ int SV_PointContents(const vec3_t p)
 /*
 ====================
 SV_ClipMoveToEntities
-
 ====================
 */
-static void SV_ClipMoveToEntities(const vec3_t start, const vec3_t mins,
-                                  const vec3_t maxs, const vec3_t end,
-                                  edict_t *passedict, int contentmask, trace_t *tr)
+static void SV_ClipMoveToEntities(trace_t *tr,
+                                  const vec3_t start, const vec3_t end,
+                                  const vec3_t mins, const vec3_t maxs,
+                                  edict_t *passedict, int contentmask)
 {
     vec3_t      boxmins, boxmaxs;
     int         i, num;
@@ -523,7 +519,7 @@ static void SV_ClipMoveToEntities(const vec3_t start, const vec3_t mins,
         }
     }
 
-    num = SV_AreaEdicts(boxmins, boxmaxs, touchlist, MAX_EDICTS, AREA_SOLID);
+    num = SV_AreaEdicts(boxmins, boxmaxs, touchlist, q_countof(touchlist), AREA_SOLID);
 
     // be careful, it is possible to have an entity in this
     // list removed before we get to it (killtriggered)
@@ -531,11 +527,11 @@ static void SV_ClipMoveToEntities(const vec3_t start, const vec3_t mins,
         touch = touchlist[i];
         if (touch->solid == SOLID_NOT)
             continue;
-        if (touch == passedict)
-            continue;
         if (tr->allsolid)
             return;
         if (passedict) {
+            if (touch == passedict)
+                continue;
             if (touch->owner == passedict)
                 continue;    // don't clip against own missiles
             if (passedict->owner == touch)
@@ -590,9 +586,58 @@ trace_t q_gameabi SV_Trace(const vec3_t start, const vec3_t mins,
         return trace;   // blocked by the world
 
     // clip to other solid entities
-    SV_ClipMoveToEntities(start, mins, maxs, end, passedict, contentmask, &trace);
+    SV_ClipMoveToEntities(&trace, start, end, mins, maxs, passedict, contentmask);
     return trace;
 }
+
+//rekkie -- BSP -- s
+//#ifdef ACTION_DLL
+//=============
+// SV_BSP
+//=============
+bsp_t* SV_BSP(void)
+{
+    bsp_t* bsp = sv.cm.cache;
+
+    if (!bsp) {
+        Com_Error(ERR_DROP, "%s: no map loaded", __func__);
+        return NULL;
+    }
+
+    return bsp;
+}
+//#endif
+//rekkie -- BSP -- e
+
+//rekkie -- surface data -- s
+// Share surface data with game library
+nav_t* CS_NAV(void)
+{
+    nav_t* nav = sv.cm.nav;
+
+    if (!nav) {
+        //Com_Error(ERR_DROP, "%s: no nav data loaded", __func__);
+        return NULL;
+    }
+
+    return nav;
+}
+
+//rekkie -- debug drawing -- s
+#if DEBUG_DRAWING
+debug_draw_t* CS_DebugDraw(void)
+{
+    debug_draw_t* draw = sv.cm.draw;
+    if (!sv.cm.draw)
+    {
+        //Com_Error(ERR_DROP, "%s: no draw func loaded", __func__);
+        return NULL;
+    }
+    return draw;
+}
+#endif
+//rekkie -- debug drawing -- e
+//rekkie -- surface data -- e
 
 /*
 ==================

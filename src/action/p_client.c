@@ -320,6 +320,7 @@
 #include "m_player.h"
 #include "cgf_sfx_glass.h"
 
+
 static void FreeClientEdicts(gclient_t *client)
 {
 	//remove lasersight
@@ -339,91 +340,107 @@ static void FreeClientEdicts(gclient_t *client)
 		G_FreeEdict(client->ctf_grapple);
 		client->ctf_grapple = NULL;
 	}
+
+#if AQTION_EXTENSION
+	//remove arrow
+	if (client->arrow) {
+		G_FreeEdict(client->arrow);
+		client->arrow = NULL;
+	}
+#endif
+}
+
+void Announce_Reward(edict_t *ent, int rewardType) {
+    char buf[256];
+    char *soundFile;
+    char *playername = ent->client->pers.netname;
+
+    switch (rewardType) {
+        case ACCURACY:
+            if (ent->client->resp.streakHS/3 >= 2) {
+                sprintf(buf,"ACCURACY %s (%dx)!", playername, ent->client->resp.streakHS/3);
+            } else {
+                sprintf(buf,"ACCURACY %s!", playername);
+            }
+            soundFile = "tng/accuracy.wav";
+            break;
+        case IMPRESSIVE:
+            if (ent->client->resp.streakKills/5 >= 2) {
+                sprintf(buf,"IMPRESSIVE %s (%dx)!", playername, ent->client->resp.streakKills/5);
+            } else {
+                sprintf(buf,"IMPRESSIVE %s!", playername);
+            }
+            soundFile = "tng/impressive.wav";
+            break;
+        case EXCELLENT:
+            sprintf(buf,"EXCELLENT %s (%dx)!", playername, ent->client->resp.streakKills/12);
+            soundFile = "tng/excellent.wav";
+            break;
+        case DOMINATING:
+            sprintf(buf,"%s IS DOMINATING!", playername);
+            soundFile = "radio/male/deliv3.wav";
+            break;
+        case UNSTOPPABLE:
+            sprintf(buf,"%s IS UNSTOPPABLE!", playername);
+            soundFile = "radio/male/deliv3.wav";
+            break;
+        default:
+			gi.dprintf("%s: Unknown reward type %d for %s\n", __FUNCTION__, rewardType, playername);
+            return;  // Something didn't jive here?
+    }
+	ent->client->resp.awardstats[rewardType]++;
+	CALL_DISCORD_WEBHOOK(buf, AWARD_MSG, rewardType);
+
+    CenterPrintAll(buf);
+    gi.sound(&g_edicts[0], CHAN_VOICE | CHAN_NO_PHS_ADD, gi.soundindex(soundFile), 1.0, ATTN_NONE, 0.0);
+
+	LOG_AWARD(ent, rewardType);
 }
 
 void Add_Frag(edict_t * ent, int mod)
 {
-	char buf[256];
 	int frags = 0;
 
 	if (in_warmup)
 		return;
 
 	ent->client->resp.kills++;
+	// All normal weapon damage
 	if (mod > 0 && mod < MAX_GUNSTAT) {
 		ent->client->resp.gunstats[mod].kills++;
 	}
+	// Grenade splash, kicks and punch damage
+	if (mod > 0 && ((mod == MOD_HG_SPLASH) || (mod == MOD_KICK) || (mod == MOD_PUNCH) || (mod = MOD_GRENADE_IMPACT))) {
+		ent->client->resp.gunstats[mod].kills++;
+	}
 
-	if (teamplay->value && teamdm->value != 2)
+	if (IS_ALIVE(ent))
 	{
+		ent->client->resp.streakKills++;
+		ent->client->resp.roundStreakKills++;
+		if (ent->client->resp.streakKills > ent->client->resp.streakKillsHighest)
+			ent->client->resp.streakKillsHighest = ent->client->resp.streakKills;
+
+		if (ent->client->resp.streakKills % 5 == 0 && use_rewards->value)
+		{
+			Announce_Reward(ent, IMPRESSIVE);
+		}
+		else if (ent->client->resp.streakKills % 12 == 0 && use_rewards->value)
+		{
+			Announce_Reward(ent, EXCELLENT);
+		}
+	}
+
+	// Regular frag for teamplay/matchmode
+	if (teamplay->value && teamdm->value != 2)
 		ent->client->resp.score++;	// just 1 normal kill
 
-		if (IS_ALIVE(ent))
-		{
-			ent->client->resp.streakKills++;
-			if (ent->client->resp.streakKills > ent->client->resp.streakKillsHighest)
-				ent->client->resp.streakKillsHighest = ent->client->resp.streakKills;
+	// Increment team score if TeamDM is enabled
+	if(teamdm->value)
+		teams[ent->client->resp.team].score++;
 
-			if (ent->client->resp.streakKills % 5 == 0 && use_rewards->value)
-			{
-				sprintf(buf, "IMPRESSIVE %s!", ent->client->pers.netname);
-				CenterPrintAll(buf);
-				gi.sound(&g_edicts[0], CHAN_VOICE | CHAN_NO_PHS_ADD,
-					 gi.soundindex("tng/impressive.wav"), 1.0, ATTN_NONE, 0.0);
-
-				#if USE_AQTION
-
-				#ifndef NO_BOTS
-					// Check if there's an AI bot in the game, if so, do nothing
-					if (game.ai_ent_found) {
-						return;
-					}
-				#endif
-				if (stat_logs->value) {
-					char steamid[24];
-					char discordid[24];
-					Q_strncpyz(steamid, Info_ValueForKey(ent->client->pers.userinfo, "steamid"), sizeof(steamid));
-					Q_strncpyz(discordid, Info_ValueForKey(ent->client->pers.userinfo, "cl_discord_id"), sizeof(discordid));
-					LogAward(steamid, discordid, IMPRESSIVE);
-				}
-				#endif
-			}
-			else if (ent->client->resp.streakKills % 12 == 0 && use_rewards->value)
-			{
-				sprintf(buf, "EXCELLENT %s (%dx)!", ent->client->pers.netname,ent->client->resp.streakKills/12);
-				CenterPrintAll(buf);
-				gi.sound(&g_edicts[0], CHAN_VOICE | CHAN_NO_PHS_ADD,
-					 gi.soundindex("tng/excellent.wav"), 1.0, ATTN_NONE, 0.0);
-
-				#if USE_AQTION
-				#ifndef NO_BOTS
-					// Check if there's an AI bot in the game, if so, do nothing
-					if (game.ai_ent_found) {
-						return;
-					}
-				#endif
-				if (stat_logs->value) {
-					char steamid[24];
-					char discordid[24];
-					Q_strncpyz(steamid, Info_ValueForKey(ent->client->pers.userinfo, "steamid"), sizeof(steamid));
-					Q_strncpyz(discordid, Info_ValueForKey(ent->client->pers.userinfo, "cl_discord_id"), sizeof(discordid));
-					LogAward(steamid, discordid, EXCELLENT);
-				}
-				#endif
-			}
-		}
-
-		if(teamdm->value)
-			teams[ent->client->resp.team].score++;
-		// end changing sound dir
-	} else { //Deathmatch
-
-		if (IS_ALIVE(ent)) {
-			ent->client->resp.streakKills++;
-			if (ent->client->resp.streakKills > ent->client->resp.streakKillsHighest)
-				ent->client->resp.streakKillsHighest = ent->client->resp.streakKills;
-		}
-
+	// Streak kill rewards in Deathmatch mode
+	if (deathmatch->value && !teamplay->value) {
 		if (ent->client->resp.streakKills < 4 || ! use_rewards->value)
 			frags = 1;
 		else if (ent->client->resp.streakKills < 8)
@@ -446,39 +463,358 @@ void Add_Frag(edict_t * ent, int mod)
 		}
 		ent->client->resp.score += frags;
 
-		if(ent->client->resp.streakKills)
-			gi.cprintf(ent, PRINT_HIGH, "Kill count: %d\n", ent->client->resp.streakKills);
-
+		// Award team with appropriate streak reward count
 		if(teamdm->value)
 			teams[ent->client->resp.team].score += frags;
-	}
 
-	// AQ:TNG Igor[Rock] changing sound dir
-	if (fraglimit->value && use_warnings->value) {
-		if (ent->client->resp.score == fraglimit->value - 1) {
-			if (fragwarning < 3) {
-				CenterPrintAll("1 FRAG LEFT...");
-				gi.sound(&g_edicts[0], CHAN_VOICE | CHAN_NO_PHS_ADD,
-					 gi.soundindex("tng/1_frag.wav"), 1.0, ATTN_NONE, 0.0);
-				fragwarning = 3;
-			}
-		} else if (ent->client->resp.score == fraglimit->value - 2) {
-			if (fragwarning < 2) {
-				CenterPrintAll("2 FRAGS LEFT...");
-				gi.sound(&g_edicts[0], CHAN_VOICE | CHAN_NO_PHS_ADD,
-					 gi.soundindex("tng/2_frags.wav"), 1.0, ATTN_NONE, 0.0);
-				fragwarning = 2;
-			}
-		} else if (ent->client->resp.score == fraglimit->value - 3) {
-			if (fragwarning < 1) {
-				CenterPrintAll("3 FRAGS LEFT...");
-				gi.sound(&g_edicts[0], CHAN_VOICE | CHAN_NO_PHS_ADD,
-					 gi.soundindex("tng/3_frags.wav"), 1.0, ATTN_NONE, 0.0);
-				fragwarning = 1;
+		// AQ:TNG Igor[Rock] changing sound dir
+		if (fraglimit->value && use_warnings->value) {
+			if (ent->client->resp.score == fraglimit->value - 1) {
+				if (fragwarning < 3) {
+					CenterPrintAll("1 FRAG LEFT...");
+					gi.sound(&g_edicts[0], CHAN_VOICE | CHAN_NO_PHS_ADD,
+						gi.soundindex("tng/1_frag.wav"), 1.0, ATTN_NONE, 0.0);
+					fragwarning = 3;
+				}
+			} else if (ent->client->resp.score == fraglimit->value - 2) {
+				if (fragwarning < 2) {
+					CenterPrintAll("2 FRAGS LEFT...");
+					gi.sound(&g_edicts[0], CHAN_VOICE | CHAN_NO_PHS_ADD,
+						gi.soundindex("tng/2_frags.wav"), 1.0, ATTN_NONE, 0.0);
+					fragwarning = 2;
+				}
+			} else if (ent->client->resp.score == fraglimit->value - 3) {
+				if (fragwarning < 1) {
+					CenterPrintAll("3 FRAGS LEFT...");
+					gi.sound(&g_edicts[0], CHAN_VOICE | CHAN_NO_PHS_ADD,
+						gi.soundindex("tng/3_frags.wav"), 1.0, ATTN_NONE, 0.0);
+					fragwarning = 1;
+				}
 			}
 		}
+		// end of changing sound dir
 	}
-	// end of changing sound dir
+
+//rekkie -- DEV_1 -- s
+	// Random bot voice sounds
+
+	// Debug this, sometimes bots will repeat this over and over again
+	// TODO: Disable this if we get too close to the max sound limit
+	if (use_voice->value && ent->is_bot && bot_randvoice->value > 0)
+	{
+		if (bot_randvoice->value > 100) bot_randvoice->value = 100;
+
+		if (random() < (bot_randvoice->value / 100))
+		{
+			int voicechoice = rand() % 85;
+			switch (voicechoice)
+			{
+			case 0:
+				gi.sound(ent, CHAN_VOICE, gi.soundindex("user/affirm.wav"), 1, ATTN_IDLE, 0);
+				break;
+			case 1:
+				gi.sound(ent, CHAN_VOICE, gi.soundindex("user/allbase.wav"), 1, ATTN_IDLE, 0);
+				break;
+			case 2:
+				gi.sound(ent, CHAN_VOICE, gi.soundindex("user/allbase2.wav"), 1, ATTN_IDLE, 0);
+				break;
+			case 3:
+				gi.sound(ent, CHAN_VOICE, gi.soundindex("user/arriba.wav"), 1, ATTN_IDLE, 0);
+				break;
+			case 4:
+				gi.sound(ent, CHAN_VOICE, gi.soundindex("user/audio1.wav"), 1, ATTN_IDLE, 0);
+				break;
+			case 5:
+				gi.sound(ent, CHAN_VOICE, gi.soundindex("user/badman.wav"), 1, ATTN_IDLE, 0);
+				break;
+			case 6:
+				gi.sound(ent, CHAN_VOICE, gi.soundindex("user/barf.wav"), 1, ATTN_IDLE, 0);
+				break;
+			case 7:
+				gi.sound(ent, CHAN_VOICE, gi.soundindex("user/becool.wav"), 1, ATTN_IDLE, 0);
+				break;
+			case 8:
+				gi.sound(ent, CHAN_VOICE, gi.soundindex("user/boing.wav"), 1, ATTN_IDLE, 0);
+				break;
+			case 9:
+				gi.sound(ent, CHAN_VOICE, gi.soundindex("user/bravo.wav"), 1, ATTN_IDLE, 0);
+				break;
+			case 10:
+				gi.sound(ent, CHAN_VOICE, gi.soundindex("user/cartmandontshoot.wav"), 1, ATTN_IDLE, 0);
+				break;
+			case 11:
+				gi.sound(ent, CHAN_VOICE, gi.soundindex("user/cdtrust.wav"), 1, ATTN_IDLE, 0);
+				break;
+			case 12:
+				gi.sound(ent, CHAN_VOICE, gi.soundindex("user/champion.wav"), 1, ATTN_IDLE, 0);
+				break;
+			case 13:
+				gi.sound(ent, CHAN_VOICE, gi.soundindex("user/chicken.wav"), 1, ATTN_IDLE, 0);
+				break;
+			case 14:
+				gi.sound(ent, CHAN_VOICE, gi.soundindex("user/childic.wav"), 1, ATTN_IDLE, 0);
+				break;
+			case 15:
+				gi.sound(ent, CHAN_VOICE, gi.soundindex("user/clint.wav"), 1, ATTN_IDLE, 0);
+				break;
+			case 16:
+				gi.sound(ent, CHAN_VOICE, gi.soundindex("user/comeback.wav"), 1, ATTN_IDLE, 0);
+				break;
+			case 17:
+				gi.sound(ent, CHAN_VOICE, gi.soundindex("user/doit.wav"), 1, ATTN_IDLE, 0);
+				break;
+			case 18:
+				gi.sound(ent, CHAN_VOICE, gi.soundindex("user/dontshoot.wav"), 1, ATTN_IDLE, 0);
+				break;
+			case 19:
+				gi.sound(ent, CHAN_VOICE, gi.soundindex("user/dum.wav"), 1, ATTN_IDLE, 0);
+				break;
+			case 20:
+				gi.sound(ent, CHAN_VOICE, gi.soundindex("user/fap.wav"), 1, ATTN_IDLE, 0);
+				break;
+			case 21:
+				gi.sound(ent, CHAN_VOICE, gi.soundindex("user/fart1.wav"), 1, ATTN_IDLE, 0);
+				break;
+			case 22:
+				gi.sound(ent, CHAN_VOICE, gi.soundindex("user/fart2.wav"), 1, ATTN_IDLE, 0);
+				break;
+			case 23:
+				gi.sound(ent, CHAN_VOICE, gi.soundindex("user/fart3.wav"), 1, ATTN_IDLE, 0);
+				break;
+			case 24:
+				gi.sound(ent, CHAN_VOICE, gi.soundindex("user/fart4.wav"), 1, ATTN_IDLE, 0);
+				break;
+			case 25:
+				gi.sound(ent, CHAN_VOICE, gi.soundindex("user/fart5.wav"), 1, ATTN_IDLE, 0);
+				break;
+			case 26:
+				gi.sound(ent, CHAN_VOICE, gi.soundindex("user/fart6.wav"), 1, ATTN_IDLE, 0);
+				break;
+			case 27:
+				gi.sound(ent, CHAN_VOICE, gi.soundindex("user/fart7.wav"), 1, ATTN_IDLE, 0);
+				break;
+			case 28:
+				gi.sound(ent, CHAN_VOICE, gi.soundindex("user/fighting.wav"), 1, ATTN_IDLE, 0);
+				break;
+			case 29:
+				gi.sound(ent, CHAN_VOICE, gi.soundindex("user/filhands.wav"), 1, ATTN_IDLE, 0);
+				break;
+			case 30:
+				gi.sound(ent, CHAN_VOICE, gi.soundindex("user/fusk.wav"), 1, ATTN_IDLE, 0);
+				break;
+			case 31:
+				gi.sound(ent, CHAN_VOICE, gi.soundindex("user/getout.wav"), 1, ATTN_IDLE, 0);
+				break;
+			case 32:
+				gi.sound(ent, CHAN_VOICE, gi.soundindex("user/grimley.wav"), 1, ATTN_IDLE, 0);
+				break;
+			case 33:
+				gi.sound(ent, CHAN_VOICE, gi.soundindex("user/happen.wav"), 1, ATTN_IDLE, 0);
+				break;
+			case 34:
+				gi.sound(ent, CHAN_VOICE, gi.soundindex("user/headshot.wav"), 1, ATTN_IDLE, 0);
+				break;
+			case 35:
+				gi.sound(ent, CHAN_VOICE, gi.soundindex("user/iknow.wav"), 1, ATTN_IDLE, 0);
+				break;
+			case 36:
+				gi.sound(ent, CHAN_VOICE, gi.soundindex("user/isee.wav"), 1, ATTN_IDLE, 0);
+				break;
+			case 37:
+				gi.sound(ent, CHAN_VOICE, gi.soundindex("user/jabba.wav"), 1, ATTN_IDLE, 0);
+				break;
+			case 38:
+				gi.sound(ent, CHAN_VOICE, gi.soundindex("user/killme.wav"), 1, ATTN_IDLE, 0);
+				break;
+			case 39:
+				gi.sound(ent, CHAN_VOICE, gi.soundindex("user/kungfuft.wav"), 1, ATTN_IDLE, 0);
+				break;
+			case 40:
+				gi.sound(ent, CHAN_VOICE, gi.soundindex("user/l1.wav"), 1, ATTN_IDLE, 0);
+				break;
+			case 41:
+				gi.sound(ent, CHAN_VOICE, gi.soundindex("user/l2.wav"), 1, ATTN_IDLE, 0);
+				break;
+			case 42:
+				gi.sound(ent, CHAN_VOICE, gi.soundindex("user/laugh.wav"), 1, ATTN_IDLE, 0);
+				break;
+			case 43:
+				gi.sound(ent, CHAN_VOICE, gi.soundindex("user/lead.wav"), 1, ATTN_IDLE, 0);
+				break;
+			case 44:
+				gi.sound(ent, CHAN_VOICE, gi.soundindex("user/letsgo.wav"), 1, ATTN_IDLE, 0);
+				break;
+			case 45:
+				gi.sound(ent, CHAN_VOICE, gi.soundindex("user/letsrock.wav"), 1, ATTN_IDLE, 0);
+				break;
+			case 46:
+				gi.sound(ent, CHAN_VOICE, gi.soundindex("user/lol.wav"), 1, ATTN_IDLE, 0);
+				break;
+			case 47:
+				gi.sound(ent, CHAN_VOICE, gi.soundindex("user/lookwhat.wav"), 1, ATTN_IDLE, 0);
+				break;
+			case 48:
+				gi.sound(ent, CHAN_VOICE, gi.soundindex("user/mustbe.wav"), 1, ATTN_IDLE, 0);
+				break;
+			case 49:
+				gi.sound(ent, CHAN_VOICE, gi.soundindex("user/muu1.wav"), 1, ATTN_IDLE, 0);
+				break;
+			case 50:
+				gi.sound(ent, CHAN_VOICE, gi.soundindex("user/myvest.wav"), 1, ATTN_IDLE, 0);
+				break;
+			case 51:
+				gi.sound(ent, CHAN_VOICE, gi.soundindex("user/newbie.wav"), 1, ATTN_IDLE, 0);
+				break;
+			case 52:
+				gi.sound(ent, CHAN_VOICE, gi.soundindex("user/nice.wav"), 1, ATTN_IDLE, 0);
+				break;
+			case 53:
+				gi.sound(ent, CHAN_VOICE, gi.soundindex("user/no.wav"), 1, ATTN_IDLE, 0);
+				break;
+			case 54:
+				gi.sound(ent, CHAN_VOICE, gi.soundindex("user/nosub.wav"), 1, ATTN_IDLE, 0);
+				break;
+			case 55:
+				gi.sound(ent, CHAN_VOICE, gi.soundindex("user/pointy.wav"), 1, ATTN_IDLE, 0);
+				break;
+			case 56:
+				gi.sound(ent, CHAN_VOICE, gi.soundindex("user/pressluck.wav"), 1, ATTN_IDLE, 0);
+				break;
+			case 57:
+				gi.sound(ent, CHAN_VOICE, gi.soundindex("user/real.wav"), 1, ATTN_IDLE, 0);
+				break;
+			case 58:
+				gi.sound(ent, CHAN_VOICE, gi.soundindex("user/rofl.wav"), 1, ATTN_IDLE, 0);
+				break;
+			case 59:
+				gi.sound(ent, CHAN_VOICE, gi.soundindex("user/s1.wav"), 1, ATTN_IDLE, 0);
+				break;
+			case 60:
+				gi.sound(ent, CHAN_VOICE, gi.soundindex("user/s2.wav"), 1, ATTN_IDLE, 0);
+				break;
+			case 61:
+				gi.sound(ent, CHAN_VOICE, gi.soundindex("user/s3.wav"), 1, ATTN_IDLE, 0);
+				break;
+			case 62:
+				gi.sound(ent, CHAN_VOICE, gi.soundindex("user/shootorwhat.wav"), 1, ATTN_IDLE, 0);
+				break;
+			case 63:
+				gi.sound(ent, CHAN_VOICE, gi.soundindex("user/speedy.wav"), 1, ATTN_IDLE, 0);
+				break;
+			case 64:
+				gi.sound(ent, CHAN_VOICE, gi.soundindex("user/srikeme.wav"), 1, ATTN_IDLE, 0);
+				break;
+			case 65:
+				gi.sound(ent, CHAN_VOICE, gi.soundindex("user/suprisemf.wav"), 1, ATTN_IDLE, 0);
+				break;
+			case 66:
+				gi.sound(ent, CHAN_VOICE, gi.soundindex("user/terminat.wav"), 1, ATTN_IDLE, 0);
+				break;
+			case 67:
+				gi.sound(ent, CHAN_VOICE, gi.soundindex("user/thanku.wav"), 1, ATTN_IDLE, 0);
+				break;
+			case 68:
+				gi.sound(ent, CHAN_VOICE, gi.soundindex("user/tweetyhelp.wav"), 1, ATTN_IDLE, 0);
+				break;
+			case 69:
+				gi.sound(ent, CHAN_VOICE, gi.soundindex("user/unbel.wav"), 1, ATTN_IDLE, 0);
+				break;
+			case 70:
+				gi.sound(ent, CHAN_VOICE, gi.soundindex("user/vista.wav"), 1, ATTN_IDLE, 0);
+				break;
+			case 71:
+				gi.sound(ent, CHAN_VOICE, gi.soundindex("user/warchant.wav"), 1, ATTN_IDLE, 0);
+				break;
+			case 72:
+				gi.sound(ent, CHAN_VOICE, gi.soundindex("user/watching.wav"), 1, ATTN_IDLE, 0);
+				break;
+			case 73:
+				gi.sound(ent, CHAN_VOICE, gi.soundindex("user/whyuss.wav"), 1, ATTN_IDLE, 0);
+				break;
+			case 74:
+				gi.sound(ent, CHAN_VOICE, gi.soundindex("user/wrong.wav"), 1, ATTN_IDLE, 0);
+				break;
+			case 75:
+				gi.sound(ent, CHAN_VOICE, gi.soundindex("user/wtsamat.wav"), 1, ATTN_IDLE, 0);
+				break;
+			case 76:
+				gi.sound(ent, CHAN_VOICE, gi.soundindex("user/yeahbaby.wav"), 1, ATTN_IDLE, 0);
+				break;
+			case 77:
+				gi.sound(ent, CHAN_VOICE, gi.soundindex("user/yuck2.wav"), 1, ATTN_IDLE, 0);
+				break;
+			case 78:
+				gi.sound(ent, CHAN_VOICE, gi.soundindex("wizardext/mahadeva.wav"), 1, ATTN_IDLE, 0);
+				break;
+			case 79:
+				gi.sound(ent, CHAN_VOICE, gi.soundindex("barbq/badidea.wav"), 1, ATTN_IDLE, 0);
+				break;
+			case 80:
+				gi.sound(ent, CHAN_VOICE, gi.soundindex("barbq/bbq01.wav"), 1, ATTN_IDLE, 0);
+				break;
+			case 81:
+				gi.sound(ent, CHAN_VOICE, gi.soundindex("barbq/bbq02.wav"), 1, ATTN_IDLE, 0);
+				break;
+			case 82:
+				gi.sound(ent, CHAN_VOICE, gi.soundindex("barbq/scream.wav"), 1, ATTN_IDLE, 0);
+				break;
+			case 83:
+				gi.sound(ent, CHAN_VOICE, gi.soundindex("barbq/scream2.wav"), 1, ATTN_IDLE, 0);
+				break;
+			case 84:
+				gi.sound(ent, CHAN_VOICE, gi.soundindex("barbq/scream3.wav"), 1, ATTN_IDLE, 0);
+				break;
+			default:
+				break;
+			}
+		}
+
+		// A little taunting...
+		int wavechoice = rand() % 5;
+		switch (wavechoice)
+		{
+		case 0:
+			BOTLIB_Wave(ent, WAVE_FLIPOFF);
+			break;
+		case 1:
+			BOTLIB_Wave(ent, WAVE_SALUTE);
+			break;
+		case 2:
+			BOTLIB_Wave(ent, WAVE_TAUNT);
+			break;
+		case 3:
+			BOTLIB_Wave(ent, WAVE_WAVE);
+			break;
+		case 4:
+			BOTLIB_Wave(ent, WAVE_POINT);
+			break;
+		default:
+			break;
+		}
+	}
+
+	#ifndef NO_BOTS
+	//darksaint -- Bot Chat -- s
+	// Generates chat message if respawning (killed)
+	if (ent->is_bot) {
+		BOTLIB_Chat(ent, CHAT_INSULTS);
+		if(bot_personality->value && bot_ragequit->value) {
+			BotRageQuit(ent, false);
+		}
+	}
+	#endif
+	//darksaint -- Bot Chat -- e
+
+	// Announce kill streak to player if use_killcounts is enabled on server
+	if (use_killcounts->value) {
+		// Report only killstreak during that round
+		if(ent->client->resp.roundStreakKills)
+			gi.cprintf(ent, PRINT_HIGH, "Kill count: %d\n", ent->client->resp.roundStreakKills);
+	} else {
+		// Report total killstreak across previous rounds
+		if(ent->client->resp.streakKills)
+			gi.cprintf(ent, PRINT_HIGH, "Kill count: %d\n", ent->client->resp.streakKills);
+	}
 }
 
 void Subtract_Frag(edict_t * ent)
@@ -489,6 +825,7 @@ void Subtract_Frag(edict_t * ent)
 	ent->client->resp.kills--;
 	ent->client->resp.score--;
 	ent->client->resp.streakKills = 0;
+	ent->client->resp.roundStreakKills = 0;
 	if(teamdm->value)
 		teams[ent->client->resp.team].score--;
 }
@@ -499,8 +836,10 @@ void Add_Death( edict_t *ent, qboolean end_streak )
 		return;
 
 	ent->client->resp.deaths ++;
-	if( end_streak )
+	if( end_streak ) {
 		ent->client->resp.streakKills = 0;
+		ent->client->resp.roundStreakKills = 0;
+	}
 }
 
 // FRIENDLY FIRE functions
@@ -697,6 +1036,10 @@ void ClientObituary(edict_t * self, edict_t * inflictor, edict_t * attacker)
 	int n;
 
 	self->client->resp.ctf_capstreak = 0;
+	self->client->resp.dom_capstreak = 0;
+
+	if (esp->value && IS_LEADER(self))
+		self->client->resp.esp_capstreak = 0;
 
 	friendlyFire = meansOfDeath & MOD_FRIENDLY_FIRE;
 	mod = meansOfDeath & ~MOD_FRIENDLY_FIRE;
@@ -706,7 +1049,8 @@ void ClientObituary(edict_t * self, edict_t * inflictor, edict_t * attacker)
 
 	// Reki: Print killfeed to spectators who ask for easily parsable stuff
 	edict_t *other;
-	for (int j = 1; j <= game.maxclients; j++) {
+	int j;
+	for (j = 1; j <= game.maxclients; j++) {
 		other = &g_edicts[j];
 		if (!other->inuse || !other->client || !teamplay->value)
 			continue;
@@ -829,14 +1173,12 @@ void ClientObituary(edict_t * self, edict_t * inflictor, edict_t * attacker)
 			sprintf(death_msg, "%s %s %s\n",
 				self->client->pers.netname, special_message, self->client->attacker->client->pers.netname);
 			PrintDeathMessage(death_msg, self);
+			//Using discord webhook for death messaging
+			CALL_DISCORD_WEBHOOK(death_msg, DEATH_MSG, AWARD_NONE);
 			IRC_printf(IRC_T_KILL, death_msg);
 			AddKilledPlayer(self->client->attacker, self);
 
-			#if USE_AQTION
-			if (stat_logs->value) { // Only create stats logs if stat_logs is 1
-				LogKill(self, inflictor, self->client->attacker);
-			}
-			#endif
+			LOG_KILL(self, inflictor, self->client->attacker);
 
 			self->client->attacker->client->radio_num_kills++;
 
@@ -860,6 +1202,8 @@ void ClientObituary(edict_t * self, edict_t * inflictor, edict_t * attacker)
 		else
 		{
 			sprintf( death_msg, "%s %s\n", self->client->pers.netname, message );
+			//Using discord webhook for death messaging
+			CALL_DISCORD_WEBHOOK(death_msg, DEATH_MSG, AWARD_NONE);
 			PrintDeathMessage(death_msg, self );
 			IRC_printf( IRC_T_DEATH, death_msg );
 
@@ -869,12 +1213,7 @@ void ClientObituary(edict_t * self, edict_t * inflictor, edict_t * attacker)
 			}
 
 			self->enemy = NULL;
-
-			#if USE_AQTION
-			if (stat_logs->value) { // Only create stats logs if stat_logs is 1
-				LogWorldKill(self);
-			}
-			#endif
+			LOG_WORLD_KILL(self);
 		}
 		return;
 	}
@@ -1201,6 +1540,10 @@ void ClientObituary(edict_t * self, edict_t * inflictor, edict_t * attacker)
 			message = " was caught by";
 			message2 = "'s grapple";
 			break;
+		case MOD_GRENADE_IMPACT:
+			message = " was deeply impacted by";
+			message2 = "'s grenade";
+			break;
 		}	//end of case (mod)
 
 		if (message)
@@ -1208,14 +1551,12 @@ void ClientObituary(edict_t * self, edict_t * inflictor, edict_t * attacker)
 			sprintf(death_msg, "%s%s %s%s\n", self->client->pers.netname,
 			message, attacker->client->pers.netname, message2);
 			PrintDeathMessage(death_msg, self);
+			//Using discord webhook for death messaging
+			CALL_DISCORD_WEBHOOK(death_msg, DEATH_MSG, AWARD_NONE);
 			IRC_printf(IRC_T_KILL, death_msg);
 			AddKilledPlayer(attacker, self);
 
-			#if USE_AQTION
-			if (stat_logs->value) {
-				LogKill(self, inflictor, attacker);
-			}
-			#endif
+			LOG_KILL(self, inflictor, attacker);
 
 			if (friendlyFire) {
 				if (!teamplay->value || team_round_going || !ff_afterround->value)
@@ -1233,19 +1574,30 @@ void ClientObituary(edict_t * self, edict_t * inflictor, edict_t * attacker)
 				}
 			}
 
+			#ifndef NO_BOTS
+			//darksaint -- Bot Chat -- s
+			// Generates chat message if respawning (killed)
+			if (self->is_bot && mod < MOD_TOTAL) {  // Don't count 'killed him/herself' messages
+				BOTLIB_Chat(self, CHAT_KILLED);
+				if(bot_personality->value && bot_ragequit->value) {
+					BotRageQuit(self, true);
+				}
+			}
+			#endif
+			//darksaint -- Bot Chat -- e
+
+
 			return;
 		}	// if(message)
 	}
 
 	sprintf(death_msg, "%s died\n", self->client->pers.netname);
 	PrintDeathMessage(death_msg, self);
+	//Using discord webhook for death messaging
+	CALL_DISCORD_WEBHOOK(death_msg, DEATH_MSG, AWARD_NONE);
 	IRC_printf(IRC_T_DEATH, death_msg);
 
-	#if USE_AQTION
-	if (stat_logs->value) { // Only create stats logs if stat_logs is 1
-		LogWorldKill(self);
-	}
-	#endif
+	LOG_WORLD_KILL(self);
 
 	Subtract_Frag(self);	//self->client->resp.score--;
 	Add_Death( self, true );
@@ -1280,7 +1632,7 @@ void EjectWeapon(edict_t * ent, gitem_t * item)
 		ent->client->v_angle[YAW] += spread;
 		drop->spawnflags = DROPPED_PLAYER_ITEM;
 		if (!in_warmup)
-			drop->think = temp_think_specweap;
+			drop->think = SpecialWeaponRespawnTimer;
 	}
 
 }
@@ -1310,8 +1662,12 @@ void EjectMedKit( edict_t *ent, int medkit )
 void TossItemsOnDeath(edict_t * ent)
 {
 	gitem_t *item;
-	qboolean quad;
+	//qboolean quad = false;
 	int i;
+
+	// Don't drop items if leader, this is just a mess
+	if (esp->value && IS_LEADER(ent))
+		return;
 
 	// don't bother dropping stuff when allweapons/items is active
 	if (allitem->value) {
@@ -1350,25 +1706,11 @@ void TossItemsOnDeath(edict_t * ent)
 	}
 // special items
 
-	if (!DMFLAGS(DF_QUAD_DROP))
-		quad = false;
-	else
-		quad = (ent->client->quad_framenum > (level.framenum + HZ));
-
-	// if (quad) {
-	// 	edict_t *drop;
-	// 	float spread;
-
-	// 	spread = 300.0 * crandom();
-	// 	ent->client->v_angle[YAW] += spread;
-	// 	drop = Drop_Item(ent, FindItemByClassname("item_quad"));
-	// 	ent->client->v_angle[YAW] -= spread;
-	// 	drop->spawnflags |= DROPPED_PLAYER_ITEM;
-
-	// 	drop->touch = Touch_Item;
-	// 	drop->nextthink = ent->client->quad_framenum;
-	// 	drop->think = G_FreeEdict;
-	// }
+	// Quad is unused in AQ2
+	// if (!DMFLAGS(DF_QUAD_DROP))
+	// 	quad = false;
+	// else
+	// 	quad = (ent->client->quad_framenum > (level.framenum + HZ));
 }
 
 void TossClientWeapon(edict_t * self)
@@ -1400,17 +1742,6 @@ void TossClientWeapon(edict_t * self)
 		self->client->v_angle[YAW] += spread;
 		drop->spawnflags = DROPPED_PLAYER_ITEM;
 	}
-
-	// if (quad) {
-	// 	self->client->v_angle[YAW] += spread;
-	// 	drop = Drop_Item(self, FindItemByClassname("item_quad"));
-	// 	self->client->v_angle[YAW] -= spread;
-	// 	drop->spawnflags |= DROPPED_PLAYER_ITEM;
-
-	// 	drop->touch = Touch_Item;
-	// 	drop->nextthink = self->client->quad_framenum;
-	// 	drop->think = G_FreeEdict;
-	// }
 }
 
 /*
@@ -1455,7 +1786,7 @@ void player_die(edict_t *self, edict_t *inflictor, edict_t *attacker, int damage
 
 	VectorClear(self->avelocity);
 
-	self->takedamage = DAMAGE_YES;
+	self->takedamage = DAMAGE_NO;
 	self->movetype = MOVETYPE_TOSS;
 
 	self->s.modelindex2 = 0;	// remove linked weapon model
@@ -1485,6 +1816,9 @@ void player_die(edict_t *self, edict_t *inflictor, edict_t *attacker, int damage
 		if (ctf->value) {
 			self->client->respawn_framenum = level.framenum + CTFGetRespawnTime(self) * HZ;
 		}
+		else if (esp->value) {
+			self->client->respawn_framenum = level.framenum + EspGetRespawnTime(self) * HZ;
+		}
 		else if(teamdm->value) {
 			self->client->respawn_framenum = level.framenum + (int)(teamdm_respawn->value * HZ);
 		}
@@ -1496,6 +1830,10 @@ void player_die(edict_t *self, edict_t *inflictor, edict_t *attacker, int damage
 		ClientObituary(self, inflictor, attacker);
 		if (ctf->value)
 			CTFFragBonuses(self, inflictor, attacker);
+
+		// TODO: Make this work
+		if (esp->value)
+			EspScoreBonuses(self, attacker);
 
 		//TossClientWeapon (self);
 		TossItemsOnDeath(self);
@@ -1509,9 +1847,16 @@ void player_die(edict_t *self, edict_t *inflictor, edict_t *attacker, int damage
 		if (!teamplay->value)
 			Cmd_Help_f(self);	// show scores
 
-		// always reset chase to killer, even if NULL
-		if(limchasecam->value < 2 && attacker && attacker->client)
-			self->client->resp.last_chase_target = attacker;
+		/*
+		Updated chase cam calls
+		*/
+		if (limchasecam->value < 2 && attacker && attacker->client) {
+			// if (esp->value)
+			// 	EspionageChaseCam(self, attacker);
+			// else 
+			if (teamplay->value)
+				TeamplayChaseCam(self, attacker);
+		}
 	}
 	// remove powerups
 	self->client->quad_framenum = 0;
@@ -1542,7 +1887,9 @@ void player_die(edict_t *self, edict_t *inflictor, edict_t *attacker, int damage
 		// Reset Grenade Damage to 1.52 when requested:
 		int damrad = use_classic->value ? GRENADE_DAMRAD_CLASSIC : GRENADE_DAMRAD;
 		self->client->ps.gunframe = 0;
-		fire_grenade2( self, self->s.origin, vec3_origin, damrad, 0, 2 * HZ, damrad * 2, false );
+		vec3_t non_const_origin; // Convert to non-const
+      	VectorCopy(vec3_origin, non_const_origin);
+		fire_grenade2( self, self->s.origin, non_const_origin, damrad, 0, 2 * HZ, damrad * 2, false );
 	}
 
 	mod = meansOfDeath & ~MOD_FRIENDLY_FIRE;
@@ -1618,6 +1965,12 @@ void player_die(edict_t *self, edict_t *inflictor, edict_t *attacker, int damage
 	// in ctf, when a player dies check if he should be moved to the other team
 	if(ctf->value)
 		CheckForUnevenTeams(self);
+
+	if (esp->value && IS_LEADER(self)) {
+		if (!in_warmup && team_round_going) {
+			EspReportLeaderDeath(self);
+		}
+	}
 }
 
 /*
@@ -1657,6 +2010,44 @@ float PlayersRangeFromSpot(edict_t * spot)
 	}
 
 	return bestplayerdistance;
+}
+
+/*
+================
+SelectAnyDeathmatchSpawnPoint
+
+I just need a spawnpoint, any spawnpoint...
+================
+*/
+edict_t *SelectAnyDeathmatchSpawnPoint(void)
+{
+    edict_t *spot = NULL;
+    edict_t **spots = NULL;
+    int count = 0;
+
+	gi.dprintf("Warning: too few spawnpoints in this map\n");
+
+    while ((spot = G_Find(spot, FOFS(classname), "info_player_deathmatch")) != NULL) {
+        spots = realloc(spots, sizeof(*spots) * (count + 1));
+        if (!spots) {
+            // Handle memory allocation error
+            return NULL;
+        }
+        spots[count++] = spot;
+    }
+
+    if (count == 0) {
+        // No DM spawns found, womp womp
+        return NULL;
+    }
+
+    // Select a random spot
+    spot = spots[rand() % count];
+
+    // Free the spots array
+    free(spots);
+
+    return spot;
 }
 
 /*
@@ -1753,10 +2144,106 @@ edict_t *SelectFarthestDeathmatchSpawnPoint(void)
 
 edict_t *SelectDeathmatchSpawnPoint(void)
 {
+	edict_t *spot = NULL;
+
 	if (DMFLAGS(DF_SPAWN_FARTHEST))
-		return SelectFarthestDeathmatchSpawnPoint();
+		spot = SelectFarthestDeathmatchSpawnPoint();
 	else
-		return SelectRandomDeathmatchSpawnPoint();
+		spot = SelectRandomDeathmatchSpawnPoint();
+
+	return spot;
+}
+
+/*
+UncommonSpawnPoint
+
+This is used when a map does not have the appropriate spawn points for the
+game mode being played.  This is used to prevent server crashes if a player
+cannot spawn.
+*/
+
+edict_t *UncommonSpawnPoint(void)
+{
+	edict_t *spot = NULL;
+
+	if (!spot) {
+		gi.dprintf("Warning: failed to find deathmatch spawn point, unexpected spawns will be utilized\n");
+
+		/*
+		Try all possible classes of spawn points, and use DM weapon spawns as a last resort.
+		*/
+		char* spawnpoints[] = {
+			"info_player_start",
+			"info_player_coop",
+			"info_player_team1",
+			"info_player_team2",
+			"info_player_team3",
+			"info_player_deathmatch",
+			"weapon_bfg",
+			"weapon_chaingun",
+			"weapon_machinegun",
+			"weapon_rocketlauncher",
+			"weapon_shotgun",
+			"weapon_supershotgun",
+			"weapon_railgun"
+		};
+		size_t num_spawnpoints = sizeof(spawnpoints) / sizeof(spawnpoints[0]);
+		int i;
+		for (i = 0; i < num_spawnpoints; ++i) {
+			while ((spot = G_Find(spot, FOFS(classname), spawnpoints[i])) != NULL) {
+				if (!game.spawnpoint[0] && !spot->targetname)
+					break;
+
+				if (!game.spawnpoint[0] || !spot->targetname)
+					continue;
+
+				if (Q_stricmp(game.spawnpoint, spot->targetname) == 0)
+					break;
+			}
+
+			if (spot) {
+				gi.dprintf("Warning: Uncommon spawn point of class %s\n", spawnpoints[i]);
+				gi.dprintf("**If you are the map author, you need to be utilizing MULTIPLE info_player_deathmatch or info_player_team entities**\n");
+				break;
+			}
+		}
+	}
+
+	return spot;
+}
+
+edict_t *SelectCoopSpawnPoint(edict_t *ent)
+{
+    int     index;
+    edict_t *spot = NULL;
+    char    *target;
+
+    index = ent->client - game.clients;
+
+    // player 0 starts in normal player spawn point
+    if (!index)
+        return NULL;
+
+    spot = NULL;
+
+    // assume there are four coop spots at each spawnpoint
+    while (1) {
+        spot = G_Find(spot, FOFS(classname), "info_player_coop");
+        if (!spot)
+            return NULL;    // we didn't have enough...
+
+        target = spot->targetname;
+        if (!target)
+            target = "";
+        if (Q_stricmp(game.spawnpoint, target) == 0) {
+            // this is a coop spawn point for one of the clients here
+            index--;
+            if (!index)
+                return spot;        // this is it
+        }
+    }
+
+    return spot;
 }
 
 /*
@@ -1764,6 +2251,9 @@ edict_t *SelectDeathmatchSpawnPoint(void)
 SelectSpawnPoint
 
 Chooses a player start, deathmatch start, coop start, etc
+Espionage uses custom spawn points and custom respawns, but only
+once a round has started, otherwise it uses the normal deathmatch
+chosen ones
 ============
 */
 void SelectSpawnPoint(edict_t * ent, vec3_t origin, vec3_t angles)
@@ -1771,42 +2261,36 @@ void SelectSpawnPoint(edict_t * ent, vec3_t origin, vec3_t angles)
 	edict_t *spot = NULL;
 
 	//FIREBLADE
-	if (ctf->value)
+	if (coop->value){
+		spot = SelectCoopSpawnPoint(ent);
+	} else if (ctf->value) {
 		spot = SelectCTFSpawnPoint(ent);
-	else if (dom->value)
+	} else if (esp->value) {
+		// SelectEspSpawnPoint handles on-leader respawns as well as initial spawnpoints
+		spot = SelectEspSpawnPoint(ent);
+	} else if (dom->value) {
 		spot = SelectDeathmatchSpawnPoint();
-	else if (!(gameSettings & GS_DEATHMATCH) && ent->client->resp.team && !in_warmup) {
+	} else if (!(gameSettings & GS_DEATHMATCH) && ent->client->resp.team && !in_warmup) {
 		spot = SelectTeamplaySpawnPoint(ent);
+	} else if (jump->value) {
+		spot = SelectFarthestDeathmatchSpawnPoint();
 	} else {
 		spot = SelectDeathmatchSpawnPoint();
 	}
 
-	// find a single player start spot
-	if (!spot) {
-		gi.dprintf("Warning: failed to find deathmatch spawn point\n");
+	// desperation mode, find a spawnpoint or the server will crash
+	if (!spot)
+		spot = UncommonSpawnPoint();
 
-		while ((spot = G_Find(spot, FOFS(classname), "info_player_start")) != NULL) {
-			if (!game.spawnpoint[0] && !spot->targetname)
-				break;
+	// Last resort, just choose any info_player_deathmatch even if it turns into
+	// a messy telefrag nightmare
+	if (!spot)
+		spot = SelectAnyDeathmatchSpawnPoint();
 
-			if (!game.spawnpoint[0] || !spot->targetname)
-				continue;
-
-			if (Q_stricmp(game.spawnpoint, spot->targetname) == 0)
-				break;
-		}
-
-		if (!spot) {
-			if (!game.spawnpoint[0]) {	// there wasn't a spawnpoint without a target, so use any
-				spot = G_Find(spot, FOFS(classname), "info_player_start");
-			}
-			if (!spot) {
-				gi.error("Couldn't find spawn point %s\n", game.spawnpoint);
-				return;
-			}
-		}
-	}
-
+	// If still no spot, then this map is just not playable, sorry
+	if (!spot)
+		Com_Error(ERR_DROP, "Couldn't find spawn point, map is not playable!");
+			
 	VectorCopy(spot->s.origin, origin);
 	origin[2] += 9;
 	VectorCopy(spot->s.angles, angles);
@@ -1826,7 +2310,7 @@ void InitBodyQue(void)
 	}
 }
 
-void body_die(edict_t *self, edict_t *inflictor, edict_t *attacker, int damage, vec3_t point)
+void body_die(edict_t * self, edict_t * inflictor, edict_t * attacker, int damage, vec3_t point)
 {
 /*      int     n;*/
 
@@ -1895,7 +2379,7 @@ void CopyToBodyQue(edict_t * ent)
 	gi.linkentity(body);
 }
 
-void CleanBodies()
+void CleanBodies(void)
 {
 	int i;
 	edict_t *ent;
@@ -1912,6 +2396,8 @@ void CleanBodies()
 
 void respawn(edict_t *self)
 {
+	//gi.dprintf("%s tried to respawn\n", self->client->pers.netname);
+
 	if (self->solid != SOLID_NOT || self->deadflag == DEAD_DEAD)
 		CopyToBodyQue(self);
 
@@ -1938,6 +2424,16 @@ void respawn(edict_t *self)
 	}
 
 	self->client->respawn_framenum = level.framenum + 2 * HZ;
+
+	
+	if (esp->value && team_round_going){
+		// Optional respawn invulnerability in Espionage
+		if (esp_respawn_uvtime->value){
+			if (esp_debug->value)
+				gi.dprintf("%s: Invuln activated\n", __FUNCTION__);
+			self->client->uvTime = (int)esp_respawn_uvtime->value;
+		}
+	}
 }
 
 //==============================================================
@@ -2166,11 +2662,16 @@ void EquipClient(edict_t * ent)
 		break;
 	}
 
+	memset(&etemp, 0, sizeof(etemp));
 	if (client->pers.chosenItem) {
-		memset(&etemp, 0, sizeof(etemp));
 		etemp.item = client->pers.chosenItem;
 		Pickup_Special(&etemp, ent);
 	}
+	if (item_kit_mode->value && client->pers.chosenItem2){
+		client->inventory[ITEM_INDEX(client->pers.chosenItem2)] = 1;
+		client->unique_item_total++;
+	}
+
 }
 
 // Igor[Rock] start
@@ -2302,6 +2803,11 @@ void ClientLegDamage(edict_t *ent)
 	ent->client->leg_damage = 1;
 	ent->client->leghits++;
 
+	if (esp_enhancedslippers->value && INV_AMMO(ent, SLIP_NUM)) { // we don't limp with enhanced slippers, so just ignore this leg damage.
+		ent->client->leg_damage = 0;
+		return;
+	}
+
 	// Reki: limp_nopred behavior
 	switch (ent->client->pers.limp_nopred & 255)
 	{
@@ -2324,7 +2830,7 @@ void ClientLegDamage(edict_t *ent)
 				break;
 			ent->client->pers.limp_nopred |= 256;
 		case 1:
-			if (e_enhancedSlippers->value && INV_AMMO(ent, SLIP_NUM)) // we don't limp with enhanced slippers, so just ignore this leg damage.
+			if (esp_enhancedslippers->value && INV_AMMO(ent, SLIP_NUM)) // we don't limp with enhanced slippers, so just ignore this leg damage.
 				break;
 
 			ent->client->ps.pmove.pm_flags |= PMF_NO_PREDICTION;
@@ -2368,6 +2874,9 @@ void PutClientInServer(edict_t * ent)
 	client_persistant_t pers;
 	client_respawn_t resp;
 	gitem_t *item;
+#if AQTION_EXTENSION
+	cvarsyncvalue_t cl_cvar[CVARSYNC_MAX];
+#endif
 
 	// find a spawn point
 	// do it before setting health back up, so farthest
@@ -2382,11 +2891,18 @@ void PutClientInServer(edict_t * ent)
 	// deathmatch wipes most client data every spawn
 	resp = client->resp;
 	pers = client->pers;
+#if AQTION_EXTENSION
+	memcpy(cl_cvar, client->cl_cvar, sizeof(client->cl_cvar));
+#endif
 
 	memset(client, 0, sizeof(*client));
 
+#if AQTION_EXTENSION
+	memcpy(client->cl_cvar, cl_cvar, sizeof(client->cl_cvar));
+#endif
 	client->pers = pers;
 	client->resp = resp;
+
 
 	client->clientNum = index;
 
@@ -2439,6 +2955,7 @@ void PutClientInServer(edict_t * ent)
 	client->grenade_max = 2;
 	client->desired_fov = 90;
 
+
 	// clear entity values
 	ent->groundentity = NULL;
 	ent->client = &game.clients[index];
@@ -2473,6 +2990,18 @@ void PutClientInServer(edict_t * ent)
 	ent->s.skinnum = ent - g_edicts - 1;
 	ent->s.modelindex = 255;	// will use the skin specified model
 
+#if AQTION_EXTENSION
+	// teammate indicator arrows
+	if (use_indicators->value && teamplay->value && !client->arrow && client->resp.team)
+	{
+		client->arrow = G_Spawn();
+		client->arrow->solid = SOLID_NOT;
+		client->arrow->movetype = MOVETYPE_NOCLIP;
+		client->arrow->classname = "ind_arrow";
+		client->arrow->owner = ent;
+	}
+#endif
+
 	// zucc vwep
 	//ent->s.modelindex2 = 255;             // custom gun model
 	ShowGun(ent);
@@ -2497,118 +3026,81 @@ void PutClientInServer(edict_t * ent)
 	for (i = 0; i < 3; i++)
 		client->ps.pmove.delta_angles[i] = ANGLE2SHORT(ent->s.angles[i] - client->resp.cmd_angles[i]);
 
-#ifndef NO_BOTS
-	ent->last_node = -1;
-	ent->is_jumping = false;
-	ent->is_triggering = false;
-	ent->grenadewait = 0;
-	ent->react = 0.f;
-	if( ent->is_bot )
-	{
-		ent->classname = "bot";
 
-		ent->enemy = NULL;
-		ent->movetarget = NULL;
-		if( ! teamplay->value )
+#ifndef NO_BOTS
+
+	//rekkie -- s
+	if (ent->is_bot)
+	{
+		if (ent->bot.bot_type == BOT_TYPE_BOTLIB) // BOTLIB
 		{
-			ent->state = STATE_MOVE;
-			ent->botState = BS_ROAM;
-			ent->nextState = BS_ROAM;
-			ent->secondaryState = BSS_NONE;
+			BOTLIB_Init(ent); // Initialize all the bot variables
+			if (!bot_personality->value) {
+				BOTLIB_SmartWeaponSelection(ent); // This is an excellent way to choose good weapon variety
+			} else {
+				// If using personalities, they have their own weapon/item preferences
+				BOTLIB_BotPersonalityChooseWeapon(ent);
+				if (item_kit_mode->value)
+					BOTLIB_BotPersonalityChooseItemKit(ent);
+				else
+					BOTLIB_BotPersonalityChooseItem(ent);
+			}
+			// gi.dprintf("Bot %s has chosen %s and %s\n", 
+			// 	ent->client->pers.netname, 
+			// 	PrintWeaponName(ent->client->pers.chosenWeapon->typeNum),
+			// 	PrintItemName(ent->client->pers.chosenItem->typeNum)
+			// );
 		}
-		else
+		else // LTK bots
 		{
-			ent->state = STATE_POSITION;
-			ent->botState = BS_ROAM;
-			ent->nextState = BS_ROAM;
-			ent->secondaryState = BSS_POSITION;
+			ent->bot.bot_type = BOT_TYPE_LTK; // Set LTK
+			//rekkie -- e
+			
+			ent->classname = "bot";
+
+			ent->last_node = -1;
+			ent->is_jumping = false;
+			ent->is_triggering = false;
+			ent->grenadewait = 0;
+			ent->react = 0.f;
+
+			ent->next_move_time = level.framenum;
+			ent->suicide_timeout = level.framenum + 15.0 * HZ;
+
+			ent->killchat = false;
+			VectorClear(ent->lastSeen);
+			ent->cansee = false;
+
+			ent->bot_speed = 0;
+			VectorClear(ent->lastPosition);
+
+			if (teamplay->value)
+			{
+				const char* s = Info_ValueForKey(ent->client->pers.userinfo, "skin");
+				AssignSkin(ent, s, false /* nickChanged */);
+				// Anti centipede timer
+				ent->teamPauseTime = level.framenum + (3.0 + (rand() % 7)) * HZ;
+				// Radio setup
+				ent->teamReportedIn = true;
+				ent->lastRadioTime = level.framenum;
+				// Change facing angle for each bot
+				if (numnodes)
+				{
+					int randomnode = (int)(num_players * random());
+					VectorSubtract(nodes[randomnode].origin, ent->s.origin, ent->move_vector);
+				}
+				ent->move_vector[2] = 0;
+			}
+			else
+				ent->teamPauseTime = level.framenum;
+
+			//RiEvEr - new node pathing system
+			memset(&(ent->pathList), 0, sizeof(ent->pathList));
+			ent->pathList.head = ent->pathList.tail = NULL;
+			//R
+
+			ent->client->resp.radio.gender = (ent->client->pers.gender == GENDER_FEMALE) ? 1 : 0;
 		}
-		
-		// Set the current node
-		ent->current_node = ACEND_FindClosestReachableNode( ent, NODE_DENSITY, NODE_ALL );
-		ent->goal_node = ent->current_node;
-		ent->next_node = ent->current_node;
-		ent->next_move_time = level.framenum;
-		ent->suicide_timeout = level.framenum + 15.0 * HZ;
-		
-		ent->killchat = false;
-		VectorClear( ent->lastSeen );
-		ent->cansee = false;
-		
-		ent->bot_strafe = SPEED_WALK;
-		ent->bot_speed = 0;
-		VectorClear( ent->lastPosition );
-		
-		// Choose Teamplay weapon
-		switch( ent->weaponchoice - 1 )  // Range is 1..5
-		{
-		case 0:
-			ACEAI_Cmd_Choose_Weapon_Num( ent, MP5_NUM );
-			break;
-		case 1:
-			ACEAI_Cmd_Choose_Weapon_Num( ent, M4_NUM );
-			break;
-		case 2:
-			ACEAI_Cmd_Choose_Weapon_Num( ent, M3_NUM );
-			break;
-		case 3:
-			ACEAI_Cmd_Choose_Weapon_Num( ent, HC_NUM );
-			break;
-		case 4:
-			ACEAI_Cmd_Choose_Weapon_Num( ent, SNIPER_NUM );
-			break;
-		default:
-			ACEAI_Cmd_Choose_Weapon_Num( ent, 0 );  // Random allowed.
-			break;
-		}
-		
-		// Choose Teamplay equipment
-		switch( ent->equipchoice - 1 )  // Range is 1..5
-		{
-		case 0:
-			ACEAI_Cmd_Choose_Item_Num( ent, SIL_NUM );
-			break;
-		case 1:
-			ACEAI_Cmd_Choose_Item_Num( ent, SLIP_NUM );
-			break;
-		case 2:
-			ACEAI_Cmd_Choose_Item_Num( ent, BAND_NUM );
-			break;
-		case 3:
-			ACEAI_Cmd_Choose_Item_Num( ent, KEV_NUM );
-			break;
-		case 4:
-			ACEAI_Cmd_Choose_Item_Num( ent, LASER_NUM );
-			break;
-		default:
-			ACEAI_Cmd_Choose_Item_Num( ent, 0 );  // Random allowed.
-			break;
-		}
-		
-		if( teamplay->value )
-		{
-			int randomnode = 0;
-			const char *s = Info_ValueForKey( ent->client->pers.userinfo, "skin" );
-			AssignSkin( ent, s, false /* nickChanged */ );
-			// Anti centipede timer
-			ent->teamPauseTime = level.framenum + (3.0 + (rand() % 7)) * HZ;
-			// Radio setup
-			ent->teamReportedIn = true;
-			ent->lastRadioTime = level.framenum;
-			// Change facing angle for each bot
-			randomnode = (int)( num_players * random() );
-			VectorSubtract( nodes[randomnode].origin, ent->s.origin, ent->move_vector );
-			ent->move_vector[2] = 0;
-		}
-		else
-			ent->teamPauseTime = level.framenum;
-		
-		//RiEvEr - new node pathing system
-		memset( &(ent->pathList), 0, sizeof(ent->pathList) );
-		ent->pathList.head = ent->pathList.tail = NULL;
-		//R
-		
-		ent->client->resp.radio.gender = (ent->client->pers.gender == GENDER_FEMALE) ? 1 : 0;
 	}
 	
 	if( (! ent->is_bot) || (ent->think != ACESP_HoldSpawn) )  // if( respawn )
@@ -2629,12 +3121,21 @@ void PutClientInServer(edict_t * ent)
 		ent->solid = SOLID_NOT;
 		ent->svflags |= SVF_NOCLIENT;
 		ent->client->ps.gunindex = 0;
+
+#if AQTION_EXTENSION
+		if (!ent->client->resp.team)
+			HUD_SetType(ent, 1);
+#endif
 		gi.linkentity(ent);
 		return;
 	}
 
 #ifndef NO_BOTS
 	}  // end if( respawn )
+#endif
+
+#if AQTION_EXTENSION
+	HUD_SetType(ent, -1);
 #endif
 
 	if (!teamplay->value) {	// this handles telefrags...
@@ -2675,9 +3176,56 @@ void PutClientInServer(edict_t * ent)
 	if (allweapon->value)
 		AllWeapons(ent);
 
+	/*
+	Team leaders in Espionage can receive different loadouts
+	0 - No different loadout
+	1 - Leaders get AllItems (default)
+	2 - Leaders get AllWeapons
+	3 - Leaders get AllItems and AllWeapons
+
+	With leaderenhance enabled, the leaders also get a medkit
+	*/
+	if (esp->value) {
+		if (esp_leaderequip->value){
+			for (i = TEAM1; i <= teamCount; i++){
+				if (ent == teams[i].leader) {
+					if (esp_leaderequip->value == 1) {
+						AllItems(ent);
+					} else if (esp_leaderequip->value == 2) {
+						AllWeapons(ent);
+					} else if (esp_leaderequip->value == 3) {
+						AllItems(ent);
+						AllWeapons(ent);
+					}
+				}
+			}
+		}
+		if (esp_leaderenhance->value){
+			for (i = TEAM1; i <= teamCount; i++){
+				if (ent == teams[i].leader) {
+					if (esp_leaderequip->value == 1) {
+						ent->client->medkit = 1;
+					}
+				}
+			}
+		}
+		// For respawn-on-leader, if leader is ducking, client should also be ducking
+		if (team_round_going && HAVE_LEADER(ent->client->resp.team)){
+			ent->client->ps.pmove.pm_flags |= (teams[ent->client->resp.team].leader->client->ps.pmove.pm_flags & PMF_DUCKED);
+		}
+	}
+
 	// force the current weapon up
 	client->newweapon = client->weapon;
 	ChangeWeapon(ent);
+
+		// Tell the world!
+	#ifdef USE_CURL
+	#if AQTION_CURL
+	if (sv_curl_enable->value && sv_discord_announce_enable->value)
+		announce_server_populating();
+	#endif
+	#endif
 }
 
 /*
@@ -2698,11 +3246,36 @@ void ClientBeginDeathmatch(edict_t * ent)
 
 	ent->client->resp.enterframe = level.framenum;
 	ent->client->resp.gldynamic = 1;
+	
+#if AQTION_EXTENSION
+	if (teamplay->value)
+	{
+		HUD_SetType(ent, 1);
+	}
+	else
+	{
+		HUD_SetType(ent, -1);
+	}
+#endif
 
 	if (!ent->client->pers.connected) {
 		ent->client->pers.connected = true;
 		ClientUserinfoChanged(ent, ent->client->pers.userinfo);
 	}
+
+	//rekkie -- debug drawing -- s
+#if DEBUG_DRAWING
+	ent->client->pers.draw = CS_DebugDraw();
+	//if (ent->client->pers.draw)
+	{
+		// Default all to off state
+		//ent->client->pers.draw->arrows_inuse = false;
+		//ent->client->pers.draw->boxes_inuse = false;
+		//ent->client->pers.draw->crosses_inuse = false;
+		//ent->client->pers.draw->strings_inuse = false;
+	}
+#endif
+	//rekkie -- debug drawing -- e
 
 	// clear weapons and items if not auto_equipt
 	if (!auto_equip->value || !(gameSettings & GS_WEAPONCHOOSE)) {
@@ -2738,8 +3311,12 @@ void ClientBeginDeathmatch(edict_t * ent)
 	vInitClient(ent);
 
 #ifndef NO_BOTS
-    	ACEIT_RebuildPlayerList();
-		StatBotCheck();
+	ACEIT_RebuildPlayerList();
+	if (ent->is_bot)
+		BOTLIB_SKILL_Init(ent); // Initialize the skill levels
+
+// Check if bots are in the game, if so, disable stat collection
+STAT_BOT_CHECK();
 #endif
 
 	// locate ent at a spawn point
@@ -2761,8 +3338,10 @@ void ClientBeginDeathmatch(edict_t * ent)
 	IRC_printf(IRC_T_SERVER, "%n entered the game", ent->client->pers.netname);
 
 	// TNG:Freud Automaticly join saved teams.
-	if (saved_team && auto_join->value && teamplay->value)
+	if (saved_team && auto_join->value == 1 && teamplay->value)
 		JoinTeam(ent, saved_team, 1);
+	else if (auto_join->value == 2 && teamplay->value)
+		JoinTeamAutobalance(ent);
 
 
 	if (!level.intermission_framenum) {
@@ -2771,6 +3350,12 @@ void ClientBeginDeathmatch(edict_t * ent)
 			IRC_printf(IRC_T_SERVER, "%n became a spectator", ent->client->pers.netname);
 		}
 		PrintMOTD(ent);
+	}
+
+	if(am->value && game.bot_count > 0){
+		char msg[128];
+		Q_snprintf(msg, sizeof(msg), "** This server contains BOTS for you to play with until real players join up!  Enjoy! **");
+		gi.centerprintf(ent, "%s", msg);
 	}
 
 	ent->client->resp.motd_refreshes = 1;
@@ -2900,7 +3485,7 @@ void ClientUserinfoChanged(edict_t *ent, char *userinfo)
 
 
 	// Reki - disable prediction on limping
-#ifdef AQTION_EXTENSION
+#if AQTION_EXTENSION
 	if (Client_GetProtocol(ent) == 38) // if we're using AQTION protocol, we have limp prediction
 	{
 		client->pers.limp_nopred = 0;
@@ -2916,33 +3501,46 @@ void ClientUserinfoChanged(edict_t *ent, char *userinfo)
 			client->pers.limp_nopred = 2 | (client->pers.limp_nopred & 256); // client doesn't specify, so use auto threshold
 		else if (limp == 0)
 			client->pers.limp_nopred = 0; // client explicity wants old behavior
-#ifdef AQTION_EXTENSION
+#if AQTION_EXTENSION
 	}
 #endif
 
-	// Reki - spectator options, force team overlay/send easily parsable kill feed prints
-	s = Info_ValueForKey(userinfo, "cl_spectatorhud");
-	if (atoi(s))
-		client->pers.spec_flags |= SPECFL_SPECHUD;
-	else
-		client->pers.spec_flags &= SPECFL_SPECHUD;
 
-	s = Info_ValueForKey(userinfo, "cl_spectatorkillfeed");
-	if (atoi(s))
-		client->pers.spec_flags |= SPECFL_KILLFEED;
-	else
-		client->pers.spec_flags &= SPECFL_KILLFEED;
+#if AQTION_EXTENSION
+	if (!HAS_CVARSYNC(ent)) // only do these cl cvars if cvarsync isn't a thing, since it's much better than userinfo
+	{
+#endif
+		// Reki - spectator options, force team overlay/send easily parsable kill feed prints
+		s = Info_ValueForKey(userinfo, "cl_spectatorhud");
+		if (atoi(s))
+			client->pers.spec_flags |= SPECFL_SPECHUD | SPECFL_SPECHUD_NEW;
+		else
+			client->pers.spec_flags &= ~(SPECFL_SPECHUD | SPECFL_SPECHUD_NEW);
 
-	// Reki - disable antilag for *my own shooting*, not others shooting at me
-	s = Info_ValueForKey(userinfo, "cl_antilag");
-	int antilag_value = client->pers.antilag_optout;
-	if (s[0] == 0 || atoi(s) > 0)
-		client->pers.antilag_optout = qfalse;
-	else if (atoi(s) <= 0)
-		client->pers.antilag_optout = qtrue;
+	#if AQTION_EXTENSION
+		if (Client_GetProtocol(ent) == 38) // Reki: new clients get new spec hud
+			client->pers.spec_flags &= ~SPECFL_SPECHUD;
+	#endif
 
-	if (sv_antilag->value && antilag_value != client->pers.antilag_optout)
-		gi.cprintf(ent, PRINT_MEDIUM, "YOUR CL_ANTILAG IS NOW SET TO %i\n", !client->pers.antilag_optout);
+		s = Info_ValueForKey(userinfo, "cl_spectatorkillfeed");
+		if (atoi(s))
+			client->pers.spec_flags |= SPECFL_KILLFEED;
+		else
+			client->pers.spec_flags &= ~SPECFL_KILLFEED;
+
+		// Reki - disable antilag for *my own shooting*, not others shooting at me
+		s = Info_ValueForKey(userinfo, "cl_antilag");
+		int antilag_value = client->pers.antilag_optout;
+		if (s[0] == 0 || atoi(s) > 0)
+			client->pers.antilag_optout = qfalse;
+		else if (atoi(s) <= 0)
+			client->pers.antilag_optout = qtrue;
+
+		if (sv_antilag->value && antilag_value != client->pers.antilag_optout)
+			gi.cprintf(ent, PRINT_MEDIUM, "YOUR CL_ANTILAG IS NOW SET TO %i\n", !client->pers.antilag_optout);
+#if AQTION_EXTENSION
+	}
+#endif
 }
 
 /*
@@ -2998,6 +3596,15 @@ qboolean ClientConnect(edict_t * ent, char *userinfo)
 	Q_strncpyz(ent->client->pers.ip, ipaddr_buf, sizeof(ent->client->pers.ip));
 	Q_strncpyz(ent->client->pers.userinfo, userinfo, sizeof(ent->client->pers.userinfo));
 
+	#if USE_AQTION
+	value = Info_ValueForKey(userinfo, "steamid");
+	if (*value)
+		Q_strncpyz(ent->client->pers.steamid, value, sizeof(ent->client->pers.steamid));
+	value = Info_ValueForKey(userinfo, "discordid");
+	if (*value)
+		Q_strncpyz(ent->client->pers.discordid, value, sizeof(ent->client->pers.discordid));
+	#endif
+
 	if (game.serverfeatures & GMF_MVDSPEC) {
 		value = Info_ValueForKey(userinfo, "mvdspec");
 		if (*value) {
@@ -3025,6 +3632,12 @@ qboolean ClientConnect(edict_t * ent, char *userinfo)
 	//set connected on ClientBeginDeathmatch as clientconnect doesn't always
 	//guarantee a client is actually making it all the way into the game.
 	//ent->client->pers.connected = true;
+
+	#ifndef NO_BOTS
+	if(bot_chat->value)
+		BOTLIB_Chat(ent, CHAT_WELCOME);
+	#endif
+
 	return true;
 }
 
@@ -3044,7 +3657,18 @@ void ClientDisconnect(edict_t * ent)
 	if (!ent->client)
 		return;
 
+	if (esp->value && matchmode->value) {
+		char tempmsg[128];
+		// We have to kill him first before he is removed as captain/leader
+		killPlayer(ent, false);
+		sprintf(tempmsg, "The captain of %s (%s) disconnected, the other team wins by default!", teams[ent->client->resp.team].name, ent->client->pers.netname);
+		CenterPrintAll(tempmsg);
+	}
+
 	MM_LeftTeam( ent );
+	if (esp->value)		
+		EspLeaderLeftTeam(ent);
+		
 	ent->client->resp.team = 0;
 
 	// drop items if they are alive/not observer
@@ -3110,7 +3734,9 @@ void ClientDisconnect(edict_t * ent)
 	ent->is_bot = false;
 	ent->think = NULL;
 	ACEIT_RebuildPlayerList();
-	StatBotCheck();
+
+// Check if bots are in the game, if so, disable stat collection
+STAT_BOT_CHECK();
 #endif
 }
 
@@ -3140,6 +3766,10 @@ void CreateGhost(edict_t * ent)
 
 	strcpy(ghost->ip, ent->client->pers.ip);
 	strcpy(ghost->netname, ent->client->pers.netname);
+	#if USE_AQTION
+	strcpy(ghost->steamid, ent->client->pers.steamid);
+	strcpy(ghost->discordid, ent->client->pers.discordid);
+	#endif
 
 	ghost->enterframe = ent->client->resp.enterframe;
 	ghost->disconnect_frame = level.framenum;
@@ -3150,6 +3780,10 @@ void CreateGhost(edict_t * ent)
 	ghost->kills = ent->client->resp.kills;
 	ghost->deaths = ent->client->resp.deaths;
 	ghost->ctf_caps = ent->client->resp.ctf_caps;
+	ghost->ctf_capstreak = ent->client->resp.ctf_capstreak;
+	ghost->team_kills = ent->client->resp.team_kills;
+	ghost->streakKillsHighest = ent->client->resp.streakKillsHighest;
+	ghost->streakHSHighest = ent->client->resp.streakHSHighest;
 
 	// Teamplay variables
 	if (teamplay->value) {
@@ -3164,6 +3798,7 @@ void CreateGhost(edict_t * ent)
 
 	memcpy(ghost->hitsLocations, ent->client->resp.hitsLocations, sizeof(ghost->hitsLocations));
 	memcpy(ghost->gunstats, ent->client->resp.gunstats, sizeof(ghost->gunstats));
+	memcpy(ghost->awardstats, ent->client->resp.awardstats, sizeof(ghost->awardstats));
 }
 
 //==============================================================
@@ -3309,11 +3944,11 @@ void ClientThink(edict_t * ent, usercmd_t * ucmd)
 		client->cmd_last = *ucmd;
 
 		// Stumbling movement with leg damage.
-		// darksaint ETE edit:  if e_enhancedSlippers are enabled/equipped, negate all stumbling
-		qboolean has_enhanced_slippers = e_enhancedSlippers->value && INV_AMMO(ent, SLIP_NUM);
+		// darksaint ETE edit:  if esp_enhancedslippers are enabled/equipped, negate all stumbling
+		qboolean has_enhanced_slippers = esp_enhancedslippers->value && INV_AMMO(ent, SLIP_NUM);
 		if( client->leg_damage && ent->groundentity && ! has_enhanced_slippers )
 		{
-			#ifdef AQTION_EXTENSION
+			#if AQTION_EXTENSION
 			pm.s.pm_aq2_flags |= PMF_AQ2_LIMP;
 			pm.s.pm_aq2_leghits = min(client->leghits, 255);
 			#else
@@ -3333,13 +3968,21 @@ void ClientThink(edict_t * ent, usercmd_t * ucmd)
 			pm.s.pm_flags |= PMF_JUMP_HELD;
 			#endif
 		}
-		#ifdef AQTION_EXTENSION
+		#if AQTION_EXTENSION
 		else
 		{
 			pm.s.pm_aq2_flags &= ~PMF_AQ2_LIMP;
 			pm.s.pm_aq2_leghits = 0;
 		}
 		#endif
+
+		#ifdef AQTION_EXTENSION
+		if (ent->is_bot)
+		{
+			//pm.s.pm_aq2_flags |= PMF_AQ2_FRICTION; // Increase friction
+		}
+		#endif
+		//rekkie -- Increase friction for bots  -- e
 
 		pm.trace = PM_trace;	// adds default parms
 		pm.pointcontents = gi.pointcontents;
@@ -3385,6 +4028,13 @@ void ClientThink(edict_t * ent, usercmd_t * ucmd)
 		if( ent->groundentity )
 			ent->groundentity_linkcount = ent->groundentity->linkcount;
 
+		//rekkie -- DEV_1 -- s
+		if (pm.groundentity)
+			ent->last_touched_ground = 0; // Reset the counter
+		else
+			ent->last_touched_ground++; // Increment the counter
+		//rekkie -- DEV_1 -- e
+
 		if (ent->deadflag) {
 			client->ps.viewangles[ROLL] = 40;
 			client->ps.viewangles[PITCH] = -15;
@@ -3405,7 +4055,7 @@ void ClientThink(edict_t * ent, usercmd_t * ucmd)
 		// stop manipulating doors
 		client->doortoggle = 0;
 
-		if( client->jumping && (ent->solid != SOLID_NOT) && ! lights_camera_action && ! client->uvTime && ! jump->value )
+		if( client->jumping && (ent->solid != SOLID_NOT) && ! lights_camera_action && (!client->uvTime && !esp_punishment_phase) && ! jump->value )
 		{
 			kick_attack( ent );
 			client->punch_desired = false;
@@ -3425,6 +4075,1993 @@ void ClientThink(edict_t * ent, usercmd_t * ucmd)
 		}
 	}
 
+	//rekkie -- DEV_1 -- s
+	// Always track what nodes human players are near, if any
+	if (ent->is_bot == false)
+	{
+		// Track human players
+		if (ent->solid != SOLID_NOT && ent->deadflag != DEAD_DEAD)
+		{
+			// Check if bot is touching a node that isn't on the path
+			int nodes_touched; // Number of nodes touched
+			int nodelist[MAX_NODELIST]; // Nodes touched
+			nodes_touched = BOTLIB_NodeTouchNodes(ent->s.origin, vec3_origin, 32, ent->mins, ent->maxs, nodelist, MAX_NODELIST, INVALID);
+			for (i = 0; i < nodes_touched; i++)
+			{
+				if (nodelist[i] != INVALID && nodes[nodelist[i]].inuse)
+					ent->bot.current_node = nodelist[i]; // Update which node the player last touched
+			}
+
+			//ent->bot.current_node = ACEND_FindClosestReachableNode(ent, NODE_DENSITY, NODE_ALL);	// Update which node the player is closest to
+		}
+	}
+
+	// Test if walking toward middle of map
+	if (0 && ent->is_bot == false)
+	{
+		//if (BOTLIB_MovingToward(ent, tv(0, 0, 0), 0.3))
+		{
+			//Com_Printf("%s %s moving toward [%d]\n", __func__, ent->client->pers.netname, level.framenum);
+		}
+
+		if (BOTLIB_CanMove(ent, MOVE_BACK))
+			Com_Printf("%s %s can move back [%d]\n", __func__, ent->client->pers.netname, level.framenum);
+		if (BOTLIB_CanMove(ent, MOVE_FORWARD))
+			Com_Printf("%s %s can move forward [%d]\n", __func__, ent->client->pers.netname, level.framenum);
+		if (BOTLIB_CanMove(ent, MOVE_LEFT))
+			Com_Printf("%s %s can move left [%d]\n", __func__, ent->client->pers.netname, level.framenum);
+		if (BOTLIB_CanMove(ent, MOVE_RIGHT))
+			Com_Printf("%s %s can move right [%d]\n", __func__, ent->client->pers.netname, level.framenum);
+	}
+
+	// Test throwing knife 'pitch' required to hit distant targets
+	if (0 && ent->is_bot == false)
+	{
+		vec3_t org = { 0, 0, 0 };
+		if (players[1] && players[1]->client)
+		{
+			VectorCopy(players[1]->s.origin, org);
+			//Com_Printf("%s %s\n", __func__, players[1]->client->pers.netname);
+		}
+
+		float gravity = sv_gravity->value; // Gravity
+		float distanceXYZ = VectorDistance(ent->s.origin, org); // Distance XY
+		float distanceXY = VectorDistance(ent->s.origin, org); // Distance XYZ
+		float height_diff = org[2] - ent->s.origin[2]; // Height difference
+		float initialSpeed = 1200;
+
+		float timeToMaxHeight = sqrtf((initialSpeed * initialSpeed) / (2 * gravity));
+		float totalFlightTime = timeToMaxHeight + sqrtf((distanceXYZ / height_diff) + timeToMaxHeight * timeToMaxHeight);
+
+		// Calculate total flight time
+		totalFlightTime = sqrtf((2 * distanceXYZ) / sv_gravity->value);
+
+		float horizontalVelocity = distanceXY / totalFlightTime;
+		float verticalVelocity = ((horizontalVelocity * horizontalVelocity) + (initialSpeed * initialSpeed)) / (2 * height_diff);
+
+		float launchAngleDegrees = atan2f(verticalVelocity, horizontalVelocity) * (180 / M_PI);
+		launchAngleDegrees += 90;
+		if (launchAngleDegrees)
+		{
+			launchAngleDegrees /= 2;
+
+			if (height_diff > 0)
+				launchAngleDegrees -= 90;
+				
+		}
+		Com_Printf("%s pitch %f %f launchAngleDegrees %f\n", __func__, ent->s.angles[PITCH], ent->client->ps.viewangles[PITCH], launchAngleDegrees);
+
+		ucmd->angles[PITCH] = launchAngleDegrees;
+		ent->s.angles[PITCH] = launchAngleDegrees;
+		ent->client->ps.viewangles[PITCH] = launchAngleDegrees;
+	}
+
+	if (0 && ent->is_bot == false)
+	{
+		int mk23_ammo = BOTLIB_CheckWeaponLoadedAmmo(ent, MK23_NUM);
+		int dual_ammo = BOTLIB_CheckWeaponLoadedAmmo(ent, DUAL_NUM);
+		int mp5_ammo = BOTLIB_CheckWeaponLoadedAmmo(ent, MP5_NUM);
+		int m4_ammo = BOTLIB_CheckWeaponLoadedAmmo(ent, M4_NUM);
+		int m3_ammo = BOTLIB_CheckWeaponLoadedAmmo(ent, M3_NUM);
+		int hc_ammo = BOTLIB_CheckWeaponLoadedAmmo(ent, HC_NUM);
+		int ssg_ammo = BOTLIB_CheckWeaponLoadedAmmo(ent, SNIPER_NUM);
+		int knife_ammo = BOTLIB_CheckWeaponLoadedAmmo(ent, KNIFE_NUM);
+		int gren_ammo = BOTLIB_CheckWeaponLoadedAmmo(ent, GRENADE_NUM);
+		Com_Printf("%s %s mk23[%d] dual[%d] mp5[%d] m4[%d] m3[%d] hc[%d] ssg[%d] k[%d] g[%d]\n", __func__, ent->client->pers.netname, 
+			mk23_ammo, dual_ammo, mp5_ammo, m4_ammo, m3_ammo, hc_ammo, ssg_ammo, knife_ammo, gren_ammo);
+	}
+
+	// Test CTF
+	if (0 && ctf->value && ent->is_bot == false)
+	{
+		//BOTLIB_TeamFlagIsHome(ent, ent->client->resp.team);
+		BOTLIB_IsFlagDropped(ent, TEAM1, 0);
+		BOTLIB_IsFlagDropped(ent, TEAM1, 512);
+		BOTLIB_IsFlagDropped(ent, TEAM2, 0);
+		BOTLIB_IsFlagDropped(ent, TEAM2, 512);
+		
+		//BOTLIB_TeamFlagDropped(ent, ent->client->resp.team, 512);
+		//BOTLIB_EnemyFlagDropped(ent, ent->client->resp.team, 512);
+		/*
+		if (ent->client->resp.team == TEAM1 && BOTLIB_TeamFlagDropped(ent, ent->client->resp.team, 512))
+			Com_Printf("%s %s our dropped flag is nearby %f\n", __func__, ent->client->pers.netname, BOTLIB_DistanceToFlag(ent, FLAG_T1_NUM));
+		else if (ent->client->resp.team == TEAM2 && BOTLIB_TeamFlagDropped(ent, ent->client->resp.team, 512))
+			Com_Printf("%s %s our dropped flag is nearby %f\n", __func__, ent->client->pers.netname, BOTLIB_DistanceToFlag(ent, FLAG_T2_NUM));
+
+		if (ent->client->resp.team == TEAM1 && BOTLIB_EnemyFlagDropped(ent, ent->client->resp.team, 512))
+			Com_Printf("%s %s dropped enemy flag is nearby %f\n", __func__, ent->client->pers.netname, BOTLIB_DistanceToFlag(ent, FLAG_T2_NUM));
+		else if (ent->client->resp.team == TEAM2 && BOTLIB_EnemyFlagDropped(ent, ent->client->resp.team, 512))
+			Com_Printf("%s %s dropped enemy flag is nearby %f\n", __func__, ent->client->pers.netname, BOTLIB_DistanceToFlag(ent, FLAG_T1_NUM));
+		*/
+
+		/*
+		if (bot_ctf_status.player_has_flag1 && bot_ctf_status.flag1_is_home == false)
+			Com_Printf("%s %s carrying red flag\n", __func__, bot_ctf_status.player_has_flag1->client->pers.netname);
+		if (bot_ctf_status.player_has_flag2 && bot_ctf_status.flag2_is_home == false)
+			Com_Printf("%s %s carrying blue flag\n", __func__, bot_ctf_status.player_has_flag2->client->pers.netname);
+
+		if (bot_ctf_status.player_has_flag1 == NULL && bot_ctf_status.flag1_is_home == false)
+			Com_Printf("%s red flag was dropped\n", __func__);
+		if (bot_ctf_status.player_has_flag2 == NULL && bot_ctf_status.flag2_is_home == false)
+			Com_Printf("%s blue flag was dropped\n", __func__);
+		*/
+	}
+
+	// Show the speed of the player, their forward/back, and left/right movement
+	if (0)
+	{
+		edict_t* self = ent;
+
+		// Calculate the players current speed and direction and print the results to the console
+		vec3_t velocity;
+		VectorCopy(self->velocity, velocity);
+		velocity[2] = 0;
+		float speed = VectorLength(velocity);
+
+		vec3_t angles;
+		VectorCopy(self->client->v_angle, angles);
+		angles[0] = 0;
+		angles[2] = 0;
+
+		vec3_t forward, right;
+		AngleVectors(angles, forward, right, NULL);
+
+		float forward_back = DotProduct(forward, velocity);
+		float left_or_right = DotProduct(right, velocity);
+
+		Com_Printf("%s: speed %f forward_back %f left_or_right %f\n", __func__, speed, forward_back, left_or_right);
+	}
+
+	// Trace forward (left and right of player) to look for blocked paths
+	if (0)
+	{
+		if (ent->is_bot == false)
+		{
+			edict_t *self = ent;
+
+			// Send out another trace on the left and right side of the bot parallel to the current direction the bot is facing
+
+			vec3_t groundvec, end;
+			vec3_t offset, forward, right, start, down_left_end; // , down_right_end, up_left_end, up_right_end;
+			float forward_back, left_or_right, up_or_down, beam_width;
+
+			groundvec[PITCH] = 0;
+			groundvec[YAW] = self->client->v_angle[YAW];
+			groundvec[ROLL] = 0;
+
+			const float distance = 32;
+
+			AngleVectors(groundvec, forward, NULL, NULL);	// Make a forwards pointing vector out of the bot's view angles
+			VectorMA(self->s.origin, 60, forward, end);	// Make end equal to 60* the forward pointing vector
+
+			beam_width = 2;	// The actual width is '4' (found in CL_ParseLaser() tent.c) - but slightly reduced it here because it's easier to see when it intersects with a wall
+			forward_back = self->maxs[PITCH] + beam_width;	// + forward, - backward
+
+			// Left (-32) of the feet from the ground + STEPSIZE -> pointing forward parallel to the forward vector
+			left_or_right = self->mins[YAW] - 16;		// - left, + right
+			up_or_down = self->mins[ROLL] + STEPSIZE;	// + up, - down
+			VectorSet(offset, forward_back, left_or_right, up_or_down);
+			AngleVectors(groundvec, forward, right, NULL);
+			G_ProjectSource(self->s.origin, offset, forward, right, start);
+			VectorMA(start, distance, forward, down_left_end);	// Make end equal to 200* the forward pointing vector
+			gi.WriteByte(svc_temp_entity);
+			gi.WriteByte(TE_BFG_LASER);
+			gi.WritePosition(start);
+			gi.WritePosition(down_left_end);
+			gi.multicast(self->s.origin, MULTICAST_PHS);
+
+			VectorMA(start, (distance - 16), forward, down_left_end);	// Move the end point back -16 units (mins[0])
+			trace_t tr = gi.trace(start, tv(-16,-16,0), tv(16,16,56), down_left_end, self, MASK_MONSTERSOLID);
+			if (tr.fraction < 1.0 || tr.startsolid)
+			{
+				Com_Printf("%s: %s left blocked\n", __func__, self->client->pers.netname);
+			}
+			else
+			{
+				Com_Printf("%s: %s left clear\n", __func__, self->client->pers.netname);
+			}
+
+			// Right (+32) of the feet from the ground + STEPSIZE -> pointing forward parallel to the forward vector
+			left_or_right = self->maxs[YAW] + 16;		// - left, + right
+			up_or_down = self->mins[ROLL] + STEPSIZE;	// + up, - down
+			VectorSet(offset, forward_back, left_or_right, up_or_down);
+			AngleVectors(groundvec, forward, right, NULL);
+			G_ProjectSource(self->s.origin, offset, forward, right, start);
+			VectorMA(start, distance, forward, down_left_end);	// Make end equal to 200* the forward pointing vector
+			gi.WriteByte(svc_temp_entity);
+			gi.WriteByte(TE_BFG_LASER);
+			gi.WritePosition(start);
+			gi.WritePosition(down_left_end);
+			gi.multicast(self->s.origin, MULTICAST_PHS);
+
+			VectorMA(start, (distance - 16), forward, down_left_end);	// Move the end point back -16 units (mins[0])
+			tr = gi.trace(start, tv(-16, -16, 0), tv(16, 16, 56), down_left_end, self, MASK_MONSTERSOLID);
+			if (tr.fraction < 1.0 || tr.startsolid)
+			{
+				Com_Printf("%s: %s right blocked\n", __func__, self->client->pers.netname);
+			}
+			else
+			{
+				Com_Printf("%s: %s right clear\n", __func__, self->client->pers.netname);
+			}
+		}
+	}
+
+	// Test code to see if we're to the right or left of the node
+	if (0)
+	{
+		if (ent->is_bot == false)
+		{
+			// Trace test to see if we can see our next node
+			int next_node = 1146; // urban2 --> 1151, 1146, 636
+			int current_node = 1151; // urban2 --> 1113, 1151, 494
+			//trace_t tr = gi.trace(ent->s.origin, NULL, NULL, nodes[next_node].origin, ent, MASK_DEADSOLID);
+			//if (tr.fraction < 1.0) // blocked, try find another path to the same goal
+			{
+				//Com_Printf("%s %s is blocked [NODE_MOVE]... %f\n", __func__, ent->client->pers.netname, level.time);
+
+				// Get distance from bot to next node
+				vec3_t bot_to_next_vec;
+				VectorSubtract(nodes[next_node].origin, ent->s.origin, bot_to_next_vec);
+				float bot_to_next_dist = VectorLength(bot_to_next_vec);
+
+				// Get distance from current node to next node
+				vec3_t curr_to_next_vec;
+				VectorSubtract(nodes[next_node].origin, nodes[current_node].origin, curr_to_next_vec);
+				float curr_to_next_dist = VectorLength(curr_to_next_vec);
+
+				// Calculate the normalized distance the bot has travelled between current and next node
+				float bot_travelled_dist = 0;
+				if (bot_to_next_dist < curr_to_next_dist)
+					bot_travelled_dist = 1 - (bot_to_next_dist / curr_to_next_dist);
+				else
+					bot_travelled_dist = 1 - (curr_to_next_dist / bot_to_next_dist);
+
+				// Normalize bot_travelled_dist
+				//bot_travelled_dist = bot_travelled_dist - (int)bot_travelled_dist;
+
+				Com_Printf("%s %s [b->n %f] [c->n %f] [%f]\n", __func__, ent->client->pers.netname, bot_to_next_dist, curr_to_next_dist, bot_travelled_dist);
+
+				// Get the origin between the current and next node based on the normalized bot_travelled_dist
+				vec3_t normalized_origin;
+				//VectorScale(curr_to_next_vec, bot_travelled_dist, normalized_origin);
+				LerpVector(nodes[current_node].origin, nodes[next_node].origin, bot_travelled_dist, normalized_origin);
+
+
+
+				// Show a laser between next node and normalized_origin
+				gi.WriteByte(svc_temp_entity);
+				gi.WriteByte(TE_BFG_LASER);
+				gi.WritePosition(nodes[next_node].origin);
+				gi.WritePosition(normalized_origin);
+				gi.multicast(nodes[next_node].origin, MULTICAST_PVS);
+
+
+				// Calculate the angle between the bot's origin and the normalized origin
+				vec3_t normalized_origin_vec;
+				VectorSubtract(normalized_origin, ent->s.origin, normalized_origin_vec);
+				float bot_to_path_dist = VectorLength(normalized_origin_vec);
+				//Com_Printf("%s %s [d %f]\n", __func__, ent->client->pers.netname, bot_to_path_dist);
+
+
+				//VectorNormalize(normalized_origin);
+
+				float current_yaw = anglemod(ent->s.angles[YAW]);
+
+				vec3_t ideal_angle;
+				vectoangles(normalized_origin_vec, ideal_angle);
+
+				float ideal_yaw = anglemod(ideal_angle[YAW]);// +180;
+
+				// print current_yaw and ideal_yaw
+				//Com_Printf("%s %s [c %f] [i %f]\n", __func__, ent->client->pers.netname, current_yaw, ideal_yaw);
+
+				// Figure out if current yaw is closer to idea yaw if we turn left
+				float left_yaw;
+				float right_yaw;
+				// c = 301 i = 211
+				// c = 213 i = 116 
+				//const float less_than_90_degrees = 87; // 90 is the optimum angle, but we want to give a little leeway (otherwise the bot's yaw movement will oscillate)
+
+				if (bot_to_path_dist > 16)
+				{
+					/*
+					if (ideal_yaw > current_yaw)
+					{
+						right_yaw = ideal_yaw + (360 - current_yaw);
+						left_yaw = ideal_yaw - current_yaw;
+					}
+					else
+					{
+						right_yaw = current_yaw - ideal_yaw;
+						left_yaw = ideal_yaw + (360 - current_yaw);
+					}
+					*/
+
+					if (ideal_yaw > current_yaw)
+					{
+						right_yaw = ideal_yaw - current_yaw;
+						left_yaw = 360 - right_yaw;
+					}
+					else
+					{
+						left_yaw = current_yaw - ideal_yaw;
+						right_yaw = 360 - left_yaw;
+					}
+
+					/*
+					i > c
+					c 41
+					i 55
+					right	i - c 				55 - 41 = 14
+					left	(360 - c) - i		(360 - 41 = 319) - 55 = 264
+
+					c > i
+					c 55
+					i 41
+					right 	c - i 				55 - 41 = 14
+					left 	(360 - c) - i 		(360 - 55 = 305) - 41 = 264
+					*/
+
+					//if (right_yaw < 0)
+					//	right_yaw += 360;
+					//if (left_yaw < 0)
+					//	left_yaw += 360;
+
+					//if (right_yaw > 360)
+					//	right_yaw -= 360;
+					//if (left_yaw > 360)
+					//	left_yaw -= 360;
+
+					Com_Printf("%s %s [c %f] [i %f] [ry %f] [ly %f] [dist %f]\n", __func__, ent->client->pers.netname, current_yaw, ideal_yaw, right_yaw, left_yaw, bot_to_path_dist);
+
+					if (right_yaw < left_yaw)
+						Com_Printf("%s %s move left\n", __func__, ent->client->pers.netname);
+					else
+						Com_Printf("%s %s move right\n", __func__, ent->client->pers.netname);
+
+					//if (left_yaw < right_yaw)
+					//	Com_Printf("%s %s move left %f\n", __func__, ent->client->pers.netname, left_yaw);
+					//else
+					//	Com_Printf("%s %s move right %f\n", __func__, ent->client->pers.netname, right_yaw);
+				}
+			}
+		}
+	}
+
+	if (0 && ent->is_bot == false)
+	{
+		// Test for gaps/holes between the current and next node
+		// Each tested is conducted 32 units apart
+
+		vec3_t forward, end, origin, target;
+		VectorCopy(nodes[1740].origin, origin);
+		VectorCopy(nodes[1403].origin, target);
+		float tested_distance = 0;
+
+		// Show a laser between next node and normalized_origin
+		gi.WriteByte(svc_temp_entity);
+		gi.WriteByte(TE_BFG_LASER);
+		gi.WritePosition(origin);
+		gi.WritePosition(tv(target[0], target[1], target[2]));
+		gi.multicast(origin, MULTICAST_PVS);
+
+		// Get direction
+		VectorSubtract(target, origin, forward);
+
+		// Get XYZ distance
+		float xyz_distance = VectorLength(forward);
+
+		// Normalize direction vector
+		VectorNormalize(forward);
+
+		while (tested_distance + NODE_SIZE < xyz_distance)
+		{
+			tested_distance += NODE_SIZE; // Move next test forward
+
+			VectorMA(origin, tested_distance, forward, end); // Find the end point origin of a vector of length tested_distance
+
+			//VectorMA(origin, tested_distance, forward, end); // Find the end point origin of a vector of length tested_distance
+			end[2] -= NODE_Z_HEIGHT; // Move end point to ground
+			//end[2] -= (STEPSIZE + 1); // Move end point below ground level at the depth of step height + 1
+			//end[2] = -4096;
+
+
+
+			trace_t tr = gi.trace(end, NULL, NULL, tv(end[0], end[1], -4096), g_edicts, MASK_DEADSOLID);
+
+			if (tr.startsolid)
+			{
+				//Com_Printf("%s dist %f z-diff startsolid\n", __func__, tested_distance, end[2] - tr.endpos[2]);
+				continue;
+			}
+
+			//Com_Printf("%s [tested_distance %f] [o %f %f %f] [t %f %f %f] [e %f %f %f] [e %f %f %f]\n", __func__, tested_distance, origin[0], origin[1], origin[2], target[0], target[1], target[2], end[0], end[1], end[2], tr.endpos[0], tr.endpos[1], tr.endpos[2]);
+			//Com_Printf("%s dist %f z-diff %f\n", __func__, tested_distance, ((end[2] - (NODE_Z_HEIGHT + STEPSIZE)) - tr.endpos[2]));
+
+			if (end[2] - tr.endpos[2] > (NODE_Z_HEIGHT))
+				Com_Printf("%s dist %f z-diff %f -- FOUND GAP\n", __func__, tested_distance, end[2] - tr.endpos[2]);
+			else
+				Com_Printf("%s dist %f z-diff %f\n", __func__, tested_distance, end[2] - tr.endpos[2]);
+
+			// Show a laser between next node and normalized_origin
+			gi.WriteByte(svc_temp_entity);
+			gi.WriteByte(TE_BFG_LASER);
+			gi.WritePosition(end);
+			gi.WritePosition(tr.endpos);
+			gi.multicast(origin, MULTICAST_PVS);
+
+			//if (from == 1740 && to == 1403)
+			{
+				//Com_Printf("%s tested_distance %f z-diff %f\n", __func__, tested_distance, ((origin[2] - (NODE_Z_HEIGHT + STEPSIZE)) - tr.endpos[2]));
+			}
+
+			//if (tr.fraction == 1.0 && tr.startsolid == false) // Hit a gap (no floor)
+			if (tr.endpos[2] < (origin[2] - (NODE_Z_HEIGHT + STEPSIZE))) // Hit a gap (no floor)
+			{
+				//Com_Printf("%s gap found at %f origin %f %f %f target %f %f %f end %f %f %f\n", __func__, tested_distance, origin[0], origin[1], origin[2], target[0], target[1], target[2], end[0], end[1], end[2]);
+				// print gap found at tested_distance, and the difference between endpos[2] and (origin[2] - (NODE_Z_HEIGHT + STEPSIZE))
+				//Com_Printf("%s gap found at tested_distance %f z-diff %f\n", __func__, tested_distance, ((origin[2] - (NODE_Z_HEIGHT + STEPSIZE)) - tr.endpos[2]));
+
+				//is_gap = true;
+				//break;
+			}
+		}
+		Com_Printf("%s \n", __func__);
+	}
+
+	if (0 && ent->is_bot == false)
+	{
+		//trace_t tr = gi.trace(ent->s.origin, NULL, NULL, tv(ent->s.origin[0], ent->s.origin[1], ent->s.origin[2] - 128), ent, (MASK_PLAYERSOLID | MASK_OPAQUE));
+		//Com_Printf("%s %s tr.plane.normal[%f] \n", __func__, ent->client->pers.netname, tr.plane.normal[2]);
+
+		if (ent->bot.highlighted_node > 0)
+		{
+			// Get the player's direction based from their velocity
+			vec3_t walkdir;
+			VectorSubtract(ent->s.origin, ent->lastPosition, walkdir);
+			//VectorCopy(ent->s.origin, ent->lastPosition);
+			VectorNormalize(walkdir);
+			vec3_t angle, forward, right, start, end, origin, offset;
+			vectoangles(walkdir, angle);
+			VectorCopy(ent->s.angles, angle); // Use the player's view angles (not their walk direction)
+			angle[0] = 0;
+			AngleVectors(angle, forward, right, NULL);
+			VectorCopy(ent->s.origin, origin);
+			origin[2] += 8; // [Origin 24 units] + [8 units] == 32 units heigh (same as node height)
+
+			/*
+			// Offset origin to the right
+			//VectorSet(offset, 0, 32, 0);
+			//G_ProjectSource(origin, offset, forward, right, start);
+
+			VectorSet(offset, 0, 0, 0);
+			G_ProjectSource(origin, offset, forward, right, start);
+			VectorNormalize(forward);
+
+			//VectorCopy(nodes[ent->bot.highlighted_node].origin, end);
+			//VectorSubtract(end, right, forward);
+			//VectorNormalize(forward);
+			*/
+
+			// Calculate the direction from the player's origin to the node origin
+			vec3_t node_dir;
+			VectorSubtract(nodes[ent->bot.highlighted_node].origin, ent->s.origin, node_dir);
+			VectorNormalize(node_dir);
+			{
+				// Node direction
+				gi.WriteByte(svc_temp_entity);
+				gi.WriteByte(TE_BFG_LASER);
+				gi.WritePosition(ent->s.origin);
+				gi.WritePosition(nodes[ent->bot.highlighted_node].origin);
+				gi.multicast(ent->s.origin, MULTICAST_PHS);
+			}
+
+			VectorNormalize(forward);
+
+			// Calculate the dot product of the forward dir and the node dir
+			float dot = DotProduct(forward, node_dir);
+			//Com_Printf("%s node %d dot %f\n", __func__, ent->bot.highlighted_node, dot);
+			//if (dot < 0.995)
+
+			if (1)
+			{
+				float dot_right = DotProduct(right, node_dir);
+				VectorNegate(right, right);
+				float dot_left = DotProduct(right, node_dir);
+				if (dot_right > dot_left) // 
+					Com_Printf("%s [MOVE RIGHT] node %d dot %f dot_right %f dot_left %f\n", __func__, ent->bot.highlighted_node, dot, dot_right, dot_left);
+				else
+					Com_Printf("%s [MOVE LEFT] node %d dot %f  dot_right %f dot_left %f\n", __func__, ent->bot.highlighted_node, dot, dot_right, dot_left);
+			}
+
+			if (0)
+			{
+				// Offset origin to the right
+				vec3_t s_right;
+				VectorSet(offset, 0, 0, 0);
+				G_ProjectSource(origin, offset, forward, right, s_right);
+				VectorSubtract(nodes[ent->bot.highlighted_node].origin, s_right, forward);
+				VectorNormalize(forward);
+				float dot_right = DotProduct(forward, node_dir);
+				{
+					// Player walk direction
+					gi.WriteByte(svc_temp_entity);
+					gi.WriteByte(TE_BFG_LASER);
+					gi.WritePosition(s_right);
+					gi.WritePosition(nodes[ent->bot.highlighted_node].origin);
+					gi.multicast(s_right, MULTICAST_PHS);
+				}
+
+				// Offset origin to the left
+				vec3_t s_left;
+				VectorSet(offset, 0, -32, 0);
+				G_ProjectSource(origin, offset, forward, right, s_left);
+				VectorSubtract(nodes[ent->bot.highlighted_node].origin, s_left, forward);
+				VectorNormalize(forward);
+				float dot_left = DotProduct(forward, node_dir);
+				{
+					// Player walk direction
+					gi.WriteByte(svc_temp_entity);
+					gi.WriteByte(TE_BFG_LASER);
+					gi.WritePosition(s_left);
+					gi.WritePosition(nodes[ent->bot.highlighted_node].origin);
+					gi.multicast(ent->s.origin, MULTICAST_PHS);
+				}
+
+
+				if (dot_right < dot_left) // 
+					Com_Printf("%s [MOVE RIGHT] node %d dot %f dot_right %f dot_left %f\n", __func__, ent->bot.highlighted_node, dot, dot_right, dot_left);
+				else
+					Com_Printf("%s [MOVE LEFT] node %d dot %f  dot_right %f dot_left %f\n", __func__, ent->bot.highlighted_node, dot, dot_right, dot_left);
+			}
+
+
+
+
+			// Show visual
+			if (0)
+			{
+				VectorSet(offset, 0, 32, 0);
+				G_ProjectSource(origin, offset, forward, right, start);
+				offset[0] += 1024; // Distance forward dir
+				G_ProjectSource(origin, offset, forward, right, end);
+
+				// Player walk direction
+				gi.WriteByte(svc_temp_entity);
+				gi.WriteByte(TE_BFG_LASER);
+				gi.WritePosition(start);
+				gi.WritePosition(end);
+				gi.multicast(ent->s.origin, MULTICAST_PHS);
+
+				// Node direction
+				gi.WriteByte(svc_temp_entity);
+				gi.WriteByte(TE_BFG_LASER);
+				gi.WritePosition(ent->s.origin);
+				gi.WritePosition(nodes[ent->bot.highlighted_node].origin);
+				gi.multicast(ent->s.origin, MULTICAST_PHS);
+			}
+		}
+	}
+
+	// Expand additional nodes from the center of the edge, one heading 90 degrees left, and one heading 90 degrees right.
+	if (0 && ent->is_bot == false)
+	{
+		//ACEND_BSP: [pt1:480.000000,640.000000,0.000000] [pt2:480.000000,752.000000,0.000000]
+		vec3_t pt1 = { 480.000000, 640.000000, 0.000000 };
+		vec3_t pt2 = { 480.000000, 752.000000, 0.000000 };
+		vec3_t center;
+		LerpVector(pt1, pt2, 0.50, center);
+
+		vec3_t end_left, end_right;
+
+		/*
+		BOTLIB_UTIL_ROTATE_CENTER(pt1, pt2, 90, 4, end_left);
+		BOTLIB_UTIL_ROTATE_CENTER(pt1, pt2, 270, 4, end_right);
+		end_left[2] += 1;
+		end_right[2] += 1;
+		DAIC_Add_Node(end_left, tv(0, 0, 0), NODE_MOVE);
+		DAIC_Add_Node(end_right, tv(0, 0, 0), NODE_MOVE);
+		*/
+		
+		//ent->spin++;
+		//if (ent->spin > 360)
+		//	ent->spin = 0;
+
+		//BOTLIB_UTIL_ROTATE_CENTER(pt1, pt2, ent->spin, 512, end_left); // Anti-clockwise
+		BOTLIB_UTIL_ROTATE_CENTER(pt1, pt2, 90, 3000, end_left);   // Anti-clockwise
+		BOTLIB_UTIL_ROTATE_CENTER(pt1, pt2, 270, 3000, end_right); // Clockwise
+
+		// Show a laser between next node and normalized_origin
+		/*
+		gi.WriteByte(svc_temp_entity);
+		gi.WriteByte(TE_BFG_LASER);
+		gi.WritePosition(pt1);
+		gi.WritePosition(pt2);
+		gi.multicast(center, MULTICAST_PVS);
+		*/
+
+		gi.WriteByte(svc_temp_entity);
+		gi.WriteByte(TE_BFG_LASER);
+		gi.WritePosition(center);
+		gi.WritePosition(end_left);
+		gi.multicast(center, MULTICAST_PVS);
+
+
+		gi.WriteByte(svc_temp_entity);
+		gi.WriteByte(TE_BFG_LASER);
+		gi.WritePosition(center);
+		gi.WritePosition(end_right);
+		gi.multicast(center, MULTICAST_PVS);
+
+
+
+		/*
+		// Lift the end points up a bit so they don't get stuck in the ground
+		end_left[2] += 1;
+		end_right[2] += 1;
+
+		// Test to see where the left and right meet a wall
+		// Center is lifted up a bit so it doesn't get stuck in the ground, for the same reason as end_left and end_right
+		trace_t tr_left_wall = gi.trace(tv(center[0], center[1], center[2] + 1), NULL, NULL, end_left, ent, MASK_PLAYERSOLID);
+		trace_t tr_right_wall = gi.trace(tv(center[0], center[1], center[2] + 1), NULL, NULL, end_right, ent, MASK_PLAYERSOLID);
+
+		//tr_left_wall.endpos[1] -= 32;
+		//tr_right_wall.endpos[1] -= 32;
+		// 
+		// Find the middle between two points of an edge
+		vec3_t left_mid, right_mid;
+		LerpVector(center, tr_left_wall.endpos, 0.50, left_mid);
+		LerpVector(center, tr_right_wall.endpos, 0.50, right_mid);
+
+		//DAIC_Add_Node(left_mid, tr_left_wall.plane.normal, NODE_MOVE);
+		//DAIC_Add_Node(left_mid, tr_right_wall.plane.normal, NODE_MOVE);
+
+		// Test to see if left and right are touching the ground
+		trace_t tr_left_ground = gi.trace(tr_left_wall.endpos, NULL, NULL, tv(tr_left_wall.endpos[0], tr_left_wall.endpos[1], tr_left_wall.endpos[2] - 2), ent, MASK_PLAYERSOLID);
+		trace_t tr_right_ground = gi.trace(tr_right_wall.endpos, NULL, NULL, tv(tr_right_wall.endpos[0], tr_right_wall.endpos[1], tr_right_wall.endpos[2] - 2), ent, MASK_PLAYERSOLID);
+
+		vec3_t back;
+
+		// If the left is touching the ground, then we can add a node there
+		if (tr_left_ground.fraction < 1.0)
+		{
+			// Back the node away from the wall a bit using the normal of the wall
+			//vec3_t back;
+			VectorMA(tr_left_wall.endpos, -NODE_Z_HALF_HEIGHT, tr_left_wall.plane.normal, back);
+			//DAIC_Add_Node(back, tr_left_ground.plane.normal, NODE_MOVE);
+		}
+		// If the right is touching the ground, then we can add a node there
+		if (tr_right_ground.fraction < 1.0)
+		{
+			// Back the node away from the wall a bit using the normal of the wall
+			//vec3_t back;
+			VectorMA(tr_right_wall.endpos, -NODE_Z_HALF_HEIGHT, tr_right_wall.plane.normal, back);
+			//DAIC_Add_Node(back, tr_right_ground.plane.normal, NODE_MOVE);
+		}
+		*/
+	}
+
+	if (0 && ent->is_bot == false)
+	{
+		//Com_Printf("%s origin %f %f %f\n", __func__, ent->s.origin[0], ent->s.origin[1], ent->s.origin[2]);
+		/*
+		int f = 0, edges = 0;
+		BOTLIB_UTIL_NEAREST_BSP_FACE(ent->s.origin, &f, &edges);
+		Com_Printf("%s face %d  edges %d\n--------------\n", __func__, f, edges);
+		for (int e = 0; e < nmesh.face[f].num_edges; e++)
+		{
+			Com_Printf("%s v1[%f %f %f]  v2[%f %f %f]\n", __func__, nmesh.face[f].edge[e].v[0][0], nmesh.face[f].edge[e].v[0][1], nmesh.face[f].edge[e].v[0][2], nmesh.face[f].edge[e].v[1][0], nmesh.face[f].edge[e].v[1][1], nmesh.face[f].edge[e].v[1][2]);
+		}
+		Com_Printf("--------------\n");
+		*/
+	}
+
+	//rekkie -- surface data -- s
+	/*
+	if (ent->nav != NULL)
+	{
+		vec3_t start = { 0,0,0 }; vec3_t end = { 0,0,128 };
+		#define U32_YELLOW  MakeColor(255, 255,   0, 255)
+		//nav->DrawArrow(start, end, U32_YELLOW, 5.0);
+		//game.framerate;
+
+		// Local client (call the function directly)
+		if (ent->client->clientNum == 0)
+		{
+			ent->client->pers.ip;
+			if (ent->nav->DrawArrow != NULL)
+			{
+				// Assign void pointer nav->DrawArrow to a function pointer
+				void(*DrawArrow)(int number, vec3_t start, vec3_t end, const uint32_t color, float line_width, int time) = ent->nav->DrawArrow;
+				DrawArrow(start, end, U32_YELLOW, 50); // Call the function
+			}
+		}
+		else // Networked clients (send a message)
+		{
+			gi.WriteByte(svc_temp_entity);
+			gi.WriteByte(TE_DRAWARROW);
+			gi.WriteLong(U32_YELLOW); // Color
+			gi.WriteByte(5); // Line width
+			gi.WritePosition(start);
+			gi.WritePosition(end);
+			//gi.WritePosition(ent->s.origin);
+			//gi.WritePosition(tv(ent->s.origin[0], ent->s.origin[1], ent->s.origin[2] + 128));
+			gi.multicast(start, MULTICAST_PVS);
+		}
+	}
+	*/
+
+	if (0 && ent->is_bot == false)
+	{
+		// Check if touching ladder
+		qboolean touching_ladder = false;
+		{
+			float yaw_rad = 0;
+			vec3_t fwd = { 0 }, end = { 0 };
+			trace_t tr;
+
+			yaw_rad = DEG2RAD(ent->s.angles[YAW]);
+			fwd[0] = cos(yaw_rad);
+			fwd[1] = sin(yaw_rad);
+
+			VectorMA(ent->s.origin, 64, fwd, end);
+
+			vec3_t lmins = { -16, -16, -96 };
+			vec3_t lmaxs = { 16, 16, 96 };
+
+			tr = gi.trace(ent->s.origin, lmins, lmaxs, end, ent, MASK_PLAYERSOLID);
+
+			touching_ladder = ((tr.fraction < 1) && (tr.contents & CONTENTS_LADDER));
+		}
+		if (touching_ladder)
+			Com_Printf("%s touching_ladder [%d]\n", __func__, level.framenum);
+	}
+
+	//if (1 && ent->is_bot == false)
+	{
+		//BOTLIB_GetEquipment(ent);
+	}
+
+	//rekkie -- debug drawing -- s
+	//rekkie -- debug drawing -- s
+#if DEBUG_DRAWING
+	//rekkie -- Walknodes -- s
+	if (ent->is_bot == false && dedicated->value == 0 && client->chase_mode)
+	{
+		if (ent->bot.walknode.enabled) // Disable chase cam if nav_edit is enabled
+			DisableChaseCam(ent);
+
+		if (client->chase_target) // Disable nav_edit if chase cam is enabled
+			ent->bot.walknode.highlighted_node_type = HIGHLIGHTED_NODE_NONE; // Disable interaction with nodes
+
+	}
+	if (ent->is_bot == false && dedicated->value == 0 && ent->bot.walknode.enabled) // Always allow mouse control for nodes
+	{
+		BOTLIB_MouseControlNodes(ent, ucmd); // Use mouse to control node: link, move, add, delete, etc
+	}
+	// If we're allowed to interact with walknodes aka not in 'HIGHLIGHTED_TYPE_NONE' mode and ltk_showpath is off
+	if (ent->is_bot == false && dedicated->value == 0 && ent->bot.walknode.highlighted_node_type == HIGHLIGHTED_NODE_ADD && bot_showpath->value == 0 && ent->bot.walknode.enabled)
+	{
+		// Test if we're looking at a ladder
+		qboolean on_ladder = false;
+		{
+			float yaw_rad = 0;
+			vec3_t fwd = { 0 }, end = { 0 };
+			trace_t tr;
+
+			yaw_rad = DEG2RAD(ent->s.angles[YAW]);
+			fwd[0] = cos(yaw_rad);
+			fwd[1] = sin(yaw_rad);
+
+			VectorMA(ent->s.origin, 16, fwd, end);
+
+			tr = gi.trace(ent->s.origin, ent->mins, ent->maxs, end, ent, MASK_PLAYERSOLID);
+
+			on_ladder = ((tr.fraction < 1) && (tr.contents & CONTENTS_LADDER));
+		}
+		// Check we're touching a ladder - extended hitbox
+		qboolean touching_ladder = false;
+		{
+			vec3_t lmins = { -20, -20, -32 };
+			vec3_t lmaxs = { 20, 20, 32 };
+
+			trace_t tr;
+			tr = gi.trace(ent->s.origin, lmins, lmaxs, ent->s.origin, ent, MASK_PLAYERSOLID);
+			touching_ladder = ((tr.fraction < 1) && (tr.contents & CONTENTS_LADDER));
+		}
+
+		const int walknode_dist = 32;
+		int nodes_touched = 0;
+		int node = INVALID;
+		int node_type = INVALID;
+		//float node_to_node_dist = 99999;
+		int from, to;
+
+		trace_t tr = gi.trace(ent->s.origin, NULL, NULL, tv(ent->s.origin[0], ent->s.origin[1], ent->s.origin[2] - 25), ent, MASK_PLAYERSOLID);
+		//float height_diff = ent->s.origin[2] - tr.endpos[2]; // Height difference between player and ground
+		//float distance = VectorDistance(ent->bot.walknode.last_ground_loc, tr.endpos); // Distance between ground touches
+		float speed = VectorLength(ent->velocity); // Player speed
+
+		//Com_Printf("%s height_diff %f\n", __func__, height_diff);
+
+		//qboolean normal_jump = false;
+		//qboolean strafe_jump = false;
+		//if (ent->bot.walknode.last_ground_touch == 0 && (client->ps.pmove.pm_flags & PMF_JUMP_HELD) && ucmd->upmove > 0 && ucmd->sidemove == 0 && speed)
+		//	normal_jump = true;
+		//if (ent->bot.walknode.last_ground_touch == 0 && (client->ps.pmove.pm_flags & PMF_JUMP_HELD) && ucmd->upmove > 0 && ucmd->sidemove && speed)
+		//	strafe_jump = true;
+		//if (ent->bot.walknode.last_ground_touch == 0 && (client->ps.pmove.pm_flags & PMF_JUMP_HELD) && ucmd->upmove > 0)
+		//	strafe_jump = true;
+		//if (normal_jump || strafe_jump)
+		//	Com_Printf("%s normal_jump[%d] strafe_jump[%d]\n", __func__, normal_jump, strafe_jump);
+
+		// Update last ground location
+		if (ent->groundentity || tr.fraction < 1)
+		{
+			ent->bot.walknode.last_ground_touch = 0;
+			VectorCopy(tr.endpos, ent->bot.walknode.last_ground_loc);
+			VectorCopy(tr.plane.normal, ent->bot.walknode.last_ground_normal);
+		}
+		else
+			ent->bot.walknode.last_ground_touch++;
+
+		// Nodes currently being touched
+		int nodelist[MAX_NODELIST];
+		nodes_touched = BOTLIB_NodeTouchNodes(ent->s.origin, tr.plane.normal, walknode_dist, ent->mins, ent->maxs, nodelist, MAX_NODELIST, INVALID);
+		if (nodes_touched > 0)
+		{
+			if (1) // print node list
+			{
+				Com_Printf("[%d] Nodes touched [%d] nodelist [", level.framenum, nodes_touched);
+				int count = 0;
+				while (count < nodes_touched)
+				{
+					if (count + 1 < nodes_touched)
+						Com_Printf("%d,", nodelist[count++]);
+					else
+						Com_Printf("%d", nodelist[count++]);
+				}
+				Com_Printf("]\n");
+			}
+			
+			// Find the closest node
+			int closest_node = INVALID;
+			float closest_dist = 99999;
+			for (i = 0; i < nodes_touched; i++)
+			{
+				float dist = VectorDistance(ent->s.origin, nodes[nodelist[i]].origin);
+				if (dist <= walknode_dist && dist < closest_dist)
+				{
+					closest_dist = dist;
+					closest_node = nodelist[i];
+				}
+			}
+			node = closest_node; // Assign the closest touched node
+
+			/*
+			if (node != INVALID)
+			{
+				// If we're on a ladder, and the nearest node isn't a ladder node, 
+				// pull it closer to the ladder and convert it to a ladder node.
+				if ((on_ladder || touching_ladder) && node != INVALID && nodes[node].type != NODE_LADDER)
+				{
+					Com_Printf("%s %s converting [%d] to NODE_LADDER\n", __func__, ent->client->pers.netname, node);
+					nodes[node].origin[0] = ent->s.origin[0]; // Pull node closer to ladder
+					nodes[node].origin[1] = ent->s.origin[1]; // Pull node closer to ladder
+					nodes[node].type = NODE_LADDER; // Convert node to ladder node
+					// Update all links connected to this node to ladder links
+					for (i = 0; i < numnodes; i++)
+					{
+						if (nodes[i].inuse == false) continue; // Ignore nodes not in use
+
+						for (int l = 0; l < nodes[i].num_links; l++)
+						{
+							if (nodes[i].links[l].targetNode == node)
+							{
+								nodes[i].links[l].targetNodeType = NODE_LADDER;
+								Com_Printf("%s %s updating link [%d] to NODE_LADDER\n", __func__, ent->client->pers.netname, i);
+							}
+						}
+					}
+				}
+
+				if (ent->bot.walknode.touched_node != INVALID && node != ent->bot.walknode.touched_node)
+					node_to_node_dist = VectorDistance(nodes[node].origin, nodes[ent->bot.walknode.touched_node].origin);
+			}
+			*/
+		}
+
+
+		// Assign node type
+		if (ent->bot.walknode.last_ground_touch == 0)
+		{
+			node_type = NODE_MOVE;
+
+			if (on_ladder || touching_ladder)
+			{
+				//Com_Printf("%s %s is touching a ladder\n", __func__, ent->client->pers.netname);
+				node_type = NODE_LADDER;
+			}
+
+			if (ucmd->upmove < 0)
+			{
+				node_type = NODE_CROUCH;
+				//node_type = INVALID;
+			}
+		}
+
+		if (node_type != INVALID)
+		{
+			// If no nodes touched in the area, add a new node. Also check mins and maxs to make sure we're not adding a node while in noclip.
+			if (nodes_touched == 0 && VectorEmpty(ent->mins) == false && VectorEmpty(ent->maxs) == false)
+			{
+				// Get the surface normal
+				tr = gi.trace(ent->s.origin, ent->mins, ent->maxs, ent->s.origin, ent, MASK_PLAYERSOLID);
+				// If the node is on a slope, raise it up depending on the slope normal and the node's mins/maxs hit box
+				// This is done so the node hitbox is not inside the slope face
+				{
+					vec3_t exp_up;
+					VectorCopy(tr.plane.normal, exp_up);
+					exp_up[2] = 0;
+					VectorNormalize(exp_up);
+					exp_up[2] = 1;
+					VectorScale(exp_up, 24, exp_up);
+					VectorAdd(tr.endpos, exp_up, tr.endpos);
+				}
+				// Feed the raised up position back into the trace
+				tr = gi.trace(tr.endpos, ent->mins, ent->maxs, ent->s.origin, ent, MASK_PLAYERSOLID);
+				if (tr.startsolid == false) // Make sure we're not inside a wall
+				{
+					int node_added;
+					if (node_added = BOTLIB_AddNode(ent->s.origin, tr.plane.normal, NODE_MOVE) != INVALID)
+					{
+						char typename[32] = { '\0' }; // Length of the longest node type name
+						NodeTypeToString(ent, nodes[node_added].type, typename, sizeof(typename));
+						Com_Printf("%s %s added node [%d] type [%s]\n", __func__, ent->client->pers.netname, node_added, typename);
+					}
+				}
+			}
+
+			nodes_touched = BOTLIB_NodeTouchNodes(ent->s.origin, tr.plane.normal, walknode_dist+8, ent->mins, ent->maxs, nodelist, MAX_NODELIST, INVALID);
+			for (i = 0; i < nodes_touched; i++)
+			{
+				from = nodelist[i];
+				for (int j = 0; j < nodes_touched; j++)
+				{
+					if (nodelist[i] == nodelist[j]) // Skip self
+						continue;
+
+					to = nodelist[j];
+					if (from != INVALID && to != INVALID)
+					{
+						//BOTLIB_Reachability(from, to);
+
+						float height = (nodes[to].origin[2] - nodes[from].origin[2]);
+						if (height > 60) // Ignore if too high
+							continue;
+						if (height < -60) // Crouch when dropping down
+							node_type = NODE_CROUCH;
+						
+						tr = gi.trace(nodes[from].origin, ent->mins, ent->maxs, nodes[to].origin, ent, MASK_PLAYERSOLID);
+						if (tr.fraction == 1.0) // Don't link if we can't see the node
+						{
+							if (BOTLIB_TraceBoxNode(from, to) == INVALID) // Don't link if our trace hit other nodes
+							{
+								if (BOTLIB_AddNodeLink(from, to, node_type, true))
+								{
+									Com_Printf("%s %s linking node[%d -> %d] type[%d]\n", __func__, ent->client->pers.netname, from, to, node_type);
+									//ACEND_UpdateNodeReach(from, to); // Update path_table
+								}
+							}
+						}
+					}
+				}
+			}
+			/*
+			else if (node_to_node_dist <= walknode_dist+16 && ent->bot.walknode.touched_node != INVALID && ent->bot.walknode.touched_node != node)
+			{
+				int from = ent->bot.walknode.touched_node;
+				int to = node;
+				int from_type = nodes[from].type;
+				int to_type = nodes[to].type;
+				//float dist = VectorDistance(nodes[from].origin, nodes[to].origin);
+				//if (from_type == to_type)// && dist <= 64)
+				trace_t tr = gi.trace(nodes[from].origin, NULL, NULL, nodes[to].origin, ent, MASK_PLAYERSOLID | MASK_OPAQUE);
+				if (tr.fraction == 1.0)
+				{
+					//if (BOTLIB_Reachability(from, to) == NODE_JUMPPAD)
+					//	node_type = NODE_JUMPPAD;
+
+					if (DC_AddNodeLink(from, to, node_type, true))
+					{
+						Com_Printf("%s %s linking node[%d -> %d] type[%d]\n", __func__, ent->client->pers.netname, ent->bot.walknode.touched_node, node, node_type);
+						//ACEND_UpdateNodeReach(from, to); // Update path_table
+					}
+
+					//if (BOTLIB_Reachability(to, from) == NODE_JUMPPAD)
+					//	node_type = NODE_JUMPPAD;
+
+					if (DC_AddNodeLink(to, from, node_type, true))
+					{
+						Com_Printf("%s %s linking node[%d -> %d] type[%d]\n", __func__, ent->client->pers.netname, node, ent->bot.walknode.touched_node, node_type);
+						//ACEND_UpdateNodeReach(to, from); // Update path_table
+					}
+				}
+			}
+			*/
+
+			// Update last touched node
+			ent->bot.walknode.touched_node = node;
+		}
+
+#if 0
+		/*
+		//else if (tr.fraction < 1 && (speed || ucmd->forwardmove || ucmd->sidemove || ucmd->upmove))
+		else if ((tr.fraction < 1 || ent->groundentity))// && (ucmd->forwardmove || ucmd->sidemove || ucmd->upmove))
+		{
+			if (ent->bot.walknode.last_type == NODE_JUMP)
+			{
+				node_type = NODE_JUMP;
+				ent->bot.walknode.last_type = INVALID;
+			}
+			else if (ent->bot.walknode.last_type == NODE_JUMPPAD)
+			{
+				//Com_Printf("%s NODE_JUMPPAD\n", __func__);
+				node_type = NODE_JUMPPAD;
+				ent->bot.walknode.last_type = INVALID;
+			}
+			else
+			{
+				//if (BOTLIB_VectorCompare(tr.endpos, ent->bot.last_ground_loc, STEPSIZE))
+				//if (fabs(tr.endpos[2] - ent->bot.last_ground_loc[2]) <= STEPSIZE || VectorCompare(tr.plane.normal, ent->bot.last_ground_normal) || ent->bot.last_ground_touch <= 1)
+				//if (ent->groundentity && (ucmd->forwardmove || ucmd->sidemove))
+				if (tr.fraction < 1)
+					node_type = NODE_MOVE;
+				if (ucmd->upmove < 0)
+					node_type = NODE_CROUCH;
+				if (normal_jump)
+				{
+					node_type = NODE_JUMP;
+					ent->bot.walknode.last_type = NODE_JUMP;
+				}
+				if (strafe_jump)
+				{
+					node_type = NODE_JUMPPAD;
+					ent->bot.walknode.last_type = NODE_JUMPPAD;
+				}
+			}
+		}
+		*/
+		
+
+
+		//if (node_type > INVALID) Com_Printf("%s node_type[%d] framenum[%d]\n", __func__, node_type, level.framenum);
+
+		
+		if (node_type != INVALID)
+		{
+			if (nodes_touched == 0) // If no nodes touched in the area, add a new node
+			{
+				if (BOTLIB_AddNode(ent->s.origin, tr.plane.normal, node_type)) //BOTLIB_BoxIntersection
+				{
+					//Com_Printf("%s %s added node [%d] type [%d]\n", __func__, ent->client->pers.netname, numnodes - 1, node_type);
+				}
+			}
+
+			// Get prevous touched node, if the current node and previous node are different
+			// and they're the same type, and they can see each other, add a link
+			// Try to link up to existing nodes
+			//node = BOTLIB_TestForNodeDist(ent->s.origin, tr.plane.normal, 16, ent->absmin, ent->absmax);
+			{
+				int nodelist[MAX_NODELIST];
+				nodes_touched = BOTLIB_NodeTouchNodes(ent->s.origin, tr.plane.normal, 8, ent->mins, ent->maxs, nodelist, MAX_NODELIST);
+				if (nodes_touched > 0)
+				{
+					// Find the closest node
+					float max_distance = 64; // Maximum distance to consider
+					int closest_node = INVALID;
+					float closest_dist = 99999;
+					for (int i = 0; i < nodes_touched; i++)
+					{
+						float dist = VectorDistance(ent->s.origin, nodes[nodelist[i]].origin);
+						if (dist <= max_distance && dist < closest_dist)
+						{
+							closest_dist = dist;
+							closest_node = nodelist[i];
+						}
+					}
+					node = closest_node; // Assign the closest touched node
+					//node = nodelist[0]; // Assign the touched node
+
+					if (0) // print node link list
+					{
+						for (int i = 0; i < nodes_touched; i++)
+						{
+							if (nodes[nodelist[i]].links[0].targetNode > INVALID)
+							{
+								Com_Printf("Node [%d] is linked to nodes [", nodelist[i]);
+								for (int l = 0; l < nodes[nodelist[i]].num_links; l++)
+								{
+									Com_Printf(" %d ", nodes[nodelist[i]].links[l].targetNode);
+								}
+								Com_Printf("]\n");
+							}
+						}
+					}
+
+					if (0) // print node list
+					{
+						Com_Printf("Nodes touched [%d] nodelist [", nodes_touched);
+						int count = 0;
+						while (count < nodes_touched)
+						{
+							Com_Printf(" %d ", nodelist[count++]);
+						}
+						Com_Printf("]\n");
+					}
+					
+				}
+			}
+
+			if (ent->bot.walknode.touched_node < 0) // Init node for the first time
+				ent->bot.walknode.touched_node = node;
+
+			//if (node > INVALID && node != ent->bot.touched_nodes[0])
+			//	Com_Printf("%s %s touched node [%d] prev [%d]\n", __func__, ent->client->pers.netname, node, ent->bot.touched_nodes[0]);
+
+			if (nodes_touched > 0 && ent->bot.walknode.touched_node > INVALID && node != ent->bot.walknode.touched_node)
+			{
+				//if (ent->bot.touched_nodes[0] != INVALID && ent->bot.touched_nodes[1] != INVALID)
+				{
+					int from = ent->bot.walknode.touched_node;
+					int to = node;
+					int from_type = nodes[from].type;
+					int to_type = nodes[to].type;
+					//float dist = VectorDistance(nodes[from].origin, nodes[to].origin);
+					//if (from_type == to_type)// && dist <= 64)
+					trace_t tr = gi.trace(nodes[from].origin, NULL, NULL, nodes[to].origin, ent, MASK_PLAYERSOLID | MASK_OPAQUE);
+					if (tr.fraction == 1.0)
+					{
+						if (BOTLIB_Reachability(from, to) == NODE_JUMPPAD)
+							node_type = NODE_JUMPPAD;
+
+						if (DC_AddNodeLink(NULL, from, to, tv(0, 0, 0), false, node_type, true))
+						{
+							Com_Printf("%s %s linking node[%d -> %d] type[%d]\n", __func__, ent->client->pers.netname, ent->bot.walknode.touched_node, node, node_type);
+							//ACEND_UpdateNodeReach(from, to); // Update path_table
+						}
+
+						//if (BOTLIB_Reachability(to, from) == NODE_JUMPPAD)
+						//	node_type = NODE_JUMPPAD;
+
+						if (DC_AddNodeLink(NULL, to, from, tv(0, 0, 0), false, node_type, true))
+						{
+							Com_Printf("%s %s linking node[%d -> %d] type[%d]\n", __func__, ent->client->pers.netname, node, ent->bot.walknode.touched_node, node_type);
+							//ACEND_UpdateNodeReach(to, from); // Update path_table
+						}
+
+						
+					}
+
+				}
+				ent->bot.walknode.touched_node = node;
+			}
+
+		}
+		#endif
+	}
+	//rekkie -- debug drawing -- e
+#endif
+//rekkie -- debug drawing -- s
+#if DEBUG_DRAWING
+	if (1 && ent->is_bot == false && dedicated->value == 0 && numnodes && bot_showpath->value == 0 && ent->bot.walknode.enabled)
+	{
+		uint32_t color, link_color, arrow_color;
+
+		// Selection square
+		//uint32_t node_color = 0;
+		if (ent->bot.walknode.highlighted_node_type == HIGHLIGHTED_NODE_SELECT || ent->bot.walknode.highlighted_node_type == HIGHLIGHTED_NODE_SELECT_SMART)
+		{
+			if (VectorEmpty(ent->bot.walknode.selection_start) == false && VectorEmpty(ent->bot.walknode.selection_end) == false)
+			{
+				// Local client (call the function directly)
+				if (ent->client && ent->client->pers.draw != NULL && ent->client->clientNum == 0)
+				{
+					if (ent->client->pers.draw->DrawSelection != NULL)
+					{
+						//Com_Printf("%s %s start [%f %f %f] -- end [%f %f %f]\n", __func__, ent->client->pers.netname, ent->bot.walknode.selection_start[0], ent->bot.walknode.selection_start[1], ent->bot.walknode.selection_start[2], ent->bot.walknode.selection_end[0], ent->bot.walknode.selection_end[1], ent->bot.walknode.selection_end[2]);
+						void(*DrawSelection)(vec3_t start, vec3_t end, float min, float max, uint32_t color, float line_width, int time, qboolean occluded) = ent->client->pers.draw->DrawSelection;
+						color = MakeColor(0, 255, 0, 255); // Green
+
+						// Only draw when enough of the selection box has been sampled
+						if (ent->bot.walknode.selection_min < 99990 && ent->bot.walknode.selection_max > -99990)
+							DrawSelection(ent->bot.walknode.selection_start, ent->bot.walknode.selection_end, ent->bot.walknode.selection_min, ent->bot.walknode.selection_max, color, 3.0, 100, false); // Draw selection
+					}
+
+					if (ent->client->pers.draw->DrawBox != NULL)
+					{
+						void(*DrawString)(int number, vec3_t origin, const char* string, const uint32_t color, int time, qboolean occluded) = ent->client->pers.draw->DrawString;
+						players[0]->client->pers.draw->boxes_inuse = true; // Flag as being used
+						players[0]->client->pers.draw->strings_inuse = true; // Flag as being used
+						
+						players[0]->client->pers.draw->boxes_inuse = true; // Flag as being used
+						void(*DrawBox)(int number, vec3_t origin, uint32_t color, vec3_t mins, vec3_t maxs, int time, qboolean occluded) = ent->client->pers.draw->DrawBox;
+						
+						int node = 0;
+						
+						
+
+						// Show selected nodes
+						for (int i = 0; i < ent->bot.walknode.selection_node_count; i++)
+						{
+							node = ent->bot.walknode.selection_nodes[i];
+
+							//if (nodes[node].area > 0)
+							//	node_color = nodes[node].area_color;
+
+							// Only change node area if set by command AND it links to another area OR we're making a new area
+							//if (ent->bot.walknode.selection_area_used && (area_is_linked || area_is_new))
+							qboolean can_add_area_node = false; // If node can be added to area array
+							if (ent->bot.walknode.selection_area_used)
+							{
+								// Find a free spot to add node to area array
+								for (int n = 0; n < MAX_NAV_AREAS_NODES; n++)
+								{
+									if (DFS_area_nodes[ent->bot.walknode.selection_area][n] == INVALID)
+									{
+										DFS_area_nodes[ent->bot.walknode.selection_area][n] = node;
+										can_add_area_node = true; // Success!
+										break;
+									}
+								}
+							}
+							if (can_add_area_node)
+							{
+								nodes[node].area = ent->bot.walknode.selection_area; // Update node's area
+								int first_area_node = DFS_area_nodes[nodes[node].area][0]; // Get first node in area
+
+								/*
+								// If one of the nodes we selected is already the area we desire
+								int selected_node_of_same_area = INVALID;
+								for (int n = 0; n < ent->bot.walknode.selection_node_count; n++)
+								{
+									if (nodes[ent->bot.walknode.selection_nodes[i]].area == ent->bot.walknode.selection_area)
+									{
+										selected_node_of_same_area = ent->bot.walknode.selection_nodes[i];
+										break;
+									}
+								}
+								*/
+
+								if (ent->bot.walknode.selection_area_color) // No nodes in array so use custom color
+								{
+									nodes[node].area_color = ent->bot.walknode.selection_area_color;
+									
+									// Update all other area nodes in set
+									// Find a free spot to add node to area array
+									for (int n = 0; n < MAX_NAV_AREAS_NODES; n++)
+									{
+										if (DFS_area_nodes[ent->bot.walknode.selection_area][n] == INVALID)
+											break;
+										nodes[DFS_area_nodes[ent->bot.walknode.selection_area][n]].area_color = ent->bot.walknode.selection_area_color;
+									}
+
+								}
+								else if (first_area_node > 0 && nodes[first_area_node].area_color) // Check for existing color
+								{
+									nodes[node].area_color = nodes[first_area_node].area_color; // Use existing color
+								}
+								else
+								{
+									nodes[node].area_color = MakeColor((rand() % 255), (rand() % 255), (rand() % 255), 255); // Assigned rand color
+								}
+
+								/*
+								// Check for an existing area color
+								//int first_area_node = DFS_area_nodes[nodes[node].area][0]; // Get first node in area
+								if (first_area_node > 0 && nodes[first_area_node].area_color) // Check for existing color
+								{
+									nodes[node].area_color = nodes[first_area_node].area_color; // Use existing color
+								}
+								else if (ent->bot.walknode.selection_area_color) // No nodes in array so use custom color
+									nodes[node].area_color = ent->bot.walknode.selection_area_color;
+								else
+									nodes[node].area_color = MakeColor(255, 255, 128, 255); // Gold  - Aassigned area nodes (area == 0)
+								*/
+							}
+
+							//if (nodes[node].area_color)
+							//	color = nodes[node].area_color;
+
+							//if (node_color)
+							//	color = node_color;
+
+							if (ent->bot.walknode.selection_node_first != INVALID && nodes[node].area > 0 && nodes[node].area != nodes[ent->bot.walknode.selection_node_first].area)
+								color = MakeColor(255, 0, 0, 255); // Red - Indicates the user is selecting nodes that already have an assigned area
+							else
+								color = MakeColor(0, 255, 0, 255); // Green - Indicates the user is selecting nodes that don't have an assigned area yet
+
+
+							DrawBox(node, nodes[node].origin, color, nodes[node].mins, nodes[node].maxs, 100, true); // Draw node box
+							DrawString(node, tv(nodes[node].origin[0], nodes[node].origin[1], nodes[node].origin[2] + 20), va("%d", nodes[node].area), color, 100, true); // Draw node number
+						}
+
+						//*
+						// Show all area nodes of <first_area_num>
+						if (ent->bot.walknode.selection_node_count == 1)
+						if (ent->bot.walknode.selection_node_first != INVALID && nodes[ent->bot.walknode.selection_node_first].area > 0)
+						{
+							if (nodes[node].area_color)
+								color = nodes[node].area_color;
+
+							//if (node_color)
+							//	color = node_color;
+
+							//color = MakeColor(0, 255, 0, 255); // Green
+
+							for (int node = 0; node < numnodes; node++) // for each node
+							{
+								// Show all nodes of same area num
+								if (nodes[node].area == nodes[ent->bot.walknode.selection_node_first].area)
+								{
+									DrawBox(node, nodes[node].origin, color, nodes[node].mins, nodes[node].maxs, 100, true); // Draw node box
+								}
+							}
+						}
+						//*/
+
+						if (ent->bot.walknode.selection_area_used)
+						{
+							ent->bot.walknode.selection_area_color = 0;
+							ent->bot.walknode.selection_area_used = false; // Turn off area
+						}
+					}
+				}
+			}
+		}
+		
+		// Local client (call the function directly)
+		if (ent->client && ent->client->pers.draw != NULL && ent->client->clientNum == 0)
+		{
+			if (ent->client->pers.draw->DrawBox != NULL)
+			{
+				void(*DrawBox)(int number, vec3_t origin, uint32_t color, vec3_t mins, vec3_t maxs, int time, qboolean occluded) = ent->client->pers.draw->DrawBox;
+				void(*DrawArrow)(int number, vec3_t start, vec3_t end, const uint32_t color, float line_width, int time, qboolean occluded) = ent->client->pers.draw->DrawArrow;
+				void(*DrawString)(int number, vec3_t origin, const char *string, const uint32_t color, int time, qboolean occluded) = ent->client->pers.draw->DrawString;
+				players[0]->client->pers.draw->boxes_inuse = true; // Flag as being used
+				players[0]->client->pers.draw->arrows_inuse = true; // Flag as being used
+				players[0]->client->pers.draw->strings_inuse = true; // Flag as being used
+				#define U32_YELLOW  MakeColor(255, 255,   0, 255)
+				int linknum = 0;
+				for (int node = 0; node < numnodes; node++) // for each node
+				{
+					if (nodes[node].inuse == false)
+						continue; // Ignore nodes not in use
+
+					if (ent->bot.walknode.highlighted_node != node && ent->bot.walknode.prev_highlighted_node != node)
+					if (VectorDistance(ent->s.origin, nodes[node].origin) > 768)
+						continue; // Ignore nodes too far away
+
+					// Highlighted box
+					if (ent->bot.walknode.highlighted_node == node)
+						color = MakeColor(255, 0, 0, 255); // Red
+					else if (nodes[node].type == NODE_JUMPPAD)
+						color = MakeColor(128, 0, 128, 255); // Purple
+					else if (nodes[node].type == NODE_LADDER)
+						color = MakeColor(0, 255, 0, 255); // Green
+					else if (nodes[node].type == NODE_WATER)
+						color = MakeColor(255, 255, 255, 255); // White
+					else if (nodes[node].type == NODE_CROUCH)
+						color = MakeColor(255, 165, 0, 255); // Orange
+					else if (nodes[node].type == NODE_BOXJUMP)
+						color = MakeColor(128, 128, 128, 255); // Gray
+					else if (nodes[node].type == NODE_POI)
+						color = MakeColor(0, 255, 255, 255); // Cyan
+					else if (nodes[node].type == NODE_POI_LOOKAT)
+						color = MakeColor(0, 192, 192, 192); // Cyan-ish
+					else // NODE_MOVE
+						color = MakeColor(0, 0, 255, 255); // Blue
+
+					if (ent->bot.walknode.highlighted_node_type == HIGHLIGHTED_NODE_SELECT || ent->bot.walknode.highlighted_node_type == HIGHLIGHTED_NODE_SELECT_SMART)
+					{
+						if (nodes[node].area > 0)
+						{
+							if (nodes[node].area_color > 0) // Custom color
+								color = nodes[node].area_color;
+							else
+								color = MakeColor(255, 255, 128, 255); // Gold - Assigned area nodes (area > 0)
+						}
+						else
+							color = MakeColor(128, 128, 128, 255); // Grey - Unassigned area nodes (area == 0)
+					}
+
+					// Draw the node links (arrows)
+					if (ent->bot.walknode.highlighted_node_type != HIGHLIGHTED_NODE_SELECT && ent->bot.walknode.highlighted_node_type != HIGHLIGHTED_NODE_SELECT_SMART)
+					{
+						for (int link = 0; link < nodes[node].num_links; link++) // for each node - MAXLINKS
+						{
+							int to = nodes[node].links[link].targetNode;
+							if (to != INVALID)
+							{
+								// Link nodes: only show links to and from highlighted node
+								if (ent->bot.walknode.highlighted_node_type == HIGHLIGHTED_NODE_LINK && ent->bot.walknode.highlighted_node != INVALID)
+								{
+									if (to != ent->bot.walknode.highlighted_node && node != ent->bot.walknode.highlighted_node)
+										continue;
+								}
+								// Change link type: only show links to and from highlighted node
+								if (ent->bot.walknode.highlighted_node_type == HIGHLIGHTED_NODE_LINKTYPE)
+								{
+									if (ent->bot.walknode.highlighted_node != INVALID && to != ent->bot.walknode.highlighted_node && node != ent->bot.walknode.highlighted_node)
+										continue;
+									if (ent->bot.walknode.prev_highlighted_node != INVALID && to != ent->bot.walknode.prev_highlighted_node && node != ent->bot.walknode.prev_highlighted_node)
+										continue;
+								}
+								switch (nodes[node].links[link].targetNodeType) {
+									case NODE_MOVE:
+										arrow_color = MakeColor(255, 255, 0, 255); // Yellow
+										break;
+									case NODE_JUMPPAD:
+										arrow_color = MakeColor(128, 0, 128, 255); // Purple
+										break;
+									case NODE_LADDER:
+										arrow_color = MakeColor(0, 255, 0, 255); // Green
+										break;
+									case NODE_WATER:
+										arrow_color = MakeColor(255, 255, 255, 255); // White
+										break;
+									case NODE_CROUCH:
+										arrow_color = MakeColor(255, 165, 0, 255); // Orange
+										break;
+									case NODE_BOXJUMP:
+										arrow_color = MakeColor(128, 128, 128, 255); // Gray
+										break;
+									case NODE_POI:
+										arrow_color = MakeColor(0, 255, 255, 255); // Cyan
+										break;
+									case NODE_POI_LOOKAT:
+										arrow_color = MakeColor(0, 192, 192, 192); // Cyan-ish
+										break;
+									default:
+										arrow_color = MakeColor(255, 255, 0, 255); // Yellow
+										break;
+								}
+
+								DrawArrow(linknum, nodes[node].origin, nodes[to].origin, arrow_color, 1.0, 100, true); // Draw node link
+								linknum++;
+							}
+						}
+					}
+
+					DrawBox(node, nodes[node].origin, color, nodes[node].mins, nodes[node].maxs, 100, true); // Draw node box
+
+					if (ent->bot.walknode.highlighted_node_type == HIGHLIGHTED_NODE_SELECT || ent->bot.walknode.highlighted_node_type == HIGHLIGHTED_NODE_SELECT_SMART)
+					{
+						if (nodes[node].area > 0) // Only draw area num if > 0
+							DrawString(node, tv(nodes[node].origin[0], nodes[node].origin[1], nodes[node].origin[2] + 20), va("%d", nodes[node].area), U32_YELLOW, 100, true); // Draw area number
+					}
+					else {
+						switch (nodes[node].links->targetNodeType) {
+							case NODE_MOVE:
+								link_color = MakeColor(255, 255, 0, 255); // Yellow
+								break;
+							case NODE_JUMPPAD:
+								link_color = MakeColor(128, 0, 128, 255); // Purple
+								break;
+							case NODE_LADDER:
+								link_color = MakeColor(0, 255, 0, 255); // Green
+								break;
+							case NODE_WATER:
+								link_color = MakeColor(255, 255, 255, 255); // White
+								break;
+							case NODE_CROUCH:
+								link_color = MakeColor(255, 165, 0, 255); // Orange
+								break;
+							case NODE_BOXJUMP:
+								link_color = MakeColor(128, 128, 128, 255); // Gray
+								break;
+							case NODE_POI:
+								link_color = MakeColor(0, 255, 255, 255); // Cyan
+								break;
+							case NODE_POI_LOOKAT:
+								link_color = MakeColor(0, 192, 192, 192); // Cyan-ish
+								break;
+							default:
+								link_color = MakeColor(255, 255, 0, 255); // Yellow
+								break;
+						}
+						DrawString(node, tv(nodes[node].origin[0], nodes[node].origin[1], nodes[node].origin[2] + 20), va("%d", node), link_color, 100, true); // Draw node number
+					}
+				}
+			}
+		}
+		/*
+		else // Networked clients (send a message)
+		{
+			gi.WriteByte(svc_temp_entity);
+			gi.WriteByte(TE_DRAWARROW);
+			gi.WriteLong(U32_YELLOW); // Color
+			gi.WriteByte(5); // Line width
+			gi.WritePosition(start);
+			gi.WritePosition(end);
+			//gi.WritePosition(ent->s.origin);
+			//gi.WritePosition(tv(ent->s.origin[0], ent->s.origin[1], ent->s.origin[2] + 128));
+			gi.multicast(start, MULTICAST_PVS);
+		}
+		*/
+	}
+#endif
+	//rekkie -- debug drawing -- e
+	//rekkie -- Walknodes -- e
+
+	//rekkie -- surface data -- e
+
+	if (0 && ent->is_bot == false)
+	{
+		//ent->client->idle_weapon, ent->client->bandage_stopped, ent->client->bandaging
+		//Com_Printf("%s %s idle_weapon[%d] bandage_stopped[%d] bandaging[%d]\n", __func__, ent->client->pers.netname, ent->client->idle_weapon, ent->client->bandage_stopped, ent->client->bandaging);
+		//Com_Printf("%s %s viewheight[%d]\n", __func__, ent->client->pers.netname, ent->viewheight);
+		
+		if (0)
+		{
+			edict_t* self = ent; // DELETE ME !!!!!!!!!!!!!!!!!!!!!!
+
+			int	ammo_index, rounds;
+			gitem_t* ammo_item;
+			qboolean loaded = true;
+			qboolean clips = true;
+
+			if (self->client->weapon == FindItem(MK23_NAME) || self->client->weapon == FindItem(DUAL_NAME) 
+				|| self->client->weapon == FindItem(MP5_NAME) || self->client->weapon == FindItem(M4_NAME)
+				|| self->client->weapon == FindItem(M3_NAME) || self->client->weapon == FindItem(HC_NAME)
+				|| self->client->weapon == FindItem(SNIPER_NAME))
+			{
+				if (self->client->weapon->ammo) // Do we have ammo
+				{
+					ammo_item = FindItem(self->client->weapon->ammo);
+					ammo_index = ITEM_INDEX(ammo_item);
+					if (self->client->inventory[ammo_index] < 1)
+						clips = false;
+					else
+						clips = true;
+				}
+				// Check ammo
+				if (self->client->weapon == FindItem(MK23_NAME))
+				{
+					rounds = self->client->mk23_rds;
+					if (self->client->weaponstate == WEAPON_END_MAG)
+						loaded = false;
+				}
+				else if (self->client->weapon == FindItem(DUAL_NAME))
+				{
+					rounds = self->client->dual_rds;
+					if (self->client->weaponstate == WEAPON_END_MAG)
+						loaded = false;
+				}
+				else if (self->client->weapon == FindItem(MP5_NAME))
+				{
+					rounds = self->client->mp5_rds;
+					if (rounds < 1)
+						loaded = false;
+				}
+				else if (self->client->weapon == FindItem(M4_NAME))
+				{
+					rounds = self->client->m4_rds;
+					if (rounds < 1)
+						loaded = false;
+				}
+				else if (self->client->weapon == FindItem(M3_NAME))
+				{
+					rounds = self->client->shot_rds;
+					if (rounds < self->client->shot_max)
+						loaded = false;
+				}
+				else if (self->client->weapon == FindItem(HC_NAME))
+				{
+					rounds = self->client->cannon_rds;
+					if (hc_single->value && self->client->pers.hc_mode) // Single barrel fire mode
+					{
+						if (rounds < 1)
+							loaded = false;
+					}
+					else if (rounds < 2) // Double barrel fire mode
+						loaded = false;
+				}
+				else if (self->client->weapon == FindItem(SNIPER_NAME))
+				{
+					rounds = self->client->sniper_rds;
+					if (rounds < self->client->sniper_max)
+						loaded = false;
+				}
+
+				//Com_Printf("%s %s inv_ammo[%d] rnds[%d] loaded[%d] clips[%d]\n", __func__, self->client->pers.netname, self->client->inventory[ammo_index], rounds, loaded, clips);
+
+				// No ammo - drop weapon
+				if (!loaded && !clips)
+				{
+					DropSpecialWeapon(self);
+				}
+				// Reload
+				else if (!loaded)
+				{
+					Cmd_New_Reload_f(self);
+				}
+			}
+		}
+	}
+
+	if (0 && ent->is_bot == false)
+	{
+		if (players[1] && players[1]->is_bot)
+		{
+			// Project trace from the player's weapon POV
+			vec3_t      start, end;
+			vec3_t      forward, right;
+			vec3_t      offset;
+			AngleVectors(ent->client->v_angle, forward, right, NULL);
+			VectorSet(offset, 0, 0, ent->viewheight - 8);
+			G_ProjectSource(ent->s.origin, offset, forward, right, start);
+			float dist = VectorDistance(ent->s.origin, players[1]->s.origin);
+			VectorMA(start, dist, forward, end);
+
+			// Adjust the mins/maxs box size based on size
+			vec3_t bmins = { -16, -16, +9};
+			vec3_t bmaxs = { 16, 16, +10};
+
+			// Update absolute box min/max in the world
+			vec3_t absmin, absmax;
+			VectorAdd(end, bmins, absmin);
+			VectorAdd(end, bmaxs, absmax);
+
+			if (BOTLIB_BoxIntersection(absmin, absmax, players[1]->absmin, players[1]->absmax)) // Do boxes intersect?
+				Com_Printf("%s %s can hit %s\n", __func__, ent->client->pers.netname, players[1]->client->pers.netname);
+
+			//rekkie -- debug drawing -- s
+#if DEBUG_DRAWING
+			if (1) // Debug draw predicted enemy origin - blue is predicted, yellow is actual
+			{
+				uint32_t blue = MakeColor(0, 0, 255, 255); // Blue
+				uint32_t yellow = MakeColor(255, 255, 0, 255); // Yellow
+				void (*DrawBox)(int number, vec3_t origin, uint32_t color, vec3_t mins, vec3_t maxs, int time, qboolean occluded) = NULL;
+				DrawBox = players[0]->client->pers.draw->DrawBox;
+				players[0]->client->pers.draw->boxes_inuse = true; // Flag as being used
+				DrawBox(players[1]->s.number, players[1]->s.origin, blue, players[1]->mins, players[1]->maxs, 100, false); // Player hitbox
+				DrawBox(ent->s.number, end, yellow, bmins, bmaxs, 100, false); // Projectile hitbox
+			}
+#endif
+			//rekkie -- debug drawing -- e
+		}
+
+	}
+
+	if (0 && ent->is_bot == false)
+	{
+		// Clear peak velocity if the player stops, then starts moving again
+		if (VectorEmpty(ent->velocity))
+			ent->velocity_clear = true;
+		if (ent->velocity_clear && VectorEmpty(ent->velocity) == false)
+		{
+			ent->velocity_clear = false;
+			VectorClear(ent->velocity_peak);
+			ent->speed_peak = 0;
+		}
+
+		if (ent->velocity[0] > ent->velocity_peak[0]) ent->velocity_peak[0] = ent->velocity[0]; // 800
+		if (ent->velocity[1] > ent->velocity_peak[1]) ent->velocity_peak[1] = ent->velocity[1]; // 870
+		if (ent->velocity[2] > ent->velocity_peak[2]) ent->velocity_peak[2] = ent->velocity[2]; // 260
+		
+		// Get the surface normal of the ground the player is standing on
+		trace_t tr = gi.trace(ent->s.origin, NULL, NULL, tv(ent->s.origin[0], ent->s.origin[1], ent->s.origin[2] - 128), ent, MASK_PLAYERSOLID);
+
+		// calculate velocity speed
+		float speed = VectorLength(ent->velocity);
+		if (speed > ent->speed_peak) ent->speed_peak = speed; // 937
+
+		Com_Printf("%s speed[%f] peak[%f] normal[%f] velocity_peak[%f %f %f]\n", __func__, speed, ent->speed_peak, tr.plane.normal[2], ent->velocity_peak[0], ent->velocity_peak[1], ent->velocity_peak[2]);
+	}
+
+	
+
+	int show_nodes_max_dist = 29999; // max dist nodes will show from selected point in space
+	//show_nodes_max_dist = 99999;
+	// true
+	// false
+	static qboolean show_distance = false;
+	static qboolean show_nodes = false;
+	static qboolean show_MOVE_nodes_only = false; // only shows nodes that are for MOVE - requires 'show_nodes = true'
+	static qboolean show_step_nodes_only = false; // only shows nodes that are for STEPS - requires 'show_nodes = true'
+	static qboolean show_item_nodes_only = false; // only shows nodes that are for ITEMS - requires 'show_nodes = true'
+	static qboolean show_ladder_nodes_only = false; // only shows nodes that are for LADDER_UP / LADDER_DOWN - requires 'show_nodes = true'
+	//
+	static qboolean show_links = false;
+	static qboolean show_MOVE_links_only = false; // only shows links that are for MOVE - requires 'show_links = true'
+	//
+	static qboolean print_link_details = false;
+	static qboolean show_ladder_links = false;
+	static qboolean bot_visit_selected_node = true; // tell bots to go to selected node (requires show_nodes = true)
+	if (ent->is_bot == false && dedicated->value == 0)
+	{
+		// Force turn on nodes if links active
+		//if (show_links && !show_nodes) show_nodes = true;
+		//if (show_nodes && !show_links) show_links = true;
+
+		// Project trace from the player's weapon POV -- s
+		vec3_t      start, end;
+		vec3_t      forward, right;
+		vec3_t      offset;
+		AngleVectors(ent->client->v_angle, forward, right, NULL);
+		VectorSet(offset, 0, 7, ent->viewheight - 8);
+		offset[1] = 0;
+		G_ProjectSource(ent->s.origin, offset, forward, right, start);
+		VectorMA(start, 8192, forward, end);
+		trace_t tr;
+		tr = gi.trace(start, NULL, NULL, end, ent, MASK_SOLID);
+		// Project trace from the player's weapon POV -- e
+
+		// Display nodes cloest to the player
+		int latched_buttons = client->latched_buttons;
+		int oldbuttons = client->buttons;
+		int buttons = ucmd->buttons;
+		latched_buttons |= buttons & ~oldbuttons;
+		if (latched_buttons & BUTTON_ATTACK)
+		{
+			//LaunchPlayer(ent, tr.endpos);
+			//BOTLIB_Jump_Takeoff(ent, NULL, tr.endpos, ent->viewheight, ent->velocity);
+			//BOTLIB_DoParabolaJump(ent, tr.endpos);
+
+			if (show_distance) // Calculate the distance to the target
+			{
+				vec3_t dist;
+				//vec3_t velocity;
+				VectorSubtract(tr.endpos, ent->s.origin, dist);
+				float distance = VectorLength(dist);
+				Com_Printf("%s dist %f\n", __func__, distance);
+			}
+
+			if (show_nodes)
+			{
+				int closest_dist = 99999;
+				int closest_node = INVALID;
+				int nodes_shown = 0;
+				vec3_t v;
+				float dist;
+				for (int node = 0; node < numnodes; node++) // for each node
+				{
+					if (nodes[node].inuse == false) continue; // Ignore nodes not in use
+
+					//if (nodes_shown > 256)
+					//	break;
+
+					if (show_MOVE_nodes_only) // only show MOVE nodes
+					{
+						if (nodes[node].type != NODE_MOVE) // if not a move node, continue searching
+							continue;
+					}
+					if (show_step_nodes_only) // only show step nodes
+					{
+						//show_nodes_max_dist *= 3; // increase distance shown
+						if (nodes[node].type != NODE_STEP) // if not a step node, continue searching
+							continue;
+					}
+					if (show_item_nodes_only)
+					{
+						//show_nodes_max_dist *= 3; // increase distance shown
+						if (nodes[node].type != NODE_ITEM) // if not a step node, continue searching
+							continue;
+					}
+					if (show_ladder_nodes_only)
+					{
+						//show_nodes_max_dist *= 3; // increase distance shown
+						if (nodes[node].type != NODE_LADDER_DOWN && nodes[node].type != NODE_LADDER_UP) // if not a step node, continue searching
+							continue;
+					}
+
+					VectorSubtract(nodes[node].origin, tr.endpos, v); // subtract first
+					dist = v[0] * v[0] + v[1] * v[1] + v[2] * v[2];
+
+					if (dist < show_nodes_max_dist)
+					{
+						// Find closest node
+						if (dist < closest_dist)
+						{
+							closest_dist = dist;
+							closest_node = node;
+						}
+						ACEND_ShowNode(node);
+						nodes_shown++;
+
+						//ent->bot.highlighted_node = node;
+						
+
+					}
+				}
+
+				ent->show_node_links = closest_node;
+				ent->show_node_links_time = level.framenum + 10.0 * HZ;
+				if (closest_node >= 0)
+					Com_Printf("%s %s selected node %d type %d  origin[%f %f %f]\n", __func__, ent->client->pers.netname, closest_node, nodes[closest_node].type, nodes[closest_node].origin[0], nodes[closest_node].origin[1], nodes[closest_node].origin[2]);
+
+				// tell bots to go to selected node
+				if (bot_visit_selected_node)
+					if (closest_node > 0 && closest_node < numnodes)
+					{
+						for (int i = 0; i <= num_players; i++)
+						{
+							if (players[i] && players[i]->is_bot && players[i]->health > 0)
+							{
+								//BOTLIB_SetGoal(players[i], closest_node);
+								if (BOTLIB_CanGotoNode(players[i], players[i]->bot.goal_node, false))
+								{
+									Com_Printf("%s %s is heading to node %d\n", __func__, players[i]->client->pers.netname, closest_node);
+								}
+								else
+								{
+									Com_Printf("%s %s cannot reach node %d\n", __func__, players[i]->client->pers.netname, closest_node);
+								}
+							}
+						}
+					}
+
+				if (print_link_details)
+					if (ent->show_node_links != INVALID && ent->show_node_links < numnodes)
+					{
+						//Com_Printf("%s Node %d type %d\n", __func__, nodes[ent->show_node_links].nodenum, nodes[ent->show_node_links].type);
+
+						int targetNode;
+						for (int i = 0; i < MAXLINKS; i++)
+						{
+							// Is target node valid
+							if ((targetNode = nodes[ent->show_node_links].links[i].targetNode) > INVALID)
+							{
+								if (show_MOVE_links_only) // only show MOVE links
+								{
+									if (nodes[targetNode].type != NODE_MOVE) // if not a move link, continue searching
+										continue;
+								}
+
+								float higher = 0; float lower = 99999;
+								if (nodes[ent->show_node_links].origin[2] > nodes[targetNode].origin[2])
+									higher = (nodes[ent->show_node_links].origin[2] - nodes[targetNode].origin[2]);
+								else if (nodes[ent->show_node_links].origin[2] < nodes[targetNode].origin[2])
+									lower = (nodes[targetNode].origin[2] - nodes[ent->show_node_links].origin[2]);
+
+								VectorSubtract(nodes[targetNode].origin, nodes[ent->show_node_links].origin, v);
+								dist = VectorLength(v);
+
+								if (higher > 0)  // Node is higher than origin
+									Com_Printf("%s n[%i to %i] - t[%i to %i] - dist %f z_up: %f\n", __func__, ent->show_node_links, targetNode, nodes[ent->show_node_links].type, nodes[targetNode].type, dist, higher);
+								else if (lower != 99999) // Node is lower than origin
+									Com_Printf("%s n[%i to %i] - t[%i to %i] - dist %f z_dn: %f\n", __func__, ent->show_node_links, targetNode, nodes[ent->show_node_links].type, nodes[targetNode].type, dist, lower);
+								else // Node at equal dist to origin
+									Com_Printf("%s n[%i to %i] - t[%i to %i] - dist %f z_eq: %d\n", __func__, ent->show_node_links, targetNode, nodes[ent->show_node_links].type, nodes[targetNode].type, dist, 0);
+							}
+						}
+					}
+			}
+		}
+
+		// Show links from node
+		if (show_links)
+			if (ent->show_node_links != INVALID && ent->show_node_links < numnodes && ent->show_node_links_time > level.framenum)
+			{
+				int targetNode;
+				for (int i = 0; i < MAXLINKS; i++)
+				{
+					// Is target node valid
+					if ((targetNode = nodes[ent->show_node_links].links[i].targetNode) > INVALID) // Node
+					{
+						if (show_MOVE_links_only) // only show MOVE links
+						{
+							if (nodes[targetNode].type != NODE_MOVE) // if not a move link, continue searching
+								continue;
+						}
+
+						// Show only this type
+						//if (nodes[ent->show_node_links].links[i].targetNodeType == NODE_MOVE)
+						{
+							// Show a visual laser link
+							gi.WriteByte(svc_temp_entity);
+							gi.WriteByte(TE_BFG_LASER);
+							gi.WritePosition(nodes[ent->show_node_links].origin); // start
+							gi.WritePosition(nodes[targetNode].origin); // end
+							gi.multicast(nodes[ent->show_node_links].origin, MULTICAST_PHS);
+						}
+					}
+				}
+			}
+
+		// Show all ladder links
+		if (show_ladder_links)
+			//if (ent->show_node_links_time > level.framenum)
+		{
+			for (int node = 0; node < numnodes; node++) // for each node
+			{	
+				if (nodes[node].inuse == false) continue; // Ignore nodes not in use
+				/*
+				if ((node + 1) < numnodes && nodes[node].type == NODE_LADDER_DOWN && nodes[node + 1].type == NODE_LADDER_UP) // Bottom and top of ladder
+				{
+					vec3_t v;
+					float dist;
+					VectorSubtract(nodes[node].origin, tr.endpos, v); // Find distance from player shot trace to bottom of ladder
+					dist = v[0] * v[0] + v[1] * v[1] + v[2] * v[2];
+					if (dist < 149999)
+					{
+						//Com_Printf("%s targetNode %i type %i\n", __func__, targetNode, nodes[targetNode].type);
+						// Show a visual laser link
+						gi.WriteByte(svc_temp_entity);
+						gi.WriteByte(TE_BFG_LASER);
+						gi.WritePosition(nodes[node].origin); // start
+						gi.WritePosition(nodes[node+1].origin); // end
+						gi.multicast(nodes[node].origin, MULTICAST_PHS);
+					}
+				}
+				*/
+				if (nodes[node].type == NODE_LADDER_UP || nodes[node].type == NODE_LADDER_DOWN) // Node is ladder
+				//if (nodes[node].type == NODE_LADDER) // Node is ladder
+				{
+					int targetNode;
+					for (int i = 0; i < MAXLINKS; i++)
+					{
+						// Is target node valid
+						targetNode = nodes[node].links[i].targetNode;
+						if (targetNode > INVALID) // && (nodes[targetNode].type == NODE_LADDER_UP && nodes[targetNode].type == NODE_LADDER_DOWN)) // Target is also ladder
+						{
+							vec3_t v;
+							float dist;
+							VectorSubtract(nodes[node].origin, tr.endpos, v); // subtract first
+							dist = v[0] * v[0] + v[1] * v[1] + v[2] * v[2];
+							if (dist < 9999)
+							{
+								//Com_Printf("%s targetNode %i type %i\n", __func__, targetNode, nodes[targetNode].type);
+
+								// Show a visual laser link
+								gi.WriteByte(svc_temp_entity);
+								gi.WriteByte(TE_BFG_LASER);
+								gi.WritePosition(nodes[node].origin); // start
+								gi.WritePosition(nodes[targetNode].origin); // end
+								gi.multicast(nodes[node].origin, MULTICAST_PHS);
+							}
+						}
+					}
+				}
+
+			}
+		}
+	}
+	//rekkie -- DEV_1 -- e
+
+#ifndef NO_BOTS
+	//rekkie -- remember last position if it's different
+	//if (VectorDistance(ent->s.origin, ent->bot.last_position) > 8)
+	//if (VectorLength(ent->velocity) > 37)
+	//	VectorCopy(ent->s.origin, ent->bot.last_position);
+	if (VectorCompare(ent->bot.tmp_position, ent->bot.last_position) == false && VectorCompare(ent->s.origin, ent->bot.tmp_position) == false)
+		VectorCopy(ent->bot.tmp_position, ent->bot.last_position);
+	if (VectorCompare(ent->s.origin, ent->bot.tmp_position) == false)
+		VectorCopy(ent->s.origin, ent->bot.tmp_position);
+#endif
+
 	client->oldbuttons = client->buttons;
 	client->buttons = ucmd->buttons;
 	client->latched_buttons |= client->buttons & ~client->oldbuttons;
@@ -3441,7 +6078,13 @@ void ClientThink(edict_t * ent, usercmd_t * ucmd)
 
 		if (ent->solid == SOLID_NOT && ent->deadflag != DEAD_DEAD && !in_warmup) {
 			client->latched_buttons = 0;
-			NextChaseMode( ent );
+
+//rekkie -- DEV_1 -- prevent chase cam while show nodes is enabled -- s
+#ifndef NO_BOTS
+			if (ent->bot.walknode.enabled == false) // Allow chase cam if nav_edit is disabled
+#endif
+//rekkie -- DEV_1 -- prevent chase cam while show nodes is enabled -- e
+			 NextChaseMode( ent );
 		} else {
 			ClientThinkWeaponIfReady( ent, false );
 		}
@@ -3489,16 +6132,31 @@ void ClientBeginServerFrame(edict_t * ent)
 	if (sv_antilag->value) // if sv_antilag is enabled, we want to track our player position for later reference
 		antilag_update(ent);
 
-#ifdef AQTION_EXTENSION
+	//PaTMaN's jmod
+	if(jump->value) {
+		if ((client->resp.toggle_lca) && (client->pers.spectator))
+			client->resp.toggle_lca = 0;
+		else if (client->resp.toggle_lca)
+			Cmd_PMLCA_f(ent);
+	}
+
+#if AQTION_EXTENSION
 	// resync pm_timestamp so all limps are roughly synchronous, to try to maintain original behavior
 	unsigned short world_timestamp = (int)(level.time * 1000) % 60000;
 	client->ps.pmove.pm_timestamp = world_timestamp;
 
-	// network any pending ghud updates
-	Ghud_SendUpdates(ent);
-
 	// update dimension mask for team-only entities
 	client->dimension_observe = 1 | (1 << client->resp.team);
+
+	if (client->resp.hud_type == 1)
+	{
+		client->dimension_observe |= 0xE; // true spectators can see all teams
+		HUD_SpectatorUpdate(ent);
+	}
+	else
+	{
+		HUD_ClientUpdate(ent);
+	}
 #endif
 
 	if (client->resp.penalty > 0 && level.realFramenum % HZ == 0)
@@ -3516,6 +6174,16 @@ void ClientBeginServerFrame(edict_t * ent)
 			client->resp.last_motd_refresh = level.realFramenum;
 			client->resp.motd_refreshes++;
 			PrintMOTD( ent );
+		}
+	// This next message appears perpetually until the conditions to make the message go away are met
+	} else if (ent->client->layout != LAYOUT_MENU) {
+		if (printrules->value) { // Do not print rules unless printrules is 1
+			if (PrintGameMessage(ent)) {
+				if (client->resp.last_gamemsg_refresh + 2 * HZ < level.realFramenum) {
+					client->resp.last_gamemsg_refresh = level.realFramenum;
+					client->resp.gamemsg_refreshes++;
+				}
+			}
 		}
 	}
 
@@ -3566,7 +6234,7 @@ void ClientBeginServerFrame(edict_t * ent)
 		// wait for any button just going down
 		if (level.framenum > client->respawn_framenum)
 		{
-
+			// Special consideration here for Espionage, as we DO want to respawn in a GS_ROUNDBASED game
 			if (teamplay->value) {
 				going_observer = ((gameSettings & GS_ROUNDBASED) || !client->resp.team || client->resp.subteam);
 			}
@@ -3601,6 +6269,12 @@ void ClientBeginServerFrame(edict_t * ent)
 					ent->client->chase_mode = 0;
 					NextChaseMode( ent );
 				}
+
+				if (esp->value) {
+					// LCA countdown occurs below in EspRespawnLCA()
+					// then Action!
+					EspRespawnPlayer(ent);
+				}
 			}
 			else
 			{
@@ -3611,6 +6285,9 @@ void ClientBeginServerFrame(edict_t * ent)
 					client->latched_buttons = 0;
 				}
 			}
+		} else { // !(level.framenum > client->respawn_framenum)
+			if (esp->value)
+				EspRespawnLCA(ent);
 		}
 		return;
 	}
@@ -3624,8 +6301,9 @@ void ClientBeginServerFrame(edict_t * ent)
 		client->punch_desired = false;
 
 		if( (ppl_idletime->value > 0) && idleframes && (idleframes % (int)(ppl_idletime->value * HZ) == 0) )
-			//plays a random sound/insane sound, insane1-9.wav
-			gi.sound( ent, CHAN_VOICE, gi.soundindex(va( "insane/insane%i.wav", rand() % 9 + 1 )), 1, ATTN_NORM, 0 );
+			//plays a random sound/insane sound, insane1-11.wav
+			if (!jump->value) // Don't play insane sounds in jmod
+				gi.sound( ent, CHAN_VOICE, gi.soundindex(va( "insane/insane%i.wav", rand() % 11 + 1 )), 1, ATTN_NORM, 0 );
 
 		if( (sv_idleremove->value > 0) && (idleframes > (sv_idleremove->value * HZ)) && client->resp.team )
 		{
@@ -3663,8 +6341,7 @@ void ClientBeginServerFrame(edict_t * ent)
 							(client->resp.team == ctfgame.offence ?
 							"ATTACKING" : "DEFENDING"),
 							CTFOtherTeamName(ctfgame.offence));
-					}
-					else {
+					} else {
 						gi.centerprintf(ent, "ACTION!");
 					}
 				}

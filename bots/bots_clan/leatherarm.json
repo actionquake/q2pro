@@ -1,0 +1,35 @@
+{
+    "name": "Leatherarm",
+    "clan_id": 19,
+    "skin": "male/rigs",
+    "weaponPreferences": {
+        "mk23": 0.6,
+        "dual_mk23": 0.4,
+        "mp5": 0.6,
+        "m4": 0.4,
+        "m3": 0.6,
+        "hc": 0.5,
+        "sniper": 0.6,
+        "knives": 1.0,
+        "grenades": 0.8
+    },
+    "itemPreferences": {
+        "vest": 1.0,
+        "helm": 0.6,
+        "laser": 0.2,
+        "silencer": 0.6,
+        "slippers": 0.9,
+        "bandolier": 0.6
+    },
+    "coreTraits": {
+        "aggressiveness": 0.3,
+        "teamwork": 0.0,
+        "curiosity": 0.9,
+        "aimingSkill": 0.8,
+        "reactionTime": 0.4,
+        "communicationFreq": 0.3,
+        "communicationTone": 0.3,
+        "movementStyle": 0.2,
+        "objectiveFocus": 0.5
+    }
+}

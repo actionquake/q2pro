@@ -1,0 +1,510 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Project DefaultTargets="Build" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <ItemGroup Label="ProjectConfigurations">
+    <ProjectConfiguration Include="Debug|Win32">
+      <Configuration>Debug</Configuration>
+      <Platform>Win32</Platform>
+    </ProjectConfiguration>
+    <ProjectConfiguration Include="Release|Win32">
+      <Configuration>Release</Configuration>
+      <Platform>Win32</Platform>
+    </ProjectConfiguration>
+    <ProjectConfiguration Include="Debug|x64">
+      <Configuration>Debug</Configuration>
+      <Platform>x64</Platform>
+    </ProjectConfiguration>
+    <ProjectConfiguration Include="Release|x64">
+      <Configuration>Release</Configuration>
+      <Platform>x64</Platform>
+    </ProjectConfiguration>
+  </ItemGroup>
+  <PropertyGroup Label="Globals">
+    <VCProjectVersion>17.0</VCProjectVersion>
+    <ProjectGuid>{4A622773-BA18-4BAA-9CE1-B05EBF1BCF26}</ProjectGuid>
+    <Keyword>Win32Proj</Keyword>
+  </PropertyGroup>
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.Default.props" />
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'" Label="Configuration">
+    <ConfigurationType>Makefile</ConfigurationType>
+    <UseDebugLibraries>true</UseDebugLibraries>
+    <PlatformToolset>v143</PlatformToolset>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'" Label="Configuration">
+    <ConfigurationType>Makefile</ConfigurationType>
+    <UseDebugLibraries>false</UseDebugLibraries>
+    <PlatformToolset>v143</PlatformToolset>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'" Label="Configuration">
+    <ConfigurationType>Makefile</ConfigurationType>
+    <UseDebugLibraries>true</UseDebugLibraries>
+    <PlatformToolset>v143</PlatformToolset>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'" Label="Configuration">
+    <ConfigurationType>Makefile</ConfigurationType>
+    <UseDebugLibraries>false</UseDebugLibraries>
+    <PlatformToolset>v143</PlatformToolset>
+  </PropertyGroup>
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.props" />
+  <ImportGroup Label="ExtensionSettings">
+  </ImportGroup>
+  <ImportGroup Label="Shared">
+  </ImportGroup>
+  <ImportGroup Label="PropertySheets" Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
+    <Import Project="$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props" Condition="exists('$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props')" Label="LocalAppDataPlatform" />
+  </ImportGroup>
+  <ImportGroup Label="PropertySheets" Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
+    <Import Project="$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props" Condition="exists('$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props')" Label="LocalAppDataPlatform" />
+  </ImportGroup>
+  <ImportGroup Label="PropertySheets" Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
+    <Import Project="$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props" Condition="exists('$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props')" Label="LocalAppDataPlatform" />
+  </ImportGroup>
+  <ImportGroup Label="PropertySheets" Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
+    <Import Project="$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props" Condition="exists('$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props')" Label="LocalAppDataPlatform" />
+  </ImportGroup>
+  <PropertyGroup Label="UserMacros" />
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
+    <NMakeBuildCommandLine>meson_debug_build.bat</NMakeBuildCommandLine>
+    <NMakeOutput>$(Configuration)\q2pro.exe</NMakeOutput>
+    <NMakeCleanCommandLine>meson_debug_clean.bat</NMakeCleanCommandLine>
+    <NMakeReBuildCommandLine>meson_debug_rebuild.bat</NMakeReBuildCommandLine>
+    <NMakePreprocessorDefinitions>_DEBUG;$(NMakePreprocessorDefinitions);HAVE_CONFIG_H</NMakePreprocessorDefinitions>
+    <IncludePath>$(VC_IncludePath);$(WindowsSDK_IncludePath);$(ProjectDir)..\inc\;$(ProjectDir)..\AQtion\Debug\</IncludePath>
+    <ExternalIncludePath>$(VC_IncludePath);$(WindowsSDK_IncludePath);$(ProjectDir)..\inc\;$(ProjectDir)..\AQtion\Debug\</ExternalIncludePath>
+    <SourcePath>$(VC_SourcePath);$(ProjectDir)..\inc\;$(ProjectDir)..\AQtion\Debug\</SourcePath>
+    <NMakeForcedIncludes>
+    </NMakeForcedIncludes>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
+    <NMakeBuildCommandLine>meson compile -C $(Configuration)</NMakeBuildCommandLine>
+    <NMakeOutput>$(Configuration)\q2pro.exe</NMakeOutput>
+    <NMakeCleanCommandLine>meson compile -C $(Configuration) --clean</NMakeCleanCommandLine>
+    <NMakeReBuildCommandLine>meson compile -C $(Configuration) --clean &amp;&amp; meson compile -C $(Configuration)</NMakeReBuildCommandLine>
+    <NMakePreprocessorDefinitions>WIN32;_DEBUG;$(NMakePreprocessorDefinitions)</NMakePreprocessorDefinitions>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
+    <NMakeBuildCommandLine>meson compile -C $(Configuration)</NMakeBuildCommandLine>
+    <NMakeOutput>$(Configuration)\q2pro.exe</NMakeOutput>
+    <NMakeCleanCommandLine>meson compile -C $(Configuration) --clean</NMakeCleanCommandLine>
+    <NMakeReBuildCommandLine>meson compile -C $(Configuration) --clean &amp;&amp; meson compile -C $(Configuration)</NMakeReBuildCommandLine>
+    <NMakePreprocessorDefinitions>WIN32;NDEBUG;$(NMakePreprocessorDefinitions)</NMakePreprocessorDefinitions>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
+    <NMakeBuildCommandLine>meson_release_build.bat</NMakeBuildCommandLine>
+    <NMakeOutput>$(Configuration)\q2pro.exe</NMakeOutput>
+    <NMakeCleanCommandLine>meson_release_clean.bat</NMakeCleanCommandLine>
+    <NMakeReBuildCommandLine>meson_release_rebuild.bat</NMakeReBuildCommandLine>
+    <NMakePreprocessorDefinitions>NDEBUG;$(NMakePreprocessorDefinitions);HAVE_CONFIG_H</NMakePreprocessorDefinitions>
+    <IncludePath>$(VC_IncludePath);$(WindowsSDK_IncludePath);$(ProjectDir)..\inc\;$(ProjectDir)..\AQtion\Release\</IncludePath>
+    <ExternalIncludePath>$(VC_IncludePath);$(WindowsSDK_IncludePath);$(ProjectDir)..\inc\;$(ProjectDir)..\AQtion\Release\</ExternalIncludePath>
+    <SourcePath>$(VC_SourcePath);$(ProjectDir)..\inc\;$(ProjectDir)..\AQtion\Release\</SourcePath>
+  </PropertyGroup>
+  <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
+    <NMakeCompile>
+      <NMakeCompileFileCommandLine>
+      </NMakeCompileFileCommandLine>
+    </NMakeCompile>
+  </ItemDefinitionGroup>
+  <ItemGroup>
+    <ClCompile Include="..\src\action\acesrc\acebot_ai.c" />
+    <ClCompile Include="..\src\action\acesrc\acebot_cmds.c" />
+    <ClCompile Include="..\src\action\acesrc\acebot_compress.c" />
+    <ClCompile Include="..\src\action\acesrc\acebot_items.c" />
+    <ClCompile Include="..\src\action\acesrc\acebot_movement.c" />
+    <ClCompile Include="..\src\action\acesrc\acebot_nodes.c" />
+    <ClCompile Include="..\src\action\acesrc\acebot_spawn.c" />
+    <ClCompile Include="..\src\action\acesrc\botchat.c" />
+    <ClCompile Include="..\src\action\acesrc\botnav.c" />
+    <ClCompile Include="..\src\action\acesrc\botscan.c" />
+    <ClCompile Include="..\src\action\acesrc\bot_ai.c" />
+    <ClCompile Include="..\src\action\acesrc\bot_collision.c" />
+    <ClCompile Include="..\src\action\acesrc\bot_combat.c" />
+    <ClCompile Include="..\src\action\acesrc\bot_env_doors.c" />
+    <ClCompile Include="..\src\action\acesrc\bot_movement.c" />
+    <ClCompile Include="..\src\action\acesrc\bot_states.c" />
+    <ClCompile Include="..\src\action\acesrc\bot_utility.c" />
+    <ClCompile Include="..\src\action\acesrc\bot_weapon.c" />
+    <ClCompile Include="..\src\action\addons\tngbot\tngbot.c" />
+    <ClCompile Include="..\src\action\a_cmds.c" />
+    <ClCompile Include="..\src\action\a_ctf.c" />
+    <ClCompile Include="..\src\action\a_dom.c" />
+    <ClCompile Include="..\src\action\a_doorkick.c" />
+    <ClCompile Include="..\src\action\a_esp.c" />
+    <ClCompile Include="..\src\action\a_game.c" />
+    <ClCompile Include="..\src\action\a_items.c" />
+    <ClCompile Include="..\src\action\a_match.c" />
+    <ClCompile Include="..\src\action\a_menu.c" />
+    <ClCompile Include="..\src\action\a_radio.c" />
+    <ClCompile Include="..\src\action\a_team.c" />
+    <ClCompile Include="..\src\action\a_tourney.c" />
+    <ClCompile Include="..\src\action\a_vote.c" />
+    <ClCompile Include="..\src\action\a_xcmds.c" />
+    <ClCompile Include="..\src\action\a_xgame.c" />
+    <ClCompile Include="..\src\action\a_xmenu.c" />
+    <ClCompile Include="..\src\action\a_xvote.c" />
+    <ClCompile Include="..\src\action\cgf_sfx_glass.c" />
+    <ClCompile Include="..\src\action\e_game.c" />
+    <ClCompile Include="..\src\action\g_chase.c" />
+    <ClCompile Include="..\src\action\g_cmds.c" />
+    <ClCompile Include="..\src\action\g_combat.c" />
+    <ClCompile Include="..\src\action\g_ext.c" />
+    <ClCompile Include="..\src\action\g_func.c" />
+    <ClCompile Include="..\src\action\g_grapple.c" />
+    <ClCompile Include="..\src\action\g_items.c" />
+    <ClCompile Include="..\src\action\g_main.c" />
+    <ClCompile Include="..\src\action\g_misc.c" />
+    <ClCompile Include="..\src\action\g_phys.c" />
+    <ClCompile Include="..\src\action\g_save.c" />
+    <ClCompile Include="..\src\action\g_spawn.c" />
+    <ClCompile Include="..\src\action\g_svcmds.c" />
+    <ClCompile Include="..\src\action\g_target.c" />
+    <ClCompile Include="..\src\action\g_trigger.c" />
+    <ClCompile Include="..\src\action\g_utils.c" />
+    <ClCompile Include="..\src\action\g_weapon.c" />
+    <ClCompile Include="..\src\action\lcchack.c" />
+    <ClCompile Include="..\src\action\p_antilag.c" />
+    <ClCompile Include="..\src\action\p_client.c" />
+    <ClCompile Include="..\src\action\p_hud.c" />
+    <ClCompile Include="..\src\action\p_view.c" />
+    <ClCompile Include="..\src\action\p_weapon.c" />
+    <ClCompile Include="..\src\action\tng_balancer.c" />
+    <ClCompile Include="..\src\action\tng_flashlight.c" />
+    <ClCompile Include="..\src\action\tng_ini.c" />
+    <ClCompile Include="..\src\action\tng_irc.c" />
+    <ClCompile Include="..\src\action\tng_jump.c" />
+    <ClCompile Include="..\src\action\tng_stats.c" />
+    <ClCompile Include="..\src\client\ascii.c" />
+    <ClCompile Include="..\src\client\cin.c" />
+    <ClCompile Include="..\src\client\console.c" />
+    <ClCompile Include="..\src\client\crc.c" />
+    <ClCompile Include="..\src\client\demo.c" />
+    <ClCompile Include="..\src\client\download.c" />
+    <ClCompile Include="..\src\client\effects.c" />
+    <ClCompile Include="..\src\client\entities.c" />
+    <ClCompile Include="..\src\client\ffcin.c" />
+    <ClCompile Include="..\src\client\ghud.c" />
+    <ClCompile Include="..\src\client\gtv.c" />
+    <ClCompile Include="..\src\client\http.c" />
+    <ClCompile Include="..\src\client\input.c" />
+    <ClCompile Include="..\src\client\keys.c" />
+    <ClCompile Include="..\src\client\locs.c" />
+    <ClCompile Include="..\src\client\main.c" />
+    <ClCompile Include="..\src\client\newfx.c" />
+    <ClCompile Include="..\src\client\null.c" />
+    <ClCompile Include="..\src\client\parse.c" />
+    <ClCompile Include="..\src\client\precache.c" />
+    <ClCompile Include="..\src\client\predict.c" />
+    <ClCompile Include="..\src\client\refresh.c" />
+    <ClCompile Include="..\src\client\screen.c" />
+    <ClCompile Include="..\src\client\sound\al.c" />
+    <ClCompile Include="..\src\client\sound\dma.c" />
+    <ClCompile Include="..\src\client\sound\main.c" />
+    <ClCompile Include="..\src\client\sound\mem.c" />
+    <ClCompile Include="..\src\client\sound\ogg.c" />
+    <ClCompile Include="..\src\client\sound\qal.c" />
+    <ClCompile Include="..\src\client\tent.c" />
+    <ClCompile Include="..\src\client\ui\demos.c" />
+    <ClCompile Include="..\src\client\ui\menu.c" />
+    <ClCompile Include="..\src\client\ui\playerconfig.c" />
+    <ClCompile Include="..\src\client\ui\playermodels.c" />
+    <ClCompile Include="..\src\client\ui\script.c" />
+    <ClCompile Include="..\src\client\ui\servers.c" />
+    <ClCompile Include="..\src\client\ui\ui.c" />
+    <ClCompile Include="..\src\client\view.c" />
+    <ClCompile Include="..\src\common\async.c" />
+    <ClCompile Include="..\src\common\bsp.c" />
+    <ClCompile Include="..\src\common\cmd.c" />
+    <ClCompile Include="..\src\common\cmodel.c" />
+    <ClCompile Include="..\src\common\common.c" />
+    <ClCompile Include="..\src\common\cvar.c" />
+    <ClCompile Include="..\src\common\error.c" />
+    <ClCompile Include="..\src\common\field.c" />
+    <ClCompile Include="..\src\common\fifo.c" />
+    <ClCompile Include="..\src\common\files.c" />
+    <ClCompile Include="..\src\common\hash_map.c" />
+    <ClCompile Include="..\src\common\math.c" />
+    <ClCompile Include="..\src\common\mdfour.c" />
+    <ClCompile Include="..\src\common\msg.c" />
+    <ClCompile Include="..\src\common\net\chan.c" />
+    <ClCompile Include="..\src\common\net\net.c" />
+    <ClCompile Include="..\src\common\pmove.c" />
+    <ClCompile Include="..\src\common\prompt.c" />
+    <ClCompile Include="..\src\common\sizebuf.c" />
+    <ClCompile Include="..\src\common\tests.c" />
+    <ClCompile Include="..\src\common\utils.c" />
+    <ClCompile Include="..\src\common\zone.c" />
+    <ClCompile Include="..\src\game\g_ai.c" />
+    <ClCompile Include="..\src\game\g_chase.c" />
+    <ClCompile Include="..\src\game\g_cmds.c" />
+    <ClCompile Include="..\src\game\g_combat.c" />
+    <ClCompile Include="..\src\game\g_func.c" />
+    <ClCompile Include="..\src\game\g_items.c" />
+    <ClCompile Include="..\src\game\g_main.c" />
+    <ClCompile Include="..\src\game\g_misc.c" />
+    <ClCompile Include="..\src\game\g_monster.c" />
+    <ClCompile Include="..\src\game\g_phys.c" />
+    <ClCompile Include="..\src\game\g_ptrs.c" />
+    <ClCompile Include="..\src\game\g_save.c" />
+    <ClCompile Include="..\src\game\g_spawn.c" />
+    <ClCompile Include="..\src\game\g_svcmds.c" />
+    <ClCompile Include="..\src\game\g_target.c" />
+    <ClCompile Include="..\src\game\g_trigger.c" />
+    <ClCompile Include="..\src\game\g_turret.c" />
+    <ClCompile Include="..\src\game\g_utils.c" />
+    <ClCompile Include="..\src\game\g_weapon.c" />
+    <ClCompile Include="..\src\game\m_actor.c" />
+    <ClCompile Include="..\src\game\m_berserk.c" />
+    <ClCompile Include="..\src\game\m_boss2.c" />
+    <ClCompile Include="..\src\game\m_boss3.c" />
+    <ClCompile Include="..\src\game\m_boss31.c" />
+    <ClCompile Include="..\src\game\m_boss32.c" />
+    <ClCompile Include="..\src\game\m_brain.c" />
+    <ClCompile Include="..\src\game\m_chick.c" />
+    <ClCompile Include="..\src\game\m_flipper.c" />
+    <ClCompile Include="..\src\game\m_float.c" />
+    <ClCompile Include="..\src\game\m_flyer.c" />
+    <ClCompile Include="..\src\game\m_gladiator.c" />
+    <ClCompile Include="..\src\game\m_gunner.c" />
+    <ClCompile Include="..\src\game\m_hover.c" />
+    <ClCompile Include="..\src\game\m_infantry.c" />
+    <ClCompile Include="..\src\game\m_insane.c" />
+    <ClCompile Include="..\src\game\m_medic.c" />
+    <ClCompile Include="..\src\game\m_move.c" />
+    <ClCompile Include="..\src\game\m_mutant.c" />
+    <ClCompile Include="..\src\game\m_parasite.c" />
+    <ClCompile Include="..\src\game\m_soldier.c" />
+    <ClCompile Include="..\src\game\m_supertank.c" />
+    <ClCompile Include="..\src\game\m_tank.c" />
+    <ClCompile Include="..\src\game\p_client.c" />
+    <ClCompile Include="..\src\game\p_hud.c" />
+    <ClCompile Include="..\src\game\p_trail.c" />
+    <ClCompile Include="..\src\game\p_view.c" />
+    <ClCompile Include="..\src\game\p_weapon.c" />
+    <ClCompile Include="..\src\refresh\draw.c" />
+    <ClCompile Include="..\src\refresh\hq2x.c" />
+    <ClCompile Include="..\src\refresh\images.c" />
+    <ClCompile Include="..\src\refresh\legacy.c" />
+    <ClCompile Include="..\src\refresh\main.c" />
+    <ClCompile Include="..\src\refresh\mesh.c" />
+    <ClCompile Include="..\src\refresh\models.c" />
+    <ClCompile Include="..\src\refresh\qgl.c" />
+    <ClCompile Include="..\src\refresh\shader.c" />
+    <ClCompile Include="..\src\refresh\sky.c" />
+    <ClCompile Include="..\src\refresh\state.c" />
+    <ClCompile Include="..\src\refresh\surf.c" />
+    <ClCompile Include="..\src\refresh\tess.c" />
+    <ClCompile Include="..\src\refresh\texture.c" />
+    <ClCompile Include="..\src\refresh\world.c" />
+    <ClCompile Include="..\src\server\ac.c" />
+    <ClCompile Include="..\src\server\commands.c" />
+    <ClCompile Include="..\src\server\entities.c" />
+    <ClCompile Include="..\src\server\game.c" />
+    <ClCompile Include="..\src\server\ghud.c" />
+    <ClCompile Include="..\src\server\init.c" />
+    <ClCompile Include="..\src\server\main.c" />
+    <ClCompile Include="..\src\server\mvd.c" />
+    <ClCompile Include="..\src\server\mvd\client.c" />
+    <ClCompile Include="..\src\server\mvd\game.c" />
+    <ClCompile Include="..\src\server\mvd\parse.c" />
+    <ClCompile Include="..\src\server\save.c" />
+    <ClCompile Include="..\src\server\send.c" />
+    <ClCompile Include="..\src\server\user.c" />
+    <ClCompile Include="..\src\server\world.c" />
+    <ClCompile Include="..\src\shared\m_flash.c" />
+    <ClCompile Include="..\src\shared\shared.c" />
+    <ClCompile Include="..\src\unix\hunk.c" />
+    <ClCompile Include="..\src\unix\sound\sdl.c" />
+    <ClCompile Include="..\src\unix\system.c" />
+    <ClCompile Include="..\src\unix\tty.c" />
+    <ClCompile Include="..\src\unix\video\keytables\at.c" />
+    <ClCompile Include="..\src\unix\video\keytables\evdev.c" />
+    <ClCompile Include="..\src\unix\video\sdl.c" />
+    <ClCompile Include="..\src\unix\video\wayland.c" />
+    <ClCompile Include="..\src\unix\video\x11.c" />
+    <ClCompile Include="..\src\windows\ac.c" />
+    <ClCompile Include="..\src\windows\client.c" />
+    <ClCompile Include="..\src\windows\debug.c" />
+    <ClCompile Include="..\src\windows\dsound.c" />
+    <ClCompile Include="..\src\windows\egl.c" />
+    <ClCompile Include="..\src\windows\hunk.c" />
+    <ClCompile Include="..\src\windows\system.c" />
+    <ClCompile Include="..\src\windows\wave.c" />
+    <ClCompile Include="..\src\windows\wgl.c" />
+  </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="..\inc\client\client.h" />
+    <ClInclude Include="..\inc\client\input.h" />
+    <ClInclude Include="..\inc\client\keys.h" />
+    <ClInclude Include="..\inc\client\sound\dma.h" />
+    <ClInclude Include="..\inc\client\sound\sound.h" />
+    <ClInclude Include="..\inc\client\ui.h" />
+    <ClInclude Include="..\inc\client\video.h" />
+    <ClInclude Include="..\inc\common\async.h" />
+    <ClInclude Include="..\inc\common\bsp.h" />
+    <ClInclude Include="..\inc\common\cmd.h" />
+    <ClInclude Include="..\inc\common\cmodel.h" />
+    <ClInclude Include="..\inc\common\common.h" />
+    <ClInclude Include="..\inc\common\cvar.h" />
+    <ClInclude Include="..\inc\common\error.h" />
+    <ClInclude Include="..\inc\common\field.h" />
+    <ClInclude Include="..\inc\common\fifo.h" />
+    <ClInclude Include="..\inc\common\files.h" />
+    <ClInclude Include="..\inc\common\hash_map.h" />
+    <ClInclude Include="..\inc\common\intreadwrite.h" />
+    <ClInclude Include="..\inc\common\math.h" />
+    <ClInclude Include="..\inc\common\mdfour.h" />
+    <ClInclude Include="..\inc\common\msg.h" />
+    <ClInclude Include="..\inc\common\net\chan.h" />
+    <ClInclude Include="..\inc\common\net\net.h" />
+    <ClInclude Include="..\inc\common\pmove.h" />
+    <ClInclude Include="..\inc\common\prompt.h" />
+    <ClInclude Include="..\inc\common\protocol.h" />
+    <ClInclude Include="..\inc\common\sizebuf.h" />
+    <ClInclude Include="..\inc\common\tests.h" />
+    <ClInclude Include="..\inc\common\utils.h" />
+    <ClInclude Include="..\inc\common\zone.h" />
+    <ClInclude Include="..\inc\format\bsp.h" />
+    <ClInclude Include="..\inc\format\md2.h" />
+    <ClInclude Include="..\inc\format\md3.h" />
+    <ClInclude Include="..\inc\format\pak.h" />
+    <ClInclude Include="..\inc\format\pcx.h" />
+    <ClInclude Include="..\inc\format\sp2.h" />
+    <ClInclude Include="..\inc\format\wal.h" />
+    <ClInclude Include="..\inc\refresh\refresh.h" />
+    <ClInclude Include="..\inc\server\mvd\client.h" />
+    <ClInclude Include="..\inc\server\mvd\protocol.h" />
+    <ClInclude Include="..\inc\server\server.h" />
+    <ClInclude Include="..\inc\shared\atomic.h" />
+    <ClInclude Include="..\inc\shared\files.h" />
+    <ClInclude Include="..\inc\shared\game.h" />
+    <ClInclude Include="..\inc\shared\ghud.h" />
+    <ClInclude Include="..\inc\shared\list.h" />
+    <ClInclude Include="..\inc\shared\m_flash.h" />
+    <ClInclude Include="..\inc\shared\platform.h" />
+    <ClInclude Include="..\inc\shared\shared.h" />
+    <ClInclude Include="..\inc\system\hunk.h" />
+    <ClInclude Include="..\inc\system\pthread.h" />
+    <ClInclude Include="..\inc\system\system.h" />
+    <ClInclude Include="..\src\action\acesrc\acebot.h" />
+    <ClInclude Include="..\src\action\acesrc\botchat.h" />
+    <ClInclude Include="..\src\action\acesrc\botnav.h" />
+    <ClInclude Include="..\src\action\acesrc\botscan.h" />
+    <ClInclude Include="..\src\action\a_ctf.h" />
+    <ClInclude Include="..\src\action\a_dom.h" />
+    <ClInclude Include="..\src\action\a_esp.h" />
+    <ClInclude Include="..\src\action\a_game.h" />
+    <ClInclude Include="..\src\action\a_match.h" />
+    <ClInclude Include="..\src\action\a_menu.h" />
+    <ClInclude Include="..\src\action\a_radio.h" />
+    <ClInclude Include="..\src\action\a_team.h" />
+    <ClInclude Include="..\src\action\a_tourney.h" />
+    <ClInclude Include="..\src\action\a_vote.h" />
+    <ClInclude Include="..\src\action\a_xcmds.h" />
+    <ClInclude Include="..\src\action\a_xgame.h" />
+    <ClInclude Include="..\src\action\a_xmenu.h" />
+    <ClInclude Include="..\src\action\a_xvote.h" />
+    <ClInclude Include="..\src\action\cgf_sfx_glass.h" />
+    <ClInclude Include="..\src\action\g_grapple.h" />
+    <ClInclude Include="..\src\action\g_local.h" />
+    <ClInclude Include="..\src\action\m_player.h" />
+    <ClInclude Include="..\src\action\p_antilag.h" />
+    <ClInclude Include="..\src\action\q_ghud.h" />
+    <ClInclude Include="..\src\action\tng_balancer.h" />
+    <ClInclude Include="..\src\action\tng_ini.h" />
+    <ClInclude Include="..\src\action\tng_irc.h" />
+    <ClInclude Include="..\src\action\tng_jump.h" />
+    <ClInclude Include="..\src\action\tng_stats.h" />
+    <ClInclude Include="..\src\client\client.h" />
+    <ClInclude Include="..\src\client\sound\qal.h" />
+    <ClInclude Include="..\src\client\sound\sound.h" />
+    <ClInclude Include="..\src\client\ui\ui.h" />
+    <ClInclude Include="..\src\common\features.h" />
+    <ClInclude Include="..\src\common\net\unix.h" />
+    <ClInclude Include="..\src\common\net\win.h" />
+    <ClInclude Include="..\src\game\g_local.h" />
+    <ClInclude Include="..\src\game\g_ptrs.h" />
+    <ClInclude Include="..\src\game\m_actor.h" />
+    <ClInclude Include="..\src\game\m_berserk.h" />
+    <ClInclude Include="..\src\game\m_boss2.h" />
+    <ClInclude Include="..\src\game\m_boss31.h" />
+    <ClInclude Include="..\src\game\m_boss32.h" />
+    <ClInclude Include="..\src\game\m_brain.h" />
+    <ClInclude Include="..\src\game\m_chick.h" />
+    <ClInclude Include="..\src\game\m_flipper.h" />
+    <ClInclude Include="..\src\game\m_float.h" />
+    <ClInclude Include="..\src\game\m_flyer.h" />
+    <ClInclude Include="..\src\game\m_gladiator.h" />
+    <ClInclude Include="..\src\game\m_gunner.h" />
+    <ClInclude Include="..\src\game\m_hover.h" />
+    <ClInclude Include="..\src\game\m_infantry.h" />
+    <ClInclude Include="..\src\game\m_insane.h" />
+    <ClInclude Include="..\src\game\m_medic.h" />
+    <ClInclude Include="..\src\game\m_mutant.h" />
+    <ClInclude Include="..\src\game\m_parasite.h" />
+    <ClInclude Include="..\src\game\m_player.h" />
+    <ClInclude Include="..\src\game\m_rider.h" />
+    <ClInclude Include="..\src\game\m_soldier.h" />
+    <ClInclude Include="..\src\game\m_supertank.h" />
+    <ClInclude Include="..\src\game\m_tank.h" />
+    <ClInclude Include="..\src\refresh\arbfp.h" />
+    <ClInclude Include="..\src\refresh\gl.h" />
+    <ClInclude Include="..\src\refresh\images.h" />
+    <ClInclude Include="..\src\refresh\qgl.h" />
+    <ClInclude Include="..\src\server\mvd\client.h" />
+    <ClInclude Include="..\src\server\server.h" />
+    <ClInclude Include="..\src\unix\tty.h" />
+    <ClInclude Include="..\src\unix\video\keytables\keytables.h" />
+    <ClInclude Include="..\src\unix\video\keytables\sdl.h" />
+    <ClInclude Include="..\src\windows\client.h" />
+    <ClInclude Include="..\src\windows\egl_import.h" />
+    <ClInclude Include="Debug\config.h" />
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="..\INSTALL.md" />
+    <None Include="..\LICENSE" />
+    <None Include="..\meson.build" />
+    <None Include="..\README.md" />
+    <None Include="..\src\client\ui\q2pro.menu" />
+    <None Include="..\src\game\genptr.py" />
+    <None Include="..\src\unix\meson.build" />
+    <None Include="..\src\unix\res\q2pro.default" />
+    <None Include="..\src\unix\res\q2pro.desktop" />
+    <None Include="..\src\unix\res\q2pro.xbm" />
+    <None Include="..\src\unix\res\q2pro.xpm" />
+    <None Include="..\src\unix\video\meson.build" />
+    <None Include="..\src\windows\meson.build" />
+    <None Include="..\update.bat" />
+    <None Include="..\version.py" />
+    <None Include="meson_debug_build.bat" />
+    <None Include="meson_debug_clean.bat" />
+    <None Include="meson_debug_configure.bat" />
+    <None Include="meson_debug_rebuild.bat" />
+    <None Include="meson_release_build.bat" />
+    <None Include="meson_release_clean.bat" />
+    <None Include="meson_release_configure.bat" />
+    <None Include="meson_release_rebuild.bat" />
+  </ItemGroup>
+  <ItemGroup>
+    <ResourceCompile Include="..\src\windows\res\aqtion.rc" />
+    <ResourceCompile Include="..\src\windows\res\game.rc" />
+    <ResourceCompile Include="..\src\windows\res\q2pro-aqtion.rc" />
+    <ResourceCompile Include="..\src\windows\res\q2pro.rc" />
+    <ResourceCompile Include="..\src\windows\res\q2proded-aqtion.rc" />
+    <ResourceCompile Include="..\src\windows\res\q2proded.rc" />
+  </ItemGroup>
+  <ItemGroup>
+    <Manifest Include="..\src\windows\res\q2pro.exe.manifest" />
+    <Manifest Include="..\src\windows\res\q2proded.exe.manifest" />
+  </ItemGroup>
+  <ItemGroup>
+    <Image Include="..\src\windows\res\q2pro-aqtion.ico" />
+    <Image Include="..\src\windows\res\q2pro.ico" />
+    <Image Include="..\src\windows\res\q2proded-aqtion.ico" />
+    <Image Include="..\src\windows\res\q2proded.ico" />
+  </ItemGroup>
+  <ItemGroup>
+    <Text Include="..\meson_options.txt" />
+  </ItemGroup>
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
+  <ImportGroup Label="ExtensionTargets">
+  </ImportGroup>
+</Project>

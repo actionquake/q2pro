@@ -1,0 +1,35 @@
+{
+    "name": "Sareena",
+    "clan_id": 44,
+    "skin": "terror/redterr2",
+    "weaponPreferences": {
+        "mk23": 0.3,
+        "dual_mk23": 0.1,
+        "mp5": 0.4,
+        "m4": 0.7,
+        "m3": 0.3,
+        "hc": 0.6,
+        "sniper": 0.5,
+        "knives": 0.7,
+        "grenades": 0.5
+    },
+    "itemPreferences": {
+        "vest": 0.6,
+        "helm": 0.7,
+        "laser": 0.5,
+        "silencer": 0.4,
+        "slippers": 0.5,
+        "bandolier": 0.2
+    },
+    "coreTraits": {
+        "aggressiveness": 0.4,
+        "teamwork": 0.5,
+        "curiosity": 0.6,
+        "aimingSkill": 0.5,
+        "reactionTime": 0.7,
+        "communicationFreq": 0.3,
+        "communicationTone": 0.7,
+        "movementStyle": 0.2,
+        "objectiveFocus": 0.7
+    }
+}

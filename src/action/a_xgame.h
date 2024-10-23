@@ -60,3 +60,6 @@ void ParseSayText(edict_t *ent, char *text, size_t size);
 void Cmd_SetFlag1_f(edict_t *self);
 void Cmd_SetFlag2_f(edict_t *self);
 void Cmd_SaveFlags_f(edict_t *self);
+int CountRealPlayers(void);
+qboolean is_valid_ipv4(char *ip_str);
+qboolean cvar_check(cvar_t *cvar);

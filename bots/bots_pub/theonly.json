@@ -1,0 +1,35 @@
+{
+    "name": "The Only",
+    "clan_id": null,
+    "skin": "male/leservoircat",
+    "weaponPreferences": {
+        "mk23": 0.4,
+        "dual_mk23": 0.5,
+        "mp5": 0.5,
+        "m4": 0.4,
+        "m3": 0.6,
+        "hc": 0.6,
+        "sniper": 0.5,
+        "knives": 0.9,
+        "grenades": 0.5
+    },
+    "itemPreferences": {
+        "vest": 0.5,
+        "helm": 0.5,
+        "laser": 0.7,
+        "silencer": 0.5,
+        "slippers": 0.8,
+        "bandolier": 0.2
+    },
+    "coreTraits": {
+        "aggressiveness": 0.5,
+        "teamwork": 0.0,
+        "curiosity": 0.8,
+        "aimingSkill": 0.5,
+        "reactionTime": 0.8,
+        "communicationFreq": 0.5,
+        "communicationTone": 0.4,
+        "movementStyle": 0.8,
+        "objectiveFocus": 0.1
+    }
+}

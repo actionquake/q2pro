@@ -122,7 +122,7 @@ radio_msg_t globalRadio[] = {
 	{"radio/female/rdeath.wav", 30, 0}
 };
 
-void PrecacheRadioSounds ()
+void PrecacheRadioSounds (void)
 {
 	int i;
 	char path[MAX_QPATH];
@@ -308,6 +308,24 @@ static void AddRadioMsg( radio_t *radio, int sndIndex, int len, edict_t *from_pl
 		// else ignore the message...
 	}
 }
+
+//rekkie -- Quake3 -- s
+void BOTLIB_AddRadioMsg(radio_t* radio, int sndIndex, int len, edict_t* from_player)
+{
+	if (radio->queue_size == 0)
+	{
+		AppendRadioMsgToQueue(radio, globalRadio[RADIO_CLICK].sndIndex, globalRadio[RADIO_CLICK].length, 1, from_player);
+		AppendRadioMsgToQueue(radio, sndIndex, len, 0, from_player);
+		AppendRadioMsgToQueue(radio, globalRadio[RADIO_CLICK].sndIndex, globalRadio[RADIO_CLICK].length, 1, from_player);
+	}
+	else // we have some msgs in it already...
+	{
+		if (radio->queue_size < MAX_RADIO_QUEUE_SIZE)
+			InsertRadioMsgInQueueBeforeClick(radio, sndIndex, len, from_player);
+		// else ignore the message...
+	}
+}
+//rekkie -- Quake3 -- e
 
 void RadioBroadcast (edict_t * ent, int partner, char *msg)
 {

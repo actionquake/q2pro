@@ -32,13 +32,15 @@ int DirToByte(const vec3_t dir);
 void SetPlaneType(cplane_t *plane);
 void SetPlaneSignbits(cplane_t *plane);
 
-#define BOX_INFRONT     1
-#define BOX_BEHIND      2
-#define BOX_INTERSECTS  3
+typedef enum {
+    BOX_INFRONT     = 1,
+    BOX_BEHIND      = 2,
+    BOX_INTERSECTS  = 3
+} box_plane_t;
 
-int BoxOnPlaneSide(const vec3_t emins, const vec3_t emaxs, const cplane_t *p);
+box_plane_t BoxOnPlaneSide(const vec3_t emins, const vec3_t emaxs, const cplane_t *p);
 
-static inline int BoxOnPlaneSideFast(const vec3_t emins, const vec3_t emaxs, const cplane_t *p)
+static inline box_plane_t BoxOnPlaneSideFast(const vec3_t emins, const vec3_t emaxs, const cplane_t *p)
 {
     // fast axial cases
     if (p->type < 3) {
@@ -69,65 +71,19 @@ void Matrix4x4_CM_Projection2(float *proj, float fovx, float fovy, float neard);
 void Matrix4x4_CM_ModelViewMatrix(float *modelview, const vec3_t viewangles, const vec3_t vieworg);
 void Matrix4_Multiply(const float *a, const float *b, float *out);
 void SetupRotationMatrix(vec3_t matrix[3], const vec3_t dir, float degrees);
+void RotatePointAroundVector(vec3_t out, const vec3_t dir, const vec3_t in, float degrees);
 
 // quaternion routines, for MD5 skeletons
 #if USE_MD5
-
-#define X 0
-#define Y 1
-#define Z 2
-#define W 3
-
 typedef vec4_t quat_t;
-
 void Quat_ComputeW(quat_t q);
 void Quat_SLerp(const quat_t qa, const quat_t qb, float backlerp, float frontlerp, quat_t out);
 float Quat_Normalize(quat_t q);
-
-static inline void Quat_MultiplyQuat(const quat_t qa, const quat_t qb, quat_t out)
-{
-    out[W] = (qa[W] * qb[W]) - (qa[X] * qb[X]) - (qa[Y] * qb[Y]) - (qa[Z] * qb[Z]);
-    out[X] = (qa[X] * qb[W]) + (qa[W] * qb[X]) + (qa[Y] * qb[Z]) - (qa[Z] * qb[Y]);
-    out[Y] = (qa[Y] * qb[W]) + (qa[W] * qb[Y]) + (qa[Z] * qb[X]) - (qa[X] * qb[Z]);
-    out[Z] = (qa[Z] * qb[W]) + (qa[W] * qb[Z]) + (qa[X] * qb[Y]) - (qa[Y] * qb[X]);
-}
-
-static inline void Quat_MultiplyVector(const quat_t q, const vec3_t v, quat_t out)
-{
-    out[W] = -(q[X] * v[X]) - (q[Y] * v[Y]) - (q[Z] * v[Z]);
-    out[X] = (q[W] * v[X]) + (q[Y] * v[Z]) - (q[Z] * v[Y]);
-    out[Y] = (q[W] * v[Y]) + (q[Z] * v[X]) - (q[X] * v[Z]);
-    out[Z] = (q[W] * v[Z]) + (q[X] * v[Y]) - (q[Y] * v[X]);
-}
-
-// Conjugate quaternion. Also, inverse, for unit quaternions (which MD5 quats are)
-static inline void Quat_Conjugate(const quat_t in, quat_t out)
-{
-    out[W] = in[W];
-    out[X] = -in[X];
-    out[Y] = -in[Y];
-    out[Z] = -in[Z];
-}
-
-static inline void Quat_RotatePoint(const quat_t q, const vec3_t in, vec3_t out)
-{
-    quat_t tmp, inv, output;
-
-    // Assume q is unit quaternion
-    Quat_Conjugate(q, inv);
-    Quat_MultiplyVector(q, in, tmp);
-    Quat_MultiplyQuat(tmp, inv, output);
-
-    out[X] = output[X];
-    out[Y] = output[Y];
-    out[Z] = output[Z];
-}
-
-#undef X
-#undef Y
-#undef Z
-#undef W
-
+void Quat_MultiplyQuat(const float *restrict qa, const float *restrict qb, quat_t out);
+void Quat_MultiplyVector(const float *restrict q, const float *restrict v, quat_t out);
+void Quat_Conjugate(const quat_t in, quat_t out);
+void Quat_RotatePoint(const quat_t q, const vec3_t in, vec3_t out);
+void Quat_ToAxis(const quat_t q, vec3_t axis[3]);
 #endif
 
 //#endif  // USE_REF

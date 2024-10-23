@@ -133,13 +133,15 @@
 
 #include "g_local.h"
 #include <time.h>
+#if USE_AQTION
 #ifdef _WIN32
-#if _MSC_VER >= 1920 && !__INTEL_COMPILER
+#if _MSC_VER && !__INTEL_COMPILER
 #pragma comment(lib, "rpcrt4.lib")
 #include <rpc.h>
 #endif
 #else
 #include <uuid/uuid.h>
+#endif
 #endif
 
 /*----------------------------------------
@@ -160,19 +162,36 @@ void SP_LaserSight(edict_t * self, gitem_t * item)
 		return;
 	}
 	//zucc code to make it be used with the right weapons
-
-	switch (self->client->weapon->typeNum) {
-	case MK23_NUM:
-	case MP5_NUM:
-	case M4_NUM:
-		break;
-	default:
-		// laser is on but we want it off
-		if (lasersight) {
-			G_FreeEdict(lasersight);
-			self->client->lasersight = NULL;
+	// edited to allow laser to be used with dual pistols if enabled -ds
+	if (!gun_dualmk23_enhance->value) {
+		switch (self->client->weapon->typeNum) {
+		case MK23_NUM:
+		case MP5_NUM:
+		case M4_NUM:
+			break;
+		default:
+			// laser is on but we want it off
+			if (lasersight) {
+				G_FreeEdict(lasersight);
+				self->client->lasersight = NULL;
+			}
+			return;
 		}
-		return;
+	} else { // include dualmk23
+		switch (self->client->weapon->typeNum) {
+		case DUAL_NUM:
+		case MK23_NUM:
+		case MP5_NUM:
+		case M4_NUM:
+			break;
+		default:
+			// laser is on but we want it off
+			if (lasersight) {
+				G_FreeEdict(lasersight);
+				self->client->lasersight = NULL;
+			}
+			return;
+		}
 	}
 
 	if (lasersight) { //Lasersight is already on
@@ -268,6 +287,13 @@ void LaserSightThink(edict_t * self)
 
 void Cmd_New_Reload_f(edict_t * ent)
 {
+	//rekkie -- walknodes -- s
+	if (ent->is_bot == false && dedicated->value == 0 && players[0] == ent && ent->bot.walknode.enabled)
+	{
+		BOTLIB_ChangeNodeFunction(ent); // Change the node function using reload key
+	}
+	//rekkie -- walknodes -- e
+
 //FB 6/1/99 - refuse to reload during LCA
 	if (lights_camera_action)
 		return;
@@ -422,6 +448,34 @@ void Cmd_Reload_f(edict_t * ent)
 
 //+BD END CODE BLOCK
 
+// zoom_comp
+int calc_zoom_comp(edict_t * ent)
+{
+// Determine client ping to indicate how quickly we zoom from 0x to 1x
+	int default_idle_frames = 6;
+	int pingfloor = 80;
+	int clping = ent->client->ping;
+
+	int idle_weapon_frames = 0;
+
+	// No compensation if player ping is less than pingfloor
+	// For every tier of pingfloor you reduce your frames by 1
+	if (clping < pingfloor){
+		idle_weapon_frames = default_idle_frames;
+	} else if ((clping > pingfloor) && (clping <= (pingfloor * 2))){
+		idle_weapon_frames = 5;
+	} else if ((clping > (pingfloor * 2)) && (clping <= (pingfloor * 3))){
+		idle_weapon_frames = 4;
+	} else if ((clping > (pingfloor * 3))){
+		idle_weapon_frames = 3;
+	} else {
+		// Somehow clping wasn't calculated correctly, default to be safe
+		idle_weapon_frames = default_idle_frames;
+	}
+
+	return idle_weapon_frames;
+}
+
 //tempfile BEGIN
 /*
    Function _SetSniper
@@ -474,7 +528,11 @@ void _SetSniper(edict_t * ent, int zoom)
 	if (oldmode == SNIPER_1X && ent->client->weaponstate != WEAPON_RELOADING) {
 		//do idleness stuff when switching from 1x, see function below
 		ent->client->weaponstate = WEAPON_BUSY;
-		ent->client->idle_weapon = 6;
+		if(zoom_comp->value) {
+			ent->client->idle_weapon = calc_zoom_comp(ent);
+		} else {
+			ent->client->idle_weapon = 6;
+		}
 		ent->client->ps.gunframe = 22;
 	}
 }
@@ -761,6 +819,13 @@ void Cmd_Bandage_f(edict_t *ent)
 
 	qboolean can_use_medkit = (ent->client->medkit > 0) && (ent->health < ent->max_health);
 
+	// TODO: This breaks the ability for players to jump out of the water, so I am not checking for
+	// this at the moment
+	// if (ent->client->bleeding == 0 && esp_enhancedslippers->value && INV_AMMO(ent, SLIP_NUM) && ! can_use_medkit){
+	// 	gi.cprintf(ent, PRINT_HIGH, "Not bleeding: No need to bandage\n");
+	// 	return;
+	// }
+
 	if (ent->client->bleeding == 0 && ent->client->leg_damage == 0 && ! can_use_medkit) {
 		gi.cprintf(ent, PRINT_HIGH, "No need to bandage\n");
 		return;
@@ -792,7 +857,9 @@ void Cmd_Bandage_f(edict_t *ent)
 		if(ent->client->quad_framenum > level.framenum)
 			damage *= 1.5f;
 
-		fire_grenade2(ent, ent->s.origin, vec3_origin, damage, 0, 2 * HZ, damage * 2, false);
+		vec3_t non_const_origin; // Convert to non-const
+      	VectorCopy(vec3_origin, non_const_origin);
+		fire_grenade2(ent, ent->s.origin, non_const_origin, damage, 0, 2 * HZ, damage * 2, false);
 
 		INV_AMMO(ent, GRENADE_NUM)--;
 		if (INV_AMMO(ent, GRENADE_NUM) <= 0) {
@@ -819,7 +886,10 @@ void Bandage(edict_t * ent)
 	ent->client->bandaging = 0;
 	ent->client->attacker = NULL;
 	ent->client->bandage_stopped = 1;
-	ent->client->idle_weapon = BANDAGE_TIME;
+	if (esp->value && esp_leaderenhance->value && IS_LEADER(ent))
+		ent->client->idle_weapon = ENHANCED_BANDAGE_TIME;
+	else
+		ent->client->idle_weapon = BANDAGE_TIME;
 }
 
 void Cmd_ID_f(edict_t * ent)
@@ -857,7 +927,7 @@ void SetIDView(edict_t * ent)
 	if (ent->client->chase_mode) {
 		if (ent->client->chase_target && ent->client->chase_target->inuse) {
 			ent->client->ps.stats[STAT_ID_VIEW] =
-			    CS_PLAYERSKINS + (ent->client->chase_target - g_edicts - 1);
+			    game.csr.playerskins + (ent->client->chase_target - g_edicts - 1);
 		}
 		return;
 	}
@@ -873,7 +943,7 @@ void SetIDView(edict_t * ent)
 	tr = gi.trace(ent->s.origin, NULL, NULL, forward, ent, MASK_SOLID);
 	POSTTRACE();
 	if (tr.fraction < 1 && tr.ent && tr.ent->client) {
-		ent->client->ps.stats[STAT_ID_VIEW] = CS_PLAYERSKINS + (ent - g_edicts - 1);
+		ent->client->ps.stats[STAT_ID_VIEW] = game.csr.playerskins + (ent - g_edicts - 1);
 		return;
 	}
 
@@ -897,7 +967,7 @@ void SetIDView(edict_t * ent)
 		}
 	}
 	if (best != NULL && bd > 0.90) {
-		ent->client->ps.stats[STAT_ID_VIEW] = CS_PLAYERSKINS + (best - g_edicts - 1);
+		ent->client->ps.stats[STAT_ID_VIEW] = game.csr.playerskins + (best - g_edicts - 1);
 	}
 }
 
@@ -1035,6 +1105,9 @@ void Cmd_Choose_f(edict_t * ent)
 		}
 		ent->client->pers.chosenItem = GET_ITEM(itemNum);
 		break;
+	case C_KIT_NUM:
+	case S_KIT_NUM:
+	case A_KIT_NUM:
 	default:
 		gi.cprintf(ent, PRINT_HIGH, "Invalid weapon or item choice.\n");
 		return;
@@ -1046,7 +1119,25 @@ void Cmd_Choose_f(edict_t * ent)
 	item = ent->client->pers.chosenItem;
 	itmText = (item && item->pickup_name) ? item->pickup_name : "NONE";
 
-	gi.cprintf(ent, PRINT_HIGH, "Weapon selected: %s\nItem selected: %s\n", wpnText, itmText );
+	if (item_kit_mode->value) {
+		if (itemNum == C_KIT_NUM){
+			itmText = "Commando Kit (Bandolier + Kevlar Helmet)";
+		} else if (itemNum == A_KIT_NUM){
+			itmText = "Assassin Kit (Laser Sight + Silencer)";
+		} else if (itemNum == S_KIT_NUM){
+			if (esp_enhancedslippers->value){
+				itmText = "Stealth Kit (Enhanced Stealth Slippers + Silencer)";
+			} else {
+				itmText = "Stealth Kit (Stealth Slippers + Silencer)";
+			}
+		} else {
+			// How did you pick a kit not on the list?
+			itmText = "NONE";
+		}
+		gi.cprintf(ent, PRINT_HIGH, "Weapon selected: %s\nItem kit selected: %s\n", wpnText, itmText );
+	} else {
+		gi.cprintf(ent, PRINT_HIGH, "Weapon selected: %s\nItem selected: %s\n", wpnText, itmText );
+	}
 }
 
 // AQ:TNG - JBravo adding tkok
@@ -1201,6 +1292,10 @@ void Cmd_Ghost_f(edict_t * ent)
 	ent->client->resp.deaths = ghost->deaths;
 	ent->client->resp.damage_dealt = ghost->damage_dealt;
 	ent->client->resp.ctf_caps = ghost->ctf_caps;
+	ent->client->resp.ctf_capstreak = ghost->ctf_capstreak;
+	ent->client->resp.team_kills = ghost->team_kills;
+	ent->client->resp.streakKillsHighest = ghost->streakKillsHighest;
+	ent->client->resp.streakHSHighest = ghost->streakHSHighest;
 
 	if (teamplay->value && ghost->team && ghost->team != ent->client->resp.team)
 			JoinTeam( ent, ghost->team, 1 );
@@ -1218,6 +1313,7 @@ void Cmd_Ghost_f(edict_t * ent)
 
 	memcpy(ent->client->resp.hitsLocations, ghost->hitsLocations, sizeof(ent->client->resp.hitsLocations));
 	memcpy(ent->client->resp.gunstats, ghost->gunstats, sizeof(ent->client->resp.gunstats));
+	memcpy(ent->client->resp.awardstats, ghost->awardstats, sizeof(ent->client->resp.awardstats));
 
 	//Remove it from the list
 	for (i += 1; i < num_ghost_players; i++) {
@@ -1226,10 +1322,12 @@ void Cmd_Ghost_f(edict_t * ent)
 	num_ghost_players--;
 }
 
-void generate_uuid()
+
+#if USE_AQTION
+void generate_uuid(void)
 {
 #ifdef _WIN32
-#if _MSC_VER >= 1920 && !__INTEL_COMPILER
+#if _MSC_VER && !__INTEL_COMPILER
      UUID uuid;
      unsigned char* uuidStr;
 
@@ -1262,7 +1360,12 @@ void generate_uuid()
     //gi.dprintf("%s UUID: %s\n", __func__, game.matchid);
 #endif
 }
+#endif
 
+
+//rekkie -- DEV_1 -- s
+// original code -- disabled
+/*
 #ifndef NO_BOTS
 void Cmd_Placenode_f (edict_t *ent)
 {
@@ -1276,3 +1379,60 @@ void Cmd_Placenode_f (edict_t *ent)
 		ACEND_AddNode(ent,NODE_MOVE);
 }
 #endif
+*/
+//rekkie -- DEV_1 -- e
+
+void Cmd_Volunteer_f(edict_t * ent)
+{
+	int teamNum;
+	edict_t *oldLeader;
+
+	// Ignore if not Espionage mode
+	if (!esp->value) {
+		gi.cprintf(ent, PRINT_HIGH, "This command needs Espionage to be enabled\n");
+		return;
+	}
+
+	// Cannot use this command directly in Matchmode
+	if (matchmode->value){
+		gi.cprintf(ent, PRINT_HIGH, "Only the Captain can become the Leader\n");
+		return;
+	}
+
+	// Ignore entity if not on a team
+	teamNum = ent->client->resp.team;
+	if (teamNum == NOTEAM) {
+		gi.cprintf(ent, PRINT_HIGH, "You need to be on a team for that...\n");
+		return;
+	}
+
+	// Ignore entity if they are a sub
+	if (ent->client->resp.subteam == teamNum) {
+		gi.cprintf(ent, PRINT_HIGH, "Subs cannot be leaders...\n");
+		return;
+	}
+
+	// If the current leader is issuing this command again, remove them as leader
+	oldLeader = teams[teamNum].leader;
+	if (oldLeader == ent) {
+		if (team_round_going || lights_camera_action > 0) {
+			gi.cprintf(ent, PRINT_HIGH, "You cannot resign as leader while a round is in progress\n");
+			return;
+		}
+		EspSetLeader( teamNum, NULL );
+		// This is the last time we know this entity was the leader, so do some cleanup first
+		oldLeader->client->resp.is_volunteer = false;
+		oldLeader->client->resp.esp_leadertime = level.realFramenum;
+		return;
+	}
+
+	// If the team already has a leader, send this message to the ent volunteering
+	if (oldLeader) {
+		gi.cprintf( ent, PRINT_HIGH, "Your team already has a leader (%s)\nYou are now volunteering for duty should he fall\n",
+			teams[teamNum].leader->client->pers.netname );
+		ent->client->resp.is_volunteer = true;
+		return;
+	}
+
+	EspSetLeader( teamNum, ent );
+}

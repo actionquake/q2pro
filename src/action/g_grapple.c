@@ -261,7 +261,7 @@ void CTFFireGrapple (edict_t *self, vec3_t start, vec3_t dir, int damage, int sp
 	}
 }	
 
-void CTFGrappleFire (edict_t *ent, const vec3_t g_offset, int damage, int effect)
+void CTFGrappleFire (edict_t *ent, vec3_t g_offset, int damage, int effect)
 {
 	vec3_t	forward, right;
 	vec3_t	start;
@@ -310,9 +310,12 @@ void CTFGrappleFire (edict_t *ent, const vec3_t g_offset, int damage, int effect
 void CTFWeapon_Grapple_Fire (edict_t *ent)
 {
 	int		damage;
-
+	vec3_t	non_const_origin;
 	damage = 10;
-	CTFGrappleFire (ent, vec3_origin, damage, 0);
+
+	// Copy const to non-const
+	VectorCopy(vec3_origin, non_const_origin);
+	CTFGrappleFire (ent, non_const_origin, damage, 0);
 	ent->client->ps.gunframe++;
 }
 

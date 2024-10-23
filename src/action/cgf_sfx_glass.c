@@ -45,11 +45,11 @@ extern "C"
 #endif
 
 
-// cvar for breaking glass
-static cvar_t *breakableglass = 0;
+// // cvar for breaking glass
+// static cvar_t *breakableglass = 0;
 
-// cvar for max glass fragment count
-static cvar_t *glassfragmentlimit = 0;
+// // cvar for max glass fragment count
+// static cvar_t *glassfragmentlimit = 0;
 
 static int glassfragmentcount = 0;
 
@@ -69,7 +69,7 @@ extern "C"
 // emits glass fragments from aPoint, to show effects of firing thru window
 
   void CGF_SFX_BreakGlass (edict_t * aGlassPane, edict_t * anOther,
-			   edict_t * anAttacker, int aDamage, const vec3_t aPoint,
+			   edict_t * anAttacker, int aDamage, vec3_t aPoint,
 			   vec_t aPaneDestructDelay);
 // breaks glass
 
@@ -115,7 +115,7 @@ extern "C"
 
 
 void
-CGF_SFX_InstallGlassSupport ()
+CGF_SFX_InstallGlassSupport (void)
 {
   breakableglass = gi.cvar ("breakableglass", "0", 0);
   glassfragmentlimit = gi.cvar ("glassfragmentlimit", "30", 0);
@@ -123,7 +123,7 @@ CGF_SFX_InstallGlassSupport ()
 
 
 int
-CGF_SFX_IsBreakableGlassEnabled ()
+CGF_SFX_IsBreakableGlassEnabled (void)
 {
   // returns whether breakable glass is enabled (cvar) and allowed (dm mode)
   return breakableglass->value;
@@ -257,30 +257,60 @@ CGF_SFX_ShootBreakableGlass (edict_t * aGlassPane, edict_t * anAttacker,
   int destruct;
 
   // depending on mod, destroy window or emit fragments
-  switch (mod)
-    {
-      // break for ap, shotgun, handcannon, and kick, destory window
-    case MOD_M3:
-    case MOD_HC:
-    case MOD_SNIPER:
-    case MOD_KICK:
-    case MOD_GRENADE:
-    case MOD_G_SPLASH:
-    case MOD_HANDGRENADE:
-    case MOD_HG_SPLASH:
-    case MOD_KNIFE:		// slash damage
-      destruct = true;
-      break;
-    default:
-      destruct = (rand () % 3 == 0);
-      break;
-    };
+
+  // Classic behavior
+  if (breakableglass->value == 1) {
+    switch (mod)
+      {
+        // break for ap, shotgun, handcannon, and kick, destory window
+      case MOD_M3:
+      case MOD_HC:
+      case MOD_SNIPER:
+      case MOD_KICK:
+      case MOD_GRENADE:
+      case MOD_G_SPLASH:
+      case MOD_HANDGRENADE:
+      case MOD_HG_SPLASH:
+      case MOD_KNIFE:		// slash damage
+        destruct = true;
+        break;
+      default:
+        destruct = (rand () % 3 == 0);
+        break;
+      };
+  } else if (breakableglass->value == 2) {
+    switch (mod)
+      { // break for all weapons
+      case MOD_MK23:
+      case MOD_DUAL:
+      case MOD_MP5:
+      case MOD_M4:
+      case MOD_M3:
+      case MOD_HC:
+      case MOD_SNIPER:
+      case MOD_KICK:
+      case MOD_GRENADE:
+      case MOD_G_SPLASH:
+      case MOD_HANDGRENADE:
+      case MOD_HG_SPLASH:
+      case MOD_KNIFE:		// slash damage
+        destruct = true;
+        break;
+      default:
+        destruct = (rand () % 3 == 0);
+        break;
+      };
+  } else {
+    destruct = false;
+  }
 
   if (destruct)
     {
       // break glass (and hurt if doing kick)
+      vec3_t non_const_origin; // Convert to non-const
+      VectorCopy(vec3_origin, non_const_origin);
       CGF_SFX_BreakGlass (aGlassPane, anAttacker, 0, aGlassPane->health,
-			  vec3_origin, FRAMETIME);
+			  non_const_origin, FRAMETIME);
       if (mod == MOD_KICK)
 	{
 	  vec3_t bloodorigin;
@@ -421,7 +451,9 @@ CGF_SFX_TouchGlass (edict_t * self, edict_t * other, cplane_t * plane,
     goto knife_and_grenade_handling;
 
   // break glass
-  CGF_SFX_BreakGlass (glass, other, other, glass->health, vec3_origin,
+  vec3_t non_const_origin; // Convert to non-const
+	VectorCopy(vec3_origin, non_const_origin);
+  CGF_SFX_BreakGlass (glass, other, other, glass->health, non_const_origin,
 		      3.0f * FRAMETIME);
   // glass can take care of itself, but the trigger isn't needed anymore
   G_FreeEdict (self);
@@ -452,7 +484,7 @@ knife_and_grenade_handling:
 
 void
 CGF_SFX_BreakGlass (edict_t * aGlassPane, edict_t * anInflictor,
-		    edict_t * anAttacker, int aDamage, const vec3_t aPoint,
+		    edict_t * anAttacker, int aDamage, vec3_t aPoint,
 		    vec_t aPaneDestructDelay)
 {
   // based on func_explode, but with lotsa subtle differences
@@ -631,7 +663,7 @@ CGF_SFX_AttachDecalToGlass (edict_t * aGlassPane, edict_t * aDecal)
 
 
 void
-CGF_SFX_RebuildAllBrokenGlass ()
+CGF_SFX_RebuildAllBrokenGlass (void)
 {
   // iterate over all func_explosives
   edict_t *glass;

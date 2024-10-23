@@ -1,0 +1,35 @@
+{
+    "name": "Icexo",
+    "clan_id": null,
+    "skin": "actionmale/bluceree",
+    "weaponPreferences": {
+        "mk23": 0.5,
+        "dual_mk23": 0.5,
+        "mp5": 0.7,
+        "m4": 0.7,
+        "m3": 0.6,
+        "hc": 0.2,
+        "sniper": 0.1,
+        "knives": 0.3,
+        "grenades": 0.1
+    },
+    "itemPreferences": {
+        "vest": 0.6,
+        "helm": 0.4,
+        "laser": 0.7,
+        "silencer": 0.6,
+        "slippers": 0.6,
+        "bandolier": 0.5
+    },
+    "coreTraits": {
+        "aggressiveness": 0.6,
+        "teamwork": 0.4,
+        "curiosity": 0.8,
+        "aimingSkill": 0.4,
+        "reactionTime": 0.5,
+        "communicationFreq": 0.6,
+        "communicationTone": 0.4,
+        "movementStyle": 0.5,
+        "objectiveFocus": 0.6
+    }
+}

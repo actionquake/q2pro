@@ -19,6 +19,8 @@ with this program; if not, write to the Free Software Foundation, Inc.,
 #include "server.h"
 #include "client/input.h"
 
+bot_client_t bot_clients[MAX_CLIENTS];
+
 pmoveParams_t   sv_pmp;
 
 master_t    sv_masters[MAX_MASTERS];   // address of group servers
@@ -80,6 +82,8 @@ cvar_t  *sv_calcpings_method;
 cvar_t  *sv_changemapcmd;
 cvar_t  *sv_max_download_size;
 cvar_t  *sv_max_packet_entities;
+cvar_t  *sv_trunc_packet_entities;
+cvar_t  *sv_prioritize_entities;
 
 cvar_t  *sv_strafejump_hack;
 cvar_t  *sv_waterjump_hack;
@@ -88,7 +92,7 @@ cvar_t  *sv_packetdup_hack;
 #endif
 cvar_t  *sv_allow_map;
 cvar_t  *sv_cinematics;
-#if !USE_CLIENT
+#if USE_SERVER
 cvar_t  *sv_recycle;
 #endif
 cvar_t  *sv_enhanced_setplayer;
@@ -161,6 +165,10 @@ void SV_CleanClient(client_t *client)
     for (i = 0; i < SV_BASELINES_CHUNKS; i++) {
         Z_Freep(&client->baselines[i]);
     }
+
+    // free packet entities
+    Z_Freep(&client->entities);
+    client->num_entities = 0;
 }
 
 static void print_drop_reason(client_t *client, const char *reason, clstate_t oldstate)
@@ -372,7 +380,7 @@ void SV_RateInit(ratelimit_t *r, const char *s)
     r->cost = rate2credits(rate);
 }
 
-addrmatch_t *SV_MatchAddress(list_t *list, netadr_t *addr)
+addrmatch_t *SV_MatchAddress(const list_t *list, const netadr_t *addr)
 {
     addrmatch_t *match;
 
@@ -446,7 +454,7 @@ static size_t SV_StatusString(char *status)
             }
             len = Q_snprintf(entry, sizeof(entry),
                              "%i %i \"%s\"\n",
-                             cl->edict->client->ps.stats[STAT_FRAGS],
+                             SV_GetClient_Stat(cl, STAT_FRAGS),
                              cl->ping, cl->name);
             if (len >= sizeof(entry)) {
                 continue;
@@ -457,6 +465,25 @@ static size_t SV_StatusString(char *status)
             memcpy(status + total, entry, len);
             total += len;
         }
+
+        //rekkie -- Fake Bot Client -- s	
+        for (int i = 0; i < MAX_CLIENTS; i++)
+        {
+            if (bot_clients[i].in_use)
+            {
+                len = Q_snprintf(entry, sizeof(entry), "%i %i \"%s\"\n", bot_clients[i].score, bot_clients[i].ping, bot_clients[i].name);  //entry	example = "0 1 \"[AIR]-Mech\"\n"	char[1024]
+
+                if (len >= sizeof(entry))
+                    continue;
+
+                if (total + len >= SV_OUTPUTBUF_LENGTH)
+                    break; // can't hold any more
+
+                memcpy(status + total, entry, len);
+                total += len;
+            }
+        }
+        //rekkie -- Fake Bot Client -- e
     }
 
     status[total] = 0;
@@ -575,7 +602,7 @@ static void SVC_GetChallenge(void)
     unsigned    oldestTime;
 
     oldest = 0;
-    oldestTime = 0xffffffff;
+    oldestTime = UINT_MAX;
 
     // see if we already have a challenge for this ip
     for (i = 0; i < MAX_CHALLENGES; i++) {
@@ -590,7 +617,7 @@ static void SVC_GetChallenge(void)
         }
     }
 
-    challenge = Q_rand() & 0x7fffffff;
+    challenge = Q_rand() & INT_MAX;
     if (i == MAX_CHALLENGES) {
         // overwrite the oldest
         svs.challenges[oldest].challenge = challenge;
@@ -600,6 +627,10 @@ static void SVC_GetChallenge(void)
         svs.challenges[i].challenge = challenge;
         svs.challenges[i].time = com_eventTime;
     }
+    //rekkie -- force max protocol PROTOCOL_VERSION_Q2PRO until PROTOCOL_VERSION_AQTION is compatible again -- s
+    Netchan_OutOfBand(NS_SERVER, &net_from, "challenge %u p=%i,%i,%i", challenge, PROTOCOL_VERSION_DEFAULT, PROTOCOL_VERSION_R1Q2, PROTOCOL_VERSION_Q2PRO);
+    return;
+    //rekkie -- force max protocol PROTOCOL_VERSION_Q2PRO until PROTOCOL_VERSION_AQTION is compatible again -- e
 
     // send it back
     Netchan_OutOfBand(NS_SERVER, &net_from,
@@ -634,7 +665,7 @@ typedef struct {
 
 // small hack to permit one-line return statement :)
 #define reject(...) reject_printf(__VA_ARGS__), false
-#define reject2(...) reject_printf(__VA_ARGS__), NULL
+#define reject_ptr(...) reject_printf(__VA_ARGS__), NULL
 
 static bool parse_basic_params(conn_params_t *p)
 {
@@ -834,16 +865,34 @@ static bool parse_enhanced_params(conn_params_t *p)
 	}
 
 
-    if (!CLIENT_COMPATIBLE(&svs.csr, p)) {
+    // verify protocol extensions compatibility
+    if (svs.csr.extended) {
+        int minimal = IS_NEW_GAME_API ?
+            PROTOCOL_VERSION_Q2PRO_EXTENDED_LIMITS_2 :
+            PROTOCOL_VERSION_Q2PRO_EXTENDED_LIMITS;
+
+        if (p->protocol == PROTOCOL_VERSION_Q2PRO && p->version >= minimal)
+            return true;
+
+    // verify protocol extensions compatibility
+    if (svs.csr.extended) {
+        int minimal = IS_NEW_GAME_API ?
+            PROTOCOL_VERSION_Q2PRO_EXTENDED_LIMITS_2 :
+            PROTOCOL_VERSION_Q2PRO_EXTENDED_LIMITS;
+
+        if (p->protocol == PROTOCOL_VERSION_Q2PRO && p->version >= minimal)
+            return true;
+
         return reject("This is a protocol limit removing enhanced server.\n"
                       "Your client version is not compatible. Make sure you are "
-                      "running latest Q2PRO client version.\n");
+                      "running the latest Q2PRO client version.\n");
+        }
     }
 
     return true;
 }
 
-static char *userinfo_ip_string(void)
+static const char *userinfo_ip_string(void)
 {
     // fake up reserved IPv4 address to prevent IPv6 unaware mods from exploding
     if (net_from.type == NA_IP6 && !(g_features->integer & GMF_IPV6_ADDRESS_AWARE)) {
@@ -986,13 +1035,13 @@ static client_t *find_client_slot(conn_params_t *params)
 
     // clients that know the password are never redirected
     if (sv_reserved_slots->integer != params->reserved)
-        return reject2("Server and reserved slots are full.\n");
+        return reject_ptr("Server and reserved slots are full.\n");
 
     // optionally redirect them to a different address
     if (*s)
         return redirect(s);
 
-    return reject2("Server is full.\n");
+    return reject_ptr("Server is full.\n");
 }
 
 static void init_pmove_and_es_flags(client_t *newcl)
@@ -1000,7 +1049,7 @@ static void init_pmove_and_es_flags(client_t *newcl)
     int force;
 
     // copy default pmove parameters
-    newcl->pmp = sv_pmp;
+    newcl->pmp = svs.pmp;
     newcl->pmp.airaccelerate = sv_airaccelerate->integer;
 
     // common extensions
@@ -1011,7 +1060,7 @@ static void init_pmove_and_es_flags(client_t *newcl)
     }
     newcl->pmp.strafehack = sv_strafejump_hack->integer >= force;
 
-    // r1q2 extensions
+    // R1Q2 extensions
     if (newcl->protocol == PROTOCOL_VERSION_R1Q2) {
         newcl->esFlags |= MSG_ES_BEAMORIGIN;
         if (newcl->version >= PROTOCOL_VERSION_R1Q2_LONG_SOLID) {
@@ -1019,7 +1068,7 @@ static void init_pmove_and_es_flags(client_t *newcl)
         }
     }
 
-    // q2pro extensions
+    // Q2PRO extensions
     force = 2;
     if (newcl->protocol == PROTOCOL_VERSION_Q2PRO) {
         if (sv_qwmod->integer) {
@@ -1036,6 +1085,12 @@ static void init_pmove_and_es_flags(client_t *newcl)
         }
         if (svs.csr.extended) {
             newcl->esFlags |= MSG_ES_EXTENSIONS;
+            newcl->psFlags |= MSG_PS_EXTENSIONS;
+
+            if (IS_NEW_GAME_API) {
+                newcl->esFlags |= MSG_ES_EXTENSIONS_2;
+                newcl->psFlags |= MSG_PS_EXTENSIONS_2;
+            }
         }
         force = 1;
     }
@@ -1045,12 +1100,17 @@ static void init_pmove_and_es_flags(client_t *newcl)
 		}
 		newcl->pmp.flyhack = true;
 		newcl->pmp.flyfriction = 4;
-		newcl->esFlags |= MSG_ES_UMASK;
-		newcl->esFlags |= MSG_ES_LONGSOLID;
-		newcl->esFlags |= MSG_ES_BEAMORIGIN;
-		if (newcl->version >= PROTOCOL_VERSION_Q2PRO_MINIMUM) {
-			force = 1;
-		}
+		newcl->esFlags |= MSG_ES_UMASK | MSG_ES_LONGSOLID;
+        if (newcl->version >= PROTOCOL_VERSION_Q2PRO_BEAM_ORIGIN) {
+            newcl->esFlags |= MSG_ES_BEAMORIGIN;
+        }
+        if (newcl->version >= PROTOCOL_VERSION_Q2PRO_SHORT_ANGLES) {
+            newcl->esFlags |= MSG_ES_SHORTANGLES;
+        }
+        if (svs.csr.extended) {
+            newcl->esFlags |= MSG_ES_EXTENSIONS;
+        }
+        force = 1;
 	}
     newcl->pmp.waterhack = sv_waterjump_hack->integer >= force;
 }
@@ -1076,6 +1136,12 @@ static void send_connect_packet(client_t *newcl, int nctype)
         dlstring1 = " dlserver=";
         dlstring2 = sv_downloadserver->string;
     }
+    #if USE_AQTION
+    else {
+        dlstring1 = " dlserver=";
+        dlstring2 = DOWNLOADSERVER;
+    }
+    #endif
 
     Netchan_OutOfBand(NS_SERVER, &net_from, "client_connect%s%s%s%s map=%s",
                       ncstring, acstring, dlstring1, dlstring2, newcl->mapname);
@@ -1099,6 +1165,81 @@ static void append_extra_userinfo(conn_params_t *params, char *userinfo)
                params->protocol, params->version, params->nctype,
                params->maxlength, params->qport, params->has_zlib);
 }
+
+//rekkie -- Fake Bot Client -- s
+// Init Fake Bot Client
+void SV_BotInit(void)
+{
+    for (int i = 0; i < MAX_CLIENTS; i++)
+    {
+        bot_clients[i].in_use = false;
+        bot_clients[i].name[0] = 0;
+        bot_clients[i].ping = 0;
+        bot_clients[i].score = 0;
+        bot_clients[i].number = i;
+    }
+}
+// Game DLL updates Server of bot info
+void SV_BotUpdateInfo(char* name, int ping, int score)
+{
+    for (int i = 0; i < MAX_CLIENTS; i++)
+    {
+        if (bot_clients[i].in_use)
+        {
+            if (strcmp(bot_clients[i].name, name) == 0)
+            {
+                bot_clients[i].ping = ping;
+                bot_clients[i].score = score;
+                return;
+            }
+        }
+    }
+}
+// Game DLL requests Server to add fake bot client
+void SV_BotConnect(char* name)
+{
+    for (int i = 0; i < MAX_CLIENTS; i++)
+    {
+        if (bot_clients[i].in_use == false) // Found a free slot
+        {
+            bot_clients[i].in_use = true;
+            Q_snprintf(bot_clients[i].name, sizeof(bot_clients[i].name), "%s", name);
+            bot_clients[i].ping = 0;
+            bot_clients[i].score = 0;
+            bot_clients[i].number = i;
+            Com_Printf("%s Server added %s as a fake client\n", __func__, bot_clients[i].name);
+            break;
+        }
+    }
+}
+// Game DLL requests Server to remove fake bot client
+void SV_BotDisconnect(char* name)
+{
+    for (int i = 0; i < MAX_CLIENTS; i++)
+    {
+        if (bot_clients[i].in_use && strcmp(bot_clients[i].name, name) == 0)
+        {
+            bot_clients[i].in_use = false;
+            bot_clients[i].name[0] = 0;
+            bot_clients[i].ping = 0;
+            bot_clients[i].score = 0;
+            Com_Printf("%s Server removed %s as a fake client\n", __func__, name);
+            break;
+        }
+    }
+}
+// Game DLL requests Server to clear bot clients (init / map change)
+void SV_BotClearClients(void)
+{
+    for (int i = 0; i < MAX_CLIENTS; i++)
+    {
+        bot_clients[i].in_use = false;
+        bot_clients[i].name[0] = 0;
+        bot_clients[i].ping = 0;
+        bot_clients[i].score = 0;
+    }
+}
+//rekkie -- Fake Bot Client -- e
 
 static void SVC_DirectConnect(void)
 {
@@ -1134,7 +1275,7 @@ static void SVC_DirectConnect(void)
     // accept the new client
     // this is the only place a client_t is ever initialized
     memset(newcl, 0, sizeof(*newcl));
-    newcl->number = newcl->slot = number;
+    newcl->number = newcl->infonum = number;
     newcl->challenge = params.challenge; // save challenge for checksumming
     newcl->protocol = params.protocol;
     newcl->version = params.version;
@@ -1385,14 +1526,14 @@ int SV_CountClients(void)
     return count;
 }
 
-static int ping_nop(client_t *cl)
+static int ping_nop(const client_t *cl)
 {
     return 0;
 }
 
-static int ping_min(client_t *cl)
+static int ping_min(const client_t *cl)
 {
-    client_frame_t *frame;
+    const client_frame_t *frame;
     int i, j, count = INT_MAX;
 
     for (i = 0; i < UPDATE_BACKUP; i++) {
@@ -1409,9 +1550,9 @@ static int ping_min(client_t *cl)
     return count == INT_MAX ? 0 : count;
 }
 
-static int ping_avg(client_t *cl)
+static int ping_avg(const client_t *cl)
 {
-    client_frame_t *frame;
+    const client_frame_t *frame;
     int i, j, total = 0, count = 0;
 
     for (i = 0; i < UPDATE_BACKUP; i++) {
@@ -1438,7 +1579,7 @@ Updates the cl->ping and cl->fps variables
 static void SV_CalcPings(void)
 {
     client_t    *cl;
-    int         (*calc)(client_t *);
+    int         (*calc)(const client_t *);
     int         res;
 
     switch (sv_calcpings_method->integer) {
@@ -1475,7 +1616,7 @@ static void SV_CalcPings(void)
         }
 
         // let the game dll know about the ping
-        cl->edict->client->ping = cl->ping;
+        SV_SetClient_Ping(cl, cl->ping);
     }
 }
 
@@ -1641,7 +1782,7 @@ static void update_client_mtu(client_t *client, int ee_info)
 SV_ErrorEvent
 =================
 */
-void SV_ErrorEvent(netadr_t *from, int ee_errno, int ee_info)
+void SV_ErrorEvent(const netadr_t *from, int ee_errno, int ee_info)
 {
     client_t    *client;
     netchan_t   *netchan;
@@ -1693,6 +1834,11 @@ static void SV_CheckTimeouts(void)
     unsigned    delta;
 
     FOR_EACH_CLIENT(client) {
+        if (Netchan_SeqTooBig(&client->netchan)) {
+            SV_DropClient(client, "outgoing sequence too big");
+            continue;
+        }
+
         // never timeout local clients
         if (NET_IsLocalAddress(&client->netchan.remote_address)) {
             continue;
@@ -1831,6 +1977,9 @@ static void SV_RunGameFrame(void)
     if (host_speeds->integer)
         time_after_game = Sys_Milliseconds();
 #endif
+
+    if (msg_write.overflowed)
+        Com_Error(ERR_DROP, "%s: message buffer overflowed", __func__);
 
     if (msg_write.cursize) {
         Com_WPrintf("Game left %u bytes "
@@ -2255,14 +2404,16 @@ void SV_Init(void)
     sv_pad_packets = Cvar_Get("sv_pad_packets", "0", 0);
 #endif
     sv_lan_force_rate = Cvar_Get("sv_lan_force_rate", "0", CVAR_LATCH);
-    sv_min_rate = Cvar_Get("sv_min_rate", "1500", CVAR_LATCH);
-    sv_max_rate = Cvar_Get("sv_max_rate", "15000", CVAR_LATCH);
+    sv_min_rate = Cvar_Get("sv_min_rate", "15000", CVAR_LATCH);
+    sv_max_rate = Cvar_Get("sv_max_rate", "60000", CVAR_LATCH);
     sv_max_rate->changed = sv_min_rate->changed = sv_rate_changed;
     sv_max_rate->changed(sv_max_rate);
     sv_calcpings_method = Cvar_Get("sv_calcpings_method", "2", 0);
     sv_changemapcmd = Cvar_Get("sv_changemapcmd", "", 0);
     sv_max_download_size = Cvar_Get("sv_max_download_size", "8388608", 0);
     sv_max_packet_entities = Cvar_Get("sv_max_packet_entities", "0", 0);
+    sv_trunc_packet_entities = Cvar_Get("sv_trunc_packet_entities", "1", 0);
+    sv_prioritize_entities = Cvar_Get("sv_prioritize_entities", "0", 0);
 
     sv_strafejump_hack = Cvar_Get("sv_strafejump_hack", "1", CVAR_LATCH);
     sv_waterjump_hack = Cvar_Get("sv_waterjump_hack", "1", CVAR_LATCH);
@@ -2271,10 +2422,10 @@ void SV_Init(void)
     sv_packetdup_hack = Cvar_Get("sv_packetdup_hack", "0", 0);
 #endif
 
-    sv_allow_map = Cvar_Get("sv_allow_map", "0", 0);
+    sv_allow_map = Cvar_Get("sv_allow_map", COM_DEDICATED ? "0" : "1", 0);
     sv_cinematics = Cvar_Get("sv_cinematics", "1", 0);
 
-#if !USE_CLIENT
+#if USE_SERVER
     sv_recycle = Cvar_Get("sv_recycle", "0", 0);
 #endif
 
@@ -2307,6 +2458,7 @@ void SV_Init(void)
 	g_view_predict = Cvar_Get("g_view_predict", "0", CVAR_ROM);
 	g_view_low = Cvar_Get("g_view_low", "0", CVAR_ROM);
 	g_view_high = Cvar_Get("g_view_high", "0", CVAR_ROM);
+	sv_load_ent = Cvar_Get("sv_load_ent", "1", CVAR_LATCH);
 
     init_rate_limits();
 
@@ -2316,12 +2468,11 @@ void SV_Init(void)
     sv.frametime = Com_ComputeFrametime(sv.framerate);
 #endif
 
-    // set up default pmove parameters
-    PmoveInit(&sv_pmp);
-
 #if USE_SYSCON
     SV_SetConsoleTitle();
 #endif
+
+    G_InitializeExtensions();
 
     sv_registered = true;
 }
@@ -2399,6 +2550,8 @@ void SV_Shutdown(const char *finalmsg, error_type_t type)
     if (!sv_registered)
         return;
 
+    R_ClearDebugLines();    // for local system
+
 #if USE_MVD_CLIENT
     if (ge != &mvd_ge && !(type & MVD_SPAWN_INTERNAL)) {
         // shutdown MVD client now if not already running the built-in MVD game module
@@ -2422,7 +2575,6 @@ void SV_Shutdown(const char *finalmsg, error_type_t type)
 
     // free server static data
     Z_Free(svs.client_pool);
-    Z_Free(svs.entities);
 #if USE_ZLIB
     deflateEnd(&svs.z);
     Z_Free(svs.z_buffer);

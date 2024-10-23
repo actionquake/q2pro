@@ -1,6 +1,11 @@
 /subprojects/*/
+!/subprojects/packagefiles/
 /tags
 /TAGS
 /.vs/*
 /debug/*
 /.vscode
+build.sh
+/build_win
+clang-build.sh
+/bots
