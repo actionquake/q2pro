@@ -4,6 +4,8 @@
 
 ctf_status_t bot_ctf_status;
 
+qboolean ctf_goal_node_warning = false;
+
 // Does this bot have the flag?
 qboolean BOTLIB_Carrying_Flag(edict_t* self)
 {
@@ -736,8 +738,20 @@ void BOTLIB_CTF_Goals(edict_t* self)
 			if (flag_to_get == FLAG_T2_NUM)
 				n = bot_ctf_status.flag2_curr_node;
 
-			if (BOTLIB_CanGotoNode(self, nodes[n].nodenum, false))
+			if (n == INVALID && ctf_goal_node_warning == false){
+				ctf_goal_node_warning = true;
+				gi.dprintf("%s: Warning: Flag location is at an INVALID node.\n", __func__);
+				return;
+			}
+
+			// Extra safety check in case ctf_goal_node_warning is true and isn't caught above
+			// this is a segfault preventor
+			if (n == INVALID)
+				return;
+
+			if (n != INVALID && BOTLIB_CanGotoNode(self, nodes[n].nodenum, false))
 			{
+				ctf_goal_node_warning = false;
 				if (flag_to_get == FLAG_T1_NUM) // Dropped team flag
 				{
 					self->bot.bot_ctf_state = BOT_CTF_STATE_RETURN_TEAM_FLAG;
