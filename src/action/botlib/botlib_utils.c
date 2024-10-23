@@ -121,3 +121,48 @@ void BOTLIB_Debug(const char *debugmsg, ...)
         return;
     gi.dprintf("%s", debugmsg);
 }
+
+
+// Function to get a random bot
+edict_t* BOTLIB_GetRandomBot(int team, qboolean filtered)
+{
+    edict_t* bots[MAX_CLIENTS];
+    int botCount = 0;
+
+    // Validate team value
+    if (team < 0 || team > 3) {
+        return NULL; // Invalid team value
+    }
+
+    // Populate the bots array with pointers to bots
+    for (int i = 0; i < num_players; i++)
+    {
+        if (players[i]->is_bot && players[i]->inuse)
+        {
+            // Check team if specified
+            if (team > 0 && players[i]->client->resp.team != team) {
+                continue;
+            }
+
+            // Apply filtering criteria
+            if (filtered) {
+                if ((ctf->value && players[i]->client->ctf_hasflag) ||
+                    (esp->value && IS_LEADER(players[i]))) {
+                    continue;
+                }
+            }
+
+            bots[botCount++] = players[i];
+        }
+    }
+
+    // If we found any bots, return a random one
+    if (botCount > 0)
+    {
+        int randomIndex = rand() % botCount; // Generate a random index
+        return bots[randomIndex];
+    }
+
+    // If no bots were found, return NULL
+    return NULL;
+}

@@ -47,6 +47,8 @@ typedef struct ctfgame_s {
 	/* team spawn times in seconds */
 	int spawn_red;
 	int spawn_blue;
+	int spawn_red_default;
+	int spawn_blue_default;
 	qboolean custom_spawns;
 	char author[64];
 	char comment[128];
@@ -62,6 +64,7 @@ extern cvar_t *ctf_mode;
 extern cvar_t *ctf_dropflag;
 extern cvar_t *ctf_respawn;
 extern cvar_t *ctf_model;
+extern cvar_t *ctf_dyn_respawn;
 
 #define CTF_TEAM1_SKIN "ctf_r"
 #define CTF_TEAM2_SKIN "ctf_b"

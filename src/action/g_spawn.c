@@ -2151,6 +2151,9 @@ int LoadFlagsFromFile (const char *mapname)
 	// FIXME: remove this functionality completely in the future
 	gi.dprintf("Warning: .flg files are deprecated, use .ctf ones for more control!\n");
 
+	ctfgame.spawn_red_default = ctf_respawn->value;
+	ctfgame.spawn_blue_default = ctf_respawn->value;
+
 	while (fgets(buf, 1000, fp) != NULL)
 	{
 		length = strlen(buf);

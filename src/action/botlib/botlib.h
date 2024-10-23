@@ -533,6 +533,7 @@ qboolean BOTLIB_SkillChance(float skilltype);
 float BOTLIB_SkillMultiplier(float skill_level, bool increase_with_skill);
 float BOTLIB_SKILL_Reaction(float reaction_skill);
 void BOTLIB_Debug(const char *debugmsg, ...);
+edict_t* BOTLIB_GetRandomBot(int team, qboolean filtered);
 
 // ===========================================================================
 // botlib_personality.c
