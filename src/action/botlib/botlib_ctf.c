@@ -740,7 +740,8 @@ void BOTLIB_CTF_Goals(edict_t* self)
 
 			if (n == INVALID && ctf_goal_node_warning == false){
 				ctf_goal_node_warning = true;
-				gi.dprintf("%s: Warning: Flag location is at an INVALID node.\n", __func__);
+				if (bot_debug->value)
+					gi.dprintf("%s: Warning: Flag location is at an INVALID node.\n", __func__);
 				return;
 			}
 

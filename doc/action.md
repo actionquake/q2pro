@@ -206,10 +206,10 @@ Flag locations and CTF player spawns should be specified in tng/mapname.ctf file
 - Server settings:
   - `ctf [0/1]` - This will turn CTF on (1) or off (0). It will automatically turn Teamplay on (1).
   - `capturelimit [#]` - The maximum number of captures before a map will change. Set to 0 to ignore that.
-  - `ctf_respawn [#]` - The time in seconds before a player will respawn after having died. Overrides respawn timers in .ctf files
+  - `ctf_respawn [#]` - The time in seconds before a player will respawn after having died. Will not override respawn timers from .ctf files.
   - `ctf_dropflag [0/1]` - Allow clients to drop the flag or not.
   - `uvtime [#]` - The number of seconds *10 of the duration of the 'shield' effect. (for example 40 is 4 secs)
-  - `ctf_dyn_respawn [0/1]` - Default 0, this will reduce the respawn timer for a losing team periodically.  Will self-correct as that team mounts a comeback.
+  - `ctf_dyn_respawn [0/1]` - Default 0, if enabled, this will reduce the respawn timer for a losing team periodically.  Will self-correct as that team mounts a comeback. The score discrepancy gets evaluated when a flag is captured on either team.
 - Client settings:
   - `drop flag` - Drop the flag if you're holding it
 
@@ -251,7 +251,7 @@ The voice command allows clients to play taunts for other players to hear. (as l
 
 #### Commands
 - Server settings:
-  - `use_voice [0/1]` - When on (1), it will allow the use of voice commands.
+  - `use_voice [0/1]` - When on (1), it will allow the use of voice commands.  Requires a populated sndlist.ini file on the server end.
 - Client settings:
   - `voice "sound.wav"` - this will play sound.wav for all players to hear. (as long as the others have sound.wav) This command requires the .wav extension. (client side)
 

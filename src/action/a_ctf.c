@@ -261,27 +261,36 @@ void CTFSetTeamSpawns(int team, char *str)
 #define MIN_RESPAWN_TIME 1
 
 static void AdjustRespawnTime(int* spawn_time, int time_reduction, int team) {
-    *spawn_time = max(MIN_RESPAWN_TIME, *spawn_time - time_reduction);
-	if (team == TEAM1) {
-		ctfgame.spawn_red = *spawn_time;
-	} else if (team == TEAM2) {
-		ctfgame.spawn_blue = *spawn_time;
-	} else {
-		return; // invalid team passed
-	}
-    CenterPrintTeam(team, va("Dynamically adjusting respawn rates, your team is now respawning every %d seconds\n", *spawn_time));
-	gi.dprintf("%s: Respawn time for team %d adjusted to %d\n", __func__, team, *spawn_time);
+	int new_spawn_time = max(MIN_RESPAWN_TIME, *spawn_time - time_reduction);
+
+    // Only update and print if the respawn time has actually changed
+    if (*spawn_time != new_spawn_time) {
+        *spawn_time = new_spawn_time;
+        if (team == TEAM1) {
+            ctfgame.spawn_red = *spawn_time;
+        } else if (team == TEAM2) {
+            ctfgame.spawn_blue = *spawn_time;
+        } else {
+            return; // invalid team passed
+        }
+        CenterPrintTeam(team, va("Dynamically adjusting respawn rates, your team is now respawning every %d seconds\n", *spawn_time));
+        gi.dprintf("%s: Respawn time for team %d adjusted to %d\n", __func__, team, *spawn_time);
+    }
 }
 
 static void ResetRespawnTime(int team) {
 	if (team == TEAM1) {
+		if (ctfgame.spawn_red != ctfgame.spawn_red_default) {
+			CenterPrintTeam(team, va("Respawn rates reset, your team is now respawning every %d seconds\n", ctfgame.spawn_red_default));
+			gi.dprintf("%s: Respawn time for team %d reset to %d\n", __func__, team, ctfgame.spawn_red_default);
+		}
 		ctfgame.spawn_red = ctfgame.spawn_red_default;
-		CenterPrintTeam(team, va("Respawn rates reset, your team is now respawning every %d seconds\n", ctfgame.spawn_red_default));
-		gi.dprintf("%s: Respawn time for team %d reset to %d\n", __func__, team, ctfgame.spawn_red_default);
 	} else if (team == TEAM2) {
+		if (ctfgame.spawn_blue != ctfgame.spawn_blue_default) {
+			CenterPrintTeam(team, va("Respawn rates reset, your team is now respawning every %d seconds\n", ctfgame.spawn_blue_default));
+			gi.dprintf("%s: Respawn time for team %d reset to %d\n", __func__, team, ctfgame.spawn_blue_default);
+		}
 		ctfgame.spawn_blue = ctfgame.spawn_blue_default;
-		CenterPrintTeam(team, va("Respawn rates reset, your team is now respawning every %d seconds\n", ctfgame.spawn_blue_default));
-		gi.dprintf("%s: Respawn time for team %d reset to %d\n", __func__, team, ctfgame.spawn_blue_default);
 	}
 }
 
@@ -330,6 +339,8 @@ qboolean HasFlag(edict_t * ent)
 	if (!ctf->value)
 		return false;
 	if (ent->client->inventory[items[FLAG_T1_NUM].index] || ent->client->inventory[items[FLAG_T2_NUM].index])
+		return true;
+	if (ent->client->ctf_hasflag)
 		return true;
 	return false;
 }
