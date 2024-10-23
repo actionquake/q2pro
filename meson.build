@@ -406,7 +406,7 @@ game_deps = [zlib]
 
 jpeg = dependency('libjpeg',
   required:        get_option('libjpeg'),
-  default_options: fallback_opt + [ 'jpeg-turbo=disabled', 'tests=disabled' ]
+  default_options: fallback_opt + [ 'jpeg-turbo=disabled', 'tests=disabled' ],
 )
 
 if jpeg.found()
@@ -444,7 +444,8 @@ endif
 jansson_dep = dependency('jansson',
   version:         '>= 2.8',
   fallback:        ['jansson', 'jansson_dep'],
-  required:        true  # Or set to true/false as needed
+  required:        true,  # Or set to true/false as needed
+  static:          true
 )
 if jansson_dep.found()
   game_deps += jansson_dep
@@ -455,6 +456,7 @@ if not win32
     required:        get_option('uuid'),
     allow_fallback:  win32,
     default_options: fallback_opt,
+    static:          true
   )
   
   if uuid.found()
