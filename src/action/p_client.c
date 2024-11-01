@@ -1024,6 +1024,39 @@ void PrintDeathMessage(char *msg, edict_t * gibee)
 	}
 }
 
+#ifdef AQTION_EXTENSION
+void UpdateKillfeed(edict_t* self, edict_t* attacker, int mod)
+{
+	int counter = level.killfeed.counter;
+	edict_t* killer = attacker;
+	edict_t* victim = self;
+
+	// World deaths
+	if (killer == NULL)
+		killer = victim;
+
+	//gi.dprintf("Killer: %s\n", killer->client->pers.netname);
+	gi.dprintf("Victim: %s\n", victim->client->pers.netname);
+	gi.dprintf("Mod: %i\n", mod);
+
+	//gi.dprintf("Updating killfeed with killer %s, victim %s, mod %i\n", killer->client->pers.netname, victim->client->pers.netname, mod);
+	// Shift existing data up by one index
+    for (int i = 0; i < MAX_KILLFEED - 1; i++) {
+        level.killfeed.killer[i] = level.killfeed.killer[i + 1];
+        level.killfeed.victim[i] = level.killfeed.victim[i + 1];
+        level.killfeed.mod[i] = level.killfeed.mod[i + 1];
+    }
+
+    // Insert new data at the end of the arrays
+    level.killfeed.killer[MAX_KILLFEED - 1] = killer;
+    level.killfeed.victim[MAX_KILLFEED - 1] = victim;
+    level.killfeed.mod[MAX_KILLFEED - 1] = mod;
+
+    // Update the killfeed counter
+    level.killfeed.counter = (counter + 1) % MAX_KILLFEED;
+}
+#endif
+
 void ClientObituary(edict_t * self, edict_t * inflictor, edict_t * attacker)
 {
 	int mod;
@@ -1070,6 +1103,12 @@ void ClientObituary(edict_t * self, edict_t * inflictor, edict_t * attacker)
 		gi.cprintf(other, PRINT_MEDIUM, "%s", death_msg);
 	}
 	//
+
+	// Killfeed
+	#ifdef AQTION_EXTENSION
+	// self = victim, attacker = killer
+	UpdateKillfeed(self, attacker, mod);
+	#endif
 
 	if (attacker == self)
 	{

@@ -690,7 +690,18 @@ typedef struct highscore_s
     time_t time;
 } highscore_t;
 
+// GHUD Killfeed support
+#ifdef AQTION_EXTENSION
 
+#define MAX_KILLFEED 6
+typedef struct killfeed_s
+{
+	int counter;
+	edict_t* killer[MAX_KILLFEED];
+	edict_t* victim[MAX_KILLFEED];
+	int mod[MAX_KILLFEED];
+} killfeed_t;
+#endif
 //AQ2:TNG End adding flags
 
 typedef struct itemList_s
@@ -901,6 +912,7 @@ typedef struct
   int model_lsight;
 #ifdef AQTION_EXTENSION
   int model_arrow;
+  killfeed_t killfeed;
 #endif
 
   edict_t *current_entity;	// entity running from G_RunFrame
@@ -2958,13 +2970,16 @@ typedef enum {
 	h_spectator_stats = 66, // display up to 5 stats at once
 	h_spectator_stats_bar = 74, // h_spectator_stats_bar text is 75
 	h_spectator_name_bar = 76, // h_spectator_name_bar text is 77
-	h_spectator_timer = 78,
+	h_spectator_timer = 78, // Includes separator (:)
 	h_spectator_timer_border,
 	h_spectator_time_tm,
 	h_spectator_time_mm,
 	h_spectator_time_ts,
 	h_spectator_time_ss,
-	h_spectator_time_sep, // Time seperator (:)
+	h_spectator_killfeed = 90, // Background color (max 6)
+	h_spectator_killfeed_k = 96, // Killfeed killer (max 6)
+	h_spectator_killfeed_v = 102, // Killfeed victim (max 6)
+	h_spectator_killfeed_w = 108, // Killfeed weapon (max 6)
 } huditem_t;
 
 void HUD_SetType(edict_t *clent, int type);

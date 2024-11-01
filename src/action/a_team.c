@@ -1906,6 +1906,23 @@ void CleanLevel (void)
 					G_FreeEdict( ent );
 		}
 	}
+
+	#ifdef AQTION_EXTENSION
+	// NULL killfeed from previous round
+	int *hud = ent->client->resp.hud_items;
+	for (i = 0; i < MAX_KILLFEED; i++)
+	{
+		level.killfeed.killer[i] = NULL;
+		level.killfeed.victim[i] = NULL;
+		level.killfeed.mod[i] = 0;
+		level.killfeed.counter = 0;
+
+		// Ghud_SetFlags(ent, hud[h_spectator_killfeed + i], GHF_HIDE);
+		// Ghud_SetFlags(ent, hud[h_spectator_killfeed_k + i], GHF_HIDE);
+		// Ghud_SetFlags(ent, hud[h_spectator_killfeed_v + i], GHF_HIDE);
+		// Ghud_SetFlags(ent, hud[h_spectator_killfeed_w + i], GHF_HIDE);
+	}
+	#endif
 	
 	CleanBodies();
 	// fix glass
