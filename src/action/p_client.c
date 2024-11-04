@@ -1043,15 +1043,18 @@ void UpdateKillfeed(edict_t* self, edict_t* attacker, int mod)
         level.killfeed.killer[i] = level.killfeed.killer[i + 1];
         level.killfeed.victim[i] = level.killfeed.victim[i + 1];
         level.killfeed.mod[i] = level.killfeed.mod[i + 1];
+		gi.dprintf("%s: shifting %i to %i\n", __func__, i + 1, i);
     }
 
     // Insert new data at the end of the arrays
     level.killfeed.killer[MAX_KILLFEED - 1] = killer;
     level.killfeed.victim[MAX_KILLFEED - 1] = victim;
     level.killfeed.mod[MAX_KILLFEED - 1] = mod;
+	gi.dprintf("%s: %s killed %s with mod %i\n", __func__, level.killfeed.killer[MAX_KILLFEED - 1]->client->pers.netname, level.killfeed.victim[MAX_KILLFEED - 1]->client->pers.netname, level.killfeed.mod[MAX_KILLFEED - 1]);
 
     // Update the killfeed counter
     level.killfeed.counter = (counter + 1) % MAX_KILLFEED;
+	gi.dprintf("%s: counter is now %i\n", __func__, level.killfeed.counter);
 }
 #endif
 
