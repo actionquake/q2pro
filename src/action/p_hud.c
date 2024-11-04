@@ -51,6 +51,32 @@
 
 #include "g_local.h"
 
+// GHUD Global variables
+
+// Red team colors
+int red_team_red = 220;
+int red_team_green = 60;
+int red_team_blue = 60;
+int alt_red_team_red = 110;
+int alt_red_team_green = 45;
+int alt_red_team_blue = 45;
+
+// Blue team colors
+int blue_team_red = 40;
+int blue_team_green = 80;
+int blue_team_blue = 220;
+int alt_blue_team_red = 30;
+int alt_blue_team_green = 60;
+int alt_blue_team_blue = 110;
+
+// Green team colors
+int green_team_red = 40;
+int green_team_green = 220;
+int green_team_blue = 40;
+int alt_green_team_red = 30;
+int alt_green_team_green = 140;
+int alt_green_team_blue = 30;
+
 /*
   ======================================================================
   
@@ -1066,22 +1092,6 @@ void HUD_SpectatorSetup(edict_t *clent)
 	clent->client->resp.hud_type = 1;
 
 	int nameplate_alpha = 230;
-
-	// Red team colors
-	int red_team_red = 220;
-	int red_team_green = 60;
-	int red_team_blue = 60;
-	int alt_red_team_red = 110;
-	int alt_red_team_green = 45;
-	int alt_red_team_blue = 45;
-
-	// Blue team colors
-	int blue_team_red = 40;
-	int blue_team_green = 80;
-	int blue_team_blue = 220;
-	int alt_blue_team_red = 30;
-	int alt_blue_team_green = 60;
-	int alt_blue_team_blue = 110;
 	
 	int *hud = clent->client->resp.hud_items;
 	int i;
@@ -1201,6 +1211,169 @@ void HUD_SpectatorSetup(edict_t *clent)
 
 		// GHUD killfeed display
 		HUD_SpectatorKillfeedSetup(clent);
+	}
+}
+
+static void HUD_SpectatorUpdateKillfeed(edict_t *clent, int *hud)
+{
+	if (1){
+	int counter = level.killfeed.counter;
+
+	for (int i = counter - 1; i >= 0; i--) {
+		int icon_x = -145 + ((counter - 1 - i) * 135); // Adjust icon_x calculation for reverse iteration
+
+		char kn_s[17] = "KILLER"; // Killer name placeholder
+		char vn_s[17] = "VICTIM"; // Victim name placeholder
+		int namelen = strlen(kn_s) + strlen(vn_s);
+
+		edict_t *killer = level.killfeed.killer[i];
+		int mod = level.killfeed.mod[i]; // Weapon num
+		edict_t *victim = level.killfeed.victim[i];
+
+		// Check for null data and copy names if valid
+
+		if (victim != NULL) {
+			strncpy(vn_s, victim->client->pers.netname, 16);
+			vn_s[16] = '\0'; // Ensure null-termination
+		}
+
+		if (killer != NULL) {
+			strncpy(kn_s, killer->client->pers.netname, 16);
+			kn_s[16] = '\0'; // Ensure null-termination
+
+			if (killer == victim) {  // Gray for world kills
+				Ghud_SetColor(clent, hud[h_spectator_killfeed + i], 150, 150, 150, 255);
+			} else if (killer->client->resp.team == TEAM1) {
+				Ghud_SetColor(clent, hud[h_spectator_killfeed + i], red_team_red, red_team_green, red_team_blue, 255);
+			} else if (killer->client->resp.team == TEAM2) {
+				Ghud_SetColor(clent, hud[h_spectator_killfeed + i], blue_team_red, blue_team_green, blue_team_blue, 255);
+			} else if (killer->client->resp.team == TEAM3) {
+				Ghud_SetColor(clent, hud[h_spectator_killfeed + i], green_team_red, green_team_green, green_team_blue, 255);
+			} else {
+				Ghud_SetColor(clent, hud[h_spectator_killfeed + i], 220, 220, 220, 255);  // White for DM
+			}
+		}
+
+		// Reveal the elements
+		Ghud_SetFlags(clent, hud[h_spectator_killfeed + i], 0);
+		Ghud_SetFlags(clent, hud[h_spectator_killfeed_k + i], 0);
+		Ghud_SetFlags(clent, hud[h_spectator_killfeed_v + i], 0);
+		Ghud_SetFlags(clent, hud[h_spectator_killfeed_w + i], 0);
+
+		Ghud_SetSize(clent, hud[h_spectator_killfeed], (namelen * 5), 12);
+		Ghud_SetText(clent, hud[h_spectator_killfeed_k + i], kn_s);
+		Ghud_SetTextFlags(clent, hud[h_spectator_killfeed_k + i], UI_RIGHT);
+		Ghud_SetText(clent, hud[h_spectator_killfeed_v + i], vn_s);
+		hud[h_spectator_killfeed_w] = Ghud_AddIcon(clent, icon_x, -300, level.pic_items[mod], 12, 12);
+	}
+}
+}
+
+static void HUD_SpectatorUpdateTimer(edict_t *clent, int *hud)
+{
+	if (timelimit->value && !level.intermission_framenum) {
+		HUD_UpdateSpectatorTimer(clent);
+	} else {
+		Ghud_SetFlags(clent, hud[h_spectator_timer_border], GHF_HIDE);
+		Ghud_SetFlags(clent, hud[h_spectator_timer], GHF_HIDE);
+		Ghud_SetFlags(clent, hud[h_spectator_time_tm], GHF_HIDE);
+		Ghud_SetFlags(clent, hud[h_spectator_time_mm], GHF_HIDE);
+		Ghud_SetFlags(clent, hud[h_spectator_timer], GHF_HIDE);
+		Ghud_SetFlags(clent, hud[h_spectator_time_ts], GHF_HIDE);
+		Ghud_SetFlags(clent, hud[h_spectator_time_ss], GHF_HIDE);
+	}
+}
+
+static void HUD_SpectatorUpdateStats(edict_t *clent, int *hud)
+{
+	if (clent->client->chase_target) {
+		int h_base = h_spectator_stats;
+		int h_nbar = h_spectator_name_bar;
+		int h_sbar = h_spectator_stats_bar;
+
+	//gi.dprintf("chase target: %s\n", clent->client->chase_target ? clent->client->chase_target->client->pers.netname : "none");
+	//gi.dprintf("chase target mode: %i\n", clent->client->chase_mode);
+	
+		// GHUD bottom center stat display
+		Ghud_SetFlags(clent, hud[h_spectator_stats], 0);
+		Ghud_SetFlags(clent, hud[h_spectator_stats + 1], 0);
+		Ghud_SetFlags(clent, hud[h_spectator_stats + 2], 0);
+		Ghud_SetFlags(clent, hud[h_spectator_stats + 3], 0);
+		Ghud_SetFlags(clent, hud[h_spectator_stats + 4], 0);
+		Ghud_SetFlags(clent, hud[h_spectator_stats + 5], 0);
+		Ghud_SetFlags(clent, hud[h_spectator_stats + 6], 0);
+		Ghud_SetFlags(clent, hud[h_spectator_stats + 7], 0);
+		Ghud_SetFlags(clent, hud[h_spectator_name_bar], 0);
+		Ghud_SetFlags(clent, hud[h_spectator_name_bar + 1], 0);
+		Ghud_SetFlags(clent, hud[h_spectator_stats_bar], 0);
+		Ghud_SetFlags(clent, hud[h_spectator_stats_bar + 1], 0);
+
+		char nm_s[17];
+		char frags_s[24];
+		char deaths_s[24];
+		char dmg_s[24];
+		char acc_s[10];
+		char a_s[10];
+		char i_s[10];
+		char e_s[10];
+		edict_t *targ = clent->client->chase_target;
+		memcpy(nm_s, targ->client->pers.netname, 16);
+		snprintf(frags_s, sizeof(frags_s), "%i", targ->client->resp.kills);
+		snprintf(deaths_s, sizeof(deaths_s), "%i", targ->client->resp.deaths);
+		snprintf(dmg_s, sizeof(dmg_s), "%i", targ->client->resp.damage_dealt);
+		snprintf(acc_s, sizeof(acc_s), "%.2f%%", CalculateAccuracy(targ));
+		snprintf(a_s, sizeof(a_s), "%i", targ->client->resp.awardstats[ACCURACY]);
+		snprintf(i_s, sizeof(i_s), "%i", targ->client->resp.awardstats[IMPRESSIVE]);
+		snprintf(e_s, sizeof(e_s), "%i", targ->client->resp.awardstats[EXCELLENT]);
+		// update fields
+
+		// Change color based on team
+		int nameplate_alpha = 180;
+
+		// target name
+		Ghud_SetText(clent, hud[h_nbar + 1], nm_s);
+		// target stat bar
+		Ghud_SetText(clent, hud[h_sbar + 1], "Frags  Deaths  Damage  Acc.    \x07  \x0E  \x0F");
+		// target stat values
+		Ghud_SetText(clent, hud[h_base + 1], frags_s);
+		Ghud_SetText(clent, hud[h_base + 2], deaths_s);
+		Ghud_SetText(clent, hud[h_base + 3], dmg_s);
+		Ghud_SetText(clent, hud[h_base + 4], acc_s);
+		Ghud_SetText(clent, hud[h_base + 5], a_s);
+		Ghud_SetText(clent, hud[h_base + 6], i_s);
+		Ghud_SetText(clent, hud[h_base + 7], e_s);
+
+		// Color per team
+		if (targ->client->resp.team == TEAM1) {
+			Ghud_SetColor(clent, hud[h_nbar], red_team_red, red_team_green, red_team_blue, nameplate_alpha);
+			Ghud_SetColor(clent, hud[h_sbar], alt_red_team_red, alt_red_team_green, alt_red_team_blue, 255);
+			Ghud_SetColor(clent, hud[h_base], 100, 100, 100, 255);
+		} else if (targ->client->resp.team == TEAM2) {
+			Ghud_SetColor(clent, hud[h_nbar], blue_team_red, blue_team_green, blue_team_blue, nameplate_alpha);
+			Ghud_SetColor(clent, hud[h_sbar], alt_blue_team_red, alt_blue_team_green, alt_blue_team_blue, 255);
+			Ghud_SetColor(clent, hud[h_base], 100, 100, 100, 255);
+		} else if (targ->client->resp.team == TEAM3) {
+			Ghud_SetColor(clent, hud[h_nbar], green_team_red, green_team_green, green_team_blue, nameplate_alpha);
+			Ghud_SetColor(clent, hud[h_sbar], alt_green_team_red, alt_green_team_green, alt_green_team_blue, 255);
+			Ghud_SetColor(clent, hud[h_base], 100, 100, 100, 255);
+		} else if (targ->client->resp.team == 0) {  // Deathmatch!
+			Ghud_SetColor(clent, hud[h_nbar], 220, 220, 220, nameplate_alpha);
+			Ghud_SetColor(clent, hud[h_sbar], 110, 110, 110, 255);
+			Ghud_SetColor(clent, hud[h_base], 150, 150, 150, 255);
+		}
+	} else {  // Hide the stats if we're not chasing a target
+		Ghud_SetFlags(clent, hud[h_spectator_stats], GHF_HIDE);
+		Ghud_SetFlags(clent, hud[h_spectator_stats + 1], GHF_HIDE);
+		Ghud_SetFlags(clent, hud[h_spectator_stats + 2], GHF_HIDE);
+		Ghud_SetFlags(clent, hud[h_spectator_stats + 3], GHF_HIDE);
+		Ghud_SetFlags(clent, hud[h_spectator_stats + 4], GHF_HIDE);
+		Ghud_SetFlags(clent, hud[h_spectator_stats + 5], GHF_HIDE);
+		Ghud_SetFlags(clent, hud[h_spectator_stats + 6], GHF_HIDE);
+		Ghud_SetFlags(clent, hud[h_spectator_stats + 7], GHF_HIDE);
+		Ghud_SetFlags(clent, hud[h_spectator_name_bar], GHF_HIDE);
+		Ghud_SetFlags(clent, hud[h_spectator_name_bar + 1], GHF_HIDE);
+		Ghud_SetFlags(clent, hud[h_spectator_stats_bar], GHF_HIDE);
+		Ghud_SetFlags(clent, hud[h_spectator_stats_bar + 1], GHF_HIDE);
 	}
 }
 
@@ -1431,185 +1604,14 @@ void HUD_SpectatorUpdate(edict_t *clent)
 			}
 		}
 
-		int h_base = h_spectator_stats;
-		int h_nbar = h_spectator_name_bar;
-		int h_sbar = h_spectator_stats_bar;
-
-		// Red team colors
-		int red_team_red = 220;
-		int red_team_green = 60;
-		int red_team_blue = 60;
-		int alt_red_team_red = 110;
-		int alt_red_team_green = 45;
-		int alt_red_team_blue = 45;
-
-		// Blue team colors
-		int blue_team_red = 40;
-		int blue_team_green = 80;
-		int blue_team_blue = 220;
-		int alt_blue_team_red = 30;
-		int alt_blue_team_green = 60;
-		int alt_blue_team_blue = 110;
-
-		// Green team colors
-		int green_team_red = 40;
-		int green_team_green = 220;
-		int green_team_blue = 40;
-		int alt_green_team_red = 30;
-		int alt_green_team_green = 140;
-		int alt_green_team_blue = 30;
-		// If we're chasing a target, display their stats
-
-		//gi.dprintf("chase target: %s\n", clent->client->chase_target ? clent->client->chase_target->client->pers.netname : "none");
-		//gi.dprintf("chase target mode: %i\n", clent->client->chase_mode);
-		if (clent->client->chase_target) {
-			// GHUD bottom center stat display
-			Ghud_SetFlags(clent, hud[h_spectator_stats], 0);
-			Ghud_SetFlags(clent, hud[h_spectator_stats + 1], 0);
-			Ghud_SetFlags(clent, hud[h_spectator_stats + 2], 0);
-			Ghud_SetFlags(clent, hud[h_spectator_stats + 3], 0);
-			Ghud_SetFlags(clent, hud[h_spectator_stats + 4], 0);
-			Ghud_SetFlags(clent, hud[h_spectator_stats + 5], 0);
-			Ghud_SetFlags(clent, hud[h_spectator_stats + 6], 0);
-			Ghud_SetFlags(clent, hud[h_spectator_stats + 7], 0);
-			Ghud_SetFlags(clent, hud[h_spectator_name_bar], 0);
-			Ghud_SetFlags(clent, hud[h_spectator_name_bar + 1], 0);
-			Ghud_SetFlags(clent, hud[h_spectator_stats_bar], 0);
-			Ghud_SetFlags(clent, hud[h_spectator_stats_bar + 1], 0);
-
-			char nm_s[17];
-			char frags_s[24];
-			char deaths_s[24];
-			char dmg_s[24];
-			char acc_s[10];
-			char a_s[10];
-			char i_s[10];
-			char e_s[10];
-			edict_t *targ = clent->client->chase_target;
-			memcpy(nm_s, targ->client->pers.netname, 16);
-			snprintf(frags_s, sizeof(frags_s), "%i", targ->client->resp.kills);
-			snprintf(deaths_s, sizeof(deaths_s), "%i", targ->client->resp.deaths);
-			snprintf(dmg_s, sizeof(dmg_s), "%i", targ->client->resp.damage_dealt);
-			snprintf(acc_s, sizeof(acc_s), "%.2f%%", CalculateAccuracy(targ));
-			snprintf(a_s, sizeof(a_s), "%i", targ->client->resp.awardstats[ACCURACY]);
-			snprintf(i_s, sizeof(i_s), "%i", targ->client->resp.awardstats[IMPRESSIVE]);
-			snprintf(e_s, sizeof(e_s), "%i", targ->client->resp.awardstats[EXCELLENT]);
-			// update fields
-
-			// Change color based on team
-			int nameplate_alpha = 180;
-
-			// target name
-			Ghud_SetText(clent, hud[h_nbar + 1], nm_s);
-			// target stat bar
-			Ghud_SetText(clent, hud[h_sbar + 1], "Frags  Deaths  Damage  Acc.    \x07  \x0E  \x0F");
-			// target stat values
-			Ghud_SetText(clent, hud[h_base + 1], frags_s);
-			Ghud_SetText(clent, hud[h_base + 2], deaths_s);
-			Ghud_SetText(clent, hud[h_base + 3], dmg_s);
-			Ghud_SetText(clent, hud[h_base + 4], acc_s);
-			Ghud_SetText(clent, hud[h_base + 5], a_s);
-			Ghud_SetText(clent, hud[h_base + 6], i_s);
-			Ghud_SetText(clent, hud[h_base + 7], e_s);
-
-			// Color per team
-			if (clent->client->chase_target) {
-				if (targ->client->resp.team == TEAM1) {
-					Ghud_SetColor(clent, hud[h_nbar], red_team_red, red_team_green, red_team_blue, nameplate_alpha);
-					Ghud_SetColor(clent, hud[h_sbar], alt_red_team_red, alt_red_team_green, alt_red_team_blue, 255);
-					Ghud_SetColor(clent, hud[h_base], 100, 100, 100, 255);
-				} else if (targ->client->resp.team == TEAM2) {
-					Ghud_SetColor(clent, hud[h_nbar], blue_team_red, blue_team_green, blue_team_blue, nameplate_alpha);
-					Ghud_SetColor(clent, hud[h_sbar], alt_blue_team_red, alt_blue_team_green, alt_blue_team_blue, 255);
-					Ghud_SetColor(clent, hud[h_base], 100, 100, 100, 255);
-				} else if (targ->client->resp.team == TEAM3) {
-					Ghud_SetColor(clent, hud[h_nbar], green_team_red, green_team_green, green_team_blue, nameplate_alpha);
-					Ghud_SetColor(clent, hud[h_sbar], alt_green_team_red, alt_green_team_green, alt_green_team_blue, 255);
-					Ghud_SetColor(clent, hud[h_base], 100, 100, 100, 255);
-				} else if (targ->client->resp.team == 0) {  // Deathmatch!
-					Ghud_SetColor(clent, hud[h_nbar], 220, 220, 220, nameplate_alpha);
-					Ghud_SetColor(clent, hud[h_sbar], 110, 110, 110, 255);
-					Ghud_SetColor(clent, hud[h_base], 150, 150, 150, 255);
-				}
-			}
-		} else {  // Hide the stats if we're not chasing a target
-			Ghud_SetFlags(clent, hud[h_spectator_stats], GHF_HIDE);
-			Ghud_SetFlags(clent, hud[h_spectator_stats + 1], GHF_HIDE);
-			Ghud_SetFlags(clent, hud[h_spectator_stats + 2], GHF_HIDE);
-			Ghud_SetFlags(clent, hud[h_spectator_stats + 3], GHF_HIDE);
-			Ghud_SetFlags(clent, hud[h_spectator_stats + 4], GHF_HIDE);
-			Ghud_SetFlags(clent, hud[h_spectator_stats + 5], GHF_HIDE);
-			Ghud_SetFlags(clent, hud[h_spectator_stats + 6], GHF_HIDE);
-			Ghud_SetFlags(clent, hud[h_spectator_stats + 7], GHF_HIDE);
-			Ghud_SetFlags(clent, hud[h_spectator_name_bar], GHF_HIDE);
-			Ghud_SetFlags(clent, hud[h_spectator_name_bar + 1], GHF_HIDE);
-			Ghud_SetFlags(clent, hud[h_spectator_stats_bar], GHF_HIDE);
-			Ghud_SetFlags(clent, hud[h_spectator_stats_bar + 1], GHF_HIDE);
-		}
+		// Update stats if we're chasing a target
+		HUD_SpectatorUpdateStats(clent, hud);
 
 		// Update the timer display if set and we're not in intermission
-		if (timelimit->value && !level.intermission_framenum) {
-        	HUD_UpdateSpectatorTimer(clent);
-		} else {
-			Ghud_SetFlags(clent, hud[h_spectator_timer_border], GHF_HIDE);
-			Ghud_SetFlags(clent, hud[h_spectator_timer], GHF_HIDE);
-			Ghud_SetFlags(clent, hud[h_spectator_time_tm], GHF_HIDE);
-			Ghud_SetFlags(clent, hud[h_spectator_time_mm], GHF_HIDE);
-			Ghud_SetFlags(clent, hud[h_spectator_timer], GHF_HIDE);
-			Ghud_SetFlags(clent, hud[h_spectator_time_ts], GHF_HIDE);
-			Ghud_SetFlags(clent, hud[h_spectator_time_ss], GHF_HIDE);
-		}
+		HUD_SpectatorUpdateTimer(clent, hud);
 
-		// Killfeed updates
-		if (1){
-			// Reveal!
-			int counter = level.killfeed.counter;
-
-			for (int i = counter - 1; i >= 0; i--) {
-    			int icon_x = -145 + ((counter - 1 - i) * 135); // Adjust icon_x calculation for reverse iteration
-
-				char kn_s[17] = "KILLER"; // Killer name placeholder
-				char vn_s[17] = "VICTIM"; // Victim name placeholder
-				int namelen = strlen(kn_s) + strlen(vn_s);
-
-				edict_t *killer = level.killfeed.killer[i];
-				int mod = level.killfeed.mod[i]; // Weapon num
-				edict_t *victim = level.killfeed.victim[i];
-
-				// Check for null data and copy names if valid
-				if (killer != NULL) {
-					strncpy(kn_s, killer->client->pers.netname, 16);
-					kn_s[16] = '\0'; // Ensure null-termination
-
-					if (killer->client->resp.team == TEAM1) {
-						Ghud_SetColor(clent, hud[h_spectator_killfeed + i], red_team_red, red_team_green, red_team_blue, 255);
-					} else if (killer->client->resp.team == TEAM2) {
-						Ghud_SetColor(clent, hud[h_spectator_killfeed + i], blue_team_red, blue_team_green, blue_team_blue, 255);
-					} else if (killer->client->resp.team == TEAM3) {
-						Ghud_SetColor(clent, hud[h_spectator_killfeed + i], green_team_red, green_team_green, green_team_blue, 255);
-					} else {
-						Ghud_SetColor(clent, hud[h_spectator_killfeed + i], 220, 220, 220, 255);
-					}
-				}
-
-				if (victim != NULL) {
-					strncpy(vn_s, victim->client->pers.netname, 16);
-					vn_s[16] = '\0'; // Ensure null-termination
-				}
-
-				// Reveal the elements
-				Ghud_SetFlags(clent, hud[h_spectator_killfeed + i], 0);
-				Ghud_SetFlags(clent, hud[h_spectator_killfeed_k + i], 0);
-				Ghud_SetFlags(clent, hud[h_spectator_killfeed_v + i], 0);
-				Ghud_SetFlags(clent, hud[h_spectator_killfeed_w + i], 0);
-
-				Ghud_SetSize(clent, hud[h_spectator_killfeed], (namelen * 5), 12);
-				Ghud_SetText(clent, hud[h_spectator_killfeed_k + i], kn_s);
-				Ghud_SetTextFlags(clent, hud[h_spectator_killfeed_k + i], UI_RIGHT);
-				Ghud_SetText(clent, hud[h_spectator_killfeed_v + i], vn_s);
-				hud[h_spectator_killfeed_w] = Ghud_AddIcon(clent, icon_x, -300, level.pic_items[mod], 12, 12);
-			}
-		}
+		// Update the killfeed
+		HUD_SpectatorUpdateKillfeed(clent, hud);
 	}
 }
 

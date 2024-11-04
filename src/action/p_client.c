@@ -1030,16 +1030,14 @@ void UpdateKillfeed(edict_t* self, edict_t* attacker, int mod)
 	int counter = level.killfeed.counter;
 	edict_t* killer = attacker;
 	edict_t* victim = self;
+	qboolean worldkill = false;
 
-	// World deaths
-	if (killer == NULL)
+	if (attacker == world || !attacker->client) {
+		worldkill = true;
 		killer = victim;
+	}
 
-	//gi.dprintf("Killer: %s\n", killer->client->pers.netname);
-	gi.dprintf("Victim: %s\n", victim->client->pers.netname);
-	gi.dprintf("Mod: %i\n", mod);
-
-	//gi.dprintf("Updating killfeed with killer %s, victim %s, mod %i\n", killer->client->pers.netname, victim->client->pers.netname, mod);
+	gi.dprintf("Updating killfeed with killer %s, victim %s, mod %i\n", killer->client->pers.netname, victim->client->pers.netname, mod);
 	// Shift existing data up by one index
     for (int i = 0; i < MAX_KILLFEED - 1; i++) {
         level.killfeed.killer[i] = level.killfeed.killer[i + 1];
