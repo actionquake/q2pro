@@ -832,6 +832,7 @@ static void HUD_SpectatorKillfeedSetup(edict_t *clent)
 	for (i = 0; i < MAX_KILLFEED; i++) {
 		kb = k_base + i; // background bar
 		hud[kb] = Ghud_NewElement(clent, GHT_FILL);
+		Ghud_SetColor(clent, hud[kb], 0, 0, 0, 0);
 		Ghud_SetAnchor(clent, hud[kb], 1, 1); // Anchored to the top right corner
 		Ghud_SetPosition(clent, hud[kb], x, y);
 		Ghud_SetSize(clent, hud[kb], bar_width, bar_height);
@@ -845,12 +846,12 @@ static void HUD_SpectatorKillfeedSetup(edict_t *clent)
 		Ghud_SetFlags(clent, hud[kk], GHF_HIDE);
 
 		km = k_mod + i; // weapon selection
-		hud[km] = Ghud_AddIcon(clent, kmod_x, kmod_y, level.pic_items[M4_NUM], 12, 12);
+		hud[km] = Ghud_AddIcon(clent, kmod_x, kmod_y, level.pic_items[0], 12, 12);
 		Ghud_SetAnchor(clent, hud[km], 1, 1);
 		Ghud_SetPosition(clent, hud[km], kmod_x, kmod_y);
 		Ghud_SetFlags(clent, hud[km], GHF_HIDE);
 
-		kv = k_vname + i; // killer name
+		kv = k_vname + i; // victim name
 		hud[kv] = Ghud_AddText(clent, x, y, "");
 		Ghud_SetAnchor(clent, hud[kv], 1, 1); // Anchored to the top right corner
 		Ghud_SetPosition(clent, hud[kv], vname_x, vname_y);
@@ -863,7 +864,172 @@ static void HUD_SpectatorKillfeedSetup(edict_t *clent)
 		kmod_y += 12;
 		vname_y += 12;
 	}
+}
 
+
+static char *HUD_SpectatorKillfeedMessage(ModTable mod)
+{
+	char *message = "";
+
+	switch (mod) {
+		case MOD_HELD_GRENADE:
+		case MOD_HG_SPLASH:
+		case MOD_G_SPLASH:
+			message = "ate a grenade";
+			break;
+		case MOD_BREAKINGGLASS:
+			message = "ate glass";
+			break;
+		case MOD_SUICIDE:
+			message = "was eliminated";
+			break;
+		case MOD_FALLING:
+			message = "plummeted";
+			break;
+		case MOD_CRUSH:
+			message = "was flattened";
+			break;
+		case MOD_WATER:
+			message = "drowned";
+			break;
+		case MOD_SLIME:
+			message = "melted";
+			break;
+		case MOD_LAVA:
+			message = "was incinerated";
+			break;
+		case MOD_EXPLOSIVE:
+		case MOD_BARREL:
+			message = "blew up";
+			break;
+		case MOD_EXIT:
+			message = "found the exit";
+			break;
+		case MOD_TARGET_LASER:
+			message = "was zapped";
+			break;
+		case MOD_TARGET_BLASTER:
+			message = "got blasted";
+			break;
+		case MOD_BOMB:
+		case MOD_SPLASH:
+		case MOD_TRIGGER_HURT:
+			message = "was terminated";
+			break;
+		default:
+			message = "died";
+			break;
+	}
+	return message;
+}
+
+static void HUD_SpectatorUpdateKillfeed(edict_t *clent, int *hud)
+{
+    int counter = level.killfeed.counter;
+	qboolean worldkill = false;
+	ModTable method_of_death;
+
+    for (int i = 0; i < MAX_KILLFEED; i++) {
+        int hud_index = h_spectator_killfeed + i;
+        int hud_killer_index = h_spectator_killfeed_k + i;
+        int hud_victim_index = h_spectator_killfeed_v + i;
+        int hud_weapon_index = h_spectator_killfeed_w + i;
+
+		// After round ends, counter is set to 0, so hide everything again
+		if (counter == 0) {
+			Ghud_SetFlags(clent, hud[hud_index], GHF_HIDE);
+			Ghud_SetFlags(clent, hud[hud_killer_index], GHF_HIDE);
+			Ghud_SetFlags(clent, hud[hud_victim_index], GHF_HIDE);
+			Ghud_SetFlags(clent, hud[hud_weapon_index], GHF_HIDE);
+			continue;
+		}
+
+        int icon_x = -145 + (i * 135); // Adjust icon_x calculation for correct positioning
+
+        char kn_s[17] = ""; // Killer name placeholder
+        char vn_s[17] = ""; // Victim name placeholder
+
+        edict_t *killer = level.killfeed.killer[i];
+        int mod = level.killfeed.mod[i]; // Weapon num
+        edict_t *victim = level.killfeed.victim[i];
+
+		// Go no further if the killer or victim is NULL
+		if (victim == NULL || killer == NULL) {
+			//gi.dprintf("victim or killer is NULL\n");
+			break;
+		}
+
+		if ((killer == victim) ||
+			(mod > MOD_KNIFE_THROWN && mod != MOD_KICK && mod != MOD_PUNCH && mod != MOD_HG_SPLASH))
+			worldkill = true;
+
+        // Check for null data and copy names if valid
+        if (victim != NULL) {
+            strncpy(vn_s, victim->client->pers.netname, 16);
+            vn_s[16] = '\0'; // Ensure null-termination
+        }
+        if (killer != NULL) {
+            strncpy(kn_s, killer->client->pers.netname, 16);
+            kn_s[16] = '\0'; // Ensure null-termination
+            if (killer == victim) {  // Gray for world kills
+                Ghud_SetColor(clent, hud[hud_killer_index], 150, 150, 150, 255);
+				Ghud_SetColor(clent, hud[hud_victim_index], 150, 150, 150, 255);
+            } else {
+                // Set colors based on team
+                if (killer->client->resp.team == TEAM1) {
+                    Ghud_SetColor(clent, hud[hud_killer_index], red_team_red, red_team_green, red_team_blue, 255);
+                } else if (killer->client->resp.team == TEAM2) {
+                    Ghud_SetColor(clent, hud[hud_killer_index], blue_team_red, blue_team_green, blue_team_blue, 255);
+                } else if (killer->client->resp.team == TEAM3) {
+                    Ghud_SetColor(clent, hud[hud_killer_index], green_team_red, green_team_green, green_team_blue, 255);
+				} else {
+					Ghud_SetColor(clent, hud[hud_killer_index], 220, 220, 220, 255);  // White for DM
+				}
+
+				if (victim->client->resp.team == TEAM1) {
+					Ghud_SetColor(clent, hud[hud_victim_index], red_team_red, red_team_green, red_team_blue, 255);
+				} else if (victim->client->resp.team == TEAM2) {
+					Ghud_SetColor(clent, hud[hud_victim_index], blue_team_red, blue_team_green, blue_team_blue, 255);
+				} else if (victim->client->resp.team == TEAM3) {
+					Ghud_SetColor(clent, hud[hud_victim_index], green_team_red, green_team_green, green_team_blue, 255);
+                } else {
+					Ghud_SetColor(clent, hud[hud_victim_index], 220, 220, 220, 255);  // White for DM
+                }
+            }
+        }
+
+		int namelen = 0;
+		method_of_death = level.killfeed.mod[i];
+		// Set the message based on the method of death
+		if (!worldkill) {  // Kill by another player by a weapon
+			namelen = strlen(kn_s) + strlen(vn_s);
+
+			//Ghud_SetSize(clent, hud[hud_index], (namelen), 12);
+        	Ghud_SetText(clent, hud[hud_killer_index], kn_s);
+        	Ghud_SetTextFlags(clent, hud[hud_killer_index], UI_RIGHT);
+        	Ghud_SetText(clent, hud[hud_victim_index], vn_s);
+			Ghud_SetInt(clent, hud[hud_weapon_index], level.pic_items[mod]);
+			//Ghud_SetPosition(clent, hud[hud_weapon_index], icon_x, -300);
+		} else {  // world kill or otherwise, killer name is also victim name
+			char *killmsg = HUD_SpectatorKillfeedMessage(method_of_death);
+			namelen = strlen(kn_s) + strlen(killmsg);
+			
+			//Ghud_SetSize(clent, hud[hud_index], (namelen), 12);
+        	Ghud_SetText(clent, hud[hud_killer_index], kn_s);
+        	Ghud_SetTextFlags(clent, hud[hud_killer_index], UI_RIGHT);
+        	Ghud_SetText(clent, hud[hud_victim_index], killmsg);
+			Ghud_SetInt(clent, hud[hud_weapon_index], 0);
+		}
+		
+
+        // Reveal the elements
+        Ghud_SetFlags(clent, hud[hud_index], 0);
+        Ghud_SetFlags(clent, hud[hud_killer_index], 0);
+        Ghud_SetFlags(clent, hud[hud_victim_index], 0);
+        Ghud_SetFlags(clent, hud[hud_weapon_index], 0);
+
+        //gi.dprintf("I revealed hud %i\n", hud_index);
+    }
 }
 
 typedef enum {
@@ -1212,67 +1378,6 @@ void HUD_SpectatorSetup(edict_t *clent)
 		// GHUD killfeed display
 		HUD_SpectatorKillfeedSetup(clent);
 	}
-}
-
-static void HUD_SpectatorUpdateKillfeed(edict_t *clent, int *hud)
-{
-    int counter = level.killfeed.counter;
-
-    for (int i = 0; i < MAX_KILLFEED; i++) {
-        int hud_index = h_spectator_killfeed + i;
-        int hud_killer_index = h_spectator_killfeed_k + i;
-        int hud_victim_index = h_spectator_killfeed_v + i;
-        int hud_weapon_index = h_spectator_killfeed_w + i;
-
-        int icon_x = -145 + (i * 135); // Adjust icon_x calculation for correct positioning
-
-        char kn_s[17] = "KILLER"; // Killer name placeholder
-        char vn_s[17] = "VICTIM"; // Victim name placeholder
-        int namelen = strlen(kn_s) + strlen(vn_s);
-
-        edict_t *killer = level.killfeed.killer[i];
-        int mod = level.killfeed.mod[i]; // Weapon num
-        edict_t *victim = level.killfeed.victim[i];
-
-        // Check for null data and copy names if valid
-        if (victim != NULL) {
-            strncpy(vn_s, victim->client->pers.netname, 16);
-            vn_s[16] = '\0'; // Ensure null-termination
-        }
-        if (killer != NULL) {
-            strncpy(kn_s, killer->client->pers.netname, 16);
-            kn_s[16] = '\0'; // Ensure null-termination
-            if (killer == victim) {  // Gray for world kills
-                Ghud_SetColor(clent, hud[hud_index], 150, 150, 150, 255);
-            } else {
-                // Set colors based on team
-                if (killer->client->resp.team == TEAM1) {
-                    Ghud_SetColor(clent, hud[hud_index], red_team_red, red_team_green, red_team_blue, 255);
-                } else if (killer->client->resp.team == TEAM2) {
-                    Ghud_SetColor(clent, hud[hud_index], blue_team_red, blue_team_green, blue_team_blue, 255);
-                } else if (killer->client->resp.team == TEAM3) {
-                    Ghud_SetColor(clent, hud[hud_index], green_team_red, green_team_green, green_team_blue, 255);
-                } else {
-                    Ghud_SetColor(clent, hud[hud_index], 220, 220, 220, 255);  // White for DM
-                }
-            }
-        }
-
-        // Reveal the elements
-        Ghud_SetFlags(clent, hud[hud_index], 0);
-        Ghud_SetFlags(clent, hud[hud_killer_index], 0);
-        Ghud_SetFlags(clent, hud[hud_victim_index], 0);
-        Ghud_SetFlags(clent, hud[hud_weapon_index], 0);
-
-        gi.dprintf("I revealed hud %i\n", hud_index);
-
-        // Set size and text
-        Ghud_SetSize(clent, hud[hud_index], (namelen * 5), 12);
-        Ghud_SetText(clent, hud[hud_killer_index], kn_s);
-        Ghud_SetTextFlags(clent, hud[hud_killer_index], UI_RIGHT);
-        Ghud_SetText(clent, hud[hud_victim_index], vn_s);
-        hud_weapon_index = Ghud_AddIcon(clent, icon_x, -300, level.pic_items[mod], 12, 12);
-    }
 }
 
 static void HUD_SpectatorUpdateTimer(edict_t *clent, int *hud)

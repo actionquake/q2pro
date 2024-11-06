@@ -34,7 +34,9 @@
 
 
 // defines (should be consistent with other weapon defs in g_local.h)
-#define MOD_BREAKINGGLASS 46
+
+//Moved to ModTable enum
+// #define MOD_BREAKINGGLASS 46
 
 /*
    // forward definitions

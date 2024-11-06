@@ -1025,36 +1025,45 @@ void PrintDeathMessage(char *msg, edict_t * gibee)
 }
 
 #ifdef AQTION_EXTENSION
-void UpdateKillfeed(edict_t* self, edict_t* attacker, int mod)
+void GHUD_UpdateKillfeed(edict_t* self, edict_t* attacker, int mod)
 {
-	int counter = level.killfeed.counter;
-	edict_t* killer = attacker;
-	edict_t* victim = self;
-	qboolean worldkill = false;
+    int i;
+    int counter = level.killfeed.counter;
+    edict_t* killer = attacker;
+    edict_t* victim = self;
+    qboolean worldkill = false;
 
-	if (attacker == world || !attacker->client) {
-		worldkill = true;
-		killer = victim;
-	}
-
-	gi.dprintf("Updating killfeed with killer %s, victim %s, mod %i\n", killer->client->pers.netname, victim->client->pers.netname, mod);
-	// Shift existing data up by one index
-    for (int i = 0; i < MAX_KILLFEED - 1; i++) {
-        level.killfeed.killer[i] = level.killfeed.killer[i + 1];
-        level.killfeed.victim[i] = level.killfeed.victim[i + 1];
-        level.killfeed.mod[i] = level.killfeed.mod[i + 1];
-		gi.dprintf("%s: shifting %i to %i\n", __func__, i + 1, i);
+    if (attacker == world || !attacker->client) {
+        worldkill = true;
+        killer = victim;
     }
 
-    // Insert new data at the end of the arrays
-    level.killfeed.killer[MAX_KILLFEED - 1] = killer;
-    level.killfeed.victim[MAX_KILLFEED - 1] = victim;
-    level.killfeed.mod[MAX_KILLFEED - 1] = mod;
-	gi.dprintf("%s: %s killed %s with mod %i\n", __func__, level.killfeed.killer[MAX_KILLFEED - 1]->client->pers.netname, level.killfeed.victim[MAX_KILLFEED - 1]->client->pers.netname, level.killfeed.mod[MAX_KILLFEED - 1]);
+    gi.dprintf("Updating killfeed with killer %s, victim %s, mod %i\n", killer->client->pers.netname, victim->client->pers.netname, mod);
+    gi.dprintf("%s: counter was %i\n", __func__, level.killfeed.counter);
 
-    // Update the killfeed counter
-    level.killfeed.counter = (counter + 1) % MAX_KILLFEED;
-	gi.dprintf("%s: counter is now %i\n", __func__, level.killfeed.counter);
+    // Shift existing data down by one index to make room for new data
+    for (i = MAX_KILLFEED - 1; i > 0; i--) {
+        level.killfeed.killer[i] = level.killfeed.killer[i - 1];
+        level.killfeed.victim[i] = level.killfeed.victim[i - 1];
+        level.killfeed.mod[i] = level.killfeed.mod[i - 1];
+        gi.dprintf("%s: shifting %i to %i\n", __func__, i - 1, i);
+    }
+
+    // Insert new data at index 0
+    level.killfeed.killer[0] = killer;
+    level.killfeed.victim[0] = victim;
+    level.killfeed.mod[0] = mod;
+    gi.dprintf("%s: %s killed %s with mod %i\n", __func__, level.killfeed.killer[0]->client->pers.netname, level.killfeed.victim[0]->client->pers.netname, level.killfeed.mod[0]);
+
+    // Increment the counter
+    level.killfeed.counter++;
+
+    // If the counter exceeds MAX_KILLFEED, reset it to MAX_KILLFEED
+    if (level.killfeed.counter > MAX_KILLFEED) {
+        level.killfeed.counter = MAX_KILLFEED;
+    }
+
+    gi.dprintf("%s: counter is %i\n", __func__, level.killfeed.counter);
 }
 #endif
 
@@ -1108,7 +1117,7 @@ void ClientObituary(edict_t * self, edict_t * inflictor, edict_t * attacker)
 	// Killfeed
 	#ifdef AQTION_EXTENSION
 	// self = victim, attacker = killer
-	UpdateKillfeed(self, attacker, mod);
+	GHUD_UpdateKillfeed(self, attacker, mod);
 	#endif
 
 	if (attacker == self)
