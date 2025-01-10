@@ -235,6 +235,9 @@ void CTFSetTeamSpawns(int team, char *str)
 	if(team == TEAM2)
 		team_spawn_name = "info_player_team2";
 
+	if (team != TEAM1 && team != TEAM2)
+	    return;
+
 	/* find and remove all team spawns for this team */
 	while ((spawn = G_Find(spawn, FOFS(classname), team_spawn_name)) != NULL) {
 		G_FreeEdict (spawn);
@@ -296,7 +299,10 @@ static void ResetRespawnTime(int team) {
 
 void CTFDynamicRespawnTimer(void)
 {
-    if (!ctf_dyn_respawn->value)
+    if (!ctf_dyn_respawn || !ctf_dyn_respawn->value)
+        return;
+
+	if (ctfgame.team1 < 0 || ctfgame.team2 < 0)
         return;
 
     int score_diff = abs(ctfgame.team1 - ctfgame.team2);
@@ -548,7 +554,7 @@ void CTFFragBonuses(edict_t * targ, edict_t * inflictor, edict_t * attacker)
 	carrier = NULL;
 
 	// NULL checks
-	if (!targ || !inflictor || !attacker)
+	if (!targ || !targ->client || !targ->inuse || !inflictor || !attacker || !attacker->client || !attacker->inuse)
 		return;
 
 	// no bonus for fragging yourself
@@ -720,6 +726,9 @@ qboolean CTFPickup_Flag(edict_t * ent, edict_t * other)
 
 	/* FIXME: players shouldn't be able to touch flags before LCA! */
 	if(!team_round_going)
+		return false;
+	
+	if (!ent || !other || !other->client)
 		return false;
 
 	// figure out what team this flag is
@@ -974,6 +983,9 @@ void CTFFlagSetup(edict_t * ent)
 
 void CTFEffects(edict_t * player)
 {
+	if (!player || !player->client || !player->inuse)
+        return;
+
 	player->s.effects &= ~(EF_FLAG1 | EF_FLAG2);
 
 	// megahealth players glow anyway
@@ -1337,6 +1349,9 @@ void CTFCapReward(edict_t * ent)
 	if(!ctf_mode->value)
 		return;
 
+	if (!ent || !ent->client || !ent->inuse)
+	    return;
+
 	if(ctf_mode->value > 1)
 		ent->client->resp.ctf_capstreak++;
 	else /* capstreak is used as a multiplier so default it to one */
@@ -1486,6 +1501,9 @@ void CTFCapReward(edict_t * ent)
 
 void CTFSetupStatusbar( void )
 {
+	if (!level.statusbar)
+	    return;
+
 	// Frags closer to the team scores
 	Q_strncatz(level.statusbar, "xr -76 yb -188 num 3 14 ", sizeof(level.statusbar));
 
