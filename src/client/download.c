@@ -35,7 +35,8 @@ static precache_t precache_check;
 static int precache_sexed_sounds[MAX_SOUNDS];
 static int precache_sexed_total;
 
-extern cvar_t *r_override_textures;
+cvar_t   *r_override_textures;
+
 /*
 ===============
 CL_QueueDownload
