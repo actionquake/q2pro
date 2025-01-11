@@ -1478,9 +1478,9 @@ static const struct {
 static imageformat_t    img_search[IM_MAX];
 static int              img_total;
 
-static cvar_t   *r_override_textures;
+cvar_t   *r_override_textures;
 static cvar_t   *r_texture_formats;
-static cvar_t   *r_texture_overrides;
+cvar_t   *r_texture_overrides;
 #endif
 
 static cvar_t   *r_glowmaps;
