@@ -920,8 +920,10 @@ void EndDMLevel (void)
 	// JBravo: Stop q2pro MVD2 recording
 	if (use_mvd2->value)
 	{
-		Q_snprintf( mvdstring, sizeof(mvdstring), "mvdstop\n" );
-		gi.AddCommandString( mvdstring );
+		// If we were reecording a demo, stop it here
+		StopAutoRecordDemo();
+		// Q_snprintf( mvdstring, sizeof(mvdstring), "mvdstop\n" );
+		// gi.AddCommandString( mvdstring );
 		gi.bprintf( PRINT_HIGH, "Ending MVD recording.\n" );
 	}
 	// JBravo: End MVD2

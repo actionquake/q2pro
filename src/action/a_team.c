@@ -2813,10 +2813,6 @@ int CheckTeamRules (void)
 	int winner = WINNER_NONE, i;
 	int checked_tie = 0;
 	char buf[1024];
-	struct tm *now = NULL;
-	time_t tnow = 0;
-	char ltm[64] = "";
-	char mvdstring[512] = "";
 
 	if (round_delay_time && use_tourney->value)
 	{
@@ -3037,17 +3033,7 @@ int CheckTeamRules (void)
 					CenterPrintAll( buf );
 					team_round_countdown = warmup_length * 10 + 2;
 
-					// JBravo: Autostart q2pro MVD2 recording on the server
-					if( use_mvd2->value )
-					{
-						tnow = time(NULL);
-						now = localtime(&tnow);
-						strftime( ltm, 64, "%Y%m%d-%H%M%S", now );
-						Q_snprintf( mvdstring, sizeof(mvdstring), "mvdrecord %s-%s\n", ltm, level.mapname );
-						gi.AddCommandString( mvdstring );
-						gi.bprintf( PRINT_HIGH, "Starting MVD recording to file %s-%s.mvd2\n", ltm, level.mapname );
-					}
-					// JBravo: End MVD2
+					StartAutoRecordDemo();
 				}
 			}
 		}

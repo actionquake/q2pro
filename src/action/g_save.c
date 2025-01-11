@@ -590,7 +590,7 @@ void InitGame( void )
 	round_begin = gi.cvar( "round_begin", "15", 0 );
 	spectator_hud = gi.cvar( "spectator_hud", "1", CVAR_LATCH );
 
-	use_mvd2 = gi.cvar( "use_mvd2", "0", 0 );	// JBravo: q2pro MVD2 recording. 0 = off, 1 = on
+	use_mvd2 = gi.cvar( "use_mvd2", "0", 0 );	// JBravo: q2pro MVD2 recording. 0 = off, 1 = on, 2 = on for all modes
 
 	// BEGIN AQ2 ETE
 	esp = gi.cvar( "esp", "0", /*CVAR_SERVERINFO | */ CVAR_LATCH );  //Removed in favor of 'gm' (gamemode)

@@ -82,6 +82,8 @@ int num_maps, cur_map, rand_map, num_allvotes;	// num_allvotes added by Igor[Roc
 char motd_lines[MAX_TOTAL_MOTD_LINES][40];
 int motd_num_lines;
 
+qboolean is_demo_recording = false;
+
 /*
  * ReadConfigFile()
  * Config file format is backwards compatible with Action's, but doesn't need 
@@ -1508,4 +1510,102 @@ void _PickupRequest (edict_t * ent, pmenu_t * p)
 	PMenu_Close(ent);
 
 	Cmd_Pickup_f(ent);
+}
+
+void ServerAutoRecordDemo(void){
+	time_t tnow = 0;
+	struct tm *now = NULL;
+	char ltm[MAX_QPATH] = "";
+	char mvdstring[MAX_INFO_STRING] = "";
+	char filename[MAX_INFO_STRING] = "";
+
+	// JBravo: Autostart q2pro MVD2 recording on the server
+	// darksaint: Moved to its own function and enhanced
+
+	// Determine game mode names (short names)
+	char *gamemode = GamemodeName(true);
+	char *gamemodeflag = GamemodeFlagName(true);
+
+	// Determine team names
+	char t1name[MAX_QPATH];
+	char t2name[MAX_QPATH];
+	char t3name[MAX_QPATH];
+
+	strcpy(t1name, teams[TEAM1].name);
+	strcpy(t2name, teams[TEAM2].name);
+	strcpy(t3name, teams[TEAM3].name);
+
+
+	// Cleanup team names
+	if (teamCount == 3) {
+		RemoveSpaces(t1name);
+		RemoveSpaces(t2name);
+		RemoveSpaces(t3name);
+	} else if (teamCount == 2) {
+		RemoveSpaces(t1name);
+		RemoveSpaces(t2name);
+	}
+
+	// Construct filename
+	if (strcmp(gamemodeflag, "NONE") == 0) {
+		if (teamCount == 3) // 3 Teams
+			Q_snprintf(filename, sizeof(filename), "%s-%s_%s_%s-%s-%s", gamemode, t1name, t2name, t3name, net_port->string, level.mapname);
+		else if (teamCount == 2) // Teamplay modes
+			Q_snprintf(filename, sizeof(filename), "%s-%s_%s-%s-%s", gamemode, t1name, t2name, net_port->string, level.mapname);
+		else // Anything else (DM?)
+			Q_snprintf(filename, sizeof(filename), "%s-%s-%s", gamemode, net_port->string, level.mapname);
+	} else {
+		if (teamCount == 3)
+			Q_snprintf(filename, sizeof(filename), "%s-%s-%s_%s_%s-%s-%s", gamemode, gamemodeflag, t1name, t2name, t3name, net_port->string, level.mapname);
+		else if (teamCount == 2)
+			Q_snprintf(filename, sizeof(filename), "%s-%s-%s_%s-%s-%s", gamemode, gamemodeflag, t1name, t2name, net_port->string, level.mapname);
+		else // Anything else (GMFlags don't apply to non-teamplay but this is here just in case)
+			Q_snprintf(filename, sizeof(filename), "%s-%s-%s", gamemode, net_port->string, level.mapname);
+	}
+
+	tnow = time(NULL);
+	now = localtime(&tnow);
+	strftime( ltm, 64, "%Y%m%d-%H%M%S", now );
+	Q_snprintf( mvdstring, sizeof(mvdstring), "mvdrecord -z %s-%s\n", ltm, filename );
+	gi.AddCommandString( mvdstring );
+	gi.bprintf( PRINT_HIGH, "Starting MVD recording to file %s-%s.mvd2.gz\n", ltm, filename );
+	is_demo_recording = true;
+	// JBravo: End MVD2
+}
+
+void StartAutoRecordDemo(void){
+	// Skip this if demo recording is disabled
+	if(!use_mvd2->value) {
+		gi.dprintf("use_mvd2 is not enabled, not automatically recording demo\n");
+		return;
+	}
+
+	// Demo is already recording
+	if (is_demo_recording) {
+		return;
+	}
+
+	ServerAutoRecordDemo();
+}
+
+void StopAutoRecordDemo(void){
+	// Skip this if demo recording is disabled
+	if(!use_mvd2->value && is_demo_recording) {
+		gi.dprintf("use_mvd2 is not enabled, but stopping in-progress demo anyway\n");
+		gi.AddCommandString( "mvdstop\n" );
+		return;
+	}
+
+	if(!use_mvd2->value) {
+		gi.dprintf("use_mvd2 is not enabled, we can't stop what isn't started\n");
+		return;
+	}
+
+	if (!is_demo_recording) {
+		gi.dprintf("Demo is/was not currently recording!\n");
+		return;
+	}
+
+	gi.AddCommandString( "mvdstop\n" );
+	is_demo_recording = false;
 }

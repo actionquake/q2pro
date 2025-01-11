@@ -1099,7 +1099,7 @@ typedef enum {
 #define GMN_DOMINATION "Domination"
 #define GMN_ESPIONAGE "Espionage"
 #define GMN_JUMP "Jump"
-#define GMN_3TEAMS "3 Teams"
+#define GMN_3TEAMS "3Teams"
 //#define GMN_NEW_MODE 2       // If new game mode flags are created, use 2 for its value first
 #define GMN_DARKMATCH "Darkmatch"
 #define GMN_MATCHMODE "Matchmode"
@@ -1609,6 +1609,7 @@ void door_use(edict_t* self, edict_t* other, edict_t* activator);
 
 // from a_cmds.c
 void _SetSniper(edict_t * ent, int zoom);
+void RemoveSpaces(char *s);
 //rekkie -- DEV_1 -- e
 
 //
@@ -1739,6 +1740,8 @@ void G_UpdateSpectatorStatusbar( void );
 void G_UpdatePlayerStatusbar( edict_t *ent, int force );
 int Gamemodeflag(void);
 int Gamemode(void);
+char* GamemodeName(qboolean shortname);
+char* GamemodeFlagName(qboolean shortname);
 #if USE_AQTION
 #define GENERATE_UUID() generate_uuid()
 void generate_uuid(void);
