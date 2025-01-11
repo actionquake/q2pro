@@ -828,7 +828,7 @@ void CL_RequestNextDownload(void)
             for (i = 0; i < cl.bsp->numtexinfo; i++) {
                 if (cl.bsp->texinfo[i].c.flags & SURF_NODRAW)
                     continue;
-                if (r_override_textures->integer > 0 || (r_texture_overrides->integer & 16)) {
+                if (r_override_textures->integer == 2 || (r_texture_overrides->integer & 16)) {
                     len = Q_concat(fn, sizeof(fn), "textures/", cl.bsp->texinfo[i].name, ".jpg");
                     check_file_len(fn, len, DL_OTHER);
                 }
