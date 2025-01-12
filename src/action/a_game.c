@@ -1512,7 +1512,7 @@ void _PickupRequest (edict_t * ent, pmenu_t * p)
 	Cmd_Pickup_f(ent);
 }
 
-void ServerAutoRecordDemo(void){
+static void ServerAutoRecordDemo(void){
 	time_t tnow = 0;
 	struct tm *now = NULL;
 	char ltm[MAX_QPATH] = "";
