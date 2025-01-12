@@ -857,22 +857,24 @@ static void HUD_UpdateSpectatorTimer(edict_t *clent)
 	// Score bug update
 
 	// team 1 (red team)
-	Ghud_SetFlags(clent, hud[h_team_l], 0);
-	Ghud_SetFlags(clent, hud[h_team_l_num], 0);
-	if (ctf->value)
-		Ghud_SetInt(clent, hud[h_team_l_num], ctfgame.team1);
-	else
-		//Ghud_SetInt(clent, hud[h_team_l_num], 13);  // Testing double digits
-		Ghud_SetInt(clent, hud[h_team_l_num], teams[TEAM1].score);
+	if (teamplay->value) {
+		Ghud_SetFlags(clent, hud[h_team_l], 0);
+		Ghud_SetFlags(clent, hud[h_team_l_num], 0);
+		if (ctf->value)
+			Ghud_SetInt(clent, hud[h_team_l_num], ctfgame.team1);
+		else
+			//Ghud_SetInt(clent, hud[h_team_l_num], 13);  // Testing double digits
+			Ghud_SetInt(clent, hud[h_team_l_num], teams[TEAM1].score);
 
-	// team 2 (blue team)
-	Ghud_SetFlags(clent, hud[h_team_r], 0);
-	Ghud_SetFlags(clent, hud[h_team_r_num], 0);
-	if (ctf->value)
-		Ghud_SetInt(clent, hud[h_team_r_num], ctfgame.team2);
-	else
-		//Ghud_SetInt(clent, hud[h_team_r_num], 25);  // Testing double digits
-		Ghud_SetInt(clent, hud[h_team_r_num], teams[TEAM2].score);
+		// team 2 (blue team)
+		Ghud_SetFlags(clent, hud[h_team_r], 0);
+		Ghud_SetFlags(clent, hud[h_team_r_num], 0);
+		if (ctf->value)
+			Ghud_SetInt(clent, hud[h_team_r_num], ctfgame.team2);
+		else
+			//Ghud_SetInt(clent, hud[h_team_r_num], 25);  // Testing double digits
+			Ghud_SetInt(clent, hud[h_team_r_num], teams[TEAM2].score);
+	}
 }
 
 void HUD_SpectatorTimerSetup(edict_t *clent)
@@ -938,48 +940,52 @@ void HUD_SpectatorTimerSetup(edict_t *clent)
 	// GHUD team icons and scores
 
 	// Team 1
-	if (ctf->value) // CTF
-		hud[h_team_l] = Ghud_AddIcon(clent, 2, 28, level.pic_ctf_flagbase[TEAM1], 24, 24);
-	else if (esp->value) // Espionage
-		hud[h_team_l] = Ghud_AddIcon(clent, 2, 28, level.pic_esp_teamicon[TEAM1], 24, 24);
-	else if (matchmode->value) { // Matchmode
-		hud[h_team_l] = Ghud_NewElement(clent, GHT_FILL);
+	if (teamplay->value) {
+		if (ctf->value) // CTF
+			hud[h_team_l] = Ghud_AddIcon(clent, 2, 28, level.pic_ctf_flagbase[TEAM1], 24, 24);
+		else if (esp->value) // Espionage
+			hud[h_team_l] = Ghud_AddIcon(clent, 2, 28, level.pic_esp_teamicon[TEAM1], 24, 24);
+		else if (matchmode->value) { // Matchmode
+			hud[h_team_l] = Ghud_NewElement(clent, GHT_FILL);
+			Ghud_SetAnchor(clent, hud[h_team_l], 0.5, 0);
+			Ghud_SetPosition(clent, hud[h_team_l], -65, 54);
+			Ghud_SetSize(clent, hud[h_team_l], 60, 5);
+			Ghud_SetColor(clent, hud[h_team_l], red_team_red, red_team_green, red_team_blue, 255);
+			//hud[h_team_l] = Ghud_AddIcon(clent, -70, 28, level.pic_teamskin[TEAM1], 24, 24);
+		} else // Teamplay/Domination
+			hud[h_team_l] = Ghud_AddIcon(clent, -30, 60, level.pic_teamskin[TEAM1], 24, 24);
 		Ghud_SetAnchor(clent, hud[h_team_l], 0.5, 0);
-		Ghud_SetPosition(clent, hud[h_team_l], -65, 54);
-        Ghud_SetSize(clent, hud[h_team_l], 60, 5);
-        Ghud_SetColor(clent, hud[h_team_l], red_team_red, red_team_green, red_team_blue, 255);
-		//hud[h_team_l] = Ghud_AddIcon(clent, -70, 28, level.pic_teamskin[TEAM1], 24, 24);
-	} else // Teamplay/Domination
-		hud[h_team_l] = Ghud_AddIcon(clent, -30, 60, level.pic_teamskin[TEAM1], 24, 24);
-	Ghud_SetAnchor(clent, hud[h_team_l], 0.5, 0);
-	hud[h_team_l_num] = Ghud_AddNumber(clent, -70, 60, 0);
-	Ghud_SetSize(clent, hud[h_team_l_num], 2, 0);
-	Ghud_SetAnchor(clent, hud[h_team_l_num], 0.5, 0);
-	Ghud_SetFlags(clent, hud[h_team_l_num], UI_RIGHT);
+		hud[h_team_l_num] = Ghud_AddNumber(clent, -70, 60, 0);
+		Ghud_SetSize(clent, hud[h_team_l_num], 2, 0);
+		Ghud_SetAnchor(clent, hud[h_team_l_num], 0.5, 0);
+		Ghud_SetFlags(clent, hud[h_team_l_num], UI_RIGHT);
+	}
 	
-	// Team 2
-	if (ctf->value) // CTF
-		hud[h_team_r] = Ghud_AddIcon(clent, -26, 28, level.pic_ctf_flagbase[TEAM2], 24, 24);
-	else if (esp->value) // Espionage
-		hud[h_team_r] = Ghud_AddIcon(clent, -26, 28, level.pic_esp_teamicon[TEAM2], 24, 24);
-	else if (matchmode->value) { // Matchmode
-		hud[h_team_r] = Ghud_NewElement(clent, GHT_FILL);
+	if (teamplay->value) {
+		// Team 2
+		if (ctf->value) // CTF
+			hud[h_team_r] = Ghud_AddIcon(clent, -26, 28, level.pic_ctf_flagbase[TEAM2], 24, 24);
+		else if (esp->value) // Espionage
+			hud[h_team_r] = Ghud_AddIcon(clent, -26, 28, level.pic_esp_teamicon[TEAM2], 24, 24);
+		else if (matchmode->value) { // Matchmode
+			hud[h_team_r] = Ghud_NewElement(clent, GHT_FILL);
+			Ghud_SetAnchor(clent, hud[h_team_r], 0.5, 0);
+			Ghud_SetPosition(clent, hud[h_team_r], 2, 54);
+			Ghud_SetSize(clent, hud[h_team_r], 60, 5);
+			Ghud_SetColor(clent, hud[h_team_r], blue_team_red, blue_team_green, blue_team_blue, 255);
+		} else // Teamplay/Domination
+			hud[h_team_r] = Ghud_AddIcon(clent, 10, 60, level.pic_teamskin[TEAM2], 24, 24);
 		Ghud_SetAnchor(clent, hud[h_team_r], 0.5, 0);
-		Ghud_SetPosition(clent, hud[h_team_r], 2, 54);
-        Ghud_SetSize(clent, hud[h_team_r], 60, 5);
-        Ghud_SetColor(clent, hud[h_team_r], blue_team_red, blue_team_green, blue_team_blue, 255);
-	} else // Teamplay/Domination
-		hud[h_team_r] = Ghud_AddIcon(clent, 10, 60, level.pic_teamskin[TEAM2], 24, 24);
-	Ghud_SetAnchor(clent, hud[h_team_r], 0.5, 0);
 
-	if (teams[TEAM2].score >= 10) // gotta readjust size for justifying purposes
-		hud[h_team_r_num] = Ghud_AddNumber(clent, 35, 60, 0);
-	else
-		hud[h_team_r_num] = Ghud_AddNumber(clent, 20, 60, 0);
+		if (teams[TEAM2].score >= 10) // gotta readjust size for justifying purposes
+			hud[h_team_r_num] = Ghud_AddNumber(clent, 35, 60, 0);
+		else
+			hud[h_team_r_num] = Ghud_AddNumber(clent, 20, 60, 0);
 
 	Ghud_SetSize(clent, hud[h_team_r_num], 2, 0);
 	Ghud_SetAnchor(clent, hud[h_team_r_num], 0.5, 0);
 	Ghud_SetFlags(clent, hud[h_team_r_num], UI_LEFT);
+	}
 
 	if (matchmode->value) { // Move the scores closer together slightly
 		int t2_x = 0;
