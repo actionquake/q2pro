@@ -70,8 +70,15 @@ gitem_t *team_flag[TEAM_TOP];
 
 void CTFInit(void)
 {
-	team_flag[TEAM1] = FindItemByClassname("item_flag_team1");
-	team_flag[TEAM2] = FindItemByClassname("item_flag_team2");
+
+	if (ctf_mode->value == 2) { // Capture the Briefcase
+		team_flag[TEAM1] = FindItemByClassname("item_bcase_team1");
+		team_flag[TEAM2] = FindItemByClassname("item_bcase_team2");
+	}
+	else {  // Traditional CTF
+		team_flag[TEAM1] = FindItemByClassname("item_flag_team1");
+		team_flag[TEAM2] = FindItemByClassname("item_flag_team2");
+	}
 
 	memset(&ctfgame, 0, sizeof(ctfgame));
 }
@@ -197,9 +204,15 @@ void CTFSetFlag(int team, char *str)
 	vec3_t position;
 
 	if(team == TEAM1)
-		flag_name = "item_flag_team1";
+		if (ctf_mode->value == 2)
+			flag_name = "item_bcase_team1";
+		else
+			flag_name = "item_flag_team1";
 	else if(team == TEAM2)
-		flag_name = "item_flag_team2";
+		if (ctf_mode->value == 2)
+			flag_name = "item_bcase_team2";
+		else
+			flag_name = "item_flag_team2";
 	else
 		return;
 
@@ -717,18 +730,26 @@ qboolean CTFPickup_Flag(edict_t * ent, edict_t * other)
 	int team, i;
 	edict_t *player;
 	gitem_t *flag_item, *enemy_flag_item;
+	char *flag_name = "flag";
 
 	/* FIXME: players shouldn't be able to touch flags before LCA! */
 	if(!team_round_going)
 		return false;
 
+	if (ctf_mode->value == 2)
+		Q_snprintf(flag_name, sizeof(flag_name), "briefcase");
+
 	// figure out what team this flag is
-	if (strcmp(ent->classname, "item_flag_team1") == 0)
+	if (ctf_mode->value == 2 && strcmp(ent->classname, "item_bcase_team1") == 0)
+		team = TEAM1;
+	else if (ctf_mode->value == 2 && strcmp(ent->classname, "item_bcase_team2") == 0)
+		team = TEAM2;
+	else if (strcmp(ent->classname, "item_flag_team1") == 0)
 		team = TEAM1;
 	else if (strcmp(ent->classname, "item_flag_team2") == 0)
 		team = TEAM2;
 	else {
-		gi.cprintf(ent, PRINT_HIGH, "Don't know what team the flag is on.\n");
+		gi.cprintf(ent, PRINT_HIGH, "Don't know what team the %s is on.\n", flag_name);
 		return false;
 	}
 
@@ -747,11 +768,10 @@ qboolean CTFPickup_Flag(edict_t * ent, edict_t * other)
 			// the flag is at home base.  if the player has the enemy
 			// flag, he's just won!
 			if (other->client->inventory[ITEM_INDEX(enemy_flag_item)]) {
-				gi.bprintf(PRINT_HIGH, "%s captured the %s flag!\n",
-					   other->client->pers.netname, CTFOtherTeamName(team));
-				IRC_printf(IRC_T_GAME, "%n captured the %n flag!\n",
-					   other->client->pers.netname,
-					   CTFOtherTeamName(team));
+				gi.bprintf(PRINT_HIGH, "%s captured the %s %s!\n",
+					   other->client->pers.netname, CTFOtherTeamName(team), flag_name);
+				IRC_printf(IRC_T_GAME, "%n captured the %n %s!\n",
+					   other->client->pers.netname, CTFOtherTeamName(team), flag_name);
 				other->client->inventory[ITEM_INDEX(enemy_flag_item)] = 0;
 				other->client->ctf_hasflag = false;
 
@@ -792,21 +812,21 @@ qboolean CTFPickup_Flag(edict_t * ent, edict_t * other)
 						if (player->client->resp.ctf_lastreturnedflag +
 							CTF_RETURN_FLAG_ASSIST_TIMEOUT * HZ > level.framenum) {
 							gi.bprintf(PRINT_HIGH,
-								   "%s gets an assist for returning the flag!\n",
-								   player->client->pers.netname);
+								   "%s gets an assist for returning the %s!\n",
+								   player->client->pers.netname, flag_name);
 							IRC_printf(IRC_T_GAME,
-								   "%n gets an assist for returning the flag!\n",
-								   player->client->pers.netname);
+								   "%n gets an assist for returning the %s!\n",
+								   player->client->pers.netname, flag_name);
 							player->client->resp.score += CTF_RETURN_FLAG_ASSIST_BONUS;
 						}
 						if (player->client->resp.ctf_lastfraggedcarrier +
 							CTF_FRAG_CARRIER_ASSIST_TIMEOUT * HZ > level.framenum) {
 							gi.bprintf(PRINT_HIGH,
-								   "%s gets an assist for fragging the flag carrier!\n",
-								   player->client->pers.netname);
+								   "%s gets an assist for fragging the %s carrier!\n",
+								   player->client->pers.netname, flag_name);
 							IRC_printf(IRC_T_GAME,
-								   "%n gets an assist for fragging the flag carrier!\n",
-								   player->client->pers.netname);
+								   "%n gets an assist for fragging the %s carrier!\n",
+								   player->client->pers.netname, flag_name);
 							player->client->resp.score += CTF_FRAG_CARRIER_ASSIST_BONUS;
 						}
 					}
@@ -818,8 +838,8 @@ qboolean CTFPickup_Flag(edict_t * ent, edict_t * other)
 		}
 
 		// hey, its not home.  return it by teleporting it back
-		gi.bprintf(PRINT_HIGH, "%s returned the %s flag!\n", other->client->pers.netname, CTFTeamName(team));
-		IRC_printf(IRC_T_GAME, "%n returned the %s flag!\n", other->client->pers.netname, CTFTeamName(team));
+		gi.bprintf(PRINT_HIGH, "%s returned the %s %s!\n", other->client->pers.netname, CTFTeamName(team), flag_name);
+		IRC_printf(IRC_T_GAME, "%n returned the %s %s!\n", other->client->pers.netname, CTFTeamName(team), flag_name);
 
 		other->client->resp.score += CTF_RECOVERY_BONUS;
 		other->client->resp.ctf_lastreturnedflag = level.framenum;
@@ -832,13 +852,19 @@ qboolean CTFPickup_Flag(edict_t * ent, edict_t * other)
 // AQ2:TNG - JBravo adding UVtime
 	if (other->client->uvTime) {
 		other->client->uvTime = 0;
-		gi.centerprintf(other, "Flag taken! Shields are DOWN! Run for it!");
+		if (ctf_mode->value == 2)
+			gi.centerprintf(other, "Flag taken! Shields are DOWN! Run for it!");
+		else
+			gi.centerprintf(other, "Briefcase taken! Shields are DOWN! Run for it!");
 	} else {
-		gi.centerprintf(other, "You've got the ENEMY FLAG! Run for it!");
+		if (ctf_mode->value == 2)
+			gi.centerprintf(other, "You've got the ENEMY BRIEFCASE! Run for it!");
+		else
+			gi.centerprintf(other, "You've got the ENEMY FLAG! Run for it!");
 	}
 	// hey, its not our flag, pick it up
-	gi.bprintf(PRINT_HIGH, "%s got the %s flag!\n", other->client->pers.netname, CTFTeamName(team));
-	IRC_printf(IRC_T_GAME, "%n got the %n flag!\n", other->client->pers.netname, CTFTeamName(team));
+	gi.bprintf(PRINT_HIGH, "%s got the %s %s!\n", other->client->pers.netname, CTFTeamName(team), flag_name);
+	IRC_printf(IRC_T_GAME, "%n got the %n %s!\n", other->client->pers.netname, CTFTeamName(team), flag_name);
 	other->client->resp.score += CTF_FLAG_BONUS;
 
 	other->client->inventory[ITEM_INDEX(flag_item)] = 1;
@@ -870,14 +896,26 @@ static void CTFDropFlagThink(edict_t * ent)
 {
 	// auto return the flag
 	// reset flag will remove ourselves
-	if (strcmp(ent->classname, "item_flag_team1") == 0) {
-		CTFResetFlag(TEAM1);
-		gi.bprintf(PRINT_HIGH, "The %s flag has returned!\n", CTFTeamName(TEAM1));
-		IRC_printf(IRC_T_GAME, "The %n flag has returned!\n", CTFTeamName(TEAM1));
-	} else if (strcmp(ent->classname, "item_flag_team2") == 0) {
-		CTFResetFlag(TEAM2);
-		gi.bprintf(PRINT_HIGH, "The %s flag has returned!\n", CTFTeamName(TEAM2));
-		IRC_printf(IRC_T_GAME, "The %n flag has returned!\n", CTFTeamName(TEAM2));
+	if (ctf_mode->value == 2) {
+		if (strcmp(ent->classname, "item_bcase_team1") == 0) {
+			CTFResetFlag(TEAM1);
+			gi.bprintf(PRINT_HIGH, "The %s briefcase has returned!\n", CTFTeamName(TEAM1));
+			IRC_printf(IRC_T_GAME, "The %n briefcase has returned!\n", CTFTeamName(TEAM1));
+		} else if (strcmp(ent->classname, "item_bcase_team2") == 0) {
+			CTFResetFlag(TEAM2);
+			gi.bprintf(PRINT_HIGH, "The %s briefcase has returned!\n", CTFTeamName(TEAM2));
+			IRC_printf(IRC_T_GAME, "The %n briefcase has returned!\n", CTFTeamName(TEAM2));
+		}
+	} else {
+		if (strcmp(ent->classname, "item_flag_team1") == 0) {
+			CTFResetFlag(TEAM1);
+			gi.bprintf(PRINT_HIGH, "The %s flag has returned!\n", CTFTeamName(TEAM1));
+			IRC_printf(IRC_T_GAME, "The %n flag has returned!\n", CTFTeamName(TEAM1));
+		} else if (strcmp(ent->classname, "item_flag_team2") == 0) {
+			CTFResetFlag(TEAM2);
+			gi.bprintf(PRINT_HIGH, "The %s flag has returned!\n", CTFTeamName(TEAM2));
+			IRC_printf(IRC_T_GAME, "The %n flag has returned!\n", CTFTeamName(TEAM2));
+		}
 	}
 }
 
@@ -886,17 +924,31 @@ void CTFDeadDropFlag(edict_t * self)
 {
 	edict_t *dropped = NULL;
 
-	if (self->client->inventory[ITEM_INDEX(team_flag[TEAM1])]) {
-		dropped = Drop_Item(self, team_flag[TEAM1]);
-		self->client->inventory[ITEM_INDEX(team_flag[TEAM1])] = 0;
-		gi.bprintf(PRINT_HIGH, "%s lost the %s flag!\n", self->client->pers.netname, CTFTeamName(TEAM1));
-		IRC_printf(IRC_T_GAME, "%n lost the %n flag!\n", self->client->pers.netname, CTFTeamName(TEAM1));
+	if (ctf_mode->value == 2) {
+		if (self->client->inventory[ITEM_INDEX(team_flag[TEAM1])]) {
+			dropped = Drop_Item(self, team_flag[TEAM1]);
+			self->client->inventory[ITEM_INDEX(team_flag[TEAM1])] = 0;
+			gi.bprintf(PRINT_HIGH, "%s lost the %s!\n", self->client->pers.netname, team_flag[TEAM1]->pickup_name);
+			IRC_printf(IRC_T_GAME, "%n lost the %n!\n", self->client->pers.netname, team_flag[TEAM1]->pickup_name);
+		} else if (self->client->inventory[ITEM_INDEX(team_flag[TEAM2])]) {
+			dropped = Drop_Item(self, team_flag[TEAM2]);
+			self->client->inventory[ITEM_INDEX(team_flag[TEAM2])] = 0;
+			gi.bprintf(PRINT_HIGH, "%s lost the %s!\n", self->client->pers.netname, team_flag[TEAM2]->pickup_name);
+			IRC_printf(IRC_T_GAME, "%n lost the %n!\n", self->client->pers.netname, team_flag[TEAM2]->pickup_name);
+		}
+	} else {
+		if (self->client->inventory[ITEM_INDEX(team_flag[TEAM1])]) {
+			dropped = Drop_Item(self, team_flag[TEAM1]);
+			self->client->inventory[ITEM_INDEX(team_flag[TEAM1])] = 0;
+			gi.bprintf(PRINT_HIGH, "%s lost the %s flag!\n", self->client->pers.netname, CTFTeamName(TEAM1));
+			IRC_printf(IRC_T_GAME, "%n lost the %n flag!\n", self->client->pers.netname, CTFTeamName(TEAM1));
 
-	} else if (self->client->inventory[ITEM_INDEX(team_flag[TEAM2])]) {
-		dropped = Drop_Item(self, team_flag[TEAM2]);
-		self->client->inventory[ITEM_INDEX(team_flag[TEAM2])] = 0;
-		gi.bprintf(PRINT_HIGH, "%s lost the %s flag!\n", self->client->pers.netname, CTFTeamName(TEAM2));
-		IRC_printf(IRC_T_GAME, "%n lost the %n flag!\n", self->client->pers.netname, CTFTeamName(TEAM2));
+		} else if (self->client->inventory[ITEM_INDEX(team_flag[TEAM2])]) {
+			dropped = Drop_Item(self, team_flag[TEAM2]);
+			self->client->inventory[ITEM_INDEX(team_flag[TEAM2])] = 0;
+			gi.bprintf(PRINT_HIGH, "%s lost the %s flag!\n", self->client->pers.netname, CTFTeamName(TEAM2));
+			IRC_printf(IRC_T_GAME, "%n lost the %n flag!\n", self->client->pers.netname, CTFTeamName(TEAM2));
+		}
 	}
 
 	if (dropped) {
@@ -986,17 +1038,26 @@ void CTFEffects(edict_t * player)
 		player->s.effects |= EF_TAGTRAIL;
 
 	player->s.modelindex3 = 0;
-	if (player->client->inventory[ITEM_INDEX(team_flag[TEAM1])])
-	{
-		player->s.modelindex3 = gi.modelindex("models/flags/flag1.md2");
-		if (player->health > 0)
-			player->s.effects |= EF_FLAG1;
-	}
-	else if (player->client->inventory[ITEM_INDEX(team_flag[TEAM2])])
-	{
-		player->s.modelindex3 = gi.modelindex("models/flags/flag2.md2");
-		if (player->health > 0)
-			player->s.effects |= EF_FLAG2;
+	if (ctf_mode->value == 2) {
+		if (player->client->inventory[ITEM_INDEX(team_flag[TEAM1])]){
+			player->s.modelindex3 = gi.modelindex("models/items/g_bc1.md2");
+			if (player->health > 0)
+				player->s.effects |= EF_FLAG1;
+			} else if (player->client->inventory[ITEM_INDEX(team_flag[TEAM2])]) {
+				player->s.modelindex3 = gi.modelindex("models/items/g_bc2.md2");
+			if (player->health > 0)
+				player->s.effects |= EF_FLAG2;
+			}
+	} else {
+		if (player->client->inventory[ITEM_INDEX(team_flag[TEAM1])]){
+			player->s.modelindex3 = gi.modelindex("models/flags/flag1.md2");
+			if (player->health > 0)
+				player->s.effects |= EF_FLAG1;
+		} else if (player->client->inventory[ITEM_INDEX(team_flag[TEAM2])]) {
+			player->s.modelindex3 = gi.modelindex("models/flags/flag2.md2");
+			if (player->health > 0)
+				player->s.effects |= EF_FLAG2;
+		}
 	}
 }
 
@@ -1313,17 +1374,32 @@ void CTFDestroyFlag(edict_t * self)
 {
 	//flags are important
 	if (ctf->value) {
-		if (strcmp(self->classname, "item_flag_team1") == 0) {
-			CTFResetFlag(TEAM1);	// this will free self!
-			gi.bprintf(PRINT_HIGH, "The %s flag has returned!\n", CTFTeamName(TEAM1));
-			IRC_printf(IRC_T_GAME, "The %n flag has returned!\n", CTFTeamName(TEAM1));
-			return;
-		}
-		if (strcmp(self->classname, "item_flag_team2") == 0) {
-			CTFResetFlag(TEAM2);	// this will free self!
-			gi.bprintf(PRINT_HIGH, "The %s flag has returned!\n", CTFTeamName(TEAM2));
-			IRC_printf(IRC_T_GAME, "The %n flag has returned!\n", CTFTeamName(TEAM2));
-			return;
+		if (ctf_mode->value == 2) {
+			if (strcmp(self->classname, "item_bcase_team1") == 0) {
+				CTFResetFlag(TEAM1);	// this will free self!
+				gi.bprintf(PRINT_HIGH, "The %s %s has returned!\n", CTFTeamName(TEAM1), team_flag[TEAM1]->pickup_name);
+				IRC_printf(IRC_T_GAME, "The %n %n has returned!\n", CTFTeamName(TEAM1), team_flag[TEAM1]->pickup_name);
+				return;
+			}
+			if (strcmp(self->classname, "item_bcase_team2") == 0) {
+				CTFResetFlag(TEAM2);	// this will free self!
+				gi.bprintf(PRINT_HIGH, "The %s %s has returned!\n", CTFTeamName(TEAM2), team_flag[TEAM2]->pickup_name);
+				IRC_printf(IRC_T_GAME, "The %n %n has returned!\n", CTFTeamName(TEAM2), team_flag[TEAM2]->pickup_name);
+				return;
+			}
+		} else {
+			if (strcmp(self->classname, "item_flag_team1") == 0) {
+				CTFResetFlag(TEAM1);	// this will free self!
+				gi.bprintf(PRINT_HIGH, "The %s flag has returned!\n", CTFTeamName(TEAM1));
+				IRC_printf(IRC_T_GAME, "The %n flag has returned!\n", CTFTeamName(TEAM1));
+				return;
+			}
+			if (strcmp(self->classname, "item_flag_team2") == 0) {
+				CTFResetFlag(TEAM2);	// this will free self!
+				gi.bprintf(PRINT_HIGH, "The %s flag has returned!\n", CTFTeamName(TEAM2));
+				IRC_printf(IRC_T_GAME, "The %n flag has returned!\n", CTFTeamName(TEAM2));
+				return;
+			}
 		}
 	}
 	// just release it.

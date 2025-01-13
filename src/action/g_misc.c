@@ -329,22 +329,30 @@ void
 BecomeExplosion1 (edict_t * self)
 {
   //flags are important
-  if (ctf->value)
-    {
-      if (strcmp (self->classname, "item_flag_team1") == 0)
-	{
-	  CTFResetFlag (TEAM1);	// this will free self!
-	  gi.bprintf (PRINT_HIGH, "The %s flag has returned!\n",
-		      CTFTeamName (TEAM1));
-	  return;
-	}
-      if (strcmp (self->classname, "item_flag_team2") == 0)
-	{
-	  CTFResetFlag (TEAM2);	// this will free self!
-	  gi.bprintf (PRINT_HIGH, "The %s flag has returned!\n",
-		      CTFTeamName (TEAM1));
-	  return;
-	}
+  if (ctf->value) {
+      if (ctf_mode->value == 2) {
+        if (strcmp (self->classname, "item_bcase_team1") == 0){
+            CTFResetFlag (TEAM1);	// this will free self!
+            gi.bprintf (PRINT_HIGH, "The %s briefcase has returned!\n", CTFTeamName (TEAM1));
+            return;
+          }
+        if (strcmp (self->classname, "item_bcase_team2") == 0){
+            CTFResetFlag (TEAM2);	// this will free self!
+            gi.bprintf (PRINT_HIGH, "The %s briefcase has returned!\n", CTFTeamName (TEAM2));
+            return;
+          }
+      } else {
+        if (strcmp (self->classname, "item_flag_team1") == 0){
+              CTFResetFlag (TEAM1);	// this will free self!
+              gi.bprintf (PRINT_HIGH, "The %s flag has returned!\n", CTFTeamName (TEAM1));
+              return;
+            }
+        if (strcmp (self->classname, "item_flag_team2") == 0){
+              CTFResetFlag (TEAM2);	// this will free self!
+              gi.bprintf (PRINT_HIGH, "The %s flag has returned!\n", CTFTeamName (TEAM2));
+              return;
+            }
+      }
     }
   gi.WriteByte (svc_temp_entity);
   gi.WriteByte (TE_EXPLOSION1);
