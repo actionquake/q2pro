@@ -1375,6 +1375,9 @@ extern cvar_t *breakableglass; // Moved from cgf_sfx_glass, enables breakable gl
 extern cvar_t *glassfragmentlimit; // Moved from cgf_sfx_glass, sets glass fragment limit
 extern cvar_t *grenade_drop; // Allows grenades to be dropped on death
 
+// 2025
+extern cvar_t *ctf_rewards; // Enables CTF awards
+
 #ifdef AQTION_EXTENSION
 extern int (*engine_Client_GetVersion)(edict_t *ent);
 extern int (*engine_Client_GetProtocol)(edict_t *ent);

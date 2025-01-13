@@ -585,6 +585,9 @@ cvar_t *breakableglass; // Moved from cgf_sfx_glass, enables breakable glass (0,
 cvar_t *glassfragmentlimit; // Moved from cgf_sfx_glass, sets glass fragment limit
 cvar_t *grenade_drop; // Allows grenades to be dropped on death
 
+// 2025
+cvar_t *ctf_rewards; // Enables CTF awards
+
 
 #ifdef AQTION_EXTENSION
 cvar_t *use_newirvision;

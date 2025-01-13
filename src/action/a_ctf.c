@@ -770,8 +770,12 @@ qboolean CTFPickup_Flag(edict_t * ent, edict_t * other)
 				// other gets another 10 frag bonus
 				other->client->resp.score += CTF_CAPTURE_BONUS;
 				other->client->resp.ctf_caps++;
+				other->client->resp.ctf_capstreak++;
 
-				CTFCapReward(other);
+				LOG_CAPTURE(other);  // other is the player who capped the flag
+
+				if(ctf_rewards->value) // extra ctf awards!
+					CTFCapReward(other);
 
 				// Ok, let's do the player loop, hand out the bonuses
 				for (i = 1; i <= game.maxclients; i++) {
@@ -807,12 +811,12 @@ qboolean CTFPickup_Flag(edict_t * ent, edict_t * other)
 						}
 					}
 				}
-
 				CTFResetFlags();
 				return false;
 			}
 			return false;	// its at home base already
 		}
+
 		// hey, its not home.  return it by teleporting it back
 		gi.bprintf(PRINT_HIGH, "%s returned the %s flag!\n", other->client->pers.netname, CTFTeamName(team));
 		IRC_printf(IRC_T_GAME, "%n returned the %s flag!\n", other->client->pers.netname, CTFTeamName(team));
@@ -849,6 +853,7 @@ qboolean CTFPickup_Flag(edict_t * ent, edict_t * other)
 		ent->svflags |= SVF_NOCLIENT;
 		ent->solid = SOLID_NOT;
 	}
+
 	return true;
 }
 
@@ -1334,13 +1339,8 @@ void CTFCapReward(edict_t * ent)
 	int band;
 	int player_weapon;
 
-	if(!ctf_mode->value)
+	if(!ctf_rewards->value)
 		return;
-
-	if(ctf_mode->value > 1)
-		ent->client->resp.ctf_capstreak++;
-	else /* capstreak is used as a multiplier so default it to one */
-		ent->client->resp.ctf_capstreak = 1;
 
 	band = ent->client->resp.ctf_capstreak;
 	client = ent->client;
@@ -1480,8 +1480,6 @@ void CTFCapReward(edict_t * ent)
 			Announce_Reward(ent, UNSTOPPABLE);
 	}
 	else	gi.cprintf(ent, PRINT_MEDIUM, "CAPTURED!\n\nYou have been rewarded.\n\nNow go get some more!");
-
-	LogCapture(ent);
 }
 
 void CTFSetupStatusbar( void )

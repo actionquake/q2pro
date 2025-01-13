@@ -161,7 +161,7 @@ void DomFlagThink( edict_t *flag )
 			flag->owner->client->resp.dom_capstreak++;
 			if (flag->owner->client->resp.dom_capstreak > flag->owner->client->resp.dom_capstreakbest)
 				flag->owner->client->resp.dom_capstreakbest = flag->owner->client->resp.dom_capstreak;
-			LogCapture(flag->owner);
+			LOG_CAPTURE(flag->owner);
 
 			if( (dom_team_flags[ flag->owner->client->resp.team ] == dom_flag_count) && (dom_flag_count > 1) )
 				gi.bprintf( PRINT_HIGH, "%s TEAM IS DOMINATING!\n",

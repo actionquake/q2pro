@@ -242,7 +242,7 @@ void _EspBonusCapture(edict_t *attacker, edict_t *flag)
 	flag->owner->client->resp.esp_capstreak++;
 	if (flag->owner->client->resp.esp_capstreak > flag->owner->client->resp.esp_capstreakbest)
 		flag->owner->client->resp.esp_capstreakbest = flag->owner->client->resp.esp_capstreak;
-	LogCapture(flag->owner);
+	LOG_CAPTURE(flag->owner);
 
 	// Bonus points awarded
 	flag->owner->client->resp.score += ESP_LEADER_CAPTURE_BONUS;
