@@ -3344,13 +3344,24 @@ void A_NewScoreboardMessage(edict_t * ent)
 			cl_ent = g_edicts + 1 + (cl - game.clients);
 			alive = IS_ALIVE(cl_ent);
 
-			Q_snprintf( buf, sizeof( buf ), "xv 44 yv %d string%c \"%-15s %3d %3d %3d\"",
+			char pingstr[8];
+			Q_snprintf(pingstr, sizeof(pingstr), "%d", min(cl->ping, 999));
+
+			#ifndef NO_BOTS
+			if (IS_BOT(cl_ent)) {
+				if (!bot_reportasclient->value || !bot_reportpings->value) {
+					Q_snprintf(pingstr, sizeof(pingstr), "BOT");
+				}
+			}
+			#endif
+
+			Q_snprintf( buf, sizeof( buf ), "xv 44 yv %d string%c \"%-15s %3d %3d %3s\"",
 				line++ * lineh,
 				(alive && dead ? '2' : ' '),
 				cl->pers.netname,
 				cl->resp.score,
 				(level.framenum - cl->resp.enterframe) / 600 / FRAMEDIV,
-				min(cl->ping, 999) );
+				pingstr );
 			Q_strncatz( string, buf, sizeof( string ) );
 			printCount++;
 			if (printCount >= maxPlayers)
@@ -3623,15 +3634,26 @@ void A_ScoreboardMessage (edict_t * ent, edict_t * killer)
 						playername[1] = 0;
 					}
 					Q_strncatz(playername, cl->pers.netname, sizeof(playername));
+
+					char pingstr[8];
+					Q_snprintf(pingstr, sizeof(pingstr), "%d", min(cl->ping, 999));
+
+					#ifndef NO_BOTS
+					if (IS_BOT(cl_ent)) {
+						if (!bot_reportasclient->value || !bot_reportpings->value) {
+							Q_snprintf(pingstr, sizeof(pingstr), "BOT");
+						}
+					}
+					#endif
 					if (showExtra) {
 						sprintf( string + len,
-							"yv %d string%s \"%-15s %3d %3d %3d\" ",
+							"yv %d string%s \"%-15s %3d %3d %3s\" ",
 							line_y,
 							(deadview && cl_ent->solid != SOLID_NOT) ? "2" : "",
 							playername,
 							cl->resp.score,
 							(level.framenum - cl->resp.enterframe) / (60 * HZ),
-							min(cl->ping, 999) );
+							pingstr );
 					} else {
 						sprintf( string + len,
 							"yv %i string%s \"%s\" ",
@@ -3877,11 +3899,15 @@ void A_ScoreboardMessage (edict_t * ent, edict_t * killer)
 				{
 #ifndef NO_BOTS
 					//rekkie -- Fake Bot Client -- s
-					if (cl_ent->is_bot)
+					if (IS_BOT(cl_ent)) {
 						if (bot_reportasclient->value)
 							Q_snprintf(buf, sizeof(buf), "%4i", min(9999, cl_ent->bot.bot_ping));
 						else
 							Q_snprintf(buf, sizeof(buf), " BOT");
+
+						if (!bot_reportpings->value)
+							Q_snprintf(buf, sizeof(buf), " BOT");
+					}
 					//if (0)
 					//rekkie -- Fake Bot Client -- e
 					//if( cl_ent->is_bot )
