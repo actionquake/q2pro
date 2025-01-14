@@ -854,6 +854,7 @@ qboolean CTFPickup_Flag(edict_t * ent, edict_t * other)
 
 	// Get the flag, go go go!
 
+	// TODO: Make this work
 	// in CTB mode, you must have a hand free to pick up the briefcase...
 	if (ctf_mode->value && 
 	other->client->curr_weap != MK23_NUM || 
