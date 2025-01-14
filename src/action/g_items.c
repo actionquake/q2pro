@@ -1850,7 +1850,7 @@ always owned, never in the world^M
    NULL,
    0,
    /* precache */ "tng/flagcap.wav tng/flagret.wav",
-	FLAG_T1_NUM
+  FLAG_T1_NUM
    }
   ,
 
@@ -1881,49 +1881,46 @@ always owned, never in the world^M
   /*QUAKED item_bcase_team1 (1 0.2 0) (-16 -16 -24) (16 16 32)
    */
   {
-   "item_bcase_team1",
-   CTFPickup_Flag,
-   NULL,
-   CTFDrop_Flag,		//Should this be null if we don't want players to drop it manually?
-   NULL,
-   "tng/flagtk.wav",
-   "models/items/g_bc1.md2", EF_FLAG1,
-   "w_bc1",
-   /* icon */ "i_bc1",
-   /* pickup */ "Black Briefcase",
-   /* width */ 2,
-   0,
-   NULL,
-   IT_FLAG,
-   NULL,
-   0,
-   /* precache */ "tng/flagcap.wav tng/flagret.wav",
-	FLAG_T1_NUM
-   }
+   "item_bcase_team1",          // classname
+   CTFPickup_Flag,             // pickup function
+   NULL,                       // use function
+   CTFDrop_Flag,              // drop function
+   NULL,                       // weaponthink function
+   "tng/flagtk.wav",          // pickup sound
+   "models/items/bcase/g_bc1.md2", EF_FLAG1|EF_ROTATE,  // world model and effects
+   "w_bc1",                   // weapon model (vwep)
+   "i_bc1",                   // icon name
+   "Black Briefcase",           // pickup name
+   2,                         // width
+   0,                         // quantity
+   NULL,                      // ammo
+   IT_FLAG,                   // item type
+   NULL,                      // info
+   0,                         // tag
+   "tng/flagcap.wav tng/flagret.wav",  // precache
+   FLAG_T1_NUM                // index
+  }
   ,
-
-  /*QUAKED item_flag_team2 (1 0.2 0) (-16 -16 -24) (16 16 32)
-   */
   {
-   "item_bcase_team2",
-   CTFPickup_Flag,
-   NULL,
-   CTFDrop_Flag,		//Should this be null if we don't want players to drop it manually?
-   NULL,
-   "tng/flagtk.wav",
-   "models/items/g_bc2.md2", EF_FLAG2,
-   "w_bc2",
-   /* icon */ "i_bc2",
-   /* pickup */ "Silver Briefcase",
-   /* width */ 2,
-   0,
-   NULL,
-   IT_FLAG,
-   NULL,
-   0,
-   /* precache */ "tng/flagcap.wav tng/flagret.wav",
-   FLAG_T2_NUM
-   }
+   "item_bcase_team2",          // classname
+   CTFPickup_Flag,             // pickup function
+   NULL,                       // use function
+   CTFDrop_Flag,              // drop function
+   NULL,                       // weaponthink function
+   "tng/flagtk.wav",          // pickup sound
+   "models/items/bcase/g_bc2.md2", EF_FLAG2|EF_ROTATE,  // world model and effects
+   "w_bc2",                   // weapon model (vwep)
+   "i_bc2",                   // icon name
+   "Silver Briefcase",           // pickup name
+   2,                         // width
+   0,                         // quantity
+   NULL,                      // ammo
+   IT_FLAG,                   // item type
+   NULL,                      // info
+   0,                         // tag
+   "tng/flagcap.wav tng/flagret.wav",  // precache
+   FLAG_T1_NUM                // index
+  }
   ,
 
   // end of list marker

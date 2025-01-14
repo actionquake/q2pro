@@ -2190,12 +2190,12 @@ int LoadFlagsFromFile (const char *mapname)
 		VectorCopy(position, ent->s.origin);
 
 		if (!flagCount) {	// Red Flag / Black Briefcase
-			if (ctf_mode->value == 2)
+			if (ctf_mode->value)
 				ent->classname = ED_NewString ("item_bcase_team1");
 			else
 				ent->classname = ED_NewString ("item_flag_team1");
 		} else {	// Blue Flag / Silver Briefcase
-			if (ctf_mode->value == 2)
+			if (ctf_mode->value)
 				ent->classname = ED_NewString ("item_bcase_team2");
 			else
 				ent->classname = ED_NewString ("item_flag_team2");
@@ -2227,7 +2227,7 @@ void ChangePlayerSpawns (void)
 	range1 = range2 = range3 = range4 = 99999;
 	spot = spot1 = spot2 = spot3 = spot4 = NULL;
 
-	if (ctf_mode->value == 2){
+	if (ctf_mode->value){
 		flag1 = G_Find (flag1, FOFS(classname), "item_bcase_team1");
 		flag2 = G_Find (flag2, FOFS(classname), "item_bcase_team2");
 	} else {

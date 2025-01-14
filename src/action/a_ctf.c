@@ -71,7 +71,7 @@ gitem_t *team_flag[TEAM_TOP];
 void CTFInit(void)
 {
 
-	if (ctf_mode->value == 2) { // Capture the Briefcase
+	if (ctf_mode->value) { // Capture the Briefcase
 		team_flag[TEAM1] = FindItemByClassname("item_bcase_team1");
 		team_flag[TEAM2] = FindItemByClassname("item_bcase_team2");
 	}
@@ -204,12 +204,12 @@ void CTFSetFlag(int team, char *str)
 	vec3_t position;
 
 	if(team == TEAM1)
-		if (ctf_mode->value == 2)
+		if (ctf_mode->value)
 			flag_name = "item_bcase_team1";
 		else
 			flag_name = "item_flag_team1";
 	else if(team == TEAM2)
-		if (ctf_mode->value == 2)
+		if (ctf_mode->value)
 			flag_name = "item_bcase_team2";
 		else
 			flag_name = "item_flag_team2";
@@ -730,19 +730,19 @@ qboolean CTFPickup_Flag(edict_t * ent, edict_t * other)
 	int team, i;
 	edict_t *player;
 	gitem_t *flag_item, *enemy_flag_item;
-	char *flag_name = "flag";
+	char flag_name[16] = "flag";
 
 	/* FIXME: players shouldn't be able to touch flags before LCA! */
 	if(!team_round_going)
 		return false;
 
-	if (ctf_mode->value == 2)
-		Q_snprintf(flag_name, sizeof(flag_name), "briefcase");
+	if (ctf_mode->value)
+		strcpy(flag_name, "briefcase");
 
 	// figure out what team this flag is
-	if (ctf_mode->value == 2 && strcmp(ent->classname, "item_bcase_team1") == 0)
+	if (ctf_mode->value && strcmp(ent->classname, "item_bcase_team1") == 0)
 		team = TEAM1;
-	else if (ctf_mode->value == 2 && strcmp(ent->classname, "item_bcase_team2") == 0)
+	else if (ctf_mode->value && strcmp(ent->classname, "item_bcase_team2") == 0)
 		team = TEAM2;
 	else if (strcmp(ent->classname, "item_flag_team1") == 0)
 		team = TEAM1;
@@ -852,12 +852,12 @@ qboolean CTFPickup_Flag(edict_t * ent, edict_t * other)
 // AQ2:TNG - JBravo adding UVtime
 	if (other->client->uvTime) {
 		other->client->uvTime = 0;
-		if (ctf_mode->value == 2)
+		if (ctf_mode->value)
 			gi.centerprintf(other, "Flag taken! Shields are DOWN! Run for it!");
 		else
 			gi.centerprintf(other, "Briefcase taken! Shields are DOWN! Run for it!");
 	} else {
-		if (ctf_mode->value == 2)
+		if (ctf_mode->value)
 			gi.centerprintf(other, "You've got the ENEMY BRIEFCASE! Run for it!");
 		else
 			gi.centerprintf(other, "You've got the ENEMY FLAG! Run for it!");
@@ -896,7 +896,7 @@ static void CTFDropFlagThink(edict_t * ent)
 {
 	// auto return the flag
 	// reset flag will remove ourselves
-	if (ctf_mode->value == 2) {
+	if (ctf_mode->value) {
 		if (strcmp(ent->classname, "item_bcase_team1") == 0) {
 			CTFResetFlag(TEAM1);
 			gi.bprintf(PRINT_HIGH, "The %s briefcase has returned!\n", CTFTeamName(TEAM1));
@@ -924,7 +924,7 @@ void CTFDeadDropFlag(edict_t * self)
 {
 	edict_t *dropped = NULL;
 
-	if (ctf_mode->value == 2) {
+	if (ctf_mode->value) {
 		if (self->client->inventory[ITEM_INDEX(team_flag[TEAM1])]) {
 			dropped = Drop_Item(self, team_flag[TEAM1]);
 			self->client->inventory[ITEM_INDEX(team_flag[TEAM1])] = 0;
@@ -1038,15 +1038,25 @@ void CTFEffects(edict_t * player)
 		player->s.effects |= EF_TAGTRAIL;
 
 	player->s.modelindex3 = 0;
-	if (ctf_mode->value == 2) {
-		if (player->client->inventory[ITEM_INDEX(team_flag[TEAM1])]){
-			player->s.modelindex3 = gi.modelindex("models/items/g_bc1.md2");
-			if (player->health > 0)
-				player->s.effects |= EF_FLAG1;
-			} else if (player->client->inventory[ITEM_INDEX(team_flag[TEAM2])]) {
-				player->s.modelindex3 = gi.modelindex("models/items/g_bc2.md2");
-			if (player->health > 0)
-				player->s.effects |= EF_FLAG2;
+	char *model = Info_ValueForKey(player->client->pers.userinfo, "skin");
+    char *slash = strchr(model, '/');
+    if (slash)
+        *slash = '\0';
+    
+    char t1modelpath[MAX_QPATH] = "";
+    char t2modelpath[MAX_QPATH] = "";
+
+	if (ctf_mode->value) {
+        if (player->client->inventory[ITEM_INDEX(team_flag[TEAM1])]) {
+            Q_snprintf(t1modelpath, sizeof(t1modelpath), "players/%s/w_bc1.md2", model);
+            player->s.modelindex2 = gi.modelindex(t1modelpath);
+            if (player->health > 0)
+                player->s.effects |= EF_FLAG1;
+        } else if (player->client->inventory[ITEM_INDEX(team_flag[TEAM2])]) {
+            Q_snprintf(t2modelpath, sizeof(t2modelpath), "players/%s/w_bc2.md2", model);
+            player->s.modelindex2 = gi.modelindex(t2modelpath);
+            if (player->health > 0)
+                player->s.effects |= EF_FLAG2;
 			}
 	} else {
 		if (player->client->inventory[ITEM_INDEX(team_flag[TEAM1])]){
@@ -1374,7 +1384,7 @@ void CTFDestroyFlag(edict_t * self)
 {
 	//flags are important
 	if (ctf->value) {
-		if (ctf_mode->value == 2) {
+		if (ctf_mode->value) {
 			if (strcmp(self->classname, "item_bcase_team1") == 0) {
 				CTFResetFlag(TEAM1);	// this will free self!
 				gi.bprintf(PRINT_HIGH, "The %s %s has returned!\n", CTFTeamName(TEAM1), team_flag[TEAM1]->pickup_name);
