@@ -114,7 +114,7 @@ typedef struct {
     byte        areabits[MAX_MAP_AREA_BYTES];  // portalarea visibility bits
     unsigned    sentTime;                   // for ping calculations
     int         latency;
-#if AQTION_EXTENSION
+#ifdef AQTION_EXTENSION
 	ghud_element_t ghud[MAX_GHUDS];
 #endif
 } client_frame_t;
@@ -388,7 +388,7 @@ typedef struct client_s {
     char            *ac_token;
 #endif
 
-#if AQTION_EXTENSION
+#ifdef AQTION_EXTENSION
 	ghud_element_t	ghud[MAX_GHUDS];
 #endif
 } client_t;
@@ -501,7 +501,7 @@ typedef struct {
 
     challenge_t     challenges[MAX_CHALLENGES]; // to prevent invalid IPs from connecting
 
-#if AQTION_EXTENSION
+#ifdef AQTION_EXTENSION
 	// Reki: cvar sync entries
 	cvarsync_t	cvarsync_list[CVARSYNC_MAX];
 	byte		cvarsync_length;
@@ -795,7 +795,7 @@ void SV_ShutdownGameProgs(void);
 
 void PF_Pmove(void *pm);
 
-#if AQTION_EXTENSION
+#ifdef AQTION_EXTENSION
 void G_InitializeExtensions(void);
 #endif
 
@@ -816,7 +816,7 @@ void SV_RegisterSavegames(void);
 #define SV_RegisterSavegames()          (void)0
 #endif
 
-#if AQTION_EXTENSION
+#ifdef AQTION_EXTENSION
 //
 // sv_ghud.c
 //
@@ -833,7 +833,7 @@ void SV_Ghud_SetColor(edict_t *ent, int i, int r, int g, int b, int a);
 void SV_Ghud_SetSize(edict_t *ent, int i, int x, int y);
 #endif
 
-#if AQTION_EXTENSION
+#ifdef AQTION_EXTENSION
 extern int(*GE_customizeentityforclient)(edict_t *client, edict_t *ent, entity_state_t *state); // 0 don't send, 1 send normally
 extern void(*GE_CvarSync_Updated)(int index, edict_t *clent);
 #endif
@@ -932,6 +932,8 @@ trace_t q_gameabi SV_Clip(const vec3_t start, const vec3_t mins,
                           edict_t *clip, int contentmask);
 
 bsp_t* SV_BSP(void);
+nav_t* CS_NAV(void);
+debug_draw_t* CS_DebugDraw(void);
 void SV_BotInit(void);
 void SV_BotUpdateInfo(char* name, int ping, int score);
 void SV_BotConnect(char* name);

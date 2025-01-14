@@ -8,7 +8,7 @@
 #include "g_local.h"
 #include "q_ghud.h"
 
-#if AQTION_EXTENSION
+#ifdef AQTION_EXTENSION
 //
 // Reki
 // Setup struct and macro for defining engine-callable entrypoints
@@ -49,6 +49,16 @@ void(*engine_Ghud_SetColor)(edict_t *ent, int i, int r, int g, int b, int a);
 void(*engine_Ghud_SetSize)(edict_t *ent, int i, int x, int y);
 
 void(*engine_CvarSync_Set)(int index, const char *name, const char *val);
+
+// botlib
+bsp_t* (*SV_BSP)(void);
+nav_t* (*CS_NAV)(void);
+debug_draw_t* (*CS_DebugDraw)(void);
+void (*SV_BotUpdateInfo)(char* name, int ping, int score);
+void (*SV_BotConnect)(char* name);
+void (*SV_BotDisconnect)(char* name);
+void (*SV_BotClearClients)(void);
+
 
 //
 // optional new entrypoints the engine may want to call
@@ -93,13 +103,13 @@ int G_customizeentityforclient(edict_t *clent, edict_t *ent, entity_state_t *sta
 			return false;
 
 		// Espionage allows indicators for leaders if set to 2
-		if (esp->value && use_indicators->value == 2 && esp_showleader->value && clent->client->resp.team) {
-			// Quad is a blue glow, pent is a red glow
-			if (clent->client->resp.team == TEAM1 && IS_LEADER(clent))
-				ent->s.effects = EF_PENT;
-			else if (clent->client->resp.team == TEAM2 && IS_LEADER(clent))
-				ent->s.effects = EF_QUAD;
-		}
+		// if (esp->value && use_indicators->value == 2 && esp_showleader->value && clent->client->resp.team) {
+		// 	// Quad is a blue glow, pent is a red glow
+		// 	if (clent->client->resp.team == TEAM1 && IS_LEADER(clent))
+		// 		ent->s.effects = EF_PENT;
+		// 	else if (clent->client->resp.team == TEAM2 && IS_LEADER(clent))
+		// 		ent->s.effects = EF_QUAD;
+		// }
 		if ((use_indicators->value == 2 && clent->client->resp.team) || (clent->client->resp.team && clent->client->pers.cl_indicators != 2)) // disallow indicators for players in use_indicators 2, and don't use them for players unless cl_indicators 2
 			return false;
 
@@ -287,7 +297,7 @@ void G_InitExtEntrypoints(void)
 }
 
 
-void* G_FetchGameExtension(char *name)
+void* G_FetchGameExtension(const char *name)
 {
 	Com_Printf("Game: G_FetchGameExtension for %s\n", name);
 	extension_func_t *ext;
@@ -302,11 +312,6 @@ void* G_FetchGameExtension(char *name)
 	Com_Printf("Game: Extension not found.\n");
 	return NULL;
 }
-
-
-
-
-
 
 // 
 // new engine functions we can call from the game
@@ -408,6 +413,11 @@ void Ghud_SetSize(edict_t *ent, int i, int x, int y)
 	engine_Ghud_SetSize(ent, i, x, y);
 }
 
+/* anchor is a float from 0 to 1, 0 being left/top, 1 being right/bottom
+for example, 0.5, 0.5 is center
+0, 0 is top left
+1, 1 is bottom right
+*/
 void Ghud_SetAnchor(edict_t *ent, int i, float x, float y)
 {
 	if (!engine_Ghud_SetAnchor)
@@ -471,4 +481,5 @@ void CvarSync_Set(int index, const char *name, const char *val)
 
 	engine_CvarSync_Set(index, name, val);
 }
+
 #endif

@@ -57,7 +57,7 @@ static struct {
     qhandle_t   net_pic;
     qhandle_t   font_pic;
 
-	int			hud_x, hud_y;
+    int			hud_x, hud_y;
     int         hud_width, hud_height;
     float       hud_scale;
     int         lag_draw_scale;
@@ -102,11 +102,11 @@ static cvar_t   *xhair_firing_error;
 static cvar_t   *xhair_movement_error;
 static cvar_t   *xhair_deployed_weapon_gap;
 static cvar_t   *xhair_thickness;
-static cvar_t   *xhair_scale;
 static cvar_t   *xhair_x;
 static cvar_t   *xhair_y;
 static cvar_t   *xhair_elasticity;
 static cvar_t   *xhair_enabled;
+static cvar_t   *xhair_fast_transition;
 
 static cvar_t   *r_maxfps;
 
@@ -1334,8 +1334,6 @@ void SCR_RegisterMedia(void)
 static void scr_scale_changed(cvar_t *self)
 {
     scr.hud_scale = R_ClampScale(self);
-
-    scr_crosshair_changed(scr_crosshair);
 }
 static void scr_lag_draw_scale_changed(cvar_t *self)
 {
@@ -1395,11 +1393,11 @@ void SCR_Init(void)
     xhair_movement_error = Cvar_Get("xhair_movement_error","1",0);
     xhair_deployed_weapon_gap = Cvar_Get("xhair_deployed_weapon_gap","1",0);
     xhair_thickness = Cvar_Get("xhair_thickness","1",0);
-    xhair_scale = Cvar_Get("xhair_scale","1",0);
     xhair_x = Cvar_Get("xhair_x","0",0);
     xhair_y = Cvar_Get("xhair_y","0",0);
     xhair_elasticity = Cvar_Get("xhair_elasticity","1",0);
     xhair_enabled = Cvar_Get("xhair_enabled","0",0);
+    xhair_fast_transition = Cvar_Get("xhair_fast_transition","1",0);
 
     r_maxfps = Cvar_Get("r_maxfps","0",0);
 
@@ -1419,7 +1417,7 @@ void SCR_Init(void)
     ch_x = Cvar_Get("ch_x", "0", 0);
     ch_y = Cvar_Get("ch_y", "0", 0);
 
-    ch_hide_while_zoomed = Cvar_Get("ch_hide_while_zoomed", "0", 0);
+    ch_hide_while_zoomed = Cvar_Get("ch_hide_while_zoomed", "1", 0);
 
     scr_draw2d = Cvar_Get("scr_draw2d", "2", 0);
     scr_showturtle = Cvar_Get("scr_showturtle", "1", 0);
@@ -1752,6 +1750,7 @@ static void SCR_ExecuteLayoutString(const char *s)
 
     x = scr.hud_x;
     y = scr.hud_y;
+    qboolean parsed_scope_pic = false;
 
     while (s) {
         token = COM_Parse(&s);
@@ -1813,7 +1812,7 @@ static void SCR_ExecuteLayoutString(const char *s)
                 qhandle_t pic = cl.image_precache[value];
                 // hack for action mod scope scaling
                 if (Com_WildCmp("scope?x", token) || Com_WildCmp("scopes/*/scope?x", token)) {
-                    scr.currently_scoped_in = true;
+                    parsed_scope_pic = true;
                     int x = scr.hud_x + (scr.hud_width - scr.scope_width) / 2;
                     int y = scr.hud_y + (scr.hud_height - scr.scope_height) / 2;
 
@@ -1823,13 +1822,13 @@ static void SCR_ExecuteLayoutString(const char *s)
                                      y + ch_y->integer,
                                      w, h, pic);
                 } else {
-                    scr.currently_scoped_in = false;
                     R_DrawPic(x, y, pic);
                 }
             }
             continue;
         }
-
+        //save whether we parsed a scope pic
+        scr.currently_scoped_in = parsed_scope_pic;
         if (!strcmp(token, "client")) {
             // draw a deathmatch client block
             int     score, ping, time;
@@ -2160,6 +2159,8 @@ typedef struct {
 
 #define XHAIR_MAX_GAP 1024
 #define XHAIR_MAX_LENGTH 648
+#define XHAIR_FAST_TRANS_GAP 200
+#define XHAIR_FAST_TRANS_LENGTH 50
 static float deltatime_factor = 0.001;
 
 static xhair_weapon_cfg_t xhair_weapon_cfgs[9] = {
@@ -2251,8 +2252,8 @@ static void SCR_DrawXhair(void) {
     if (deltatime_ms > 8) deltatime_ms = 8;
    // Con_Printf("%d ",deltatime_ms);
     last_rtime = cls.realtime;
-    int xh_center_x = scr.hud_width/2 - xhair_thickness->integer/2;
-    int xh_center_y = scr.hud_height/2 - xhair_thickness->integer/2;
+    int xh_center_x = r_config.width/2 - xhair_thickness->integer/2;
+    int xh_center_y = r_config.height/2 - xhair_thickness->integer/2;
     if (xhair_dot->integer) {
         R_DrawFill32(xh_center_x+xhair_x->integer,
             xh_center_y+xhair_y->integer,
@@ -2295,6 +2296,10 @@ static void SCR_DrawXhair(void) {
         length += (xh.length - length) * xh_elasticity * deltatime_factor*500;
         repeat *= 2;
     } while(repeat<deltatime_ms);
+    if (xhair_fast_transition->integer) {
+        if (fabs(gap - xh.gap) > XHAIR_FAST_TRANS_GAP) gap = xh.gap;
+        if (fabs(length - xh.length) > XHAIR_FAST_TRANS_LENGTH) length = xh.length;
+    }
 
     int rgap = (int)(round(gap));
     int rlength = (int)(round(length));
@@ -2328,11 +2333,7 @@ static void SCR_DrawXhair(void) {
                 xh_w,xh_h,scr.crosshair_color.u32);
         }
     } 
-}
-
-// mikota's xhair
-static void SCR_DrawClassicCrosshair(void) {
-    R_SetColor(scr.crosshair_color.u32);
+    R_SetScale(scr.hud_scale);
 }
 
 static void SCR_DrawHitMarker(void)
@@ -2362,6 +2363,11 @@ static void SCR_DrawHitMarker(void)
 
 static void SCR_DrawCrosshair(void)
 {
+    if (xhair_enabled->value) {
+        SCR_DrawXhair();
+        return;
+    }
+
     int x, y;
 
     if (!scr_crosshair->integer)
@@ -2386,219 +2392,219 @@ static void SCR_DrawCrosshair(void)
 }
 
 
-#if AQTION_EXTENSION
+#ifdef AQTION_EXTENSION
 void CL_Clear3DGhudQueue(void)
 {
-	ghud_3delement_t *link;
-	ghud_3delement_t *hold;
-	for (link = cl.ghud_3dlist; link != NULL; hold = link, link = link->next, free(hold));
+    ghud_3delement_t *link;
+    ghud_3delement_t *hold;
+    for (link = cl.ghud_3dlist; link != NULL; hold = link, link = link->next, free(hold));
 }
 
 
 static void SCR_DrawGhudElement(ghud_element_t *element, float alpha_base, color_t color_base, int x, int y, int sizex, int sizey)
 {
-	byte alpha = element->color[3];
-	if (element->flags & GHF_BLINK)
-		alpha = min((element->color[3] * 0.85) + (element->color[3] * 0.25 * sin((float)cls.realtime / 125)), 255);
+    byte alpha = element->color[3];
+    if (element->flags & GHF_BLINK)
+        alpha = min((element->color[3] * 0.85) + (element->color[3] * 0.25 * sin((float)cls.realtime / 125)), 255);
 
-	color_base.u8[0] = element->color[0] * (color_base.u8[2] / 0xFF);
-	color_base.u8[1] = element->color[1] * (color_base.u8[2] / 0xFF);
-	color_base.u8[2] = element->color[2] * (color_base.u8[2] / 0xFF);
-	color_base.u8[3] = (alpha_base * alpha);
-	R_SetColor(color_base.u32);
+    color_base.u8[0] = element->color[0] * (color_base.u8[2] / 0xFF);
+    color_base.u8[1] = element->color[1] * (color_base.u8[2] / 0xFF);
+    color_base.u8[2] = element->color[2] * (color_base.u8[2] / 0xFF);
+    color_base.u8[3] = (alpha_base * alpha);
+    R_SetColor(color_base.u32);
 
-	switch (element->type)
-	{
-	case GHT_TEXT:;
-		int length = strlen(element->text);
-		int uiflags = element->size[0] | (element->size[1] << 16);
-		if ((uiflags & UI_CENTER) == UI_CENTER)
-			x -= (length * CHAR_WIDTH * 0.5);
-		else if (uiflags & UI_RIGHT)
-			x -= (length * CHAR_WIDTH);
+    switch (element->type)
+    {
+    case GHT_TEXT:;
+        int length = strlen(element->text);
+        int uiflags = element->size[0] | (element->size[1] << 16);
+        if ((uiflags & UI_CENTER) == UI_CENTER)
+            x -= (length * CHAR_WIDTH * 0.5);
+        else if (uiflags & UI_RIGHT)
+            x -= (length * CHAR_WIDTH);
 
-		if ((uiflags & UI_MIDDLE) == UI_MIDDLE)
-			y -= (length * CHAR_HEIGHT * 0.5);
-		else if (uiflags & UI_BOTTOM)
-			y -= (length * CHAR_HEIGHT);
+        if ((uiflags & UI_MIDDLE) == UI_MIDDLE)
+            y -= (length * CHAR_HEIGHT * 0.5);
+        else if (uiflags & UI_BOTTOM)
+            y -= (length * CHAR_HEIGHT);
 
-		uiflags &= ~(UI_LEFT | UI_RIGHT | UI_TOP | UI_BOTTOM);
+        uiflags &= ~(UI_LEFT | UI_RIGHT | UI_TOP | UI_BOTTOM);
 
-		R_DrawString(x, y, uiflags, MAX_STRING_CHARS, element->text, scr.font_pic);
-		break;
-	case GHT_IMG:
-		if (!element->val)
-			break;
+        R_DrawString(x, y, uiflags, MAX_STRING_CHARS, element->text, scr.font_pic);
+        break;
+    case GHT_IMG:
+        if (!element->val)
+            break;
 
-		R_DrawStretchPic(x, y, sizex, sizey, cl.image_precache[element->val]);
-		break;
-	case GHT_NUM:;
-		int numsize = element->size[0];
-		if (numsize <= 0)
-		{
-			double val = element->val;
-			if (val <= 0)
-				val = 0;
-			else
-				val = log10(val);
+        R_DrawStretchPic(x, y, sizex, sizey, cl.image_precache[element->val]);
+        break;
+    case GHT_NUM:;
+        int numsize = element->size[0];
+        if (numsize <= 0)
+        {
+            double val = element->val;
+            if (val <= 0)
+                val = 0;
+            else
+                val = log10(val);
 
-			numsize = val + 1;
-		}
+            numsize = val + 1;
+        }
 
-		HUD_DrawNumber(x, y, 0, numsize, element->val);
-		break;
+        HUD_DrawNumber(x, y, 0, numsize, element->val);
+        break;
     case GHT_FILL:;
-		R_DrawFill32(x, y, element->size[0], element->size[1], color_base.u32);
-	}
+        R_DrawFill32(x, y, element->size[0], element->size[1], color_base.u32);
+    }
 }
 
 
 static void SCR_DrawGhud(void)
 {
-	int x, y;
-	int i;
+    int x, y;
+    int i;
 
-	float alpha_base = Cvar_ClampValue(scr_alpha, 0, 1);
-	color_t color_base;
-	color_base.u32 = 0xFFFFFFFF;
+    float alpha_base = Cvar_ClampValue(scr_alpha, 0, 1);
+    color_t color_base;
+    color_base.u32 = 0xFFFFFFFF;
 
 
-	if (cl.ghud_3dlist)
-	{
-		/*build view and projection matricies*/
-		float modelview[16];
-		float proj[16];
+    if (cl.ghud_3dlist)
+    {
+        /*build view and projection matricies*/
+        float modelview[16];
+        float proj[16];
 
-		Matrix4x4_CM_ModelViewMatrix(modelview, cl.refdef.viewangles, cl.refdef.vieworg);
-		Matrix4x4_CM_Projection2(proj, cl.refdef.fov_x, cl.refdef.fov_y, 4);
+        Matrix4x4_CM_ModelViewMatrix(modelview, cl.refdef.viewangles, cl.refdef.vieworg);
+        Matrix4x4_CM_Projection2(proj, cl.refdef.fov_x, cl.refdef.fov_y, 4);
 
-		/*build the vp matrix*/
-		Matrix4_Multiply(proj, modelview, r_viewmatrix);
-		
-		ghud_element_t *element;
-		ghud_3delement_t *link;
-		ghud_3delement_t *hold;
-		for (link = cl.ghud_3dlist; link; hold = link, link = link->next, free(hold))
-		{
-			element = link->element;
-			element->color[3] = 200;
+        /*build the vp matrix*/
+        Matrix4_Multiply(proj, modelview, r_viewmatrix);
+        
+        ghud_element_t *element;
+        ghud_3delement_t *link;
+        ghud_3delement_t *hold;
+        for (link = cl.ghud_3dlist; link; hold = link, link = link->next, free(hold))
+        {
+            element = link->element;
+            element->color[3] = 200;
 
-			float v[4], tempv[4], out[4];
+            float v[4], tempv[4], out[4];
 
-			// get position
-			v[0] = element->pos[0];
-			v[1] = element->pos[1];
-			v[2] = element->pos[2];
-			v[3] = 1;
+            // get position
+            v[0] = element->pos[0];
+            v[1] = element->pos[1];
+            v[2] = element->pos[2];
+            v[3] = 1;
 
-			Matrix4x4_CM_Transform4(r_viewmatrix, v, tempv);
+            Matrix4x4_CM_Transform4(r_viewmatrix, v, tempv);
 
-			if (tempv[3] < 0) // the element is behind us
-				continue;
+            if (tempv[3] < 0) // the element is behind us
+                continue;
 
-			tempv[0] /= tempv[3];
-			tempv[1] /= tempv[3];
-			tempv[2] /= tempv[3];
+            tempv[0] /= tempv[3];
+            tempv[1] /= tempv[3];
+            tempv[2] /= tempv[3];
 
-			out[0] = (1 + tempv[0]) / 2;
-			out[1] = 1 - (1 + tempv[1]) / 2;
-			out[2] = tempv[2];
+            out[0] = (1 + tempv[0]) / 2;
+            out[1] = 1 - (1 + tempv[1]) / 2;
+            out[2] = tempv[2];
 
-			x = scr.hud_x + out[0] * scr.hud_width;
-			y = scr.hud_y + out[1] * scr.hud_height;
-			//
+            x = scr.hud_x + out[0] * scr.hud_width;
+            y = scr.hud_y + out[1] * scr.hud_height;
+            //
 
-			float mult = 300 / link->distance;
-			Q_clipf(mult, 0.25, 5);
+            float mult = 300 / link->distance;
+            Q_clipf(mult, 0.25, 5);
 
-			int sizex = element->size[0] * mult;
-			int sizey = element->size[1] * mult;
+            int sizex = element->size[0] * mult;
+            int sizey = element->size[1] * mult;
 
-			x -= (sizex / 2);
-			y -= (sizey / 2);
+            x -= (sizex / 2);
+            y -= (sizey / 2);
 
-			float alpha_mult = 1;
-			alpha_mult = min(1 / mult, 1);
+            float alpha_mult = 1;
+            alpha_mult = min(1 / mult, 1);
 
-			
-			vec3_t pos, xhair;
-			pos[0] = x;
-			pos[1] = y;
-			pos[2] = 0;
-			xhair[0] = scr.hud_width / 2;
-			xhair[1] = scr.hud_height / 2;
-			xhair[2] = 0;
+            
+            vec3_t pos, xhair;
+            pos[0] = x;
+            pos[1] = y;
+            pos[2] = 0;
+            xhair[0] = scr.hud_width / 2;
+            xhair[1] = scr.hud_height / 2;
+            xhair[2] = 0;
 
-			float scale_dimension = min(scr.hud_width, scr.hud_height) / 6;
-			VectorSubtract(pos, xhair, pos);
-			float len = VectorLength(pos);
-			if (len < scale_dimension)
-			{
-				alpha_mult *= len / scale_dimension;
-			}
+            float scale_dimension = min(scr.hud_width, scr.hud_height) / 6;
+            VectorSubtract(pos, xhair, pos);
+            float len = VectorLength(pos);
+            if (len < scale_dimension)
+            {
+                alpha_mult *= len / scale_dimension;
+            }
 
-			SCR_DrawGhudElement(element, alpha_base * alpha_mult, color_base, x, y, sizex, sizey);
-		}
+            SCR_DrawGhudElement(element, alpha_base * alpha_mult, color_base, x, y, sizex, sizey);
+        }
 
-		cl.ghud_3dlist = NULL;
-	}
+        cl.ghud_3dlist = NULL;
+    }
 
-	for (i = 0; i < MAX_GHUDS; i++)
-	{
-		ghud_element_t *element = &(cl.ghud[i]);
-		if (!(element->flags & GHF_INUSE) || (element->flags & GHF_HIDE))
-			continue;
+    for (i = 0; i < MAX_GHUDS; i++)
+    {
+        ghud_element_t *element = &(cl.ghud[i]);
+        if (!(element->flags & GHF_INUSE) || (element->flags & GHF_HIDE))
+            continue;
 
-		if (element->color[3] <= 0) // totally transparent
-			continue;
+        if (element->color[3] <= 0) // totally transparent
+            continue;
 
-		if (element->flags & GHF_3DPOS)
-		{
-			ghud_3delement_t *link = malloc(sizeof(ghud_3delement_t));
-			link->element = element;
+        if (element->flags & GHF_3DPOS)
+        {
+            ghud_3delement_t *link = malloc(sizeof(ghud_3delement_t));
+            link->element = element;
 
-			vec3_t org;
-			org[0] = element->pos[0];
-			org[1] = element->pos[1];
-			org[2] = element->pos[2];
-			VectorSubtract(org, cl.refdef.vieworg, org);
-			link->distance = VectorLength(org);
-			link->next = NULL;
+            vec3_t org;
+            org[0] = element->pos[0];
+            org[1] = element->pos[1];
+            org[2] = element->pos[2];
+            VectorSubtract(org, cl.refdef.vieworg, org);
+            link->distance = VectorLength(org);
+            link->next = NULL;
 
-			///*
-			if (cl.ghud_3dlist == NULL)
-				cl.ghud_3dlist = link;
-			else if (cl.ghud_3dlist->distance < link->distance)
-			{
-				link->next = cl.ghud_3dlist;
-				cl.ghud_3dlist = link;
-			}
-			else
-			{
-				ghud_3delement_t *hold, *list;
-				list = cl.ghud_3dlist;
-				hold = list;
-				while (list && list->distance >= link->distance)
-				{
-					hold = list;
-					list = list->next;
-				}
+            ///*
+            if (cl.ghud_3dlist == NULL)
+                cl.ghud_3dlist = link;
+            else if (cl.ghud_3dlist->distance < link->distance)
+            {
+                link->next = cl.ghud_3dlist;
+                cl.ghud_3dlist = link;
+            }
+            else
+            {
+                ghud_3delement_t *hold, *list;
+                list = cl.ghud_3dlist;
+                hold = list;
+                while (list && list->distance >= link->distance)
+                {
+                    hold = list;
+                    list = list->next;
+                }
 
-				link->next = hold->next;
-				hold->next = link;
-			}
-			//*/
+                link->next = hold->next;
+                hold->next = link;
+            }
+            //*/
 
-			continue;
-		}
-		else
-		{
-			x = scr.hud_x + element->pos[0] + (scr.hud_width * element->anchor[0]);
-			y = scr.hud_y + element->pos[1] + (scr.hud_height * element->anchor[1]);
-		}
+            continue;
+        }
+        else
+        {
+            x = scr.hud_x + element->pos[0] + (scr.hud_width * element->anchor[0]);
+            y = scr.hud_y + element->pos[1] + (scr.hud_height * element->anchor[1]);
+        }
 
-		SCR_DrawGhudElement(element, alpha_base, color_base, x, y, element->size[0], element->size[1]);
-	}
+        SCR_DrawGhudElement(element, alpha_base, color_base, x, y, element->size[0], element->size[1]);
+    }
 }
 #endif
 
@@ -2642,11 +2648,6 @@ static void SCR_Draw2D(void)
     scr.hud_height = Q_rint(scr.hud_height * scr.hud_scale);
     scr.hud_width = Q_rint(scr.hud_width * scr.hud_scale);
 
-// mikota's xhair
-//     if (!xhair_enabled->integer) {
-//         SCR_DrawClassicCrosshair();
-//     }    
-
     // crosshair has its own color and alpha
     SCR_DrawCrosshair();
 
@@ -2657,13 +2658,13 @@ static void SCR_Draw2D(void)
     SCR_DrawStats();
 
     SCR_DrawLayout();
-#if AQTION_EXTENSION
-	// Draw game defined hud elements
-	SCR_DrawGhud();
+#ifdef AQTION_EXTENSION
+    // Draw game defined hud elements
+    SCR_DrawGhud();
 
-	// gotta redo the colors because the ghud messes with them, sadly.
-	R_ClearColor();
-	R_SetAlpha(Cvar_ClampValue(scr_alpha, 0, 1));
+    // gotta redo the colors because the ghud messes with them, sadly.
+    R_ClearColor();
+    R_SetAlpha(Cvar_ClampValue(scr_alpha, 0, 1));
 #endif
     SCR_DrawInventory();
 

@@ -1183,41 +1183,40 @@ Cmd_Players_f
 */
 static void Cmd_Players_f (edict_t * ent)
 {
-	int i;
-	int count = 0;
-	char small[64];
-	char large[1024];
-	gclient_t *sortedClients[MAX_CLIENTS], *cl;
+    int i;
+    int count = 0;
+    char playerInfo[64];
+    char playerList[1024];
+    gclient_t *sortedClients[MAX_CLIENTS], *cl;
 
+    if (!teamplay->value || !noscore->value)
+        count = G_SortedClients( sortedClients );
+    else
+        count = G_NotSortedClients( sortedClients );
 
-	if (!teamplay->value || !noscore->value)
-		count = G_SortedClients( sortedClients );
-	else
-		count = G_NotSortedClients( sortedClients );
+    // print information
+    playerList[0] = 0;
 
-	// print information
-	large[0] = 0;
+    for (i = 0; i < count; i++)
+    {
+        cl = sortedClients[i];
+        if (!teamplay->value || !noscore->value)
+            Q_snprintf(playerInfo, sizeof(playerInfo), "%3i %s\n",
+                cl->ps.stats[STAT_FRAGS],
+                cl->pers.netname);
+        else
+            Q_snprintf(playerInfo, sizeof(playerInfo), "%s\n",
+                cl->pers.netname);
 
-	for (i = 0; i < count; i++)
-	{
-		cl = sortedClients[i];
-		if (!teamplay->value || !noscore->value)
-			Q_snprintf (small, sizeof (small), "%3i %s\n",
-				cl->ps.stats[STAT_FRAGS],
-				cl->pers.netname );
-		else
-			Q_snprintf (small, sizeof (small), "%s\n",
-				cl->pers.netname);
+        if (strlen(playerInfo) + strlen(playerList) > sizeof(playerList) - 20)
+        {			// can't print all of them in one packet
+            strcat(playerList, "...\n");
+            break;
+        }
+        strcat(playerList, playerInfo);
+    }
 
-		if (strlen(small) + strlen(large) > sizeof (large) - 20)
-		{			// can't print all of them in one packet
-			strcat (large, "...\n");
-			break;
-		}
-		strcat (large, small);
-	}
-
-	gi.cprintf(ent, PRINT_HIGH, "%s\n%i players\n", large, count);
+    gi.cprintf(ent, PRINT_HIGH, "%s\n%i players\n", playerList, count);
 }
 
 /*
@@ -1466,6 +1465,9 @@ void Cmd_Say_f (edict_t * ent, qboolean team, qboolean arg0, qboolean partner_ms
 		}
 	}
 
+	// Send message to Discord -- this must come before the newline add or it screws up formatting in-game
+	CALL_DISCORD_WEBHOOK(text, CHAT_MSG, AWARD_NONE);
+
 	Q_strncatz(text, "\n", sizeof(text));
 
 	if (FloodCheck(ent))
@@ -1521,8 +1523,26 @@ static void Cmd_PlayerList_f (edict_t * ent)
 	char st[64];
 	char text[1024] = { 0 };
 	edict_t *e2;
+	int header_settings = 0;
 
 	// connect time, ping, score, name
+
+	// Set appropriate header based on settings
+	if (limchasecam->value) {
+		Q_snprintf(st, sizeof(st), "%-5s  %-3s %-3s %-16s\n", "Time", "Ping", "Team", "Name");
+		header_settings = 1;
+	} else if (matchmode->value && IS_CAPTAIN(ent)) {
+		Q_snprintf(st, sizeof(st), "%-5s  %-3s %-3s %-16s\n", "Time", "Ping", "Num", "Name");
+		header_settings = 2;
+	} else if (!teamplay->value || !noscore->value) {
+		Q_snprintf(st, sizeof(st), "%-5s  %-3s %-5s %-16s\n", "Time", "Ping", "Score", "Name");
+		header_settings = 3;
+	} else {
+		Q_snprintf(st, sizeof(st), "%-5s  %-3s %-16s\n", "Time", "Ping", "Name");
+		header_settings = 0;
+	}
+	// Print the header
+	gi.cprintf(ent, PRINT_HIGH, "%s", st);
 
 	// Set the lines:
 	for (i = 0, e2 = g_edicts + 1; i < game.maxclients; i++, e2++)
@@ -1533,12 +1553,15 @@ static void Cmd_PlayerList_f (edict_t * ent)
 		if (!e2->inuse || !e2->client || e2->client->pers.mvdspec)
 			continue;
 
-		if(limchasecam->value)
-			Q_snprintf (st, sizeof (st), "%02d:%02d %4d %3d %s\n", minutes, seconds, e2->client->ping, e2->client->resp.team, e2->client->pers.netname); // This shouldn't show player's being 'spectators' during games with limchasecam set and/or during matchmode
-		else if (!teamplay->value || !noscore->value)
-			Q_snprintf (st, sizeof (st), "%02d:%02d %4d %3d %s%s\n", minutes, seconds, e2->client->ping, e2->client->resp.score, e2->client->pers.netname, (e2->solid == SOLID_NOT && e2->deadflag != DEAD_DEAD) ? " (dead)" : ""); // replaced 'spectator' with 'dead'
+		// Set the lines with fixed width columns:
+		if(header_settings == 1)
+			Q_snprintf(st, sizeof(st), "%02d:%02d  %-3d  %-3d  %-16s\n", minutes, seconds, e2->client->ping, e2->client->resp.team, e2->client->pers.netname);
+		else if (header_settings == 2)
+			Q_snprintf(st, sizeof(st), "%02d:%02d  %-3d  %-3d  %-16s\n", minutes, seconds, e2->client->ping, e2->client->clientNum, e2->client->pers.netname);
+		else if (header_settings == 3)
+			Q_snprintf(st, sizeof(st), "%02d:%02d  %-3d  %-5d  %-16s%s\n", minutes, seconds, e2->client->ping, e2->client->resp.score, e2->client->pers.netname, (e2->solid == SOLID_NOT && e2->deadflag != DEAD_DEAD) ? " (dead)" : "");
 		else
-			Q_snprintf (st, sizeof (st), "%02d:%02d %4d %s%s\n", minutes, seconds, e2->client->ping, e2->client->pers.netname, (e2->solid == SOLID_NOT && e2->deadflag != DEAD_DEAD) ? " (dead)" : ""); // replaced 'spectator' with 'dead'
+			Q_snprintf(st, sizeof(st), "%02d:%02d  %-3d  %-16s%s\n", minutes, seconds, e2->client->ping, e2->client->pers.netname, (e2->solid == SOLID_NOT && e2->deadflag != DEAD_DEAD) ? " (dead)" : "");
 
 		if (strlen(text) + strlen(st) > sizeof(text) - 6)
 		{
@@ -1695,14 +1718,14 @@ static void Cmd_PrintSettings_f( edict_t * ent )
 	itmflagsSettings( text, sizeof( text ), (int)itm_flags->value );
 
 	length = strlen( text );
-	#if AQTION_EXTENSION
+	#ifdef AQTION_EXTENSION
 	Q_snprintf( text + length, sizeof( text ) - length, "\n"
 		"timelimit   %2d roundlimit  %2d roundtimelimit %2d\n"
 		"limchasecam %2d tgren       %2d antilag_interp %2d\n"
-		"use_xerp    %2d llsound     %2d\n",
+		"use_xerp    %2d llsound     %2d stats %2d\n",
 		(int)timelimit->value, (int)roundlimit->value, (int)roundtimelimit->value,
 		(int)limchasecam->value, (int)tgren->value, (int)sv_antilag_interp->value,
-		(int)use_xerp->value, (int)llsound->value );
+		(int)use_xerp->value, (int)llsound->value, (int)stat_logs->value );
 	#else
 	Q_snprintf( text + length, sizeof( text ) - length, "\n"
 		"timelimit   %2d roundlimit  %2d roundtimelimit %2d\n"
@@ -1958,6 +1981,7 @@ static cmdList_t commandList[] =
 	{ "ready", Cmd_Ready_f, 0 },
 	{ "teamname", Cmd_Teamname_f, 0 },
 	{ "teamskin", Cmd_Teamskin_f, 0 },
+	{ "teamnone", Cmd_Teamnone_f, 0 },
 	{ "lock", Cmd_LockTeam_f, 0 },
 	{ "unlock", Cmd_UnlockTeam_f, 0 },
 	{ "entcount", Cmd_Ent_Count_f, 0 },
@@ -1999,6 +2023,8 @@ static cmdList_t commandList[] =
 	{ "volunteer", Cmd_Volunteer_f, 0},
 	{ "leader", Cmd_Volunteer_f, 0},
 	{ "highscores", Cmd_HighScores_f, 0},
+	{ "pickup", Cmd_Pickup_f, 0},
+
 };
 
 #define MAX_COMMAND_HASH 64

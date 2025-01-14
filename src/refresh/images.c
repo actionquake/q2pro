@@ -1536,6 +1536,7 @@ static void IMG_List_f(void)
             Cmd_PrintHelp(o_imagelist);
             Com_Printf(
                 "Types legend:\n"
+                "H: handle\n"
                 "P: pics\n"
                 "F: fonts\n"
                 "M: skins\n"
@@ -1574,7 +1575,8 @@ static void IMG_List_f(void)
         if (paletted == -1 && (image->flags & IF_PALETTED))
             continue;
 
-        Com_Printf("%c%c%c%c %4i %4i %s: %s\n",
+        Com_Printf("[%3i] %c%c%c%c %4i %4i %s: %s\n",
+                   i,  // Image handle number
                    types[image->type > IT_MAX ? IT_MAX : image->type],
                    (image->flags & IF_TRANSPARENT) ? 'T' : ' ',
                    (image->flags & IF_SCRAP) ? 'S' : image->texnum2 ? 'G' : ' ',

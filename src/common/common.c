@@ -900,7 +900,7 @@ void Qcommon_Init(int argc, char **argv)
     CL_PreInit();
     Prompt_Init();
     Con_Init();
-#if AQTION_EXTENSION
+#ifdef AQTION_EXTENSION
 	G_InitializeExtensions();
 #endif
 

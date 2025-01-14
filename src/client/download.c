@@ -675,11 +675,6 @@ void CL_RequestNextDownload(void)
     char fn[MAX_QPATH], *name;
     size_t len;
     int i;
-    static cvar_t   *r_override_textures;
-    static cvar_t   *r_texture_overrides;
-
-    r_override_textures = Cvar_Get("r_override_textures", "1", CVAR_FILES);
-    r_texture_overrides = Cvar_Get("r_texture_overrides", "-1", CVAR_FILES);
 
     if (cls.state != ca_connected && cls.state != ca_loading)
         return;

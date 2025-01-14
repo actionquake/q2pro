@@ -865,9 +865,11 @@ void T_Damage (edict_t * targ, edict_t * inflictor, edict_t * attacker, const ve
 			if (client && attacker->client)
 			{
 				if (!friendlyFire && !in_warmup) {
-					attacker->client->resp.damage_dealt += damage;
-					// Hit markers
-					attacker->client->damage_dealt += damage;
+					if (mod != MOD_TELEFRAG) {
+						attacker->client->resp.damage_dealt += damage;
+						// Hit markers
+						attacker->client->damage_dealt += damage;
+					}
 					if (mod > 0 && mod < MAX_GUNSTAT) {
 						attacker->client->resp.gunstats[mod].damage += damage;
 					}
@@ -930,9 +932,11 @@ void T_Damage (edict_t * targ, edict_t * inflictor, edict_t * attacker, const ve
 		if (attacker->client)
 		{
 			if (!friendlyFire && !in_warmup) {
-				attacker->client->resp.damage_dealt += damage;
-				// Hit markers
-				attacker->client->damage_dealt += damage;
+				if (mod != MOD_TELEFRAG) {
+					attacker->client->resp.damage_dealt += damage;
+					// Hit markers
+					attacker->client->damage_dealt += damage;
+				}
 				// All normal weapon damage
 				if (mod > 0 && mod < MAX_GUNSTAT) {
 					attacker->client->resp.gunstats[mod].damage += damage;

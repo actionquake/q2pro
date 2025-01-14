@@ -257,7 +257,7 @@ typedef struct {
     char        layout[MAX_NET_STRING];     // general 2D overlay
     int         inventory[MAX_ITEMS];
 
-#if AQTION_EXTENSION
+#ifdef AQTION_EXTENSION
 	ghud_3delement_t *ghud_3dlist;
 	ghud_element_t ghud[MAX_GHUDS];
 #endif

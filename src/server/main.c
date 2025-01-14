@@ -627,10 +627,6 @@ static void SVC_GetChallenge(void)
         svs.challenges[i].challenge = challenge;
         svs.challenges[i].time = com_eventTime;
     }
-    //rekkie -- force max protocol PROTOCOL_VERSION_Q2PRO until PROTOCOL_VERSION_AQTION is compatible again -- s
-    Netchan_OutOfBand(NS_SERVER, &net_from, "challenge %u p=%i,%i,%i", challenge, PROTOCOL_VERSION_DEFAULT, PROTOCOL_VERSION_R1Q2, PROTOCOL_VERSION_Q2PRO);
-    return;
-    //rekkie -- force max protocol PROTOCOL_VERSION_Q2PRO until PROTOCOL_VERSION_AQTION is compatible again -- e
 
     // send it back
     Netchan_OutOfBand(NS_SERVER, &net_from,
@@ -2471,6 +2467,8 @@ void SV_Init(void)
 #if USE_SYSCON
     SV_SetConsoleTitle();
 #endif
+
+    G_InitializeExtensions();
 
     sv_registered = true;
 }

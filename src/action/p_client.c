@@ -341,7 +341,7 @@ static void FreeClientEdicts(gclient_t *client)
 		client->ctf_grapple = NULL;
 	}
 
-#if AQTION_EXTENSION
+#ifdef AQTION_EXTENSION
 	//remove arrow
 	if (client->arrow) {
 		G_FreeEdict(client->arrow);
@@ -388,14 +388,13 @@ void Announce_Reward(edict_t *ent, int rewardType) {
 			gi.dprintf("%s: Unknown reward type %d for %s\n", __FUNCTION__, rewardType, playername);
             return;  // Something didn't jive here?
     }
+	ent->client->resp.awardstats[rewardType]++;
+	CALL_DISCORD_WEBHOOK(buf, AWARD_MSG, rewardType);
 
     CenterPrintAll(buf);
     gi.sound(&g_edicts[0], CHAN_VOICE | CHAN_NO_PHS_ADD, gi.soundindex(soundFile), 1.0, ATTN_NONE, 0.0);
 
-    #if USE_AQTION
-    if (stat_logs->value)
-        LogAward(ent, rewardType);
-    #endif
+	LOG_AWARD(ent, rewardType);
 }
 
 void Add_Frag(edict_t * ent, int mod)
@@ -1174,14 +1173,12 @@ void ClientObituary(edict_t * self, edict_t * inflictor, edict_t * attacker)
 			sprintf(death_msg, "%s %s %s\n",
 				self->client->pers.netname, special_message, self->client->attacker->client->pers.netname);
 			PrintDeathMessage(death_msg, self);
+			//Using discord webhook for death messaging
+			CALL_DISCORD_WEBHOOK(death_msg, DEATH_MSG, AWARD_NONE);
 			IRC_printf(IRC_T_KILL, death_msg);
 			AddKilledPlayer(self->client->attacker, self);
 
-			#if USE_AQTION
-			if (stat_logs->value) { // Only create stats logs if stat_logs is 1
-				LogKill(self, inflictor, self->client->attacker);
-			}
-			#endif
+			LOG_KILL(self, inflictor, self->client->attacker);
 
 			self->client->attacker->client->radio_num_kills++;
 
@@ -1205,6 +1202,8 @@ void ClientObituary(edict_t * self, edict_t * inflictor, edict_t * attacker)
 		else
 		{
 			sprintf( death_msg, "%s %s\n", self->client->pers.netname, message );
+			//Using discord webhook for death messaging
+			CALL_DISCORD_WEBHOOK(death_msg, DEATH_MSG, AWARD_NONE);
 			PrintDeathMessage(death_msg, self );
 			IRC_printf( IRC_T_DEATH, death_msg );
 
@@ -1214,12 +1213,7 @@ void ClientObituary(edict_t * self, edict_t * inflictor, edict_t * attacker)
 			}
 
 			self->enemy = NULL;
-      
-			#if USE_AQTION
-			if (stat_logs->value) { // Only create stats logs if stat_logs is 1
-				LogWorldKill(self);
-			}
-			#endif
+			LOG_WORLD_KILL(self);
 		}
 		return;
 	}
@@ -1557,14 +1551,12 @@ void ClientObituary(edict_t * self, edict_t * inflictor, edict_t * attacker)
 			sprintf(death_msg, "%s%s %s%s\n", self->client->pers.netname,
 			message, attacker->client->pers.netname, message2);
 			PrintDeathMessage(death_msg, self);
+			//Using discord webhook for death messaging
+			CALL_DISCORD_WEBHOOK(death_msg, DEATH_MSG, AWARD_NONE);
 			IRC_printf(IRC_T_KILL, death_msg);
 			AddKilledPlayer(attacker, self);
 
-			#if USE_AQTION
-			if (stat_logs->value) {
-				LogKill(self, inflictor, attacker);
-			}
-			#endif
+			LOG_KILL(self, inflictor, attacker);
 
 			if (friendlyFire) {
 				if (!teamplay->value || team_round_going || !ff_afterround->value)
@@ -1601,13 +1593,11 @@ void ClientObituary(edict_t * self, edict_t * inflictor, edict_t * attacker)
 
 	sprintf(death_msg, "%s died\n", self->client->pers.netname);
 	PrintDeathMessage(death_msg, self);
+	//Using discord webhook for death messaging
+	CALL_DISCORD_WEBHOOK(death_msg, DEATH_MSG, AWARD_NONE);
 	IRC_printf(IRC_T_DEATH, death_msg);
 
-	#if USE_AQTION
-	if (stat_logs->value) { // Only create stats logs if stat_logs is 1
-		LogWorldKill(self);
-	}
-	#endif
+	LOG_WORLD_KILL(self);
 
 	Subtract_Frag(self);	//self->client->resp.score--;
 	Add_Death( self, true );
@@ -1713,6 +1703,17 @@ void TossItemsOnDeath(edict_t * ent)
 	item = GET_ITEM(KNIFE_NUM);
 	if (ent->client->inventory[ITEM_INDEX(item)] > 0) {
 		EjectItem(ent, item);
+	}
+
+	// Grenade drop option -- Raptor007
+	if (grenade_drop->value > 0) {
+		item = GET_ITEM(GRENADE_NUM);
+		int drop_count = ent->client->inventory[ITEM_INDEX(item)];
+		if (grenade_drop->value < drop_count)
+			drop_count = grenade_drop->value;
+		for(i = 0; i < drop_count; i++) {
+			EjectItem(ent, item);
+		}
 	}
 // special items
 
@@ -2884,7 +2885,7 @@ void PutClientInServer(edict_t * ent)
 	client_persistant_t pers;
 	client_respawn_t resp;
 	gitem_t *item;
-#if AQTION_EXTENSION
+#ifdef AQTION_EXTENSION
 	cvarsyncvalue_t cl_cvar[CVARSYNC_MAX];
 #endif
 
@@ -2901,13 +2902,13 @@ void PutClientInServer(edict_t * ent)
 	// deathmatch wipes most client data every spawn
 	resp = client->resp;
 	pers = client->pers;
-#if AQTION_EXTENSION
+#ifdef AQTION_EXTENSION
 	memcpy(cl_cvar, client->cl_cvar, sizeof(client->cl_cvar));
 #endif
 
 	memset(client, 0, sizeof(*client));
 
-#if AQTION_EXTENSION
+#ifdef AQTION_EXTENSION
 	memcpy(client->cl_cvar, cl_cvar, sizeof(client->cl_cvar));
 #endif
 	client->pers = pers;
@@ -3000,7 +3001,7 @@ void PutClientInServer(edict_t * ent)
 	ent->s.skinnum = ent - g_edicts - 1;
 	ent->s.modelindex = 255;	// will use the skin specified model
 
-#if AQTION_EXTENSION
+#ifdef AQTION_EXTENSION
 	// teammate indicator arrows
 	if (use_indicators->value && teamplay->value && !client->arrow && client->resp.team)
 	{
@@ -3132,7 +3133,7 @@ void PutClientInServer(edict_t * ent)
 		ent->svflags |= SVF_NOCLIENT;
 		ent->client->ps.gunindex = 0;
 
-#if AQTION_EXTENSION
+#ifdef AQTION_EXTENSION
 		if (!ent->client->resp.team)
 			HUD_SetType(ent, 1);
 #endif
@@ -3144,7 +3145,7 @@ void PutClientInServer(edict_t * ent)
 	}  // end if( respawn )
 #endif
 
-#if AQTION_EXTENSION
+#ifdef AQTION_EXTENSION
 	HUD_SetType(ent, -1);
 #endif
 
@@ -3228,6 +3229,14 @@ void PutClientInServer(edict_t * ent)
 	// force the current weapon up
 	client->newweapon = client->weapon;
 	ChangeWeapon(ent);
+
+		// Tell the world!
+	#ifdef USE_CURL
+	#if AQTION_CURL
+	if (sv_curl_enable->value && sv_discord_announce_enable->value)
+		announce_server_populating();
+	#endif
+	#endif
 }
 
 /*
@@ -3249,7 +3258,7 @@ void ClientBeginDeathmatch(edict_t * ent)
 	ent->client->resp.enterframe = level.framenum;
 	ent->client->resp.gldynamic = 1;
 	
-#if AQTION_EXTENSION
+#ifdef AQTION_EXTENSION
 	if (teamplay->value)
 	{
 		HUD_SetType(ent, 1);
@@ -3267,7 +3276,7 @@ void ClientBeginDeathmatch(edict_t * ent)
 
 	//rekkie -- debug drawing -- s
 #if DEBUG_DRAWING
-	ent->client->pers.draw = gi.Draw();
+	ent->client->pers.draw = CS_DebugDraw();
 	//if (ent->client->pers.draw)
 	{
 		// Default all to off state
@@ -3313,13 +3322,12 @@ void ClientBeginDeathmatch(edict_t * ent)
 	vInitClient(ent);
 
 #ifndef NO_BOTS
-    	ACEIT_RebuildPlayerList();
-		if (ent->is_bot)
-			BOTLIB_SKILL_Init(ent); // Initialize the skill levels
+	ACEIT_RebuildPlayerList();
+	if (ent->is_bot)
+		BOTLIB_SKILL_Init(ent); // Initialize the skill levels
 
-#if USE_AQTION
-		StatBotCheck();
-#endif
+// Check if bots are in the game, if so, disable stat collection
+STAT_BOT_CHECK();
 #endif
 
 	// locate ent at a spawn point
@@ -3488,7 +3496,7 @@ void ClientUserinfoChanged(edict_t *ent, char *userinfo)
 
 
 	// Reki - disable prediction on limping
-#if AQTION_EXTENSION
+#ifdef AQTION_EXTENSION
 	if (Client_GetProtocol(ent) == 38) // if we're using AQTION protocol, we have limp prediction
 	{
 		client->pers.limp_nopred = 0;
@@ -3504,12 +3512,12 @@ void ClientUserinfoChanged(edict_t *ent, char *userinfo)
 			client->pers.limp_nopred = 2 | (client->pers.limp_nopred & 256); // client doesn't specify, so use auto threshold
 		else if (limp == 0)
 			client->pers.limp_nopred = 0; // client explicity wants old behavior
-#if AQTION_EXTENSION
+#ifdef AQTION_EXTENSION
 	}
 #endif
 
 
-#if AQTION_EXTENSION
+#ifdef AQTION_EXTENSION
 	if (!HAS_CVARSYNC(ent)) // only do these cl cvars if cvarsync isn't a thing, since it's much better than userinfo
 	{
 #endif
@@ -3520,7 +3528,7 @@ void ClientUserinfoChanged(edict_t *ent, char *userinfo)
 		else
 			client->pers.spec_flags &= ~(SPECFL_SPECHUD | SPECFL_SPECHUD_NEW);
 
-	#if AQTION_EXTENSION
+	#ifdef AQTION_EXTENSION
 		if (Client_GetProtocol(ent) == 38) // Reki: new clients get new spec hud
 			client->pers.spec_flags &= ~SPECFL_SPECHUD;
 	#endif
@@ -3541,7 +3549,7 @@ void ClientUserinfoChanged(edict_t *ent, char *userinfo)
 
 		if (sv_antilag->value && antilag_value != client->pers.antilag_optout)
 			gi.cprintf(ent, PRINT_MEDIUM, "YOUR CL_ANTILAG IS NOW SET TO %i\n", !client->pers.antilag_optout);
-#if AQTION_EXTENSION
+#ifdef AQTION_EXTENSION
 	}
 #endif
 }
@@ -3737,15 +3745,9 @@ void ClientDisconnect(edict_t * ent)
 	ent->is_bot = false;
 	ent->think = NULL;
 	ACEIT_RebuildPlayerList();
-#if USE_AQTION
-	StatBotCheck();
 
-	#if USE_AQTION
-		if(am->value){
-			//attract_mode_bot_check();
-		}
-	#endif
-#endif
+// Check if bots are in the game, if so, disable stat collection
+STAT_BOT_CHECK();
 #endif
 }
 
@@ -3807,6 +3809,7 @@ void CreateGhost(edict_t * ent)
 
 	memcpy(ghost->hitsLocations, ent->client->resp.hitsLocations, sizeof(ghost->hitsLocations));
 	memcpy(ghost->gunstats, ent->client->resp.gunstats, sizeof(ghost->gunstats));
+	memcpy(ghost->awardstats, ent->client->resp.awardstats, sizeof(ghost->awardstats));
 }
 
 //==============================================================
@@ -3956,7 +3959,7 @@ void ClientThink(edict_t * ent, usercmd_t * ucmd)
 		qboolean has_enhanced_slippers = esp_enhancedslippers->value && INV_AMMO(ent, SLIP_NUM);
 		if( client->leg_damage && ent->groundentity && ! has_enhanced_slippers )
 		{
-			#if AQTION_EXTENSION
+			#ifdef AQTION_EXTENSION
 			pm.s.pm_aq2_flags |= PMF_AQ2_LIMP;
 			pm.s.pm_aq2_leghits = min(client->leghits, 255);
 			#else
@@ -3976,7 +3979,7 @@ void ClientThink(edict_t * ent, usercmd_t * ucmd)
 			pm.s.pm_flags |= PMF_JUMP_HELD;
 			#endif
 		}
-		#if AQTION_EXTENSION
+		#ifdef AQTION_EXTENSION
 		else
 		{
 			pm.s.pm_aq2_flags &= ~PMF_AQ2_LIMP;
@@ -6148,7 +6151,7 @@ void ClientBeginServerFrame(edict_t * ent)
 			Cmd_PMLCA_f(ent);
 	}
 
-#if AQTION_EXTENSION
+#ifdef AQTION_EXTENSION
 	// resync pm_timestamp so all limps are roughly synchronous, to try to maintain original behavior
 	unsigned short world_timestamp = (int)(level.time * 1000) % 60000;
 	client->ps.pmove.pm_timestamp = world_timestamp;
@@ -6283,6 +6286,10 @@ void ClientBeginServerFrame(edict_t * ent)
 					// then Action!
 					EspRespawnPlayer(ent);
 				}
+				#ifdef AQTION_EXTENSION
+				// Redraw GHUD
+				HUD_SetType(ent, 1);
+				#endif
 			}
 			else
 			{

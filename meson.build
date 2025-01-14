@@ -382,6 +382,12 @@ endif
 config.set10('USE_ZLIB', zlib.found())
 config.set10('USE_PNG', png.found())
 
+sdl2 = dependency('sdl2', required: get_option('sdl2'))
+if sdl2.found()
+  client_src += 'src/unix/video/sdl.c'
+  config.set('USE_SDL', 'USE_CLIENT')
+endif
+
 curl = dependency('libcurl',
   version:         '>= 7.68.0',
   required:        get_option('libcurl'),
@@ -393,12 +399,6 @@ if curl.found()
   config.set10('USE_CURL', true)
 endif
 
-sdl2 = dependency('sdl2', required: get_option('sdl2'))
-if sdl2.found()
-  client_src += 'src/unix/video/sdl.c'
-  config.set('USE_SDL', 'USE_CLIENT')
-endif
-
 common_deps = [zlib]
 client_deps = [png, curl, sdl2]
 server_deps = []
@@ -406,7 +406,8 @@ game_deps = [zlib]
 
 jpeg = dependency('libjpeg',
   required:        get_option('libjpeg'),
-  default_options: fallback_opt + [ 'jpeg-turbo=disabled', 'tests=disabled' ]
+  default_options: fallback_opt + [ 'jpeg-turbo=disabled', 'tests=disabled' ],
+  static:          true
 )
 
 if jpeg.found()
@@ -444,11 +445,11 @@ endif
 jansson_dep = dependency('jansson',
   version:         '>= 2.8',
   fallback:        ['jansson', 'jansson_dep'],
-  required:        true  # Or set to true/false as needed
+  required:        true,  # Or set to true/false as needed
+  static:          true
 )
 if jansson_dep.found()
   game_deps += jansson_dep
-  #dll_link_args += '-ljansson'
 endif
 
 if not win32
@@ -456,6 +457,7 @@ if not win32
     required:        get_option('uuid'),
     allow_fallback:  win32,
     default_options: fallback_opt,
+    static:          true
   )
   
   if uuid.found()
@@ -560,7 +562,15 @@ if get_option('aqtion-build')
   # Win32 winsock compat
   if win32
     dll_link_args += '-lws2_32'
+    dll_link_args += '-lcrypt32'
+    dll_link_args += '-lwsock32'
   endif
+endif
+
+if get_option('aqtion-curl')
+  config.set10('AQTION_CURL', true)
+  action_src += 'src/action/tng_net.c'
+  game_deps += curl
 endif
 
 if get_option('discord-sdk')

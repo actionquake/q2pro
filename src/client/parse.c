@@ -973,7 +973,7 @@ static void CL_ParseTEntPacket(void)
         break;
 
     default:
-        Com_Error(ERR_DROP, "%s: bad type %i", __func__, te.type);
+        Com_Error(ERR_DROP, "%s: bad type (%i)", __func__, te.type);
     }
 }
 
@@ -1581,7 +1581,7 @@ void CL_ParseServerMessage(void)
 			continue;
 
 		case svc_ghudupdate:
-#if AQTION_EXTENSION
+#ifdef AQTION_EXTENSION
 			if (cls.serverProtocol != PROTOCOL_VERSION_AQTION)
 				goto badbyte;
 			//CL_ParseGhud();

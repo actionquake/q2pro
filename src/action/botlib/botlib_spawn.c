@@ -1586,7 +1586,10 @@ edict_t* BOTLIB_SpawnBot(int team, int force_gender, char* force_name, char* for
 		bot->bot.bot_baseline_ping = (int)(3 + (random() * 66)); // Average pinger
 	else
 		bot->bot.bot_baseline_ping = (int)(7 + (random() * 227)); // High ping bastard
-	gi.SV_BotConnect(bot->client->pers.netname); // So the server can fake the bot as a 'client'
+	
+	if (bot_reportasclient->value)
+		SV_BotConnect(bot->client->pers.netname); // So the server can fake the bot as a 'client'
+	//gi.SV_BotConnect(bot->client->pers.netname); // So the server can fake the bot as a 'client'
 	game.bot_count++;
 	//rekkie -- Fake Bot Client -- e
 
@@ -1618,7 +1621,10 @@ void BOTLIB_RemoveBot(char* name)
 				if (bot->is_bot && (remove_all || !strlen(name) || Q_stricmp(bot->client->pers.netname, name) == 0 || (find_team && bot->client->resp.team == find_team)))
 				{
 					//rekkie -- Fake Bot Client -- s
-					gi.SV_BotDisconnect(bot->client->pers.netname); // So the server can remove the fake client
+					
+					if (bot_reportasclient->value)
+						SV_BotDisconnect(bot->client->pers.netname); // So the server can fake the bot as a 'client'
+					//gi.SV_BotDisconnect(bot->client->pers.netname); // So the server can remove the fake client
 					//rekkie -- Fake Bot Client -- e
 
 					bot->health = 0;
@@ -1689,7 +1695,9 @@ void BOTLIB_RemoveBot(char* name)
 				}
 
 				// Fake Bot Client - Disconnect the bot
-				gi.SV_BotDisconnect(bot->client->pers.netname);
+				if (bot_reportasclient->value)
+					SV_BotDisconnect(bot->client->pers.netname); // So the server can fake the bot as a 'client'
+				//gi.SV_BotDisconnect(bot->client->pers.netname); // So the server can remove the fake client
 
 				bot->health = 0;
 				player_die(bot, bot, bot, 100000, vec3_origin);
@@ -1720,42 +1728,73 @@ void BOTLIB_RemoveTeamplayBot(int team)
 	int i;
 	edict_t* bot;
 
-	for (i = 0; i < game.maxclients; i++)
-	{
-		bot = g_edicts + i + 1;
-		if (bot->inuse) // Ent in use
-		{
-			if (bot->is_bot) // Is a bot
-			{
-				// Only kick when the bot isn't actively in a match
-				//if (bot->client->resp.team == team && (team_round_going == 0 || bot->health <= 0 || bot->solid == SOLID_NOT))
-				if (bot->client->resp.team == team) // && team_round_going == 0)
-				{
-					//if (random() < 0.20) // Randomly kick a bot
-					{
-						//rekkie -- Fake Bot Client -- s
-						gi.SV_BotDisconnect(bot->client->pers.netname); // So the server can remove the fake client
-						//rekkie -- Fake Bot Client -- e
-
-						if (team == TEAM1)
-							bot_connections.total_team1--;
-						else if (team == TEAM2)
-							bot_connections.total_team2--;
-						else if (team == TEAM3)
-							bot_connections.total_team3--;
-
-						game.bot_count--;
-
-						if (bot->health)
-							player_die(bot, bot, bot, 100000, vec3_origin);
-						ClientDisconnect(bot);
-						break;
-					}
-				}
-			}
-		}
+	// Try the filtered approach first, if no bot returns, then do an unfiltered search
+	bot = BOTLIB_GetRandomBot(team, true);
+	if (!bot){
+		bot = BOTLIB_GetRandomBot(team, false);
 	}
+
+	if (bot_reportasclient->value)
+		SV_BotDisconnect(bot->client->pers.netname); // So the server can fake the bot as a 'client'
+	//gi.SV_BotDisconnect(bot->client->pers.netname); // So the server can remove the fake client
+	//rekkie -- Fake Bot Client -- e
+
+	if (team == TEAM1)
+		bot_connections.total_team1--;
+	else if (team == TEAM2)
+		bot_connections.total_team2--;
+	else if (team == TEAM3)
+		bot_connections.total_team3--;
+
+	game.bot_count--;
+
+	if (bot->health)
+		player_die(bot, bot, bot, 100000, vec3_origin);
+	ClientDisconnect(bot);
 }
+
+// 	for (i = 0; i < game.maxclients; i++)
+// 	{
+// 		bot = g_edicts + i + 1;
+// 		if (bot->inuse) // Ent in use
+// 		{
+// 			if (bot->is_bot) // Is a bot
+// 			{
+// 				// Only kick when the bot isn't actively in a match
+// 				//if (bot->client->resp.team == team && (team_round_going == 0 || bot->health <= 0 || bot->solid == SOLID_NOT))
+// 				if (bot->client->resp.team == team) // && team_round_going == 0)
+// 				{
+// 					if (ctf->value && bot_count > 1 && bot->client->ctf_hasflag) {
+//                         // Don't remove the bot if they have the enemy flag and there are other bots on the team
+//                         continue;
+//                     }
+// 					//if (random() < 0.20) // Randomly kick a bot
+// 					{
+// 						//rekkie -- Fake Bot Client -- s
+// 						if (bot_reportasclient->value)
+// 							SV_BotDisconnect(bot->client->pers.netname); // So the server can fake the bot as a 'client'
+// 						//gi.SV_BotDisconnect(bot->client->pers.netname); // So the server can remove the fake client
+// 						//rekkie -- Fake Bot Client -- e
+
+// 						if (team == TEAM1)
+// 							bot_connections.total_team1--;
+// 						else if (team == TEAM2)
+// 							bot_connections.total_team2--;
+// 						else if (team == TEAM3)
+// 							bot_connections.total_team3--;
+
+// 						game.bot_count--;
+
+// 						if (bot->health)
+// 							player_die(bot, bot, bot, 100000, vec3_origin);
+// 						ClientDisconnect(bot);
+// 						break;
+// 					}
+// 				}
+// 			}
+// 		}
+// 	}
+// }
 
 // Change bot [from team] ==> [to team]
 // Conditions: Bot must be in a team. Change occurs after round ends.
@@ -1980,21 +2019,37 @@ int BOTLIB_TPBotTeamScaling(void)
         int total_players = bot_connections.total_bots + bot_connections.total_humans;
         int desired_total_players = (int)bot_playercount->value;
 
-        if (desired_total_players && total_players < desired_total_players) {
-            // Scale up bots when total players are less than desired
-            bot_connections.desire_bots = desired_total_players - bot_connections.total_humans;
-            bot_connections.scale_up = true;
-            bot_connections.scale_dn = false;
-        } else if (total_players > desired_total_players) {
-            // Scale down bots when total players exceed desired
-            bot_connections.desire_bots = desired_total_players - bot_connections.total_humans;
-            bot_connections.scale_up = false;
-            bot_connections.scale_dn = true;
-        } else {
-            // No scaling needed
-            bot_connections.scale_up = false;
-            bot_connections.scale_dn = false;
-        }
+		if (bot_playercount->value) {
+			if (desired_total_players && total_players < desired_total_players) {
+				// Scale up bots when total players are less than desired
+				bot_connections.desire_bots = desired_total_players - bot_connections.total_humans;
+				bot_connections.scale_up = true;
+				bot_connections.scale_dn = false;
+			} else if (total_players > desired_total_players) {
+				// Scale down bots when total players exceed desired
+				bot_connections.desire_bots = desired_total_players - bot_connections.total_humans;
+				bot_connections.scale_up = false;
+				bot_connections.scale_dn = true;
+			} else {
+				// No scaling needed
+				bot_connections.scale_up = false;
+				bot_connections.scale_dn = false;
+			}
+		} else { // just sv bots # here
+			if (bot_connections.total_bots < bot_connections.desire_bots) {
+				// Scale up bots when total bots are less than desired
+				bot_connections.scale_up = true;
+				bot_connections.scale_dn = false;
+			} else if (bot_connections.total_bots > bot_connections.desire_bots) {
+				// Scale down bots when total bots exceed desired
+				bot_connections.scale_up = false;
+				bot_connections.scale_dn = true;
+			} else {
+				// No scaling needed
+				bot_connections.scale_up = false;
+				bot_connections.scale_dn = false;
+			}
+		}
 
         // Ensure desire_bots is not negative
         if (bot_connections.desire_bots < 0) {
@@ -2141,13 +2196,20 @@ void BOTLIB_DMBotCountManager(void)
 
 void BOTLIB_CheckBotRules(void)
 {
-	// Disable bot logic entirely
+
+  // Disable bot logic entirely
 	if (!bot_enable->value)
 		return;
 
-	if (matchmode->value) // Bots never allowed in matchmode
+  if (matchmode->value) // Bots never allowed in matchmode
 		return;
-
+  
+	// This is so we automatically report when a server has bots or not
+	if (bot_connections.desire_bots == 0)
+		gi.cvar_forceset("am", "0"); // Turn off attract mode
+	else
+		gi.cvar_forceset("am", "1"); // Turn on attract mode
+	
 	if (ctf->value)
 	{
 		BOTLIB_Update_Flags_Status();

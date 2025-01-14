@@ -33,6 +33,7 @@ void Cmd_Ready_f (edict_t * ent);
 void Cmd_Sub_f (edict_t * ent);
 void Cmd_Teamname_f (edict_t * ent);
 void Cmd_Teamskin_f (edict_t * ent);
+void Cmd_Teamnone_f (edict_t * ent);
 void Cmd_TeamLock_f (edict_t * ent, int a_switch);
 int CheckForCaptains (int cteam);
 

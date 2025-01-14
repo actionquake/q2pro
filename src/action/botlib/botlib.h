@@ -525,7 +525,7 @@ int BOTLIB_GetEquipment(edict_t* self);
 //rekkie -- collecting weapons, items, ammo -- e
 
 // ===========================================================================
-// botlib_utils.c
+// botlib_utils.c and botlib_win.c
 // ===========================================================================
 void seed_random_number_generator(void);
 void BOTLIB_SKILL_Init(edict_t* bot);
@@ -533,6 +533,7 @@ qboolean BOTLIB_SkillChance(float skilltype);
 float BOTLIB_SkillMultiplier(float skill_level, bool increase_with_skill);
 float BOTLIB_SKILL_Reaction(float reaction_skill);
 void BOTLIB_Debug(const char *debugmsg, ...);
+edict_t* BOTLIB_GetRandomBot(int team, qboolean filtered);
 
 // ===========================================================================
 // botlib_personality.c

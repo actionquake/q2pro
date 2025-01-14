@@ -1037,7 +1037,7 @@ void PMOVE_FUNC(PMOVE_TYPE *pmove, const pmoveParams_t *params)
     // clear all pmove local vars
     memset(&pml, 0, sizeof(pml));
 
-#if AQTION_EXTENSION
+#ifdef AQTION_EXTENSION
 	// add msec to the timestamp
 	pm->s.pm_timestamp = (pm->s.pm_timestamp + pm->cmd.msec) % 60000;
 	

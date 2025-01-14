@@ -57,6 +57,7 @@ cvar_t *ctf_mode = NULL;
 cvar_t *ctf_dropflag = NULL;
 cvar_t *ctf_respawn = NULL;
 cvar_t *ctf_model = NULL;
+cvar_t *ctf_dyn_respawn = NULL;
 
 //-----------------------------------------------------------------------------
 
@@ -90,6 +91,8 @@ qboolean CTFLoadConfig(char *mapname)
 	/* zero is perfectly acceptable respawn time, but we want to know if it came from the config or not */
 	ctfgame.spawn_red = -1;
 	ctfgame.spawn_blue = -1;
+	ctfgame.spawn_red_default = -1;
+	ctfgame.spawn_blue_default = -1;
 
 	sprintf (buf, "%s/tng/%s.ctf", GAMEVERSION, mapname);
 	fh = fopen (buf, "r");
@@ -141,11 +144,13 @@ qboolean CTFLoadConfig(char *mapname)
 	if(ptr) {
 		gi.dprintf("  Red      : %s\n", ptr);
 		ctfgame.spawn_red = atoi(ptr);
+		ctfgame.spawn_red_default = atoi(ptr);
 	}
 	ptr = INI_Find(fh, "respawn", "blue");
 	if(ptr) {
 		gi.dprintf("  Blue     : %s\n", ptr);
 		ctfgame.spawn_blue = atoi(ptr);
+		ctfgame.spawn_blue_default = atoi(ptr);
 	}
 
 	gi.dprintf(" Flags\n");
@@ -252,6 +257,66 @@ void CTFSetTeamSpawns(int team, char *str)
 	} while(next != NULL);
 }
 
+#define POINT_DIFFERENTIAL 3
+#define MIN_RESPAWN_TIME 1
+
+static void AdjustRespawnTime(int* spawn_time, int time_reduction, int team) {
+	int new_spawn_time = max(MIN_RESPAWN_TIME, *spawn_time - time_reduction);
+
+    // Only update and print if the respawn time has actually changed
+    if (*spawn_time != new_spawn_time) {
+        *spawn_time = new_spawn_time;
+        if (team == TEAM1) {
+            ctfgame.spawn_red = *spawn_time;
+        } else if (team == TEAM2) {
+            ctfgame.spawn_blue = *spawn_time;
+        } else {
+            return; // invalid team passed
+        }
+        CenterPrintTeam(team, va("Dynamically adjusting respawn rates, your team is now respawning every %d seconds\n", *spawn_time));
+        gi.dprintf("%s: Respawn time for team %d adjusted to %d\n", __func__, team, *spawn_time);
+    }
+}
+
+static void ResetRespawnTime(int team) {
+	if (team == TEAM1) {
+		if (ctfgame.spawn_red != ctfgame.spawn_red_default) {
+			CenterPrintTeam(team, va("Respawn rates reset, your team is now respawning every %d seconds\n", ctfgame.spawn_red_default));
+			gi.dprintf("%s: Respawn time for team %d reset to %d\n", __func__, team, ctfgame.spawn_red_default);
+		}
+		ctfgame.spawn_red = ctfgame.spawn_red_default;
+	} else if (team == TEAM2) {
+		if (ctfgame.spawn_blue != ctfgame.spawn_blue_default) {
+			CenterPrintTeam(team, va("Respawn rates reset, your team is now respawning every %d seconds\n", ctfgame.spawn_blue_default));
+			gi.dprintf("%s: Respawn time for team %d reset to %d\n", __func__, team, ctfgame.spawn_blue_default);
+		}
+		ctfgame.spawn_blue = ctfgame.spawn_blue_default;
+	}
+}
+
+void CTFDynamicRespawnTimer(void)
+{
+    if (!ctf_dyn_respawn->value)
+        return;
+
+    int score_diff = abs(ctfgame.team1 - ctfgame.team2);
+    int time_reduction = score_diff / POINT_DIFFERENTIAL;
+
+    if (ctfgame.team1 > ctfgame.team2) {
+        if (score_diff >= POINT_DIFFERENTIAL) {
+            AdjustRespawnTime(&ctfgame.spawn_blue_default, time_reduction, TEAM2);
+        } else {
+            ResetRespawnTime(TEAM2);
+        }
+    } else if (ctfgame.team2 > ctfgame.team1) {
+        if (score_diff >= POINT_DIFFERENTIAL) {
+            AdjustRespawnTime(&ctfgame.spawn_red_default, time_reduction, TEAM1);
+        } else {
+            ResetRespawnTime(TEAM1);
+        }
+    }
+}
+
 /* returns the respawn time for this particular client */
 int CTFGetRespawnTime(edict_t *ent)
 {
@@ -274,6 +339,8 @@ qboolean HasFlag(edict_t * ent)
 	if (!ctf->value)
 		return false;
 	if (ent->client->inventory[items[FLAG_T1_NUM].index] || ent->client->inventory[items[FLAG_T2_NUM].index])
+		return true;
+	if (ent->client->ctf_hasflag)
 		return true;
 	return false;
 }
@@ -339,6 +406,7 @@ void CTFSwapTeams(void)
 		if (ent->inuse && ent->client->resp.team) {
 			ent->client->resp.team = CTFOtherTeam(ent->client->resp.team);
 			AssignSkin(ent, teams[ent->client->resp.team].skin, false);
+			ent->client->ctf_hasflag = false;
 		}
 	}
 
@@ -479,6 +547,10 @@ void CTFFragBonuses(edict_t * targ, edict_t * inflictor, edict_t * attacker)
 
 	carrier = NULL;
 
+	// NULL checks
+	if (!targ || !inflictor || !attacker)
+		return;
+
 	// no bonus for fragging yourself
 	if (!targ->client || !attacker->client || targ == attacker)
 		return;
@@ -515,10 +587,10 @@ void CTFFragBonuses(edict_t * targ, edict_t * inflictor, edict_t * attacker)
 		// fragged a guy who hurt our flag carrier
 		attacker->client->resp.score += CTF_CARRIER_DANGER_PROTECT_BONUS;
 		gi.bprintf(PRINT_MEDIUM,
-			   "%s defends %s's flag carrier against an agressive enemy\n",
+			   "%s defends %s's flag carrier against an aggressive enemy\n",
 			   attacker->client->pers.netname, CTFTeamName(attacker->client->resp.team));
 		IRC_printf(IRC_T_GAME,
-			   "%n defends %n's flag carrier against an agressive enemy\n",
+			   "%n defends %n's flag carrier against an aggressive enemy\n",
 			   attacker->client->pers.netname,
 			   CTFTeamName(attacker->client->resp.team));
 		return;
@@ -618,6 +690,7 @@ void CTFResetFlag(int team)
 		if (ent->client->inventory[ITEM_INDEX(teamFlag)]) {
 			Drop_Item(ent, teamFlag);
 			ent->client->inventory[ITEM_INDEX(teamFlag)] = 0;
+			ent->client->ctf_hasflag = false;
 		}
 	}
 
@@ -680,6 +753,7 @@ qboolean CTFPickup_Flag(edict_t * ent, edict_t * other)
 					   other->client->pers.netname,
 					   CTFOtherTeamName(team));
 				other->client->inventory[ITEM_INDEX(enemy_flag_item)] = 0;
+				other->client->ctf_hasflag = false;
 
 				ctfgame.last_flag_capture = level.framenum;
 				ctfgame.last_capture_team = team;
@@ -687,6 +761,8 @@ qboolean CTFPickup_Flag(edict_t * ent, edict_t * other)
 					ctfgame.team1++;
 				else
 					ctfgame.team2++;
+
+				CTFDynamicRespawnTimer(); // Dynamic respawn time
 
 				gi.sound(ent, CHAN_RELIABLE + CHAN_NO_PHS_ADD + CHAN_VOICE,
 					 gi.soundindex("tng/flagcap.wav"), 1, ATTN_NONE, 0);
@@ -763,6 +839,7 @@ qboolean CTFPickup_Flag(edict_t * ent, edict_t * other)
 
 	other->client->inventory[ITEM_INDEX(flag_item)] = 1;
 	other->client->resp.ctf_flagsince = level.framenum;
+	other->client->ctf_hasflag = true;
 
 	// pick up the flag
 	// if it's not a dropped flag, we just make is disappear
@@ -821,6 +898,7 @@ void CTFDeadDropFlag(edict_t * self)
 		dropped->think = CTFDropFlagThink;
 		dropped->nextthink = level.framenum + CTF_AUTO_FLAG_RETURN_TIMEOUT * HZ;
 		dropped->touch = CTFDropFlagTouch;
+		self->client->ctf_hasflag = false;
 	}
 }
 
@@ -841,6 +919,7 @@ void CTFDrop_Flag(edict_t * ent, gitem_t * item)
 			dropped->think = CTFDropFlagThink;
 			dropped->nextthink = level.framenum + CTF_AUTO_FLAG_RETURN_TIMEOUT * HZ;
 			dropped->touch = CTFDropFlagTouch;
+			ent->client->ctf_hasflag = false;
 		}
 	} else {
 		if (rand() & 1)
@@ -931,13 +1010,9 @@ void CTFCalcScores(void)
 			ctfgame.total2 += game.clients[i].resp.score;
 	}
 
-	#if USE_AQTION
 	// Needed to add this here because this is called separately from TallyEndOfLevelTeamScores (teamplay)
-		if (stat_logs->value) {
-			LogMatch();  // Generates end of game stats
-			LogEndMatchStats();  // Generates end of match stats
-		}
-	#endif
+	LOG_MATCH(); // Generates end of game stats
+	LOG_END_MATCH_STATS(); // Generates end of match stats
 	// Stats: Reset roundNum
 	game.roundNum = 0;
 	// Stats end
@@ -1407,4 +1482,19 @@ void CTFCapReward(edict_t * ent)
 	else	gi.cprintf(ent, PRINT_MEDIUM, "CAPTURED!\n\nYou have been rewarded.\n\nNow go get some more!");
 
 	LogCapture(ent);
+}
+
+void CTFSetupStatusbar( void )
+{
+	// Frags closer to the team scores
+	Q_strncatz(level.statusbar, "xr -76 yb -188 num 3 14 ", sizeof(level.statusbar));
+
+	Q_strncatz(level.statusbar,
+		// Red Team
+		"yb -164 " "if 24 " "xr -24 " "pic 24 " "endif " "xr -60 " "num 2 26 "
+		// Blue Team
+		"yb -140 " "if 25 " "xr -24 " "pic 25 " "endif " "xr -60 " "num 2 27 "
+		// Flag carried
+		"if 23 " "yt 26 " "xr -24 " "pic 23 " "endif ",
+	sizeof(level.statusbar) );
 }

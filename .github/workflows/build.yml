@@ -60,7 +60,8 @@ jobs:
       - name: Install dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y gcc-mingw-w64 nasm meson ninja-build
+          sudo apt-get install -y gcc-mingw-w64 nasm python3-pip ninja-build
+          sudo python3 -m pip install meson
 
       - name: Build
         run: |
@@ -132,7 +133,14 @@ jobs:
           libwayland-dev wayland-protocols libdecor-0-dev \
           libavcodec-dev libavformat-dev libavutil-dev \
           libswresample-dev libswscale-dev \
-          uuid-dev patchelf libjansson-dev
+          uuid-dev patchelf
+
+      - name: Install libjansson libs from source
+        run: |
+          wget https://github.com/akheron/jansson/releases/download/v2.14/jansson-2.14.tar.gz
+          tar xfz jansson-2.14.tar.gz && cd jansson-2.14
+          CFLAGS="-fPIC" ./configure
+          make && sudo make install
 
       - name: Build
         run: |
@@ -202,7 +210,9 @@ jobs:
 
       - name: Install dependencies
         run: |
-          brew install pkg-config meson libpng sdl2 openal-soft zlib curl ffmpeg jpeg-turbo jansson ossp-uuid
+          brew install pkg-config meson libpng sdl2 \
+          openal-soft zlib curl ffmpeg jpeg-turbo \
+          ossp-uuid jansson
 
       - name: Build
         run: |

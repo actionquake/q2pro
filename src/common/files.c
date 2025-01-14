@@ -3548,17 +3548,8 @@ static void setup_base_paths(void)
     fs_base_searchpaths = fs_searchpaths;
 }
 
-// Sets the gamedir and path to a different directory.
-static void setup_game_paths(void)
+static void setup_steamcloud_paths(void)
 {
-    if (fs_game->string[0]) {
-        // add system path first
-        add_game_dir(FS_PATH_GAME | FS_DIR_BASE, "%s/%s", sys_basedir->string, fs_game->string);
-
-        // home paths override system paths
-        if (sys_homedir->string[0]) {
-            add_game_dir(FS_PATH_GAME | FS_DIR_HOME, "%s/%s", sys_homedir->string, fs_game->string);
-        }
     // add SteamCloud sync dir to VFS if we are a client, steamcloud is enabled and steamID is found
     #if USE_CLIENT
         if (strcmp(steamid->string, "0") == 0){
@@ -3575,6 +3566,22 @@ static void setup_game_paths(void)
         // if SteamID, steamcloudappenabled and steamclouduserenabled is not 0, add steamcloud dir as new game_dir
         add_game_dir(FS_PATH_GAME | FS_DIR_HOME, "./SteamCloud/%s/%s", steamid->string, fs_game->string);
     #endif
+}
+
+// Sets the gamedir and path to a different directory.
+static void setup_game_paths(void)
+{
+    // add steamcloud path
+    setup_steamcloud_paths();
+
+    if (fs_game->string[0]) {
+        // add system path first
+        add_game_dir(FS_PATH_GAME | FS_DIR_BASE, "%s/%s", sys_basedir->string, fs_game->string);
+
+        // home paths override system paths
+        if (sys_homedir->string[0]) {
+            add_game_dir(FS_PATH_GAME | FS_DIR_HOME, "%s/%s", sys_homedir->string, fs_game->string);
+        }
     }
     // this var is set for compatibility with server browsers, etc
     Cvar_FullSet("gamedir", fs_game->string, CVAR_ROM | CVAR_SERVERINFO, FROM_CODE);

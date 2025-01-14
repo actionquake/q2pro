@@ -2,27 +2,29 @@
 #include "../acesrc/acebot.h"
 #include "botlib.h"
 
-#if defined(_WIN32) || defined(_WIN64)
-#include <windows.h>
+#ifdef _WIN32
+#define WIN32_LEAN_AND_MEAN
+#include <time.h>
 #else
 #include <sys/time.h>
 #endif
 
 /*
-This file is for common utilties that are used by the botlib functions
+This file is for common utilities that are used by the botlib functions
 */
 
+#ifdef _WIN32
 void seed_random_number_generator(void) {
-#if _MSC_VER >= 1920 && !__INTEL_COMPILER
-    LARGE_INTEGER li;
-    QueryPerformanceCounter(&li);
-    srand((unsigned int)(li.QuadPart));
+    srand((unsigned int)time(NULL));
+}
 #else
+void seed_random_number_generator(void) {
     struct timeval tv;
     gettimeofday(&tv, NULL);
     srand(tv.tv_usec * tv.tv_sec);
-#endif
 }
+#endif
+
 
 void BOTLIB_SKILL_Init(edict_t* bot)
 {
@@ -118,4 +120,49 @@ void BOTLIB_Debug(const char *debugmsg, ...)
     if (!bot_debug->value)
         return;
     gi.dprintf("%s", debugmsg);
+}
+
+
+// Function to get a random bot
+edict_t* BOTLIB_GetRandomBot(int team, qboolean filtered)
+{
+    edict_t* bots[MAX_CLIENTS];
+    int botCount = 0;
+
+    // Validate team value
+    if (team < 0 || team > 3) {
+        return NULL; // Invalid team value
+    }
+
+    // Populate the bots array with pointers to bots
+    for (int i = 0; i < num_players; i++)
+    {
+        if (players[i]->is_bot && players[i]->inuse)
+        {
+            // Check team if specified
+            if (team > 0 && players[i]->client->resp.team != team) {
+                continue;
+            }
+
+            // Apply filtering criteria
+            if (filtered) {
+                if ((ctf->value && players[i]->client->ctf_hasflag) ||
+                    (esp->value && IS_LEADER(players[i]))) {
+                    continue;
+                }
+            }
+
+            bots[botCount++] = players[i];
+        }
+    }
+
+    // If we found any bots, return a random one
+    if (botCount > 0)
+    {
+        int randomIndex = rand() % botCount; // Generate a random index
+        return bots[randomIndex];
+    }
+
+    // If no bots were found, return NULL
+    return NULL;
 }

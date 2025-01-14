@@ -565,6 +565,9 @@ xhair_thickness::
 
 xhair_elasticity::
     Specifies how 'elastic' the xhair is, i.e. how easily it adapts. Lower values will result in a more stiff xhair, while higher values will have a more bouncy effect.
+
+xhair_fast_transition::
+    When switching weapons, the xhair will transition faster to the new gap/length.
     
 xhair_x::
 xhair_y::

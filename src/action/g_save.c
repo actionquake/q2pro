@@ -354,6 +354,8 @@ void InitGame( void )
 	actionversion = gi.cvar( "actionversion", "TNG " VERSION, CVAR_SERVERINFO | CVAR_NOSET );
 	gi.cvar_set( "actionversion", "TNG " VERSION );
 
+	net_port = gi.cvar( "net_port", "27910", CVAR_NOSET );
+
 	maxclients = gi.cvar( "maxclients", "8", CVAR_SERVERINFO | CVAR_LATCH );
 	maxentities = gi.cvar( "maxentities", "1024", CVAR_LATCH );
 
@@ -417,6 +419,7 @@ void InitGame( void )
 	ctf_dropflag = gi.cvar( "ctf_dropflag", "1", 0 );
 	ctf_respawn = gi.cvar( "ctf_respawn", "4", 0 );
 	ctf_model = gi.cvar( "ctf_model", "male", CVAR_LATCH );
+	ctf_dyn_respawn = gi.cvar( "ctf_dyn_respawn", "0", 0 );
 	medkit_drop = gi.cvar( "medkit_drop", "0", 0 );
 	medkit_time = gi.cvar( "medkit_time", "30", 0 );
 	medkit_instant = gi.cvar( "medkit_instant", "0", 0 );
@@ -455,7 +458,7 @@ void InitGame( void )
 	video_check_glclear = gi.cvar( "video_check_glclear", "0", 0 );
 	video_checktime = gi.cvar( "video_checktime", "15", 0 );
 	hc_single = gi.cvar( "hc_single", "1", CVAR_LATCH );	//default ON
-	hc_boost = gi.cvar("hc_boost", "1", CVAR_LATCH); //rekkie -- allow HC to 'boost' the player
+	hc_boost = gi.cvar("hc_boost", "0", CVAR_LATCH); //rekkie -- allow HC to 'boost' the player
 	hc_boost_percent = gi.cvar("hc_boost_percent", "100", 0); //rekkie -- allow HC to 'boost' the player
 	hc_silencer = gi.cvar("hc_silencer", "0", 0); //rekkie -- allow HC to 'boost' the player
 	wp_flags = gi.cvar( "wp_flags", WPF_DEFAULT_STR, 0 );
@@ -540,6 +543,8 @@ void InitGame( void )
 	breakableglass = gi.cvar("breakableglass", "0", 0);
   	glassfragmentlimit = gi.cvar("glassfragmentlimit", "30", 0);
 	//CGF_SFX_InstallGlassSupport();	// william for CGF (glass fx)
+
+	grenade_drop = gi.cvar( "grenade_drop", "0", 0 ); // Raptor007 - added grenade drop
 
 	g_select_empty = gi.cvar( "g_select_empty", "0", CVAR_ARCHIVE );
 	g_protocol_extensions = gi.cvar("g_protocol_extensions", "0", CVAR_LATCH);
@@ -646,6 +651,22 @@ void InitGame( void )
 
 	// 2024
 	warmup_unready = gi.cvar("warmup_unready", "0", 0);
+	// curl / tng_net.c
+	sv_curl_enable = gi.cvar("sv_curl_enable", "0", 0);
+	sv_discord_announce_enable = gi.cvar("sv_discord_announce_enable", "0", 0);
+	sv_curl_stat_enable = gi.cvar("sv_curl_stat_enable", "0", 0);
+	sv_aws_access_key = gi.cvar("sv_aws_access_key", "disabled", 0); // Never include this in serverinfo!
+	sv_aws_secret_key = gi.cvar("sv_aws_secret_key", "disabled", 0); // Never include this in serverinfo!
+	sv_curl_discord_info_url = gi.cvar("sv_curl_discord_info_url", "disabled", 0);
+	sv_curl_discord_pickup_url = gi.cvar("sv_curl_discord_pickup_url", "disabled", 0);
+	server_ip = gi.cvar("server_ip", "", 0); // Never include this in serverinfo!
+	server_port = gi.cvar("server_port", "", 0); // Never include this in serverinfo!
+	sv_last_announce_time = gi.cvar("sv_last_announce_time", "0", 0);
+	sv_last_announce_interval = gi.cvar("sv_last_announce_interval", "1800", 0);
+	server_announce_url = gi.cvar("server_announce_url", "disabled", 0);
+	msgflags = gi.cvar("msgflags", "0", 0);
+	use_pickup = gi.cvar("use_pickup", "0", 0);
+
 	training_mode = gi.cvar("training_mode", "0", CVAR_LATCH);
 	if (training_mode->value){
 		gi.cvar_forceset("item_respawnmode", "1");
@@ -654,12 +675,13 @@ void InitGame( void )
 		gi.cvar_forceset("bholelimit", "30");
 	}
 	g_highscores_dir = gi.cvar("g_highscores_dir", "highscores", 0);
+	g_highscores_countbots = gi.cvar("g_highscores_countbots", "0", 0);
 	lca_grenade = gi.cvar("lca_grenade", "0", 0);
 	knife_catch = gi.cvar("knife_catch", "0", 0);
 
 
 	// new AQtion Extension cvars
-#if AQTION_EXTENSION
+#ifdef AQTION_EXTENSION
 	use_newirvision = gi.cvar("use_newirvision", "1", 0);
 	use_indicators = gi.cvar("use_indicators", "1", 0);
 	use_xerp = gi.cvar("use_xerp", "1", 0);
@@ -702,10 +724,20 @@ void InitGame( void )
 	bot_count_min = gi.cvar("bot_count_min", "0", 0);
 	bot_count_max = gi.cvar("bot_count_max", "0", 0);
 	bot_rotate = gi.cvar("bot_rotate", "0", 0);
+	bot_reportasclient = gi.cvar("bot_reportasclient", "0", CVAR_LATCH);
 	bot_navautogen = gi.cvar("bot_navautogen", "0", 0);
 	//bot_randteamskin = gi.cvar("bot_randteamskin", "0", 0);
+	gl_shaders = gi.cvar("gl_shaders", "0", 0);
 	//rekkie -- DEV_1 -- e
 #endif
+
+	// Initialize libcurl capabilities if enabled
+	#ifdef USE_CURL
+	#if AQTION_CURL
+	if (sv_curl_enable->value)
+		lc_init_function();
+	#endif
+	#endif
 
 	// items
 	InitItems();
@@ -773,7 +805,7 @@ void InitGame( void )
 	gi.cvar_forceset("g_view_high", va("%d", STANDING_VIEWHEIGHT));
 	gi.cvar_forceset("g_view_low", va("%d", CROUCHING_VIEWHEIGHT));
 
-#if AQTION_EXTENSION
+#ifdef AQTION_EXTENSION
 	CvarSync_Set(clcvar_cl_antilag, "cl_antilag", "1");
 	CvarSync_Set(clcvar_cl_indicators, "cl_indicators", "1");
 	CvarSync_Set(clcvar_cl_xerp, "cl_xerp", "0");

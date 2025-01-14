@@ -275,6 +275,7 @@ game_locals_t game;
 level_locals_t level;
 game_import_t gi;
 game_export_t globals;
+const game_import_ex_t *gix;
 spawn_temp_t st;
 
 int sm_meat_index;
@@ -305,6 +306,7 @@ cvar_t *hud_noscore;
 cvar_t *use_newscore;
 cvar_t *scoreboard;
 cvar_t *actionversion;
+cvar_t *net_port;
 cvar_t *needpass;
 cvar_t *use_voice;
 cvar_t *ppl_idletime;
@@ -503,8 +505,13 @@ cvar_t* bot_debug;		// Enable bot debug mode
 cvar_t* bot_count_min;	// Minimum number of bots to keep on the server (will range between this and bot_count_max)
 cvar_t* bot_count_max;	// Maximum number of bots to keep on the server (will range between this and bot_count_min)
 cvar_t* bot_rotate;		// Disable/enable rotating bots on the server
+cvar_t* bot_reportasclient; // Report bots as clients to the server browser
 cvar_t* bot_navautogen;	// Enable/Disable automatic generation of navigation files
 //cvar_t* bot_randteamskin; // Bots can randomize team skins each map
+
+
+cvar_t* gl_shaders;  // Temporarily adding gl_shaders so we can disable it for navmesh generation
+
 //rekkie -- DEV_1 -- e
 #endif
 
@@ -553,14 +560,33 @@ cvar_t *sv_killgib; // Gibs on 'kill' command
 
 // 2024
 cvar_t *warmup_unready; // Toggles warmup if captains unready
+// cURL integration / tng_net.c
+cvar_t *sv_curl_enable;					// Enable cURL integration
+cvar_t *sv_discord_announce_enable;		// Enable Discord announcements
+cvar_t *sv_curl_stat_enable;			// Enable cURL stat logging
+cvar_t *sv_aws_access_key;				// AWS Access Key (stat logs)
+cvar_t *sv_aws_secret_key;				// AWS Secret Key (stat logs)
+cvar_t *sv_curl_discord_info_url;		// Discord webhook (#info-feed channel)
+cvar_t *sv_curl_discord_pickup_url;		// Discord webhook (#pickup channel)
+cvar_t *server_ip;						// Server IP
+cvar_t *server_port;					// Server port
+cvar_t *sv_last_announce_interval;		// Interval between announcements
+cvar_t *sv_last_announce_time;			// Last announcement time
+cvar_t *server_announce_url;			// Server announce URL
+cvar_t *msgflags;						// Message flags (like dmflags) see Discord_Notifications enum for more info
+cvar_t *use_pickup;						// Enable pickup notifications from the server
+// end cURL integration cvars
+
 cvar_t *training_mode; // Sets training mode vars
 cvar_t *g_highscores_dir; // Sets the highscores directory
+cvar_t *g_highscores_countbots; // Toggles if we save highscores achieved by bots
 cvar_t *lca_grenade; // Allows grenade pin pulling during LCA
 cvar_t *breakableglass; // Moved from cgf_sfx_glass, enables breakable glass (0,1,2)
 cvar_t *glassfragmentlimit; // Moved from cgf_sfx_glass, sets glass fragment limit
 cvar_t *knife_catch; // Enables knife catching
+cvar_t *grenade_drop; // Allows grenades to be dropped on death
 
-#if AQTION_EXTENSION
+#ifdef AQTION_EXTENSION
 cvar_t *use_newirvision;
 cvar_t *use_indicators;
 cvar_t *use_xerp;
@@ -663,30 +689,50 @@ q_exported game_export_t *GetGameAPI(game_import_t *import)
 
 	globals.edict_size = sizeof (edict_t);
 
-
-#if AQTION_EXTENSION
-	G_InitExtEntrypoints();
-	globals.FetchGameExtension = G_FetchGameExtension;
-
-	engine_Client_GetProtocol = gi.CheckForExtension("Client_GetProtocol");
-	engine_Client_GetVersion = gi.CheckForExtension("Client_GetVersion");
-
-	engine_Ghud_ClearForClient = gi.CheckForExtension("Ghud_ClearForClient");
-	engine_Ghud_NewElement = gi.CheckForExtension("Ghud_NewElement");
-	engine_Ghud_RemoveElement = gi.CheckForExtension("Ghud_RemoveElement");
-	engine_Ghud_SetFlags = gi.CheckForExtension("Ghud_SetFlags");
-	engine_Ghud_SetInt = gi.CheckForExtension("Ghud_SetInt");
-	engine_Ghud_SetText = gi.CheckForExtension("Ghud_SetText");
-	engine_Ghud_SetPosition = gi.CheckForExtension("Ghud_SetPosition");
-	engine_Ghud_SetAnchor = gi.CheckForExtension("Ghud_SetAnchor");
-	engine_Ghud_SetColor = gi.CheckForExtension("Ghud_SetColor");
-	engine_Ghud_SetSize = gi.CheckForExtension("Ghud_SetSize");
-
-	engine_CvarSync_Set = gi.CheckForExtension("CvarSync_Set");
-#endif
-
-
 	return &globals;
+}
+
+const game_export_ex_t gex = {
+    .apiversion = GAME_API_VERSION_EX,
+    .structsize = sizeof(game_export_ex_t),
+
+	// // Functionality examples?
+	// // https://github.com/skullernet/q2pro/issues/294#issuecomment-1476818818
+    .GetExtension = G_FetchGameExtension,
+
+};
+
+q_exported const game_export_ex_t *GetGameAPIEx(game_import_ex_t *importx)
+{
+    gix = importx;   // assign pointer, don't copy!
+	
+	//gex.GetExtension = G_FetchGameExtension;
+	G_InitExtEntrypoints();
+	engine_Client_GetProtocol = gix->GetExtension("Client_GetProtocol");
+	engine_Client_GetVersion = gix->GetExtension("Client_GetVersion");
+
+	engine_Ghud_ClearForClient = gix->GetExtension("Ghud_ClearForClient");
+	engine_Ghud_NewElement = gix->GetExtension("Ghud_NewElement");
+	engine_Ghud_RemoveElement = gix->GetExtension("Ghud_RemoveElement");
+	engine_Ghud_SetFlags = gix->GetExtension("Ghud_SetFlags");
+	engine_Ghud_SetInt = gix->GetExtension("Ghud_SetInt");
+	engine_Ghud_SetText = gix->GetExtension("Ghud_SetText");
+	engine_Ghud_SetPosition = gix->GetExtension("Ghud_SetPosition");
+	engine_Ghud_SetAnchor = gix->GetExtension("Ghud_SetAnchor");
+	engine_Ghud_SetColor = gix->GetExtension("Ghud_SetColor");
+	engine_Ghud_SetSize = gix->GetExtension("Ghud_SetSize");
+
+	engine_CvarSync_Set = gix->GetExtension("CvarSync_Set");
+
+	SV_BSP = gix->GetExtension("Bsp");
+	CS_NAV = gix->GetExtension("Nav");
+	CS_DebugDraw = gix->GetExtension("DebugDraw");
+	SV_BotConnect = gix->GetExtension("SV_BotConnect");
+	SV_BotDisconnect = gix->GetExtension("SV_BotDisconnect");
+	SV_BotUpdateInfo = gix->GetExtension("SV_BotUpdateInfo");
+	SV_BotClearClients = gix->GetExtension("SV_BotClearClients");
+
+    return &gex;
 }
 
 #ifndef GAME_HARD_LINKED
@@ -1257,6 +1303,14 @@ void G_RunFrame (void)
 		int updateStatMode = (level.framenum % (80 * FRAMEDIV)) ? 0 : 1;
 
 		CycleLights ();
+
+		//Run pending curl requests
+		#if USE_CURL
+		#if AQTION_CURL
+		if (sv_curl_enable->value)
+			lc_once_per_gameframe();
+		#endif
+		#endif
 
 		//
 		// treat each object in turn

@@ -56,32 +56,6 @@ void UpdateBotChat(void) {
     ProcessChatQueue(level.framenum);
 }
 
-// Function to get a random bot
-edict_t* getRandomBot(void)
-{
-	edict_t* bots[MAX_CLIENTS];
-	int botCount = 0;
-    
-    // Populate the bots array with pointers to bots
-    for (int i = 0; i < num_players; i++)
-    {
-        if (players[i]->is_bot)
-        {
-            bots[botCount++] = players[i];
-        }
-    }
-    
-    // If we found any bots, return a random one
-    if (botCount > 0)
-    {
-        int randomIndex = rand() % botCount; // Generate a random index
-        return bots[randomIndex];
-    }
-    
-    // If no bots were found, return NULL
-    return NULL;
-}
-
 // Borrowed from LTK bots
 #define DBC_WELCOMES 4
 char *botchat_welcomes[DBC_WELCOMES] =
@@ -278,8 +252,8 @@ void BOTLIB_Chat(edict_t* bot, bot_chat_types_t chattype)
 		// Copy back to 'text'
 		snprintf(text, sizeof(text), "%s", message);
 		
-		if (getRandomBot() != NULL)
-			bot = getRandomBot();
+		if (BOTLIB_GetRandomBot(0, false) != NULL)
+			bot = BOTLIB_GetRandomBot(0, false);
 	}
 
 	// bot_personality
@@ -559,9 +533,9 @@ static int BOTLIB_ReadKilledPlayers(edict_t* ent)
 static void BOTLIB_GetLastKilledTargets(edict_t* self, int kills, char* buf)
 {
 	if (kills > 1)
-		sprintf(buf, " %c [ %d ] %dx Enemies Down! [ %c ", '\x06', self->client->resp.score, kills, '\x07'); // Build bandage string
+		sprintf(buf, " %c [ %d ] %dx Enemies Down! [ %c ", '\x06', self->client->resp.streakKills, kills, '\x07'); // Build bandage string
 	else
-		sprintf(buf, " %c [ %d ] Enemy Down! [ %c ", '\x06', self->client->resp.score, '\x07'); // Build bandage string
+		sprintf(buf, " %c [ %d ] Enemy Down! [ %c ", '\x06', self->client->resp.streakKills, '\x07'); // Build bandage string
 
 	Q_strncatz(buf, self->client->last_killed_target[0]->client->pers.netname, PARSE_BUFSIZE); // First kill
 

@@ -138,7 +138,7 @@ typedef enum {
     PRINT_NOTICE        // print in cyan color
 } print_type_t;
 
-#if AQTION_EXTENSION
+#ifdef AQTION_EXTENSION
 #include "shared/ghud.h"
 #endif
 
@@ -933,7 +933,7 @@ typedef struct cvar_s {
     struct cvar_s *next;
 
 // ------ new stuff ------
-#if AQTION_EXTENSION
+#ifdef AQTION_EXTENSION
 	int			sync_index;
 #endif
 #if USE_NEW_GAME_API
@@ -1091,7 +1091,7 @@ typedef enum {
 #define PMF_ON_LADDER                   BIT(8)
 //KEX
 
-#if AQTION_EXTENSION
+#ifdef AQTION_EXTENSION
 // pmove->pm_aq2_flags
 #define PMF_AQ2_LIMP		0x01 // used to predict limping
 #define PMF_AQ2_FRICTION    0x02 //rekkie -- Increase friction for bots
@@ -1112,7 +1112,7 @@ typedef struct {
     short       gravity;
     short       delta_angles[3];    // add to command angles to get view direction
                                     // changed by spawns, rotating objects, and teleporters
-#if AQTION_EXTENSION
+#ifdef AQTION_EXTENSION
 	short       pm_aq2_flags;   // limping, bandaging, etc
 	unsigned short pm_timestamp; // timestamp, resets every 60 seconds
 	byte		pm_aq2_leghits;		 // number of leg hits
@@ -1130,7 +1130,7 @@ typedef struct {
     int16_t     gravity;
     int16_t     delta_angles[3];    // add to command angles to get view direction
                                     // changed by spawns, rotating objects, and teleporters
-#if AQTION_EXTENSION
+#ifdef AQTION_EXTENSION
 	short       pm_aq2_flags;   // limping, bandaging, etc
 	unsigned short pm_timestamp; // timestamp, resets every 60 seconds
 	byte		pm_aq2_leghits;		 // number of leg hits

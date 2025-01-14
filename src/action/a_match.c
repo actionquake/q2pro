@@ -85,13 +85,10 @@ void SendScores(void)
 	}
 	gi.bprintf(PRINT_HIGH, "Match is over, waiting for next map, please vote a new one..\n");
 
-	#if USE_AQTION
 	// Needed to add this here because Matchmode does not call BeginIntermission, but other teamplay modes do call it
-		if (stat_logs->value) {
-			LogMatch();  // Generates end of game stats
-			LogEndMatchStats();  // Generates end of match stats
-		}
-	#endif
+	LOG_MATCH(); // Generates end of game stats
+	LOG_END_MATCH_STATS(); // Generates end of match stats
+	CALL_DISCORD_WEBHOOK(MM_MATCH_END_MSG, MATCH_END_MSG, AWARD_NONE);
 	// Stats: Reset roundNum
 	game.roundNum = 0;
 	// Stats end
@@ -466,6 +463,84 @@ void Cmd_Teamskin_f(edict_t * ent)
 			AssignSkin(e, team->skin, false);
 	}
 	gi.cprintf(ent, PRINT_HIGH, "New team skin: %s\n", team->skin);
+}
+
+void Cmd_Teamnone_f(edict_t *ent)
+{
+	int i;
+	edict_t *other, *target;
+
+	if (!matchmode->value) {
+		gi.cprintf(ent, PRINT_HIGH, "This command needs matchmode to be enabled\n");
+		return;
+	}
+
+	if (ent->client->resp.team == NOTEAM) {
+		gi.cprintf(ent, PRINT_HIGH, "You need to be on a team for that...\n");
+		return;
+	}
+
+	if (!IS_CAPTAIN(ent)) {
+		gi.cprintf(ent, PRINT_HIGH, "You are not the captain of your team\n");
+		return;
+	}
+
+	if (gi.argc() < 1) {
+		gi.cprintf(ent, PRINT_HIGH, "You need to provide a playernum for this command\nUse 'playerlist' to get a list of playernums\n");
+		return;
+	}
+
+	if (gi.argc() > 2) {
+		gi.cprintf(ent, PRINT_HIGH, "You can only specify one playernum for this command\n");
+		return;
+	}
+
+	int playernum = atoi(gi.argv(1));
+
+	// Get entity of the playernum
+	target = NULL;
+	for (i = 0, other = &g_edicts[1]; i < game.maxclients; i++, other++) {
+		if (!other->inuse || !other->client || other->is_bot) // Do not count bots
+			continue;
+		if (other->client->clientNum == playernum) {
+			target = other;
+			break;
+		}
+	}
+
+	if (target != NULL) {
+		if (target == ent || target->client->clientNum == ent->client->clientNum) {
+			gi.cprintf(ent, PRINT_HIGH, "If you want to leave so badly, just do it the old fashioned way!\n");
+			return;
+		}
+
+		if (target->client->resp.team == NOTEAM) {
+			gi.cprintf(ent, PRINT_HIGH, "Player %i (%s) is not on a team\n", playernum, target->client->pers.netname);
+			return;
+		}
+
+		if (target->client->resp.team != ent->client->resp.team) {
+			gi.cprintf(ent, PRINT_HIGH, "You cannot remove a player from the other team\n");
+			return;
+		}
+		
+		if (target->is_bot) {
+			gi.cprintf(ent, PRINT_HIGH, "You cannot remove bots in this way, use the sv bot commands\n");
+			return;
+		}
+		// This should never happen but just in case...
+		if (esp->value && IS_LEADER(target)){
+			gi.cprintf(ent, PRINT_HIGH, "You cannot remove the leader of your team\n");
+			return;
+		}
+
+		// Finally, after all the checks, remove the player from your team
+		gi.bprintf(PRINT_HIGH, "%s removed %s (clientNum %i) from team %i\n", ent->client->pers.netname, target->client->pers.netname, playernum, target->client->resp.team);
+		JoinTeam(target, NOTEAM, 1);
+	} else {
+		gi.cprintf(ent, PRINT_HIGH, "Player %i not found, check `playerlist`\n", playernum);
+		return;
+	}
 }
 
 void Cmd_TeamLock_f(edict_t *ent, int a_switch)

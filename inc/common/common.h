@@ -128,7 +128,7 @@ void        Sys_Printf(const char *fmt, ...) q_printf(1, 2);
 #define COM_DEDICATED   1
 #endif
 
-#if AQTION_EXTENSION
+#ifdef AQTION_EXTENSION
 void G_InitializeExtensions(void);
 #endif
 

@@ -1,6 +1,6 @@
 #include "client.h"
 
-#if AQTION_EXTENSION
+#ifdef AQTION_EXTENSION
 
 
 void CL_Ghud_Clear()

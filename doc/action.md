@@ -46,7 +46,8 @@ Additions and enhancements by darksaint, Reki, Rektek and the AQ2World team
     - [Location Files](#location-files)
     - [Punching](#punching)
       - [Commands](#commands-15)
-    - [Lens command](#lens-command)
+    - [Sniper Zooming](#sniper-zooming)
+      - [Cvars](#cvars)
       - [Commands](#commands-16)
     - [New Say Variables](#new-say-variables)
     - [Time and Roundtimeleft](#time-and-roundtimeleft)
@@ -99,14 +100,15 @@ Additions and enhancements by darksaint, Reki, Rektek and the AQ2World team
     - [Q2pro MVD server demo support](#q2pro-mvd-server-demo-support)
     - [Latency Compensation](#latency-compensation)
     - [General quality of life improvements](#general-quality-of-life-improvements)
-    - [Client Prediction](#client-prediction)
-    - [Force Spawn items](#force-spawn-items)
-    - [Zoom Compensation](#zoom-compensation)
-    - [Warmup](#warmup)
-    - [Item Kit Mode](#item-kit-mode)
-    - [Print rules](#print-rules)
+      - [Client Prediction](#client-prediction)
+      - [Force Spawn items](#force-spawn-items)
+      - [Warmup](#warmup)
+      - [Item Kit Mode](#item-kit-mode)
+      - [Print rules](#print-rules)
     - [Espionage](#espionage)
     - [Gun mechanics/enhancements](#gun-mechanicsenhancements)
+    - [Highscores](#highscores)
+    - [Outbound messaging](#outbound-messaging)
   - [Contact Information](#contact-information)
   - [Credits](#credits)
 ---
@@ -205,9 +207,10 @@ Flag locations and CTF player spawns should be specified in tng/mapname.ctf file
 - Server settings:
   - `ctf [0/1]` - This will turn CTF on (1) or off (0). It will automatically turn Teamplay on (1).
   - `capturelimit [#]` - The maximum number of captures before a map will change. Set to 0 to ignore that.
-  - `ctf_respawn [#]` - The time in seconds before a player will respawn after having died.
+  - `ctf_respawn [#]` - The time in seconds before a player will respawn after having died. Will not override respawn timers from .ctf files.
   - `ctf_dropflag [0/1]` - Allow clients to drop the flag or not.
   - `uvtime [#]` - The number of seconds *10 of the duration of the 'shield' effect. (for example 40 is 4 secs)
+  - `ctf_dyn_respawn [0/1]` - Default 0, if enabled, this will reduce the respawn timer for a losing team periodically.  Will self-correct as that team mounts a comeback. The score discrepancy gets evaluated when a flag is captured on either team.
 - Client settings:
   - `drop flag` - Drop the flag if you're holding it
 
@@ -239,7 +242,8 @@ Clients will have a few more things to do during matchmode: they have to have a 
   - `sub` - this will make you a sub for the team or remove you from the subs and back in the team
   - `ready` - this will ready/unready the team. A new round won't start if a team isn't read
   - `teamname "name"` - allows the captain to set the name of his/her team
-  - `teamskin "male/resdog"` - allows the captain to set the name of his/her team 
+  - `teamskin "male/resdog"` - allows the captain to set the name of his/her team
+  - `teamnone <#>` - Using 'playerlist' to determine player numbers, use this to remove players from your team (send them to team 0), usable by Captains
   - `matchadmin <pass>` - this will allow a player to get admin status
   - `lock` - allows a captain to lock his team. When a team is locked, no one can join it. Locks are removed on a new map
   - `unlock` - allows a captain to unlock his team
@@ -249,7 +253,7 @@ The voice command allows clients to play taunts for other players to hear. (as l
 
 #### Commands
 - Server settings:
-  - `use_voice [0/1]` - When on (1), it will allow the use of voice commands.
+  - `use_voice [0/1]` - When on (1), it will allow the use of voice commands.  Requires a populated sndlist.ini file on the server end.
 - Client settings:
   - `voice "sound.wav"` - this will play sound.wav for all players to hear. (as long as the others have sound.wav) This command requires the .wav extension. (client side)
 
@@ -332,15 +336,24 @@ We have added the extra 'punch' attack, which basically is a weaker version of a
 - Client setting:
     - `punch` - this will preform a punch
 
-### Lens command
-The lens command is in TNG and offers increased control over the zooming of the sniper rifle.
+### Sniper Zooming
+The `lens` command is in TNG and offers increased control over the zooming of the sniper rifle. Zoom sensitivity can be adjusted based on the zoom level with these client cvars.  Any `cl_zoom_xx` value set to `0` will not change the sensitivity for that zoom level.  For example, if you have 2x set to `4` and 4x set to `0`, 4x will also be `4` since it is not changing from 2x's setting.  Zooming all the way back out will restore your original sensitivity setting.
+
+#### Cvars
+- Server cvars:
+  - `zoom_comp [0/1]` - server cvar, set to "1" to compensate zoom delay based on ping. Every 80ms ping reduces 1 frame, minimum of 1 frame. Default is "0", do not compensate
+- Client cvars:
+  - `cl_zoom_autosens` - default 0, if 1, it enables the use of the cvars below
+  - `cl_zoom_2x` - default 0, set this to the sensitivity level you want to use at a 2x zoom
+  - `cl_zoom_4x` - default 0, set this to the sensitivity level you want to use at a 4x zoom
+  - `cl_zoom_6x` - default 0, set this to the sensitivity level you want to use at a 6x zoom
 
 #### Commands
-- Client settings:
-    - `lens` - changes zoom on sniper rifle
-    - `lens [#]` - 1,2,4,6 - if you use any other number it'll go to the nearest zoom mode
-    - `lens in` - zooms the rifle in to the next zooming level
-    - `lens out` - zooms the rifle out to the previous zooming level
+- Client commands:
+  - `lens` - changes zoom on sniper rifle
+  - `lens [#]` - 1,2,4,6 - if you use any other number it'll go to the nearest zoom mode
+  - `lens in` - zooms the rifle in to the next zooming level
+  - `lens out` - zooms the rifle out to the previous zooming level
 
 ### New Say Variables
 TNG offers several new variables clients can use in their text (Client settings):
@@ -550,6 +563,7 @@ To see how well players are doing, we have implemented statistics into TNG. This
 - `stats list` - this will display a list of all players and their ID. (client side)
 - `stats [#]` - this will display the stats for the player with the id given. (client side)
 - `stats_mode [0/1/2]` - when set to 1, it will automatically display the stats of the player at the end of each round. When set to 2, it will automatically display the stats of the player at the end of the map. By default this is set to 0 (off). (client side)
+  - ^ This is a legacy entry that has no code associated with it, I'm only keeping it in this doc for historical reasons.
 
 ### Automatic Joining/Equipping/Menu
 For the lazy players under us, we have created three new commands to make things easier.
@@ -587,7 +601,7 @@ TNG updates the way the bandolier behaves when dropping it. It will prevent peop
 ### Bots
 
 #### Legacy LTK Bots
-Now you can fill out your teams with bots, or create an entire team of bots to fight. You can define persistent bots in bots/botdata.cfg, or create and remove them on demand. Bots wander pretty stupidly unless you create a linked network of nodes for them to follow.  This documentation exists for reference only, LTK bots have been replaced by the BOTLIB Bots as described below.
+Now you can fill out your teams with bots, or create an entire team of bots to fight. You can define persistent bots in bots/botdata.cfg, or create and remove them on demand. Bots wander pretty stupidly unless you create a linked network of nodes for them to follow.  This documentation exists for reference only, LTK bots have been replaced by the BOTLIB Bots as described below, use at your own risk.
 
 **Commands:**
 - `sv addbot [team] [name]` - add a bot for the duration of the current map
@@ -611,25 +625,29 @@ Now you can fill out your teams with bots, or create an entire team of bots to f
 Taking aspects of the existing bots and greatly enhancing their navigation and behavioral capabilities, the new botlib bots have superceded the legacy LTK bots.  This is a very new system and as such will be in a regular flux of change, enhancements and adjustments.
 
 **Server Commands:**
+- `bot_enable [0/1]` - Server cvar, if enabled, will load all necessary components to enable bots.  Default is disabled [0]
 - `sv bots <#> [#]` - Server command, if command is issued without arguments, it will print out the existing bot counts, bots on teams and other information.  If provided with a single value (`sv bots 3`) this will add 3 bots to the game.  If this is a team game, it should auto balance the bots across teams.  If provided with two values (`sv bots 3 1`) this will assign 3 bots to team 1.  Please be aware of your maxclients limits as the server console will alert you if you have added too many bots.
 - `bot_remember <#>` - Server cvar, how long (in seconds) the bot remembers an enemy after visibility has been lost.  This is experimental and being reevaluated for usability, and may be replaced in the future
 - `bot_reaction <#>` - Server cvar, how long (in seconds) until the bot reacts to an enemy in sight.  Lower values mean a faster reaction.  This is experimental and being reevaluated for usability, and may be replaced in the future
-- `bot_randvoice <#>` - Server cvar, percentage chance that bots use random user voice wavs [min: 0 max: 100].  Suggest disabling or setting to a very low value because user voice wavs take up limited sound slots on non-extended protocol servers (256 max sounds versus 2048) -- if a server runs out of sound slots and tries to cache another sound, it will crash.  Looking to re-evaluate how to handle this on non-extended protocol servers.
+- `bot_randvoice <#>` - Server cvar, percentage chance that bots use random user voice wavs [min: 0 max: 100].  Suggest disabling or setting to a very low value because user voice wavs take up limited sound slots on non-extended protocol servers (256 max sounds versus 2048) -- if a server runs out of sound slots and tries to cache another sound, it will crash.  There is a need to re-evaluate how to handle this on non-extended protocol servers.
 - `bot_randname [0/1]` - Server cvar, allow bots to pick a random name.  Suggest keeping enabled
 - `bot_chat [0/1]` - Server cvar, enables bot chat.
 - `bot_countashuman [0/1]` - Server cvar, enabling this will allow teamplay-based games to progress without humans being in the server.  Set to 0 to force games to not count bots as clients in terms of teamplay
-- `bot_navautogen [0/1]` - Server cvar, enabling this will auto generate a navmesh for any maps that do not already have one, on map load time.  This automatic navmesh is far from perfect, but it does allow bots to traverse maps rather than stand still.  A far superior option is to have a handcrafted navmesh for the map.
+- `bot_navautogen [0/1]` - Server cvar, enabling this will auto generate a navmesh for any maps that do not already have one, on map load time.  This automatic navmesh is far from perfect, but it does allow bots to traverse maps rather than stand still.  A far superior option is to have a handcrafted navmesh for the map, as described below in Client Commands.
 - `bot_debug [0/1]` - Server cvar, will enable debug messaging for BOTLIB functionality where enabled
+- `bot_reportasclient [0/1]` - Server cvar, if enabled, will report bots as real clients to server masters.  Default is disabled [0]
 
 **Client Commands:**
-These commands only work on local map loads, not connections to dedicated servers.  They are meant to be used to create navmeshes.
+These commands only work on local map loads, not connections to dedicated servers.  They are meant to be used to create navmeshes.  You need to have `gl_shaders 0` (GLSL disabled) for this to work, newer shader renderers are incompatible with navmesh generation at this time.
 - `nav_edit` - Enters nav edit mode.  Enter again to toggle out of nav edit mode.
 - `nav_toggle` - Toggles nav visibility: None, nodes, and bot paths
 - `nav_autogen` - If in nav_edit mode, will automatically generate a navmesh that will interconnect nodes that are reachable via info_player_deathmatch entities.  This performs 90% of the work for you, so that most flat surfaces will have a full mesh ready to use.
 - `nav_save` - This saves the current navmesh to `bots/nav/mapname.nav`
 - `nav_load` - This will load a navmesh from `bots/nav/mapname.nav`.  Loading a map that already has a navmesh will perform this automatically, there is no need to run this command except to possibly revert to an earlier navmesh if you make a mistake and want to undo
+
 **Nav Interface**
-When generating a navmesh, you will use the `reload` key to cycle through different options (add node, remove node, link node, etc.).  Use the `+attack` key to interact with the navmesh.  More documentation around performing this is coming soon.
+
+When generating a navmesh, you will use the `reload` key to cycle through different options (add node, remove node, link node, etc.).  Use the `+attack` key (normally MOUSE1 / left click) to interact with the navmesh.  More documentation around performing this is coming soon.  For a video demonstration, watch https://youtu.be/vva19y8EByE
 
 ### Slap
 Server admins can slap players into the air, and optionally deal damage.
@@ -641,7 +659,7 @@ Server admins can slap players into the air, and optionally deal damage.
 Although Quake 2 typically runs the server at a fixed 10 frames per second, some advanced Quake 2 servers can be built with variable framerate support to allow faster updating.  AQ2-TNG now supports this.  At higher fps, lag is reduced: the server responds more quickly to shooting and other client commands.
 
 **Commands:**
-- `sv_fps [10/20/30/40/50/60]` - set server framerate (default is 10)
+- `sv_fps [10/20/30/40/50/60]` - set server framerate (default is 10) -- suggested values are [10/20/30]
 - `sync_guns [0/1/2]` - 0 plays gun sounds on any frame, 1 syncs with recent shots, 2 delays all to 10fps (default 1)
 
 ### Q2pro MVD server demo support
@@ -657,28 +675,25 @@ Antilag allows server operator to enable lag-compensation for aiming with hitsca
 ### General quality of life improvements
 `sv_limp_highping [#]` - server cvar, players above this ping threshold will have movement prediction disabled with leg damage to make things less jittery. Value is set in ping ms, players with a ping value equal or higher to this value will have less jittery movement. Default value is '70'
 
-### Client Prediction
+#### Client Prediction
 `limp_nopred [0/1]` - client cvar, clients can set this to force on or off movement prediction when taking leg damage. Set to "0" for classic behavior, set to "1" to fix the jitter
 
-### Force Spawn items
+#### Force Spawn items
 `g_spawn_items [0/1]` - server cvar, set to "1" to allow for item/ammo/weapon spawns in games that you choose your starting weapon, for example, dm_choose, teamplay, etc. Forced set to "0" for matchmode. Set "0" for classic play.
 
-### Zoom Compensation
-`zoom_comp [0/1]` - server cvar, set to "1" to compensate zoom delay based on ping. Every 80ms ping reduces 1 frame, minimum of 1 frame. Default is "0", do not compensate
+#### Warmup
+`warmup [#]` - server cvar, set in seconds, minimum is 15, 20 is common. This is the amount of time in seconds after both captains ready up that warmups will continue until the first round begins. Set to 0 to disable warmup entirely.
+`warmup_bots [#]` - server cvar, set in number of bots to add. This adds this many bots to the warmup phase of matchmode. Set to '0' to disable warmup_bots, suggested value for usage is '4' to '6'.
 
-### Warmup
-- `warmup [#]` - server cvar, set in seconds, minimum is 15, 20 is common. This is the amount of time in seconds after both captains ready up that warmups will continue until the first round begins. Set to 0 to disable warmup entirely.
-- `warmup_bots [#]` - server cvar, set in number of bots to add. This adds this many bots to the warmup phase of matchmode. Set to '0' to disable warmup_bots, suggested value for usage is '4' to '6'.
-
-### Item Kit Mode
+#### Item Kit Mode
 `item_kit_mode [0/1]` - server cvar, default 0. Works in any mode where you choose a weapon (GS_WEAPONCHOOSE), it combines items into kits:
 - Commando Kit: `Bandolier + Kevlar Helm`
 - Stealth Kit: `Slippers + Silencer`
 - Assassin Kit: `Laser Sight + Silencer`
 Players may drop the items anytime (using `drop item`) but you can only pick one up at a time, assuming the server doesn't allow for more. On player entity death, both items will drop. LTK bots do not use kits, they will retain their normal behavior. esp_enhancedslippers settings are honored, boosting the effectiveness of the Stealth Kit even more.
 
-### Print rules
-- `printrules [0/1]` - server cvar, default 0.  If enabled, a printout of the rules will display once the countdown begins in Teamplay modes.
+#### Print rules
+`printrules [0/1]` - server cvar, default 0.  If enabled, a printout of the rules will display once the countdown begins in Teamplay modes.
 
 ### Espionage
 Inspired by AQ2:ETE, these additions are optional server vars to create a different variety of gameplay. Review the document called Espionage.md to understand how to run a server and how to create and edit scene files.
@@ -699,6 +714,19 @@ Inspired by AQ2:ETE, these additions are optional server vars to create a differ
 ### Gun mechanics/enhancements
 - `gun_dualmk23_enhance [0/1]` - server cvar, default 0.  If enabled, this allows both the silencer and the laser sight to be used on the Dual MK23 Pistols.
 - `use_gren_bonk [0/1]` - server cvar, default 0.  If enabled, this enables impact damage of the grenade to cause damage on direct contact with a player.  The speed of which the grenade is thrown will determine the damage dealt. Thanks to JukS for the idea and the code.
+- `lca_grenade` - server cvar, default 0.  If enabled, players can pull the grenade pin during Lights Camera Action, but they still cannot throw it until Action!
+- `grenade_drop [0/#]` - server cvar, default 0.  If enabled, players who have grenades in their inventory when they die will drop unspent grenades on the ground.  This value can be set to any number, but it probably makes sense to keep it below 3
+
+### Highscores
+Borrowing code from OpenTDM (thank you Skuller!), high scores are stored in a local file on the server.  Each time a new high score is achieved, it is registered in this file.  The high scores are separated by map and by game mode.  For example, `highscores/dm/wizs.txt` is the highscores file for the map `wizs` in `dm` mode.
+- `g_highscores_dir` - serverr cvar, default is `highscores`; not much reason to change this default, but you can if you want
+- `g_highscores_countbots` - server cvar, default is `0`, if enabled, bots will be included in high score recording if they achieve a high score
+- `highscores` - client command, this will display the high scores in the console
+
+### Outbound messaging
+The latest versions enable the use of libcurl to send outbound communications over HTTP/HTTPS, such as to a Discord webhook or a JSON API.  This requires some credentialed information to be stored as cvars, so as a server admin, you are responsible to maintaining these values as secrets, like rcon.
+- `use_pickup [0/1]` - server cvar, default 0.  This enables the "Request a Pickup Game" option in the menus, as well as the `pickup` command.  Requires `sv_curl_enable` to be enabled, msgflags of `128` and `sv_curl_discord_info_url` or `sv_curl_discord_pickup_url` to have correct values
+- `pickup` - client command, you can initiate this from the console or bind it to a key.  This performs the same functionality as the menu option.  Assuming the server is setup correctly, it will send a pickup match request with server information to a Discord channel.  To limit spam, there is a 5 minute cooldown before anyone in the server can send another request.
 
 ## Contact Information
 Contacting the AQ2World Team is easy, join our Discord or visit our forums, or leave a Github Issue.  We are always looking for feedback and suggestions.

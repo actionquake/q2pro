@@ -367,7 +367,6 @@ typedef struct nav_s
     short int ignored_faces_total; // Ignored faces: FACETYPE_IGNORED, FACETYPE_NONE
 } nav_t;
 extern nav_t* nav_;
-nav_t* CS_NAV(void);
 void MoveAwayFromNormal(const int drawflags, const vec3_t normal, vec3_t out, const float distance);
 //rekkie -- surface data -- e
 
@@ -391,7 +390,6 @@ typedef struct debug_draw_s
     void* DrawArrow; // DrawArrow function pointer
     int draw_arrow_num; // Current arrow being drawn: increments until MAX_DRAW_ARROWS, then resets to zero
 } debug_draw_t;
-debug_draw_t* CS_DebugDraw(void);
 
 void GL_DrawLine(vec3_t verts, const int num_points, const uint32_t* colors, const float line_width, qboolean occluded);
 

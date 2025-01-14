@@ -125,7 +125,7 @@ static bool SV_TruncPacketEntities(client_t *client, const client_frame_t *from,
     return ret;
 }
 
-#if AQTION_EXTENSION
+#ifdef AQTION_EXTENSION
 static void SV_Ghud_SendUpdateToClient(client_t *client, const client_frame_t *oldframe, client_frame_t *frame)
 {
 	if (client->protocol == PROTOCOL_VERSION_AQTION && client->version >= PROTOCOL_VERSION_AQTION_GHUD)
@@ -296,7 +296,7 @@ static bool SV_EmitPacketEntities(client_t *client, const client_frame_t *from,
 // This was moved from SV_WriteFrameToClient_Aqtion() because its
 // return type changed from void to bool and it's now returning SV_EmitPacketEntities()
 // rather than just calling it
-#if AQTION_EXTENSION
+#ifdef AQTION_EXTENSION
     if(from)
         SV_Ghud_SendUpdateToClient(client, from, to);
 #endif
@@ -896,7 +896,7 @@ void SV_BuildClientFrame(client_t *client)
 
 		entity_state_t ent_state;
 		ent_state = ent->s;
-#if AQTION_EXTENSION
+#ifdef AQTION_EXTENSION
 		if (GE_customizeentityforclient)
 			if (!GE_customizeentityforclient(client->edict, ent, &ent_state))
 				continue;
@@ -910,7 +910,7 @@ void SV_BuildClientFrame(client_t *client)
             Q_assert(temp.s.number == e);
             MSG_PackEntity(state, &temp.s, ENT_EXTENSION(client->csr, &temp));
         } else {
-            MSG_PackEntity(state, &ent->s, ENT_EXTENSION(client->csr, ent));
+            MSG_PackEntity(state, &ent_state, ENT_EXTENSION(client->csr, ent));
         }
 
 #if USE_FPS

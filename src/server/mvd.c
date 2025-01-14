@@ -767,7 +767,7 @@ static void emit_frame(void)
         ent_state = ent->s;
         ent_active = entity_is_active(ent);
 
-    #if AQTION_EXTENSION
+    #ifdef AQTION_EXTENSION
 		if (ent_active && GE_customizeentityforclient)
 			if (!GE_customizeentityforclient(NULL, ent, &ent_state))
 				ent_active = false;

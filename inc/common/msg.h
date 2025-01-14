@@ -166,7 +166,7 @@ void    MSG_ParseDeltaPlayerstate_Enhanced(const player_state_t *from, player_st
 void    MSG_ParseDeltaPlayerstate_Aqtion(const player_state_t *from, player_state_t *to, int flags, int extraflags, msgPsFlags_t psflags);
 #endif
 void    MSG_ParseDeltaPlayerstate_Packet(player_state_t *to, int flags, msgPsFlags_t psflags);
-#if AQTION_EXTENSION
+#ifdef AQTION_EXTENSION
 int		MSG_DeltaGhud(ghud_element_t *from, ghud_element_t *to, int protocolmask);
 void	MSG_WriteGhud(ghud_element_t *element, int flags);
 #if USE_CLIENT || USE_MVD_CLIENT

@@ -471,12 +471,25 @@ char* PrintMatchRules(void)
 	// CTF rules
 	else if (ctf->value)
 	{
-		if (!capturelimit->value) {
-			Q_snprintf( rulesmsg, sizeof( rulesmsg ), "%s\nvs\n%s\n\nCapture the other team's flag!\nNo capturelimit set!\n",
-			teams[TEAM1].name, teams[TEAM2].name );
-		} else {
-			Q_snprintf( rulesmsg, sizeof( rulesmsg ), "%s\nvs\n%s\n\nCapture the other team's flag!\nThe first team to %s captures wins!\n",
+		if (capturelimit->value && timelimit->value)
+		{
+			Q_snprintf( rulesmsg, sizeof( rulesmsg ), "%s\nvs\n%s\n\nCapture the other team's flag!\n\nThe first team to %s captures wins!\nTime limit: %s minutes\n",
+			teams[TEAM1].name, teams[TEAM2].name, capturelimit->string, timelimit->string );
+		}
+		else if (capturelimit->value)
+		{
+			Q_snprintf( rulesmsg, sizeof( rulesmsg ), "%s\nvs\n%s\n\nCapture the other team's flag!\n\nThe first team to %s captures wins!\n",
 			teams[TEAM1].name, teams[TEAM2].name, capturelimit->string );
+		}
+		else if (timelimit->value)
+		{
+			Q_snprintf( rulesmsg, sizeof( rulesmsg ), "%s\nvs\n%s\n\nCapture the other team's flag!\n\nTime limit: %s minutes\n",
+			teams[TEAM1].name, teams[TEAM2].name, timelimit->string );
+		}
+		else
+		{
+			Q_snprintf( rulesmsg, sizeof( rulesmsg ), "%s\nvs\n%s\n\nCapture the other team's flag!\n\nNo capturelimit or timelimit set!\n",
+			teams[TEAM1].name, teams[TEAM2].name );
 		}
 	}
 	// Domination rules
@@ -1154,6 +1167,8 @@ pmenu_t joinmenu[] = {
   {"MOTD", PMENU_ALIGN_LEFT, NULL, ReprintMOTD},
   {"Credits", PMENU_ALIGN_LEFT, NULL, CreditsMenu},
   {NULL, PMENU_ALIGN_LEFT, NULL, NULL},
+  {"Request a Pickup Game", PMENU_ALIGN_LEFT, NULL, _PickupRequest},
+  {NULL, PMENU_ALIGN_LEFT, NULL, NULL},
   {"Use arrows to move cursor", PMENU_ALIGN_LEFT, NULL, NULL},
   {"ENTER to select", PMENU_ALIGN_LEFT, NULL, NULL},
   {"TAB to exit menu", PMENU_ALIGN_LEFT, NULL, NULL},
@@ -1498,7 +1513,7 @@ void JoinTeam (edict_t * ent, int desired_team, int skip_menuclose)
 		G_UpdatePlayerStatusbar(ent, 1);
 	}
 
-#if AQTION_EXTENSION
+#ifdef AQTION_EXTENSION
 	if (desired_team == NOTEAM)
 		HUD_SetType(ent, 1);
 	else
@@ -1564,7 +1579,7 @@ void LeaveTeam (edict_t * ent)
 	ent->client->resp.team = NOTEAM;
 	G_UpdatePlayerStatusbar(ent, 1);
 
-#if AQTION_EXTENSION
+#ifdef AQTION_EXTENSION
 	HUD_SetType(ent, 1);
 #endif
 
@@ -2026,7 +2041,7 @@ int TeamHasPlayers (int team)
 
 int _numclients( void );  // a_vote.c
 
-qboolean BothTeamsHavePlayers(void)
+qboolean AllTeamsHavePlayers(void)
 {
 	int players[TEAM_TOP] = { 0 }, i, teamsWithPlayers;
 	edict_t *ent;
@@ -2094,20 +2109,34 @@ int CheckForWinner(void)
 		if (espsettings.esp_mode == ESPMODE_ATL) {
 			if (teamCount == TEAM2) {
 				if (teams[TEAM1].leader_dead && teams[TEAM2].leader_dead) {
+					if (esp_debug->value)
+						gi.dprintf("Both leaders are dead\n");
 					return WINNER_TIE;
 				} else if (teams[TEAM1].leader_dead) {
+					if (esp_debug->value)
+						gi.dprintf("Team 2 leader is alive\n");
 					return TEAM2;
 				} else if (teams[TEAM2].leader_dead) {
+					if (esp_debug->value)
+						gi.dprintf("Team 1 leader is alive\n");
 					return TEAM1;
 				}
 			} else if (teamCount == TEAM3) {
 				if (teams[TEAM1].leader_dead && teams[TEAM2].leader_dead && teams[TEAM3].leader_dead) {
+					if (esp_debug->value)
+						gi.dprintf("All leaders are dead\n");
 					return WINNER_TIE;
 				} else if (teams[TEAM1].leader_dead && teams[TEAM2].leader_dead) {
+					if (esp_debug->value)
+						gi.dprintf("Team 3 leader is alive\n");
 					return TEAM3;
 				} else if (teams[TEAM1].leader_dead && teams[TEAM3].leader_dead) {
+					if (esp_debug->value)
+						gi.dprintf("Team 2 leader is alive\n");
 					return TEAM2;
 				} else if (teams[TEAM2].leader_dead && teams[TEAM3].leader_dead) {
+					if (esp_debug->value)
+						gi.dprintf("Team 1 leader is alive\n");
 					return TEAM1;
 				} 
 			}
@@ -2349,7 +2378,6 @@ void RunWarmup (void)
 	#if USE_AQTION
 	if (warmup_bots->value){
 		gi.cvar_forceset("am", "1");
-		//attract_mode_bot_check();
 	}
 	#endif
 }
@@ -2555,6 +2583,12 @@ qboolean CheckTimelimit( void )
 				CenterPrintAll( "3 MINUTES LEFT..." );
 				gi.sound( &g_edicts[0], CHAN_VOICE | CHAN_NO_PHS_ADD, gi.soundindex("tng/3_minutes.wav"), 1.0, ATTN_NONE, 0.0 );
 				timewarning = 1;
+				#if AQTION_CURL
+				if (!game.time_warning_sent && matchmode->value) {
+					CALL_DISCORD_WEBHOOK(MM_3_MIN_WARN, SERVER_MSG, AWARD_NONE);
+					game.time_warning_sent = true;
+				}
+				#endif
 			}
 		}
 		// Deathmatch and Team Deathmatch warnings
@@ -2576,6 +2610,12 @@ qboolean CheckTimelimit( void )
 				CenterPrintAll( "3 MINUTES LEFT..." );
 				gi.sound( &g_edicts[0], CHAN_VOICE | CHAN_NO_PHS_ADD, gi.soundindex("tng/3_minutes.wav"), 1.0, ATTN_NONE, 0.0 );
 				timewarning = 1;
+				#if AQTION_CURL
+				if (!game.time_warning_sent && matchmode->value) {
+					CALL_DISCORD_WEBHOOK(MM_3_MIN_WARN, SERVER_MSG, AWARD_NONE);
+					game.time_warning_sent = true;
+				}
+				#endif
 			}
 		}
 	}
@@ -2818,16 +2858,16 @@ int CheckTeamRules (void)
 		team_round_countdown--;
 		if(!team_round_countdown)
 		{
-			if (!esp->value && BothTeamsHavePlayers())
+			if (!esp->value && AllTeamsHavePlayers())
 			{
 				in_warmup = 0;
 				team_game_going = 1;
 				StartLCA();
 			}
-			else if (esp->value && AllTeamsHaveLeaders() && BothTeamsHavePlayers())
+			else if (esp->value && AllTeamsHaveLeaders() && AllTeamsHavePlayers())
 			{
 				if (esp_debug->value)
-					gi.dprintf("%s: Esp mode on, All teams have leaders, Both teams have players\n", __FUNCTION__);
+					gi.dprintf("%s: Esp mode on, All teams have leaders, all teams have players\n", __func__);
 				in_warmup = 0;
 				team_game_going = 1;
 				StartLCA();
@@ -2876,6 +2916,7 @@ int CheckTeamRules (void)
 				// Cleanup and remove all bots, it's go time!
 				if (warmup_bots->value){
 					gi.cvar_forceset("am", "0");
+					bot_connections.desire_bots = 0;
 					ACESP_RemoveBot("all");
 					CenterPrintAll("All bots removed, good luck and have fun!");
 
@@ -2971,7 +3012,7 @@ int CheckTeamRules (void)
 
 		if (!team_round_countdown)
 		{
-			if (BothTeamsHavePlayers() || (esp->value && AllTeamsHaveLeaders() && BothTeamsHavePlayers()))
+			if (AllTeamsHavePlayers() || (esp->value && AllTeamsHaveLeaders() && AllTeamsHavePlayers()))
 			{
 				if (use_tourney->value)
 				{
@@ -2983,11 +3024,16 @@ int CheckTeamRules (void)
 				{
 					int warmup_length = max( warmup->value, round_begin->value );
 					char buf[64] = "";
-					if (esp->value && BothTeamsHavePlayers()) {
+					if (esp->value && AllTeamsHavePlayers()) {
 						sprintf( buf, "All teams are ready!\nThe round will begin in %d seconds!", warmup_length );
 					} else {
 						sprintf( buf, "The round will begin in %d seconds!", warmup_length );
 					}
+					#if AQTION_CURL
+					if (game.roundNum == 0)  // Only announce on game start, so match pauses don't send the msg
+						CALL_DISCORD_WEBHOOK(buf, MATCH_START_MSG, AWARD_NONE);
+					#endif
+
 					CenterPrintAll( buf );
 					team_round_countdown = warmup_length * 10 + 2;
 
@@ -3035,14 +3081,15 @@ int CheckTeamRules (void)
 				return 1;
 			}
 
-			if (!BothTeamsHavePlayers() || (esp->value && !AllTeamsHaveLeaders()))
+			if (!AllTeamsHavePlayers() || (esp->value && !AllTeamsHaveLeaders()))
 			{
-				if (!matchmode->value || TeamsReady())
+				if (!matchmode->value || TeamsReady()) {
 					CenterPrintAll( "Not enough players to play!" );
-				else if (esp->value && !AllTeamsHaveLeaders())
+				} else if (esp->value && !AllTeamsHaveLeaders()) {
 					CenterPrintAll ("Both Teams Must Have a Leader!\nType 'leader' in console to volunteer!");
-				else
+				} else {
 					CenterPrintAll( "Both Teams Must Be Ready!" );
+				}
 
 				team_round_going = team_round_countdown = team_game_going = 0;
 				MakeAllLivePlayersObservers();
@@ -3179,25 +3226,25 @@ void A_Scoreboard (edict_t * ent)
 }
 
 
-static int G_PlayerCmp( const void *p1, const void *p2 )
+int G_PlayerCmp(const void *p1, const void *p2)
 {
-	gclient_t *a = *(gclient_t * const *)p1;
-	gclient_t *b = *(gclient_t * const *)p2;
-	
-	if (a->resp.score != b->resp.score)
-		return b->resp.score - a->resp.score;
-	
-	if (a->resp.deaths < b->resp.deaths)
-		return -1;
-	if (a->resp.deaths > b->resp.deaths) 
-		return 1;
-	
-	if (a->resp.damage_dealt > b->resp.damage_dealt)
-		return -1;
-	if (a->resp.damage_dealt < b->resp.damage_dealt)
-		return 1;
-	
-	return 0;
+    gclient_t *a = *(gclient_t * const *)p1;
+    gclient_t *b = *(gclient_t * const *)p2;
+
+    if (a->resp.score != b->resp.score)
+        return b->resp.score - a->resp.score;
+
+    if (a->resp.deaths < b->resp.deaths)
+        return -1;
+    if (a->resp.deaths > b->resp.deaths)
+        return 1;
+
+    if (a->resp.damage_dealt > b->resp.damage_dealt)
+        return -1;
+    if (a->resp.damage_dealt < b->resp.damage_dealt)
+        return 1;
+
+    return (byte *)a - (byte *)b;
 }
 
 int G_SortedClients( gclient_t **sortedList )
@@ -3831,7 +3878,10 @@ void A_ScoreboardMessage (edict_t * ent, edict_t * killer)
 #ifndef NO_BOTS
 					//rekkie -- Fake Bot Client -- s
 					if (cl_ent->is_bot)
-						Q_snprintf(buf, sizeof(buf), "%4i", min(9999, cl_ent->bot.bot_ping));
+						if (bot_reportasclient->value)
+							Q_snprintf(buf, sizeof(buf), "%4i", min(9999, cl_ent->bot.bot_ping));
+						else
+							Q_snprintf(buf, sizeof(buf), " BOT");
 					//if (0)
 					//rekkie -- Fake Bot Client -- e
 					//if( cl_ent->is_bot )
@@ -3892,12 +3942,11 @@ void TallyEndOfLevelTeamScores (void)
 	}
 
 	// Stats begin
-	#if USE_AQTION
-		if (stat_logs->value && !matchmode->value) {
-			LogMatch(); // Generates end of game stats
-			LogEndMatchStats(); // Generates end of match logs
-		}
-	#endif
+	if (!matchmode->value) {
+		LOG_MATCH(); // Generates end of game stats
+		LOG_END_MATCH_STATS(); // Generates end of match stats
+	}
+	CALL_DISCORD_WEBHOOK(TP_MATCH_END_MSG, MATCH_END_MSG, AWARD_NONE);
 	// Stats: Reset roundNum
 	game.roundNum = 0;
 	// Stats end

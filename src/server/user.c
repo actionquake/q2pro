@@ -55,7 +55,7 @@ static void SV_CreateBaselines(void)
         }
     }
 
-#if AQTION_EXTENSION
+#ifdef AQTION_EXTENSION
 	// clear ghud from previous level
 	memset(sv_client->ghud, 0, sizeof(ghud_element_t) * MAX_GHUDS);
 #endif
@@ -518,7 +518,7 @@ void SV_New_f(void)
 		SV_ClientAddMessage(sv_client, MSG_RELIABLE | MSG_CLEAR);
 	}
 
-#if AQTION_EXTENSION
+#ifdef AQTION_EXTENSION
 	if (svs.cvarsync_length && sv_client->protocol == PROTOCOL_VERSION_AQTION && sv_client->version >= PROTOCOL_VERSION_AQTION_CVARSYNC)
 	{
 		MSG_WriteByte(svc_extend);
@@ -1140,7 +1140,7 @@ static const ucmd_t ucmds[] = {
 #endif
     { "aclist", SV_AC_List_f },
     { "acinfo", SV_AC_Info_f },
-#if AQTION_EXTENSION
+#ifdef AQTION_EXTENSION
 	{ "cvarsync", SV_CvarSync_f },
 #endif
 
@@ -1790,7 +1790,7 @@ badbyte:
 		case clc_cvarsync:
 			if (client->protocol != PROTOCOL_VERSION_AQTION)
 				goto badbyte;
-#if AQTION_EXTENSION
+#ifdef AQTION_EXTENSION
         index = MSG_ReadByte();
         gclient_t *client = (gclient_t *)sv_player->client; // Cast to the correct type
         MSG_ReadString(client->cl_cvar[index], CVARSYNC_MAXSIZE);

@@ -703,3 +703,107 @@ void addTimedMessage(int teamNum, edict_t *ent, int seconds, char *msg) {
     timedMessages[numMessages].fired = false;
     numMessages++;
 }
+
+int CountRealPlayers(void)
+{
+	int i;
+	int count = 0;
+	edict_t *ent;
+
+	for (i = 0, ent = g_edicts + 1; i < game.maxclients; i++, ent++){
+		if (!ent->inuse || !ent->client || ent->is_bot)
+			continue;
+		count++;
+	}
+	return count;
+}
+
+qboolean is_valid_ipv4(char *ip_str)
+{
+    int num, dots = 0;
+    char *ptr;
+    int parts[4] = {0};
+
+    if (ip_str == NULL) {
+        gi.dprintf("%s: ip was NULL\n", __FUNCTION__);
+        return false;
+    }
+
+    char *ip_copy = strdup(ip_str);
+    if (ip_copy == NULL) {
+        gi.dprintf("%s: failed to allocate memory for ip_copy\n", __FUNCTION__);
+        return false;
+    }
+
+    ptr = strtok(ip_copy, ".");
+
+    if (ptr == NULL) {
+        gi.dprintf("%s: ip did not contain dots: %s\n", __FUNCTION__, ip_str);
+        free(ip_copy);
+        return false;
+    }
+
+    int part_count = 0;
+    while (ptr) {
+
+        /* after parsing string, it must contain only digits */
+        if (!isdigit(*ptr)) {
+            gi.dprintf("%s: Not a valid digit: %s, IP: %s\n", __FUNCTION__, ptr, ip_str);
+            free(ip_copy);
+            return false;
+        }
+
+        num = atoi(ptr);
+
+        /* check for valid IP */
+        if (num >= 0 && num <= 255) {
+            /* parse remaining string */
+            ptr = strtok(NULL, ".");
+            if (ptr != NULL) {
+                dots++;
+                parts[part_count] = num;
+                part_count++;
+            }
+        } else {
+            gi.dprintf("%s: Not a valid octet: %i, IP: %s\n", __FUNCTION__, num, ip_str);
+            free(ip_copy);
+            return false;
+        }
+    }
+
+    /* valid IP string must contain 3 dots */
+    if (dots != 3) {
+        gi.dprintf("%s: Not a valid IP: %s\n", __FUNCTION__, ip_str);
+        free(ip_copy);
+        return false;
+    }
+
+    /* check for private IP ranges */
+    if ((parts[0] == 10) ||
+        (parts[0] == 172 && parts[1] >= 16 && parts[1] <= 31) ||
+        (parts[0] == 192 && parts[1] == 168) ||
+        (parts[0] == 127)) {
+        gi.dprintf("%s: Not a public IP\n", __FUNCTION__);
+        free(ip_copy);
+        return false;
+    }
+
+    free(ip_copy);
+    return true;
+}
+
+/*
+cvar_check
+
+Supply a cvar and it will return true if it is set and not empty
+Also works for checking if cvar strings are empty or unset
+*/
+qboolean cvar_check(cvar_t *cvar) {
+    if (!cvar->value 
+        || cvar->string == NULL
+        || strcmp(cvar->string, "disabled") == 0 
+        || strcmp(cvar->string, "") == 0) {
+        return false;
+    }
+    return true;
+}

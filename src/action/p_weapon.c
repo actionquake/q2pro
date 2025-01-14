@@ -396,7 +396,7 @@ qboolean Pickup_Weapon(edict_t* ent, edict_t* other)
 		return false;
 
 	case GRENADE_NUM:
-		if (!(gameSettings & GS_DEATHMATCH) && ctf->value != 2 && !band)
+		if (!(gameSettings & GS_DEATHMATCH) && ctf->value != 2 && !band && !(grenade_drop->value))
 			return false;
 
 		if (other->client->inventory[index] >= other->client->grenade_max)
@@ -715,9 +715,14 @@ void SpecialWeaponRespawnTimer(edict_t* ent)
 		ent->think = PlaceHolder;
 		return;
 	}
-	// Deathmatch with weapon choose, weapons disappear in 6s
+	// Deathmatch with weapon choose, weapons disappear in 6s (w/bots, 2 seconds)
 	if (gameSettings & GS_WEAPONCHOOSE) {
-		ent->nextthink = eztimer(6);
+		if (bot_enable->value && bot_connections.total_bots > 0) {
+			// Reduce time that items stick around if bots are loaded
+			ent->nextthink = eztimer(2);
+		} else {
+			ent->nextthink = eztimer(6);
+		}
 		ent->think = ThinkSpecWeap;
 		return;
 	}

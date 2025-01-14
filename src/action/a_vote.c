@@ -113,6 +113,14 @@ int _numclients (void)
 	{
 		if (!other->inuse || !other->client || !other->client->pers.connected || other->client->pers.mvdspec)
 			continue;
+
+		// Idle players do not count towards voting pool (unless they already voted). -- Raptor007
+		if (sv_idleremove->value && ! (other->client->resp.mapvote || other->client->resp.cvote)){
+			int idleframes = other->client->resp.idletime ? (level.framenum - other->client->resp.idletime) : 0;
+			if (idleframes > sv_idleremove->value * HZ)
+				continue;
+		}
+
 #ifndef NO_BOTS
 		// If bot_countashuman is enabled, then do not continue/ignore bots
 		if(!bot_countashuman->value) {

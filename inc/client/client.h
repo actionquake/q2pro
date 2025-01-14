@@ -22,7 +22,7 @@ with this program; if not, write to the Free Software Foundation, Inc.,
 #include "common/net/net.h"
 #include "common/utils.h"
 
-#if AQTION_EXTENSION
+#ifdef AQTION_EXTENSION
 #include "shared/ghud.h"
 #endif
 

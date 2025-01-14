@@ -1426,9 +1426,7 @@ void SpawnEntities (const char *mapname, const char *entities, const char *spawn
 	Gamemodeflag();
 	Gamemode();
 
-	#if USE_AQTION
-	generate_uuid();  // Run this once every time a map loads to generate a unique id for stats (game.matchid)
-	#endif
+	GENERATE_UUID(); // Run this once every time a map loads to generate a unique id for stats (game.matchid)
 
 #ifndef NO_BOTS
 	// Disconnect bots before we wipe entity data and lose track of is_bot.
@@ -1595,7 +1593,7 @@ void SpawnEntities (const char *mapname, const char *entities, const char *spawn
 	memset(&botlib_noises, 0, sizeof(botlib_noises));
 
 	//rekkie -- Fake Bot Client -- s
-	gi.SV_BotClearClients();
+	SV_BotClearClients();
 	//gi.SV_BotClearClients(); // So the server can clear all fake bot clients
 	//rekkie -- Fake Bot Client -- e
 
@@ -1712,20 +1710,18 @@ void G_SetupStatusbar( void )
 	{
 		Q_strncpyz(level.statusbar, STATBAR_COMMON, sizeof(level.statusbar));
 
-		if(!((noscore->value || hud_noscore->value) && teamplay->value)) //  frags
-			Q_strncatz(level.statusbar, "xr -50 yt 2 num 3 14 ", sizeof(level.statusbar));
+		// if(!((noscore->value || hud_noscore->value) && teamplay->value) && !ctf->value) //  frags
+		// 	Q_strncatz(level.statusbar, "xr -50 yt 2 num 3 14 ", sizeof(level.statusbar));
+
+		// Display frags in top-right corner if teamplay, but not in CTF (moved that to CTFSetupStatusbar())
+		if (!(noscore->value || hud_noscore->value) || !teamplay->value) {
+			if (!ctf->value) {
+				Q_strncatz(level.statusbar, "xr -50 yt 2 num 3 14 ", sizeof(level.statusbar));
+			}
+		}
 
 		if (ctf->value)
-		{
-			Q_strncatz(level.statusbar, 
-				// Red Team
-				"yb -164 " "if 24 " "xr -24 " "pic 24 " "endif " "xr -60 " "num 2 26 "
-				// Blue Team
-				"yb -140 " "if 25 " "xr -24 " "pic 25 " "endif " "xr -60 " "num 2 27 "
-				// Flag carried
-				"if 23 " "yt 26 " "xr -24 " "pic 23 " "endif ",
-				sizeof(level.statusbar) );
-		}
+			CTFSetupStatusbar();
 		else if( dom->value )
 			DomSetupStatusbar();
 		else if( esp->value )
@@ -1959,7 +1955,7 @@ void SP_worldspawn (edict_t * ent)
 		}
 
 		// Espionage HUD is setup in SetEspStats()
-		if (!esp->value) {
+		if (!esp->value && !ctf->value) {
 			for(i = TEAM1; i <= teamCount; i++)
 			{
 				if (teams[i].skin_index[0] == 0) {
@@ -2088,7 +2084,7 @@ void SP_worldspawn (edict_t * ent)
 
 	level.model_null = gi.modelindex("sprites/null.sp2");      // null sprite
 	level.model_lsight = gi.modelindex("sprites/lsight.sp2");  // laser sight dot sprite
-#if AQTION_EXTENSION
+#ifdef AQTION_EXTENSION
 	level.model_arrow = gi.modelindex("models/indicator/arrow_red.md2");
 	gi.modelindex("models/indicator/arrow_blue.md2");
 	gi.modelindex("models/indicator/arrow_green.md2");
@@ -2161,6 +2157,9 @@ int LoadFlagsFromFile (const char *mapname)
 
 	// FIXME: remove this functionality completely in the future
 	gi.dprintf("Warning: .flg files are deprecated, use .ctf ones for more control!\n");
+
+	ctfgame.spawn_red_default = ctf_respawn->value;
+	ctfgame.spawn_blue_default = ctf_respawn->value;
 
 	while (fgets(buf, 1000, fp) != NULL)
 	{
