@@ -849,7 +849,20 @@ qboolean CTFPickup_Flag(edict_t * ent, edict_t * other)
 		CTFResetFlag(team);
 		return false;
 	}
+
 // AQ2:TNG - JBravo adding UVtime
+
+	// Get the flag, go go go!
+
+	// in CTB mode, you must have a hand free to pick up the briefcase...
+	if (ctf_mode->value && 
+	other->client->curr_weap != MK23_NUM || 
+	other->client->curr_weap != KNIFE_NUM || 
+	other->client->curr_weap != GRENADE_NUM ){
+			gi.centerprintf(other, "You must have a free hand to pick up the %s!\n", flag_name);
+		return false;
+	}
+
 	if (other->client->uvTime) {
 		other->client->uvTime = 0;
 		if (ctf_mode->value)
@@ -1046,6 +1059,7 @@ void CTFEffects(edict_t * player)
     char t1modelpath[MAX_QPATH] = "";
     char t2modelpath[MAX_QPATH] = "";
 
+	// This sets the briefcase vwep in place of your weapon in CTB mode
 	if (ctf_mode->value) {
         if (player->client->inventory[ITEM_INDEX(team_flag[TEAM1])]) {
             Q_snprintf(t1modelpath, sizeof(t1modelpath), "players/%s/w_bc1.md2", model);
