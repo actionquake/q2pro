@@ -2554,9 +2554,9 @@ static void SCR_DrawGhudElement(ghud_element_t *element, float alpha_base, color
             x -= (length * CHAR_WIDTH);
 
         if ((uiflags & UI_MIDDLE) == UI_MIDDLE)
-            y -= (length * CHAR_HEIGHT * 0.5);
+            y -= (length * CONCHAR_HEIGHT * 0.5);
         else if (uiflags & UI_BOTTOM)
-            y -= (length * CHAR_HEIGHT);
+            y -= (length * CONCHAR_HEIGHT);
 
         uiflags &= ~(UI_LEFT | UI_RIGHT | UI_TOP | UI_BOTTOM);
 
