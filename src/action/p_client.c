@@ -6198,8 +6198,15 @@ void ClientBeginServerFrame(edict_t * ent)
 		}
 	}
 
-	// show team or weapon menu immediately when connected
-	if (auto_menu->value && ent->client->layout != LAYOUT_MENU && !client->pers.menu_shown && (teamplay->value || dm_choose->value)) {
+	//show team or weapon menu immediately when connected
+	//gi.dprintf("last refresh: %d, mod refresh: %d, realframenum: %d\n", client->resp.last_motd_refresh, (client->resp.last_motd_refresh * 2), level.realFramenum);
+	if (auto_menu->value == 2) {
+		if (level.realFramenum == (ent->client->resp.last_motd_refresh * 2)) {
+			if (auto_menu->value && ent->client->layout != LAYOUT_MENU && !client->pers.menu_shown && (teamplay->value || dm_choose->value)) {
+				Cmd_Inven_f( ent );
+			}
+		}
+	} else if (auto_menu->value == 1 && ent->client->layout != LAYOUT_MENU && !client->pers.menu_shown && (teamplay->value || dm_choose->value)) {
 		Cmd_Inven_f( ent );
 	}
 
