@@ -1202,11 +1202,12 @@ typedef struct {
     vec3_t      mins, maxs;         // bounding box size
 
     struct edict_s  *groundentity;
+    cplane_t        groundplane;
     int             watertype;
     int             waterlevel;
 
     // callbacks to test the world
-    trace_t     (* q_gameabi trace)(const vec3_t start, const vec3_t mins, const vec3_t maxs, const vec3_t end);
+    trace_t     (* q_gameabi trace)(const vec3_t start, const vec3_t mins, const vec3_t maxs, const vec3_t end, int contentmask);
     int         (*pointcontents)(const vec3_t point);
 } pmove_new_t;
 #endif
@@ -1453,6 +1454,7 @@ enum {
     SPLASH_SLIME,
     SPLASH_LAVA,
     SPLASH_BLOOD,
+    SPLASH_ELECTRIC_N64, // KEX
 };
 
 // sound channels

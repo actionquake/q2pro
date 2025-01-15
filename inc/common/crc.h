@@ -16,14 +16,10 @@ with this program; if not, write to the Free Software Foundation, Inc.,
 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
 */
 
-#include "shared/shared.h"
-#include "common/pmove.h"
+#pragma once
 
-#define PMOVE_NEW 1
-#define PMOVE_TYPE pmove_new_t
-#define PMOVE_FUNC PmoveNew
-#define PMOVE_TIME_SHIFT pmp->time_shift
-#define PMOVE_C2S(x) SignExtend(COORD2SHORT(x), pmp->coord_bits)
-#define PMOVE_TRACE(start, mins, maxs, end) pm->trace(start, mins, maxs, end, 0)
-#define PMOVE_TRACE_MASK(start, mins, maxs, end, mask) pm->trace(start, mins, maxs, end, mask)
-#include "template.c"
+uint16_t CRC_Block(const byte *start, size_t count);
+
+#if USE_CLIENT
+byte COM_BlockSequenceCRCByte(const byte *base, size_t length, int sequence);
+#endif

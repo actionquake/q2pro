@@ -152,8 +152,6 @@ static list_t   bsp_cache;
 
 static void BSP_PrintStats(const bsp_t *bsp)
 {
-    bool extended = bsp->extended;
-
     for (int i = 0; i < q_countof(bsp_stats); i++)
         Com_Printf("%8d : %s\n", *(int *)((byte *)bsp + bsp_stats[i].ofs), bsp_stats[i].name);
 
@@ -169,15 +167,15 @@ static void BSP_PrintStats(const bsp_t *bsp)
             "%8u : lightgrid leafs\n"
             "%8u : lightgrid samples\n",
             grid->numstyles, grid->numnodes, grid->numleafs, grid->numsamples);
-        extended = true;
     }
-    extended |= bsp->lm_decoupled;
 #endif
 
-    if (extended) {
+    if (bsp->extended || bsp->has_bspx) {
         Com_Printf("Features :");
         if (bsp->extended)
             Com_Printf(" QBSP");
+        if (bsp->has_bspx)
+            Com_Printf(" BSPX");
 #if USE_REF
         if (bsp->lm_decoupled)
             Com_Printf(" DECOUPLED_LM");
@@ -186,6 +184,7 @@ static void BSP_PrintStats(const bsp_t *bsp)
 #endif
         Com_Printf("\n");
     }
+    Com_Printf("Checksum : %#x\n", bsp->checksum);
 
     Com_Printf("------------------\n");
 }
@@ -717,10 +716,23 @@ static size_t BSP_ParseExtensionHeader(bsp_t *bsp, lump_t *out, const byte *buf,
         }
     }
 
+    bsp->has_bspx = true;
+
     return extrasize;
 }
 
 #endif
+
+// remaster needs ORed contents from all brushes for solid leafs
+static void BSP_MergeLeafContents(bsp_t *bsp)
+{
+    mleaf_t *leaf;
+    int i, j;
+
+    for (i = 1, leaf = bsp->leafs + i; i < bsp->numleafs; i++, leaf++)
+        for (j = 0; j < leaf->numleafbrushes; j++)
+            leaf->contents[1] |= leaf->firstleafbrush[j]->contents;
+}
 
 /*
 ==================
@@ -862,6 +874,8 @@ int BSP_Load(const char *name, bsp_t **bsp_p)
     }
 #endif
 
+    BSP_MergeLeafContents(bsp);
+
     Hunk_End(&bsp->hunk);
 
     List_Append(&bsp_cache, &bsp->entry);
@@ -967,6 +981,8 @@ void BSP_LightPoint(lightpoint_t *point, const vec3_t start, const vec3_t end, c
     light_mask = nolm_mask;
 
     BSP_RecursiveLightPoint(headnode, 0, 1, start, end);
+
+    LerpVector(start, end, light_point->fraction, light_point->pos);
 }
 
 void BSP_TransformedLightPoint(lightpoint_t *point, const vec3_t start, const vec3_t end,
@@ -1003,6 +1019,8 @@ void BSP_TransformedLightPoint(lightpoint_t *point, const vec3_t start, const ve
 
     // offset plane distance
     point->plane.dist += DotProduct(point->plane.normal, origin);
+
+    LerpVector(start, end, light_point->fraction, light_point->pos);
 }
 
 #endif
@@ -1083,7 +1101,7 @@ overrun:
                 Q_SetBit(mask, 939);
                 Q_SetBit(mask, 947);
             }
-        } else if (bsp->checksum == 0x2b2ccdd1) {
+        } else if (bsp->checksum == 0x1ebe8001) {
             // mgu6m2, waterfall
             Q_SetBit(mask, 213);
             Q_SetBit(mask, 214);

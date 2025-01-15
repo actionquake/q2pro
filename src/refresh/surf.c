@@ -554,8 +554,8 @@ static uint32_t color_for_surface(const mface_t *surf)
 
 static bool enable_intensity_for_surface(const mface_t *surf)
 {
-    // enable for any surface with a lightmap in DECOUPLED_LM maps
-    if (surf->lightmap && gl_static.world.cache->lm_decoupled)
+    // enable for any surface with a lightmap in BSPX maps
+    if (surf->lightmap && gl_static.world.cache->has_bspx)
         return true;
 
     // enable for non-transparent, non-warped surfaces
@@ -895,8 +895,6 @@ static void upload_world_surfaces(void)
     currvert = 0;
     lastvert = 0;
     for (i = 0, surf = bsp->faces; i < bsp->numfaces; i++, surf++) {
-        if (surf->drawflags & SURF_SKY && !gl_static.use_cubemaps)
-            continue;
         if (surf->drawflags & SURF_NODRAW)
             continue;
 
@@ -995,6 +993,69 @@ void GL_FreeWorld(void)
     memset(&gl_static.world, 0, sizeof(gl_static.world));
 }
 
+static const mnode_t *find_face_node(const bsp_t *bsp, const mface_t *face)
+{
+    const mnode_t *node;
+    int i, left, right;
+
+    left = 0;
+    right = bsp->numnodes - 1;
+    while (left <= right) {
+        i = (left + right) / 2;
+        node = &bsp->nodes[i];
+        if (node->firstface + node->numfaces <= face)
+            left = i + 1;
+        else if (node->firstface > face)
+            right = i - 1;
+        else
+            return node;
+    }
+
+    return NULL;
+}
+
+static void remove_fake_sky_faces(const bsp_t *bsp)
+{
+    const mleaf_t *leaf;
+    const mnode_t *node;
+    int i, j, k, count = 0;
+    mface_t *face;
+
+    // find CONTENTS_MIST leafs
+    for (i = 1, leaf = bsp->leafs + i; i < bsp->numleafs; i++, leaf++) {
+        if (!(leaf->contents[0] & CONTENTS_MIST))
+            continue;
+
+        // remove sky faces in this leaf
+        for (j = 0; j < leaf->numleaffaces; j++) {
+            face = leaf->firstleafface[j];
+            if (!(face->drawflags & SURF_SKY))
+                continue;
+
+            face->drawflags = SURF_NODRAW;
+            count++;
+
+            // find node this face is on
+            node = find_face_node(bsp, face);
+            if (!node) {
+                Com_DPrintf("Sky face node not found\n");
+                continue;
+            }
+
+            // remove other sky faces on this node
+            for (k = 0, face = node->firstface; k < node->numfaces; k++, face++) {
+                if (face->drawflags & SURF_SKY) {
+                    face->drawflags = SURF_NODRAW;
+                    count++;
+                }
+            }
+        }
+    }
+
+    if (count)
+        Com_DPrintf("Removed %d fake sky faces\n", count);
+}
+
 void GL_LoadWorld(const char *name)
 {
     char buffer[MAX_QPATH];
@@ -1046,7 +1107,7 @@ void GL_LoadWorld(const char *name)
         if (info->c.flags & SURF_SKY) {
             if (!gl_static.use_cubemaps) {
                 info->image = R_NOTEXTURE;
-            } else if (Q_stricmpn(info->name, CONST_STR_LEN("n64/env/sky")) == 0) {
+            } else if (Q_stristr(info->name, "env/sky")) {
                 Q_concat(buffer, sizeof(buffer), "textures/", info->name, ".tga");
                 info->image = IMG_Find(buffer, IT_SKY, IF_REPEAT | IF_CLASSIC_SKY);
             } else if (Q_stricmpn(info->name, CONST_STR_LEN("sky/")) == 0) {
@@ -1055,7 +1116,7 @@ void GL_LoadWorld(const char *name)
             } else {
                 info->image = R_SKYTEXTURE;
             }
-        } else if (info->c.flags & SURF_NODRAW) {
+        } else if (info->c.flags & SURF_NODRAW && bsp->has_bspx) {
             info->image = R_NOTEXTURE;
         } else {
             imageflags_t flags = (info->c.flags & SURF_WARP) ? IF_TURBULENT : IF_NONE;
@@ -1064,8 +1125,7 @@ void GL_LoadWorld(const char *name)
         }
     }
 
-    // calculate vertex buffer size in bytes
-    size = 0;
+    // setup drawflags, etc
     for (i = n64surfs = 0, surf = bsp->faces; i < bsp->numfaces; i++, surf++) {
         // hack surface flags into drawflags for faster access
         surf->drawflags |= surf->texinfo->c.flags & ~DSURF_PLANEBACK;
@@ -1073,19 +1133,34 @@ void GL_LoadWorld(const char *name)
         // clear statebits from previous load
         surf->statebits = GLS_DEFAULT;
 
-        // don't count sky surfaces
+        // don't count sky surfaces unless using cubemaps
         if (surf->drawflags & SURF_SKY) {
-            if (!gl_static.use_cubemaps)
+            if (!gl_static.use_cubemaps) {
+                surf->drawflags |= SURF_NODRAW; // simplify other code
+                continue;
+            }
+            surf->drawflags &= ~SURF_NODRAW;
+        }
+
+        // ignore NODRAW bit in vanilla maps for compatibility
+        if (surf->drawflags & SURF_NODRAW) {
+            if (bsp->has_bspx)
                 continue;
             surf->drawflags &= ~SURF_NODRAW;
         }
-        if (surf->drawflags & SURF_NODRAW)
-            continue;
-        if (surf->drawflags & SURF_N64_UV)
-            n64surfs++;
 
-        size += surf->numsurfedges * VERTEX_SIZE * sizeof(vec_t);
+        if (surf->drawflags & (SURF_N64_UV | SURF_N64_SCROLL_X | SURF_N64_SCROLL_Y))
+            n64surfs++;
     }
+
+    // remove fake sky faces in vanilla maps
+    if (!bsp->has_bspx && gl_static.use_cubemaps)
+        remove_fake_sky_faces(bsp);
+
+    // calculate vertex buffer size in bytes
+    for (i = size = 0, surf = bsp->faces; i < bsp->numfaces; i++, surf++)
+        if (!(surf->drawflags & SURF_NODRAW))
+            size += surf->numsurfedges * VERTEX_SIZE * sizeof(vec_t);
 
     // try VBO first, then allocate on heap
     if (create_surface_vbo(size)) {
@@ -1097,15 +1172,13 @@ void GL_LoadWorld(const char *name)
     gl_static.world.buffer_size = size;
 
     gl_static.nolm_mask = SURF_NOLM_MASK_DEFAULT;
-    gl_static.use_bmodel_skies = false;
+    gl_static.use_bmodel_skies = gl_static.use_cubemaps && bsp->has_bspx;
 
-    // only supported in DECOUPLED_LM maps because vanilla maps have broken
+    // only supported in BSPX and N64 maps because vanilla maps have broken
     // lightofs for liquids/alphas. legacy renderer doesn't support lightmapped
     // liquids too.
-    if ((bsp->lm_decoupled || n64surfs > 100) && gl_static.use_shaders) {
+    if ((bsp->has_bspx || n64surfs > 100) && gl_static.use_shaders)
         gl_static.nolm_mask = SURF_NOLM_MASK_REMASTER;
-        gl_static.use_bmodel_skies = gl_static.use_cubemaps;
-    }
 
     glr.fd.lightstyles = &(lightstyle_t){ 1 };
 
