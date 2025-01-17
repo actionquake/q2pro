@@ -299,11 +299,13 @@ static void ResetRespawnTime(int team) {
 
 void CTFDynamicRespawnTimer(void)
 {
-    if (!ctf_dyn_respawn || !ctf_dyn_respawn->value)
+    if (!ctf_dyn_respawn || !ctf_dyn_respawn->value) {
         return;
+	}
 
-	if (ctfgame.team1 < 0 || ctfgame.team2 < 0)
+	if (ctfgame.team1 < 0 || ctfgame.team2 < 0) {
         return;
+	}
 
     int score_diff = abs(ctfgame.team1 - ctfgame.team2);
     int time_reduction = score_diff / POINT_DIFFERENTIAL;

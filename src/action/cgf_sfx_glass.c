@@ -117,19 +117,10 @@ extern "C"
 void
 CGF_SFX_InstallGlassSupport (void)
 {
-  breakableglass = gi.cvar ("breakableglass", "0", 0);
+  breakableglass = gi.cvar ("breakableglass", "0", CVAR_LATCH);
   glassfragmentlimit = gi.cvar ("glassfragmentlimit", "30", 0);
+  glass_stay = gi.cvar ("glass_stay", "0", CVAR_LATCH);
 }
-
-
-int
-CGF_SFX_IsBreakableGlassEnabled (void)
-{
-  // returns whether breakable glass is enabled (cvar) and allowed (dm mode)
-  return breakableglass->value;
-}
-
-
 
 void
 CGF_SFX_TestBreakableGlassAndRemoveIfNot_Think (edict_t *
@@ -141,12 +132,11 @@ CGF_SFX_TestBreakableGlassAndRemoveIfNot_Think (edict_t *
   int breakingglass;
   trace_t trace;
 
-  // test for cvar
-  if (!CGF_SFX_IsBreakableGlassEnabled ())
-    {
-      G_FreeEdict (aPossibleGlassEntity);
-      return;
-    }
+  // Classic functionality, remove func_explosive glass if breakableglass is disabled
+  if (!breakableglass->value && !glass_stay->value) {
+    G_FreeEdict (aPossibleGlassEntity);
+    return;
+  }
 
   VectorAdd (aPossibleGlassEntity->absmax, aPossibleGlassEntity->absmin,
 	     origin);
@@ -234,6 +224,12 @@ CGF_SFX_InstallBreakableGlass (edict_t * aGlassPane)
   maxs[1] += 24;
   maxs[2] += 24;
 
+  if (glass_stay->value && !breakableglass->value) {
+      aGlassPane->solid = SOLID_BSP;
+      aGlassPane->movetype = MOVETYPE_NONE;  // Instead of MOVETYPE_PUSH
+      gi.linkentity(aGlassPane);
+      return;
+  }
   // adjust some settings
   trigger = G_Spawn ();
   trigger->classname = "breakableglass_trigger";
@@ -255,6 +251,10 @@ CGF_SFX_ShootBreakableGlass (edict_t * aGlassPane, edict_t * anAttacker,
   // process gunshots thru glass
   edict_t *trigger;
   int destruct;
+
+  if (glass_stay->value && !breakableglass->value) {
+    return; // Glass is solid, no shooting through
+  }
 
   // depending on mod, destroy window or emit fragments
 
@@ -372,6 +372,11 @@ CGF_SFX_TouchGlass (edict_t * self, edict_t * other, cplane_t * plane,
   int is_knife;
 
   is_hgrenade = is_knife = false;
+
+  // Do not break if you run into glass
+  if (!breakableglass->value) {
+    return;
+  }
 
   // ignore non-clients-non-grenade-non-knife
   if (!other->client)
@@ -746,6 +751,10 @@ CGF_SFX_GlassThrowDebris (edict_t * self, char *modelname, float speed,
       if (this_throw_count > glassfragmentlimit->value)
 	return;
     }
+
+  // Don't throw glass if glass is solid
+  if (glass_stay->value)
+    return;
 
   chunk = G_Spawn ();
   VectorCopy (origin, chunk->s.origin);

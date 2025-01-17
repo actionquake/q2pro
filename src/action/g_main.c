@@ -582,6 +582,7 @@ cvar_t *g_highscores_dir; // Sets the highscores directory
 cvar_t *g_highscores_countbots; // Toggles if we save highscores achieved by bots
 cvar_t *lca_grenade; // Allows grenade pin pulling during LCA
 cvar_t *breakableglass; // Moved from cgf_sfx_glass, enables breakable glass (0,1,2)
+cvar_t *glass_stay; // Allows glass panels to stay even if breakableglass is disabled
 cvar_t *glassfragmentlimit; // Moved from cgf_sfx_glass, sets glass fragment limit
 cvar_t *knife_catch; // Enables knife catching
 cvar_t *grenade_drop; // Allows grenades to be dropped on death

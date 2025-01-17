@@ -540,8 +540,9 @@ void InitGame( void )
 	use_gren_bonk = gi.cvar( "use_gren_bonk", "0", 0 ); // Grenade Bonk
 
 	//CGF_SFX_InstallGlassSupport();	// william for CGF (glass fx)
-	breakableglass = gi.cvar("breakableglass", "0", 0);
+	breakableglass = gi.cvar("breakableglass", "0", CVAR_LATCH);
   	glassfragmentlimit = gi.cvar("glassfragmentlimit", "30", 0);
+	glass_stay = gi.cvar("glass_stay", "0", CVAR_LATCH);
 	//CGF_SFX_InstallGlassSupport();	// william for CGF (glass fx)
 
 	grenade_drop = gi.cvar( "grenade_drop", "0", 0 ); // Raptor007 - added grenade drop

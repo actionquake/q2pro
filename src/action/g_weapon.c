@@ -127,16 +127,19 @@ static void fire_lead (edict_t *self, vec3_t start, vec3_t aimdir, int damage, i
 
 		// glass fx
 		// catch case of firing thru one or breakable glasses
-		while ((tr.fraction < 1.0) && (tr.surface->flags & (SURF_TRANS33|SURF_TRANS66))
-			&& tr.ent && !Q_stricmp(tr.ent->classname, "func_explosive"))
-		{
-			// break glass  
-			CGF_SFX_ShootBreakableGlass (tr.ent, self, &tr, mod);
-			// continue trace from current endpos to start
-			PRETRACE();
-			tr = gi.trace (tr.endpos, NULL, NULL, end, tr.ent, content_mask);
-			POSTTRACE();
+		if (breakableglass->value) {
+			while ((tr.fraction < 1.0) && (tr.surface->flags & (SURF_TRANS33|SURF_TRANS66))
+				&& tr.ent && !Q_stricmp(tr.ent->classname, "func_explosive"))
+			{
+				// break glass  
+				CGF_SFX_ShootBreakableGlass (tr.ent, self, &tr, mod);
+				// continue trace from current endpos to start
+				PRETRACE();
+				tr = gi.trace (tr.endpos, NULL, NULL, end, tr.ent, content_mask);
+				POSTTRACE();
+			}
 		}
+
 		// ---
 
 		// see if we hit water

@@ -56,10 +56,6 @@ void CGF_SFX_RebuildAllBrokenGlass (void);
 // broken glass because we like to break it again
 
 
-int CGF_SFX_IsBreakableGlassEnabled (void);
-// returns whether breakable glass is enabled (cvar breakableglass)
-
-
 void CGF_SFX_TestBreakableGlassAndRemoveIfNot_Think (edict_t *
 						     aPossibleGlassEntity);
 // initial think function for all func_explosives
