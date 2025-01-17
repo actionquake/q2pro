@@ -479,11 +479,18 @@ CGF_SFX_TouchGlass (edict_t * self, edict_t * other, cplane_t * plane,
   // goto label
 knife_and_grenade_handling:
   // if knife or grenade, bounce them
-  if ((is_knife) || (is_hgrenade))
-    {
-      // change clipmask to bounce of glass
-      other->clipmask = MASK_SOLID;
-    }
+  if (is_knife) {
+    other->clipmask = MASK_SOLID;
+  } else if (is_hgrenade) {
+      if (breakableglass->value && 0 == Q_stricmp(glass->classname, "func_explosive")) {
+          vec3_t non_const_origin;
+          VectorCopy(vec3_origin, non_const_origin);
+          CGF_SFX_BreakGlass(glass, other, other, glass->health, non_const_origin, 3.0f * FRAMETIME);
+      } else {
+          other->clipmask |= CONTENTS_WINDOW;  // Restore window collision for non-breakable glass
+      }
+  }
+
 }
 
 

@@ -853,6 +853,11 @@ void fire_grenade2 (edict_t * self, vec3_t start, vec3_t aimdir, int damage,
 		grenade->spawnflags = 1;
 	//grenade->s.sound = gi.soundindex("weapons/hgrenc1b.wav");
 
+	if (breakableglass->value) {
+        // Allow grenades to pass through glass by not including glass in clipmask
+        grenade->clipmask &= ~CONTENTS_WINDOW; 
+    }
+
 	if (timer <= 0) {
 		Grenade_Explode(grenade);
 	} else {

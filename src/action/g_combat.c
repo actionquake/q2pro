@@ -981,6 +981,12 @@ void T_RadiusDamage (edict_t * inflictor, edict_t * attacker, float damage,
 		if (!ent->takedamage)
 			continue;
 
+		// Special handling for glass entities
+        if (breakableglass->value && !Q_stricmp(ent->classname, "func_explosive")) {
+            CGF_SFX_ShootBreakableGlass(ent, attacker, NULL, mod);
+            continue;
+        }
+
 		VectorAdd (ent->mins, ent->maxs, v);
 		VectorMA (ent->s.origin, 0.5, v, v);
 		VectorSubtract (inflictor->s.origin, v, v);
