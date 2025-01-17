@@ -237,3 +237,11 @@ void    R_EndFrame(void);
 void    R_ModeChanged(int width, int height, int flags);
 
 r_opengl_config_t R_GetGLConfig(void);
+
+
+// This used to be in images.c but I moved it because
+// download.c in src/client needs to know what to do
+#if USE_PNG || USE_JPG || USE_TGA
+extern cvar_t   *r_override_textures;
+extern cvar_t   *r_texture_overrides;
+#endif

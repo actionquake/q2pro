@@ -1373,6 +1373,7 @@ extern cvar_t *g_highscores_countbots; // Toggles if we save highscores achieved
 extern cvar_t *lca_grenade; // Allows grenade pin pulling during LCA
 extern cvar_t *breakableglass; // Moved from cgf_sfx_glass, enables breakable glass (0,1,2)
 extern cvar_t *glassfragmentlimit; // Moved from cgf_sfx_glass, sets glass fragment limit
+extern cvar_t *knife_catch; // Enables or disables knife catching
 extern cvar_t *grenade_drop; // Allows grenades to be dropped on death
 
 #ifdef AQTION_EXTENSION
@@ -1766,6 +1767,7 @@ void Weapon_Generic( edict_t * ent, int FRAME_ACTIVATE_LAST, int FRAME_FIRE_LAST
 	int *pause_frames, int *fire_frames,
 	void( *fire ) (edict_t * ent) );
 void PlayWeaponSound( edict_t *ent );
+int Knife_Fire(edict_t* ent);
 
 void P_ProjectSource(gclient_t *client, vec3_t point, vec3_t distance, vec3_t forward, vec3_t right, vec3_t result);
 void weapon_grenade_fire(edict_t* ent, qboolean held);
