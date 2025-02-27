@@ -1378,13 +1378,13 @@ void G_RunFrame (void)
 		level.pauseFrames--;
 	}
 
-	if (level.timeoutFrames) {
+	if (level.timeoutFrames && !team_round_going) {
 		if (level.timeoutFrames <= 5 * HZ) {
 			if (level.timeoutFrames % HZ == 0)
-				CenterPrintAll( va( "Match will continue in %i seconds!", level.timeoutFrames / HZ ) );
+				CenterPrintAll( va( "The match will continue in %i seconds!", level.timeoutFrames / HZ ) );
 		}
 		else if (level.timeoutFrames == 10 * HZ) {
-			CenterPrintAll( "Match will continue in 10 seconds!" );
+			CenterPrintAll( "Prepare yourselves!\nThe match will continue in 10 seconds!" );
 			timeout_requested = false;
 		}
 		else if ((level.timeoutFrames % 10 * HZ) == 0) {

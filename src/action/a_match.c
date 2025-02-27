@@ -717,6 +717,11 @@ void Cmd_CallTimeout_f(edict_t * ent)
 		return;
 	}
 
+	if (mm_timeouttime->value < 1) {
+		gi.cprintf(ent, PRINT_HIGH, "Timeouts are disabled on this server\n");
+		return;
+	}
+
 	if (level.pauseFrames) {
 		gi.cprintf(ent, PRINT_HIGH, "You cannot call a timeout while the game is paused\n" );
 		return;
