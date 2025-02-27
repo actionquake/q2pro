@@ -130,6 +130,7 @@ transparent_list_t;
 
 extern qboolean team_game_going;
 extern qboolean team_round_going;
+extern qboolean timeout_requested;
 extern int lights_camera_action;
 extern int holding_on_tie_check;
 extern int team_round_countdown;

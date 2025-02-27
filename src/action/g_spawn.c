@@ -2137,6 +2137,13 @@ void SP_worldspawn (edict_t * ent)
 	for (int i = 0; i < q_countof(lightstyles); i++)
         gi.configstring(game.csr.lights + i, lightstyles[i]);
 	gi.configstring(game.csr.lights + 63, "a");
+
+	// Timeout feature
+	if (matchmode->value) {
+		for (int i = 0; i <= teamCount; i++) {
+			teams[i].timeout_count = (int)mm_timeoutcount->value;
+		}
+	}
 }
 
 int LoadFlagsFromFile (const char *mapname)

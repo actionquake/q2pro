@@ -309,10 +309,11 @@
 qboolean team_game_going = false;	// is a team game going right now?
 qboolean team_round_going = false;	// is an actual round of a team game going right now?
 qboolean during_countdown = false;		// This is set to 1 when the 10..9..8.. countdown is going on
+qboolean timeout_requested = false;		// Active timeout requested
 
 int team_round_countdown = 0;	// countdown variable for start of a round
 int rulecheckfrequency = 0;	// accumulator variable for checking rules every 1.5 secs
-int lights_camera_action = 0;	// countdown variable for "lights...camera...action!" 
+int lights_camera_action = 0;	// countdown variable for "lights...camera...action!"
 int timewarning = 0;		// countdown variable for "x Minutes left"
 int fragwarning = 0;		// countdown variable for "x Frags left"
 int holding_on_tie_check = 0;	// when a team "wins", countdown for a bit and wait...
@@ -1925,6 +1926,7 @@ void ResetScores (qboolean playerScores)
 
 	timewarning = fragwarning = 0;
 	level.pauseFrames = 0;
+	level.timeoutFrames = 0;
 	level.matchTime = 0;
 	num_ghost_players = 0;
 
@@ -1935,6 +1937,7 @@ void ResetScores (qboolean playerScores)
 		teams[i].score = teams[i].total = 0;
 		teams[i].ready = teams[i].locked = 0;
 		teams[i].pauses_used = teams[i].wantReset = 0;
+		teams[i].timeout_count = (int)mm_timeoutcount->value;
 		gi.cvar_forceset(teams[i].teamscore->name, "0");
 	}
 
@@ -2041,6 +2044,15 @@ int TeamHasPlayers (int team)
 
 int _numclients( void );  // a_vote.c
 
+qboolean TimeoutStatus(void)
+{
+	if (level.timeoutFrames){
+		return false;
+	}
+
+	return true;
+}
+
 qboolean AllTeamsHavePlayers(void)
 {
 	int players[TEAM_TOP] = { 0 }, i, teamsWithPlayers;
@@ -2053,6 +2065,10 @@ qboolean AllTeamsHavePlayers(void)
 
 	if (use_tourney->value)
 		return (LastOpponent > 1);
+
+	// We're in timeout, do not begin the next round
+	if (!TimeoutStatus())
+		return false;
 
 	if( ! _numclients() )
 		return false;

@@ -708,6 +708,50 @@ void Cmd_ResetScores_f(edict_t * ent)
 
 }
 
+void Cmd_CallTimeout_f(edict_t * ent)
+{
+	int teamNum = ent->client->resp.team;
+
+	if (!matchmode->value) {
+		gi.cprintf(ent, PRINT_HIGH, "This command needs matchmode to be enabled\n");
+		return;
+	}
+
+	if (level.pauseFrames) {
+		gi.cprintf(ent, PRINT_HIGH, "You cannot call a timeout while the game is paused\n" );
+		return;
+	}
+
+	if (level.timeoutFrames) {
+		gi.cprintf(ent, PRINT_HIGH, "You cannot call a timeout while currently in timeout\n" );
+		return;
+	}
+
+	if (teamNum == NOTEAM) {
+		gi.cprintf(ent, PRINT_HIGH, "You need to be on a team for that...\n");
+		return;
+	}
+
+	if (!IS_CAPTAIN(ent)){
+		gi.cprintf(ent, PRINT_HIGH, "You must be a Captain to call a timeout\n");
+		return;
+	}
+
+	if (teams[teamNum].timeout_count < 1){
+		gi.cprintf(ent, PRINT_HIGH, "Your team is out of timeouts!\n");
+		return;
+	}
+
+	// If after all the checks pass, the timeout request is granted...
+	teams[teamNum].timeout_count--;
+	timeout_requested = true;
+	level.timeoutFrames = (int)(mm_timeouttime->value * 60.0f * HZ);
+	gi.bprintf(PRINT_HIGH, "%s (%s) has called for a %i second timeout\nat the end of this round\n", 
+		TeamName(teamNum),
+		ent->client->pers.netname,
+		(int)(mm_timeouttime->value * 60.0f));
+}
+
 void Cmd_TogglePause_f(edict_t * ent, qboolean pause)
 {
 	static int lastPaused = 0;

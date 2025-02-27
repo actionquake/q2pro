@@ -485,6 +485,8 @@ void InitGame( void )
 	mm_allowlock = gi.cvar( "mm_allowlock", "1", CVAR_LATCH );
 	mm_pausecount = gi.cvar( "mm_allowcount", "3", CVAR_LATCH );
 	mm_pausetime = gi.cvar( "mm_pausetime", "2", CVAR_LATCH );
+	mm_timeoutcount = gi.cvar( "mm_timeoutcount", "3", CVAR_LATCH ); // 3 timeouts
+	mm_timeouttime = gi.cvar( "mm_timeouttime", "1", CVAR_LATCH ); // 1 minute
 
 	teams[TEAM1].teamscore = gi.cvar("t1", "0", CVAR_SERVERINFO | CVAR_NOSET);
 	teams[TEAM2].teamscore = gi.cvar("t2", "0", CVAR_SERVERINFO | CVAR_NOSET);
