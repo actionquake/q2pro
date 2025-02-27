@@ -722,6 +722,11 @@ void Cmd_CallTimeout_f(edict_t * ent)
 		return;
 	}
 
+	if (level.intermission_framenum) {
+		gi.cprintf(ent, PRINT_HIGH, "You cannot call a timeout between maps\n" );
+		return;
+	}
+
 	if (level.pauseFrames) {
 		gi.cprintf(ent, PRINT_HIGH, "You cannot call a timeout while the game is paused\n" );
 		return;
@@ -729,6 +734,11 @@ void Cmd_CallTimeout_f(edict_t * ent)
 
 	if (level.timeoutFrames) {
 		gi.cprintf(ent, PRINT_HIGH, "You cannot call a timeout while currently in timeout\n" );
+		return;
+	}
+
+	if (level.matchTime >= timelimit->value * 60) {
+		gi.cprintf(ent, PRINT_HIGH, "You cannot call for a timeout on the last round of the match\n");
 		return;
 	}
 
