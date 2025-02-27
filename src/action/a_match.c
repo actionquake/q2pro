@@ -760,11 +760,10 @@ void Cmd_CallTimeout_f(edict_t * ent)
 	// If after all the checks pass, the timeout request is granted...
 	teams[teamNum].timeout_count--;
 	timeout_requested = true;
-	level.timeoutFrames = (int)(mm_timeouttime->value * 60.0f * HZ);
 	gi.bprintf(PRINT_HIGH, "%s (%s) has called for a %i second timeout\nat the end of this round\n", 
 		TeamName(teamNum),
 		ent->client->pers.netname,
-		(int)(mm_timeouttime->value * 60.0f));
+		(int)(mm_timeouttime->value));
 }
 
 void Cmd_TogglePause_f(edict_t * ent, qboolean pause)

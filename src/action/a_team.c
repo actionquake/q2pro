@@ -310,6 +310,7 @@ qboolean team_game_going = false;	// is a team game going right now?
 qboolean team_round_going = false;	// is an actual round of a team game going right now?
 qboolean during_countdown = false;		// This is set to 1 when the 10..9..8.. countdown is going on
 qboolean timeout_requested = false;		// Active timeout requested
+qboolean timeout_granted = false;	// When the timeout is granted, that begins the countdown
 qboolean timeout_whistle = false;	// Has the timeout whistle sound played? (limits the whistle to only being played once per)
 
 int team_round_countdown = 0;	// countdown variable for start of a round
@@ -2047,17 +2048,24 @@ int _numclients( void );  // a_vote.c
 
 qboolean TimeoutStatus(void)
 {
-	if (level.timeoutFrames){
-		// Play the ref whistle once, then set it to true so it only plays once
-		if (!timeout_whistle) {
-			gi.sound( &g_edicts[0], CHAN_VOICE | CHAN_NO_PHS_ADD, gi.soundindex("tng/ref_whistle.wav"), 1.0, ATTN_NONE, 0.0 );
-			timeout_whistle = true;
+	if (timeout_requested && !timeout_granted) {
+		timeout_granted = true;
+		level.timeoutFrames = (int)(mm_timeouttime->value * HZ);
+
+		if (level.timeoutFrames){
+			// Play the ref whistle once, then set it to true so it only plays once
+			if (!timeout_whistle) {
+				gi.sound( &g_edicts[0], CHAN_VOICE | CHAN_NO_PHS_ADD, gi.soundindex("tng/ref_whistle.wav"), 1.0, ATTN_NONE, 0.0 );
+				timeout_whistle = true;
+			}
+			return false;
 		}
-		return false;
 	}
 
 	// Reset the whistle so it can be played again for the next timeout
 	timeout_whistle = false;
+
+	timeout_granted = false;
 	return true;
 }
 
