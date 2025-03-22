@@ -433,6 +433,17 @@ typedef enum
 }
 ammo_t;
 
+#ifndef NO_BOTS
+// g_spawn.c
+typedef enum
+{
+  BOT_NORMAL = BIT(0),
+  BOT_NOMOVE = BIT(1),
+  BOT_NOSHOOT = BIT(2),
+  BOT_DUMMY = BIT(3), // Do not move or shoot
+} bot_behavior_t;
+#endif
+
 //tng_net.c
 typedef enum {
 	SERVER_WARMING_UP = BIT(0),   // 1
@@ -2735,13 +2746,14 @@ struct edict_s
 	int node_timeout; 
 	int last_node; 
 	int tries;
-
-
 	 
 	// AI related stuff 
 	int weaponchoice; 
 	int equipchoice; 
-	float	fLastZoomTime;	// Time we last changed sniper zoom mode 
+	float	fLastZoomTime;	// Time we last changed sniper zoom mode
+	// Spawnpoint BOTLIB bot behavior
+	bot_behavior_t	bot_behavior;
+	edict_t *bot_spawnpoint;
  
 	// Enemy related 
 	qboolean	killchat;	// Have we reported an enemy death and taunted him 

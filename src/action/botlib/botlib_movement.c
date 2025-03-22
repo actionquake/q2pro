@@ -5273,6 +5273,10 @@ void BOTLIB_Wander(edict_t* self, usercmd_t* ucmd)
 	//self->bot.bi.actionflags = 0;
 	//self->enemy = NULL;
 
+	// Do not move if bot_behavior is BOT_NOMOVE or BOT_DUMMY (bitwise flags)
+	if (self->bot_behavior == BOT_NOMOVE || self->bot_behavior == BOT_DUMMY)
+		return;
+
 	// Prevent stuck suicide if holding position
 	if ((self->bot.bi.actionflags & ACTION_HOLDPOS))
 		self->suicide_timeout = level.framenum + 10;

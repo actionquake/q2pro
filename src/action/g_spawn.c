@@ -173,7 +173,6 @@ typedef struct
   void (*spawn) (edict_t * ent);
 } spawn_t;
 
-
 void SP_item_health (edict_t * self);
 void SP_item_health_small (edict_t * self);
 void SP_item_health_large (edict_t * self);
@@ -182,6 +181,10 @@ void SP_item_health_mega (edict_t * self);
 void SP_info_player_start (edict_t * ent);
 void SP_info_player_deathmatch (edict_t * ent);
 void SP_info_player_intermission (edict_t * ent);
+// Bot-specific Spawnpoints
+void SP_info_bot_deathmatch (edict_t * ent);
+void SP_info_bot_inactive (edict_t * ent);
+void SP_info_bot_active (edict_t * ent);
 
 void SP_func_plat (edict_t * ent);
 void SP_func_rotating (edict_t * ent);
@@ -353,6 +356,11 @@ static const spawn_func_t spawn_funcs[] = {
 	{"info_teleport_destination", SP_info_teleport_destination},
 	{"misc_blackhole", SP_misc_blackhole},
 
+	#ifndef NO_BOTS
+	{"info_bot_deathmatch", SP_info_bot_deathmatch},
+	{"info_bot_inactive", SP_info_bot_inactive},
+	{"info_bot_active", SP_info_bot_active},
+	#endif
 	{NULL, NULL}
 };
 
@@ -389,7 +397,9 @@ static const spawn_field_t spawn_fields[] = {
 	{"origin", FOFS(s.origin), F_VECTOR},
 	{"angles", FOFS(s.angles), F_VECTOR},
 	{"angle", FOFS(s.angles), F_ANGLEHACK},
-
+	#ifndef NO_BOTS
+	{"bot_behavior", FOFS(bot_behavior), F_LSTRING},
+	#endif
 	{NULL}
 };
 

@@ -710,6 +710,11 @@ void BOTLIB_Think(edict_t* self)
 	{
 		// Do nothing until this is fixed
 		BOTLIB_ESP_Goals(self);
+	} else if (training_mode->value) { // Training mode
+		// Do not move if bot_behavior is BOT_NOMOVE or BOT_DUMMY (bitwise flags)
+		if (self->bot_behavior == BOT_NOMOVE || self->bot_behavior == BOT_DUMMY) {
+			self->bot.state = BOT_MOVE_STATE_STAND;
+		}
 	}
 
 	// Check if the bot is in a NAV state (I need a nav) or if NONE
@@ -780,8 +785,8 @@ void BOTLIB_Think(edict_t* self)
 	// Kill the bot if they've not moved between nodes in a timely manner, stuck!
 	//gi.dprintf("%s is currently at node %i\n", self->client->pers.netname, self->bot.current_node);
 
-	// Non-teamplay stuck suicide
-	if (!teamplay->value) {
+	// Non-teamplay stuck suicide and no training mode
+	if (!teamplay->value || !training_mode->value) {
 		if (self->bot.node_travel_time > 120) {
 			killPlayer(self, true);
 		}

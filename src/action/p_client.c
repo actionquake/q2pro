@@ -961,6 +961,19 @@ void SP_info_player_start( edict_t * self )
 {
 }
 
+// BOTLIB-specific spawnpoints
+void SP_info_bot_deathmatch( edict_t * self )
+{
+}
+
+void SP_info_bot_inactive( edict_t * self )
+{
+}
+
+void SP_info_bot_active( edict_t * self )
+{
+}
+
 /*QUAKED info_player_deathmatch (1 0 1) (-16 -16 -24) (16 16 32)
 potential spawning position for deathmatch games
 */
@@ -2257,6 +2270,60 @@ edict_t *SelectCoopSpawnPoint(edict_t *ent)
     return spot;
 }
 
+edict_t *SelectBotSpawnPoint(edict_t *ent, int botcount)
+{
+    edict_t *spot = NULL;
+    
+    // If this bot already has an assigned spawn point, use it
+    if (ent->bot_spawnpoint) {
+        // Verify the spawn point is still valid
+        if (ent->bot_spawnpoint->inuse && 
+            !strcmp(ent->bot_spawnpoint->classname, "info_bot_deathmatch")) {
+            return ent->bot_spawnpoint;
+        }
+        // If we get here, the spawn point is no longer valid
+        ent->bot_spawnpoint = NULL;
+    }
+    
+    // Try to find the specific info_bot_deathmatch entity for this bot based on botcount
+    spot = NULL;
+    while ((spot = G_Find(spot, FOFS(classname), "info_bot_deathmatch")) != NULL) {
+        // If this spot is assigned to this bot (based on botcount)
+        if (spot->count == botcount) {
+            ent->bot_spawnpoint = spot; // Record this spawn point for future respawns
+            return spot;
+        }
+    }
+    
+    // If we couldn't find a specifically assigned spot, try to find any available info_bot_deathmatch spot
+    spot = NULL;
+    while ((spot = G_Find(spot, FOFS(classname), "info_bot_deathmatch")) != NULL) {
+        // If this spot doesn't have a specific assignment (count = 0)
+        if (spot->count == 0) {
+            // Assign this spot to this bot for future respawns
+            spot->count = botcount;
+            ent->bot_spawnpoint = spot; // Record this spawn point for future respawns
+            return spot;
+        }
+    }
+    
+    // Fall back to regular deathmatch spawn points if no bot spawn points are available
+    return SelectDeathmatchSpawnPoint();
+}
+
+
+edict_t *SelectTrainingModeSpawnPoint(edict_t *ent)
+{
+	if ((!ent) || (!ent->client)) // Do not spawn non-client entities
+		return NULL;
+	// Non-bot entities spawn on normal DM spawnpoints
+	if (!ent->is_bot) {
+		return SelectDeathmatchSpawnPoint();
+	}
+	return SelectBotSpawnPoint(ent, game.bot_count);
+}
+
+
 /*
 ===========
 SelectSpawnPoint
@@ -2274,6 +2341,8 @@ void SelectSpawnPoint(edict_t * ent, vec3_t origin, vec3_t angles)
 	//FIREBLADE
 	if (coop->value){
 		spot = SelectCoopSpawnPoint(ent);
+	} else if (training_mode->value) {
+		spot = SelectTrainingModeSpawnPoint(ent);
 	} else if (ctf->value) {
 		spot = SelectCTFSpawnPoint(ent);
 	} else if (esp->value) {
@@ -2888,11 +2957,26 @@ void PutClientInServer(edict_t * ent)
 #ifdef AQTION_EXTENSION
 	cvarsyncvalue_t cl_cvar[CVARSYNC_MAX];
 #endif
+	int botcount = 0;
 
 	// find a spawn point
 	// do it before setting health back up, so farthest
 	// ranging doesn't count this client
-	SelectSpawnPoint(ent, spawn_origin, spawn_angles);
+
+	#ifndef NO_BOTS
+	// Set bot count to the amount of info_bot_spawnpoints
+	
+	for (i = 0; i < MAX_EDICTS; i++){
+		if (g_edicts[i].classname && !strcmp(g_edicts[i].classname, "info_bot_spawnpoint"))
+		{
+			botcount += 1;
+		}
+	}
+	#endif
+	if (training_mode->value && ent->is_bot)
+		SelectBotSpawnPoint(ent, botcount);
+	else
+		SelectSpawnPoint(ent, spawn_origin, spawn_angles);
 
 	index = ent - g_edicts - 1;
 	client = ent->client;
