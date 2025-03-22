@@ -668,12 +668,6 @@ void InitGame( void )
 	use_pickup = gi.cvar("use_pickup", "0", 0);
 
 	training_mode = gi.cvar("training_mode", "0", CVAR_LATCH);
-	if (training_mode->value){
-		gi.cvar_forceset("item_respawnmode", "1");
-		gi.cvar_forceset("items", "2");
-		gi.cvar_forceset("dmweapon", "Combat Knife");
-		gi.cvar_forceset("bholelimit", "30");
-	}
 	g_highscores_dir = gi.cvar("g_highscores_dir", "highscores", 0);
 	g_highscores_countbots = gi.cvar("g_highscores_countbots", "0", 0);
 	lca_grenade = gi.cvar("lca_grenade", "0", 0);

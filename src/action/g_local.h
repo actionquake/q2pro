@@ -437,10 +437,10 @@ ammo_t;
 // g_spawn.c
 typedef enum
 {
-  BOT_NORMAL = BIT(0),
-  BOT_NOMOVE = BIT(1),
-  BOT_NOSHOOT = BIT(2),
-  BOT_DUMMY = BIT(3), // Do not move or shoot
+  BOT_NORMAL,
+  BOT_NOMOVE,
+  BOT_NOSHOOT,
+  BOT_DUMMY, // Do not move or shoot
 } bot_behavior_t;
 #endif
 
@@ -1091,6 +1091,7 @@ typedef enum {
     GM_DOMINATION,
     GM_ASSASSINATE_THE_LEADER,
     GM_ESCORT_THE_VIP,
+	GM_TRAINING,
 	GM_MAX
 } GameMode;
 
@@ -1109,6 +1110,7 @@ typedef enum {
 #define GMN_DEATHMATCH "Deathmatch"
 #define GMN_DOMINATION "Domination"
 #define GMN_ESPIONAGE "Espionage"
+#define GMN_TRAINING "Training"
 #define GMN_JUMP "Jump"
 #define GMN_3TEAMS "3 Teams"
 //#define GMN_NEW_MODE 2       // If new game mode flags are created, use 2 for its value first
