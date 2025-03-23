@@ -2686,6 +2686,25 @@ void AllItems(edict_t * ent)
 	int i;
 	gitem_t *it;
 
+	// For bots in training mode, give items directly without using Pickup_Special
+    if (training->value && ent->is_bot) {
+        //gi.dprintf("AllItems: Giving special items directly to bot %s\n", ent->client->pers.netname);
+        
+        // Give all special items directly
+        for (int i = 0; i < game.num_items; i++) {
+            gitem_t *it = itemlist + i;
+            if (!it->pickup)
+                continue;
+            if (!(it->flags & IT_ITEM))
+                continue;
+            
+            // Add the item directly to inventory
+            ent->client->inventory[ITEM_INDEX(it)] = 1;
+        }
+        
+        return;
+    }
+
 	for (i = 0; i < game.num_items; i++) {
 		it = itemlist + i;
 		if (!it->pickup)

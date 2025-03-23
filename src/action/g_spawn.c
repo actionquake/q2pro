@@ -1399,7 +1399,8 @@ void SpawnEntities (const char *mapname, const char *entities, const char *spawn
 	{
 		gi.cvar_forceset(gm->name, "training");
 		if (training->value == 1) {
-			gameSettings |= (GS_DEATHMATCH);
+			gameSettings |= GS_DEATHMATCH;
+			gi.cvar_forceset("dm_choose", "0");
 		}
 		else if (training->value == 2) {
 			gameSettings |= (GS_DEATHMATCH | GS_WEAPONCHOOSE);
@@ -1408,7 +1409,6 @@ void SpawnEntities (const char *mapname, const char *entities, const char *spawn
 		gi.cvar_forceset("item_respawnmode", "1");
 		gi.cvar_forceset("items", "2");
 		gi.cvar_forceset("dmweapon", "Combat Knife");
-
 	}
 	else if (teamplay->value)
 	{
