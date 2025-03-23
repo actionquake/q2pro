@@ -1750,6 +1750,7 @@ void EspionageChaseCam(edict_t *self, edict_t *attacker);
 //
 // g_spawn.c
 //
+void GetBotSpawnPoints(void);
 void ChangePlayerSpawns(void);
 void ED_CallSpawn( edict_t *ent );
 char* ED_NewString(const char* string);
@@ -1776,6 +1777,7 @@ void ClientUserinfoChanged(edict_t* ent, char* userinfo);
 void ClientDisconnect(edict_t* ent);
 void CopyToBodyQue(edict_t* ent);
 void Announce_Reward(edict_t *ent, int rewardType);
+void FreeBotSpawnpoint(edict_t *ent);
 
 //p_weapon.c
 void Weapon_Generic( edict_t * ent, int FRAME_ACTIVATE_LAST, int FRAME_FIRE_LAST,

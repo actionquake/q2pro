@@ -194,6 +194,20 @@ void DoRespawn (edict_t * ent)
 
 void SetRespawn (edict_t * ent, float delay)
 {
+	// Safety check to prevent crashes with invalid entities
+    // if (!ent || !ent->inuse) {
+    //     gi.dprintf("WARNING: SetRespawn called with invalid entity\n");
+    //     return;
+    // }
+    
+    // Additional safety check for linked list pointers
+    // if (ent->area.prev == NULL || ent->area.next == NULL) {
+    //     gi.dprintf("WARNING: SetRespawn called with unlinked entity (classname: %s, item: %s)\n", 
+    //               ent->classname ? ent->classname : "NULL",
+    //               ent->item ? ent->item->classname : "NULL");
+    //     return;
+    // }
+
 	ent->flags |= FL_RESPAWN;
 	ent->svflags |= SVF_NOCLIENT;
 	ent->solid = SOLID_NOT;

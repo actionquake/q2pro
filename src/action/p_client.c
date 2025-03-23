@@ -2270,44 +2270,100 @@ edict_t *SelectCoopSpawnPoint(edict_t *ent)
     return spot;
 }
 
-edict_t *SelectBotSpawnPoint(edict_t *ent, int botcount)
+// Define a structure to hold bot spawn information
+typedef struct {
+    edict_t *spawnpoint;  // The actual spawn point entity
+    qboolean in_use;      // Whether this spawn point is currently being used
+    edict_t *assigned_bot; // Which bot is using this spawn point
+} bot_spawn_t;
+
+// Global array to store bot spawn points
+bot_spawn_t bot_spawns[MAX_SPAWNS];
+int num_bot_spawns;
+
+// GetBotSpawnPoints:
+// Put the spawn points into our bot_spawns array so we can work with them easily.
+void GetBotSpawnPoints(void)
+{
+    edict_t *spot = NULL;
+    num_bot_spawns = 0;
+
+    gi.dprintf("GetBotSpawnPoints: Starting search for bot spawn points\n");
+
+    while ((spot = G_Find(spot, FOFS(classname), "info_bot_deathmatch")) != NULL)
+    {
+        if (num_bot_spawns < MAX_SPAWNS) {
+            bot_spawns[num_bot_spawns].spawnpoint = spot;
+            bot_spawns[num_bot_spawns].in_use = false;
+            bot_spawns[num_bot_spawns].assigned_bot = NULL;
+            gi.dprintf("GetBotSpawnPoints: Found bot spawn point %d at %s\n", 
+                      num_bot_spawns, vtos(spot->s.origin));
+            num_bot_spawns++;
+        } else {
+            gi.dprintf("WARNING: Maximum number of bot spawn points exceeded (%d)\n", MAX_SPAWNS);
+            break;
+        }
+    }
+
+    gi.dprintf("GetBotSpawnPoints: Found %d bot spawn points\n", num_bot_spawns);
+}
+
+
+// Free a bot's spawn point when it leaves
+void FreeBotSpawnpoint(edict_t *ent)
+{
+    if (ent->bot_spawnpoint) {
+        for (int i = 0; i < num_bot_spawns; i++) {
+            if (bot_spawns[i].spawnpoint == ent->bot_spawnpoint) {
+                bot_spawns[i].in_use = false;
+                bot_spawns[i].assigned_bot = NULL;
+                break;
+            }
+        }
+        ent->bot_spawnpoint = NULL;
+    }
+}
+
+edict_t *SelectBotSpawnPoint(edict_t *ent)
 {
     edict_t *spot = NULL;
     int bot_index = 0;
-    static int next_spawn_index = 0;
-    int total_bot_spawns = 0;
-    edict_t *available_spawns[MAX_EDICTS]; // Array to store available spawn points
-
-    //gi.dprintf("SelectBotSpawnPoint: Finding spawn for bot %s (botcount=%d)\n", ent->client->pers.netname, botcount);
     
-    // Automatically set bot counts if training mode is enabled
-    if (training_mode->value)
-        bot_connections.desire_bots = botcount;
+    gi.dprintf("SelectBotSpawnPoint: Called for bot %s\n", ent->client ? ent->client->pers.netname : "unknown");
+    
+    // Set bot count to the amount of info_bot_deathmatch
+    bot_connections.desire_bots = num_bot_spawns;
+    gi.dprintf("SelectBotSpawnPoint: num_bot_spawns = %d\n", num_bot_spawns);
     
     // If this bot already has an assigned spawn point, use it
     if (ent->bot_spawnpoint) {
+        gi.dprintf("SelectBotSpawnPoint: Bot has existing spawnpoint at %s\n", 
+                  vtos(ent->bot_spawnpoint->s.origin));
+        
         // Verify the spawn point is still valid
         if (ent->bot_spawnpoint->inuse && 
             !strcmp(ent->bot_spawnpoint->classname, "info_bot_deathmatch")) {
-            gi.dprintf("  Using bot's existing spawn point at %s\n", 
-                       vtos(ent->bot_spawnpoint->s.origin));
+            // Find this spawn point in our array and mark it as used
+            for (int i = 0; i < num_bot_spawns; i++) {
+                if (bot_spawns[i].spawnpoint == ent->bot_spawnpoint) {
+                    gi.dprintf("SelectBotSpawnPoint: Found existing spawnpoint in array at index %d\n", i);
+                    bot_spawns[i].in_use = true;
+                    bot_spawns[i].assigned_bot = ent;
+                    return ent->bot_spawnpoint;
+                }
+            }
+            // If we didn't find it in our array, it's still valid to use
+            gi.dprintf("SelectBotSpawnPoint: Existing spawnpoint not found in array, using anyway\n");
             return ent->bot_spawnpoint;
         }
         // If we get here, the spawn point is no longer valid
-        //gi.dprintf("  Bot's previous spawn point is no longer valid\n");
+        gi.dprintf("SelectBotSpawnPoint: Existing spawnpoint is no longer valid\n");
         ent->bot_spawnpoint = NULL;
     }
     
-    // First, count all available bot spawn points and store them
-    spot = NULL;
-    while ((spot = G_Find(spot, FOFS(classname), "info_bot_deathmatch")) != NULL) {
-        available_spawns[total_bot_spawns++] = spot;
-    }
-    
-    //gi.dprintf("  Found %d total bot spawn points\n", total_bot_spawns);
-    
-    if (total_bot_spawns == 0) {
-        //gi.dprintf("  No bot spawn points found, falling back to deathmatch spawns\n");
+    // If no bot spawn points are available, fall back to deathmatch spawns
+    if (num_bot_spawns == 0) {
+        gi.dprintf("SelectBotSpawnPoint: No bot spawn points found, falling back to deathmatch spawns\n");
         return SelectDeathmatchSpawnPoint();
     }
     
@@ -2319,48 +2375,50 @@ edict_t *SelectBotSpawnPoint(edict_t *ent, int botcount)
         }
     }
     
-    //gi.dprintf("  This is bot index %d\n", bot_index);
+    gi.dprintf("SelectBotSpawnPoint: This is bot index %d\n", bot_index);
     
-    // Try to find an unused spawn point for this bot
-    // First check if there's a spawn point specifically assigned to this bot index
-    spot = NULL;
-    while ((spot = G_Find(spot, FOFS(classname), "info_bot_deathmatch")) != NULL) {
-        if (spot->count == bot_index + 1) { // +1 because bot indices are 0-based but count is typically 1-based
-            ent->bot_spawnpoint = spot;
-            //gi.dprintf("  Found specifically assigned spawn point at %s\n", vtos(spot->s.origin));
-            return spot;
+    // Try to find a spawn point specifically assigned to this bot index
+    for (int i = 0; i < num_bot_spawns; i++) {
+        gi.dprintf("SelectBotSpawnPoint: Checking spawn point %d, count = %d, in_use = %d\n", 
+                  i, bot_spawns[i].spawnpoint->count, bot_spawns[i].in_use);
+                  
+        if (bot_spawns[i].spawnpoint->count == bot_index + 1 && !bot_spawns[i].in_use) { // +1 because bot indices are 0-based but count is typically 1-based
+            gi.dprintf("SelectBotSpawnPoint: Found specific spawn point for this bot at index %d\n", i);
+            bot_spawns[i].in_use = true;
+            bot_spawns[i].assigned_bot = ent;
+            ent->bot_spawnpoint = bot_spawns[i].spawnpoint;
+            return bot_spawns[i].spawnpoint;
         }
     }
     
-    // If no specific assignment, use round-robin assignment
-    if (total_bot_spawns > 0) {
-        // Make sure next_spawn_index is within bounds
-        if (next_spawn_index >= total_bot_spawns) {
-            next_spawn_index = 0;
+    // If no specific assignment, find any unused spawn point
+    for (int i = 0; i < num_bot_spawns; i++) {
+        if (!bot_spawns[i].in_use) {
+            gi.dprintf("SelectBotSpawnPoint: Assigning bot to unused spawn point at index %d\n", i);
+            bot_spawns[i].in_use = true;
+            bot_spawns[i].assigned_bot = ent;
+            ent->bot_spawnpoint = bot_spawns[i].spawnpoint;
+            return bot_spawns[i].spawnpoint;
         }
-        
-        spot = available_spawns[next_spawn_index];
-        next_spawn_index = (next_spawn_index + 1) % total_bot_spawns;
-        
-        ent->bot_spawnpoint = spot;
-        //gi.dprintf("  Assigned bot to spawn point %d at %s\n", next_spawn_index, vtos(spot->s.origin));
-        return spot;
     }
     
     // Fall back to regular deathmatch spawn points if no bot spawn points are available
-    //gi.dprintf("  No suitable bot spawn points found, falling back to deathmatch spawns\n");
+    gi.dprintf("SelectBotSpawnPoint: All bot spawn points are in use, falling back to deathmatch spawns\n");
     return SelectDeathmatchSpawnPoint();
 }
+
 
 edict_t *SelectTrainingModeSpawnPoint(edict_t *ent)
 {
 	if ((!ent) || (!ent->client)) // Do not spawn non-client entities
 		return NULL;
 	// Non-bot entities spawn on normal DM spawnpoints
+	edict_t *spot = NULL;
 	if (!ent->is_bot) {
+		//return (spot = G_Find(spot, FOFS(classname), "info_player_deathmatch"));
 		return SelectDeathmatchSpawnPoint();
 	}
-	return SelectBotSpawnPoint(ent, game.bot_count);
+	return SelectBotSpawnPoint(ent);
 }
 
 
@@ -2997,30 +3055,8 @@ void PutClientInServer(edict_t * ent)
 #ifdef AQTION_EXTENSION
 	cvarsyncvalue_t cl_cvar[CVARSYNC_MAX];
 #endif
-	int botcount = 0;
 
-	// find a spawn point
-	// do it before setting health back up, so farthest
-	// ranging doesn't count this client
-
-	#ifndef NO_BOTS
-	// Set bot count to the amount of info_bot_deathmatch
-	
-	// Count bot deathmatch spots using G_Find if it does not have one yet
-	if (!ent->bot_spawnpoint) {
-		edict_t *spot = NULL;
-		spot = G_Find(NULL, FOFS(classname), "info_bot_deathmatch");
-		while (spot)
-		{
-			botcount++;
-			spot = G_Find(spot, FOFS(classname), "info_bot_deathmatch");
-		}
-	}
-	#endif
-	if (training_mode->value && ent->is_bot && !ent->bot_spawnpoint)
-		SelectBotSpawnPoint(ent, botcount);
-	else
-		SelectSpawnPoint(ent, spawn_origin, spawn_angles);
+	SelectSpawnPoint(ent, spawn_origin, spawn_angles);
 
 	index = ent - g_edicts - 1;
 	client = ent->client;
@@ -3873,6 +3909,7 @@ void ClientDisconnect(edict_t * ent)
 	ent->is_bot = false;
 	ent->think = NULL;
 	ACEIT_RebuildPlayerList();
+	FreeBotSpawnpoint(ent);
 
 // Check if bots are in the game, if so, disable stat collection
 STAT_BOT_CHECK();
