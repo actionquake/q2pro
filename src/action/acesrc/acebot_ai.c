@@ -1012,9 +1012,9 @@ qboolean BOTLIB_FindEnemy(edict_t *self)
 			continue;
 		if (players[i] != NULL && players[i]->flags & FL_NOTARGET)
 			return false;
-		if (players[i]->is_bot && self->bot_behavior & BOT_IGNORE_BOTS) // Ignore bots
+		if (players[i]->is_bot && self->bot_spawnpoint->botflags & BOT_IGNORE_BOTS) // Ignore bots
 			return false;
-		if (!players[i]->is_bot && self->bot_behavior & BOT_IGNORE_PLAYERS) // Ignore players
+		if (!players[i]->is_bot && self->bot_spawnpoint->botflags & BOT_IGNORE_PLAYERS) // Ignore players
 			return false;
 	}
 

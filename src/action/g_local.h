@@ -2760,7 +2760,7 @@ struct edict_s
 	int equipchoice; 
 	float	fLastZoomTime;	// Time we last changed sniper zoom mode
 	// Spawnpoint BOTLIB bot behavior
-	bot_spawn_behavior_t	bot_behavior;
+	int	botflags;
 	edict_t *bot_spawnpoint;
  
 	// Enemy related 

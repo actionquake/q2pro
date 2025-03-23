@@ -964,14 +964,13 @@ void SP_info_player_start( edict_t * self )
 // BOTLIB-specific spawnpoints
 void SP_info_bot_deathmatch( edict_t * self )
 {
-}
-
-void SP_info_bot_inactive( edict_t * self )
-{
-}
-
-void SP_info_bot_active( edict_t * self )
-{
+	// // Make sure the botflags field is properly initialized
+    // if (!self->botflags) {
+    //     self->botflags = 0; // Default to 0 if not specified
+    // }
+    
+    // gi.dprintf("Bot spawn point with botflags %d at %f %f %f\n", 
+    //           self->bot_spawnpoint->botflags, self->s.origin[0], self->s.origin[1], self->s.origin[2]);
 }
 
 /*QUAKED info_player_deathmatch (1 0 1) (-16 -16 -24) (16 16 32)
@@ -2349,6 +2348,9 @@ edict_t *SelectBotSpawnPoint(edict_t *ent)
                     gi.dprintf("SelectBotSpawnPoint: Found existing spawnpoint in array at index %d\n", i);
                     bot_spawns[i].in_use = true;
                     bot_spawns[i].assigned_bot = ent;
+
+					gi.dprintf("SelectBotSpawnPoint: %s botflags are %d\n", ent->client->pers.netname, ent->bot_spawnpoint->botflags);
+
                     return ent->bot_spawnpoint;
                 }
             }
@@ -2404,7 +2406,7 @@ edict_t *SelectBotSpawnPoint(edict_t *ent)
     
     // Fall back to regular deathmatch spawn points if no bot spawn points are available
     gi.dprintf("SelectBotSpawnPoint: All bot spawn points are in use, falling back to deathmatch spawns\n");
-    return SelectDeathmatchSpawnPoint();
+	return SelectDeathmatchSpawnPoint();
 }
 
 

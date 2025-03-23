@@ -676,7 +676,7 @@ void BOTLIB_Think(edict_t* self)
 	// Force respawn
 	if (self->deadflag == DEAD_DEAD)
 	{
-		if (!(self->bot_behavior & BOT_NORESPAWN)) {
+		if (!(self->bot_spawnpoint->botflags & BOT_NORESPAWN)) {
 			self->client->buttons = 0;
 			ucmd.buttons = BUTTON_ATTACK;
 		}
@@ -711,8 +711,8 @@ void BOTLIB_Think(edict_t* self)
 		// Do nothing until this is fixed
 		BOTLIB_ESP_Goals(self);
 	} else if (training->value) { // Training mode
-		// Do not move if bot_behavior includes BOT_NOMOVE
-		if (self->bot_behavior & BOT_NOMOVE) {
+		// Do not move if botflags includes BOT_NOMOVE
+		if (self->bot_spawnpoint->botflags & BOT_NOMOVE) {
 			self->bot.state = BOT_MOVE_STATE_STAND;
 		}
 	}
@@ -786,9 +786,11 @@ void BOTLIB_Think(edict_t* self)
 	//gi.dprintf("%s is currently at node %i\n", self->client->pers.netname, self->bot.current_node);
 
 	// Non-teamplay stuck suicide and no training mode
-	if (!teamplay->value || !training->value) {
+	if (!teamplay->value) {
 		if (self->bot.node_travel_time > 120) {
-			killPlayer(self, true);
+			if (!training->value) {
+				killPlayer(self, true);
+			}
 		}
 		// Too often teamplay bots will suicide because there's a bit of waiting around
 	} else if (self->bot.node_travel_time > 160 && 
@@ -933,7 +935,6 @@ void BOTLIB_Think(edict_t* self)
 				BOTLIB_Attack(self, &ucmd);
 		}
 	}
-
 
 	// Remember where we were, to check if we got stuck.
 	//VectorCopy( self->s.origin, self->lastPosition );

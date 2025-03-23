@@ -181,10 +181,8 @@ void SP_item_health_mega (edict_t * self);
 void SP_info_player_start (edict_t * ent);
 void SP_info_player_deathmatch (edict_t * ent);
 void SP_info_player_intermission (edict_t * ent);
-// Bot-specific Spawnpoints
+// Bot-specific Spawnpoint
 void SP_info_bot_deathmatch (edict_t * ent);
-void SP_info_bot_inactive (edict_t * ent);
-void SP_info_bot_active (edict_t * ent);
 
 void SP_func_plat (edict_t * ent);
 void SP_func_rotating (edict_t * ent);
@@ -358,8 +356,6 @@ static const spawn_func_t spawn_funcs[] = {
 
 	#ifndef NO_BOTS
 	{"info_bot_deathmatch", SP_info_bot_deathmatch},
-	{"info_bot_inactive", SP_info_bot_inactive},
-	{"info_bot_active", SP_info_bot_active},
 	#endif
 	{NULL, NULL}
 };
@@ -398,7 +394,7 @@ static const spawn_field_t spawn_fields[] = {
 	{"angles", FOFS(s.angles), F_VECTOR},
 	{"angle", FOFS(s.angles), F_ANGLEHACK},
 	#ifndef NO_BOTS
-	{"bot_behavior", FOFS(bot_behavior), F_LSTRING},
+	{"botflags", FOFS(botflags), F_INT},
 	#endif
 	{NULL}
 };
@@ -722,7 +718,6 @@ static bool ED_ParseField(const spawn_field_t* fields, const char* key, const ch
 	// 			b = (byte *)ent;
 	for (f = fields; f->name; f++) {
 		if (!Q_stricmp(f->name, key)) {
-
 			switch (f->type)
 			{
 			case F_LSTRING:
@@ -757,6 +752,7 @@ static bool ED_ParseField(const spawn_field_t* fields, const char* key, const ch
 			return true;
 		}
 	}
+
 	return false;
 }
 
