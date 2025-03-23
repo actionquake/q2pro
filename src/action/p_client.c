@@ -2408,9 +2408,7 @@ edict_t *SelectTrainingModeSpawnPoint(edict_t *ent)
 	if ((!ent) || (!ent->client)) // Do not spawn non-client entities
 		return NULL;
 	// Non-bot entities spawn on normal DM spawnpoints
-	edict_t *spot = NULL;
 	if (!ent->is_bot) {
-		//return (spot = G_Find(spot, FOFS(classname), "info_player_deathmatch"));
 		return SelectDeathmatchSpawnPoint();
 	}
 	return SelectBotSpawnPoint(ent);

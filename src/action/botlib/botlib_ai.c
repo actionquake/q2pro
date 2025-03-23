@@ -688,22 +688,15 @@ static void BOTLIB_Think_Client(edict_t* self)
 	}
 }
 
-static void BOTLIB_Think_Respawn(edict_t* self)
+static qboolean BOTLIB_Think_Respawn(edict_t* self)
 {
-	usercmd_t ucmd;
 
-	if (self->deadflag == DEAD_DEAD) {
-
-		// If the bot is dead and we're not respawning, then we're leaving the server
-		if (self->bot_spawnpoint->botflags & BOT_NORESPAWN) {
-			BOTLIB_RemoveBot(self->client->pers.netname);
-			return;
-		}
-
-		// Let's respawn!
-		self->client->buttons = 0;
-		ucmd.buttons = BUTTON_ATTACK;
+	// If the bot is dead and we're not respawning, then we're leaving the server
+	if (self->bot_spawnpoint->botflags & BOT_NORESPAWN) {
+		BOTLIB_RemoveBot(self->client->pers.netname);
+		return false;
 	}
+	return true;
 }
 
 
@@ -766,8 +759,14 @@ void BOTLIB_Think(edict_t* self)
 		goto end_think;
 	}
 
-	// Respawn logic
-	BOTLIB_Think_Respawn(self);
+	// Respawn logic (must be done here due to ucmd)
+	if (self->deadflag == DEAD_DEAD) {
+		if (BOTLIB_Think_Respawn(self)) {
+			// Let's respawn!
+			self->client->buttons = 0;
+			ucmd.buttons = BUTTON_ATTACK;
+		}
+	}
 
 	// Don't execute thinking code if not alive
 	if (self->deadflag != DEAD_NO || self->health <= 0)
