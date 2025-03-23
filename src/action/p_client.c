@@ -2439,7 +2439,7 @@ void SelectSpawnPoint(edict_t * ent, vec3_t origin, vec3_t angles)
 	//FIREBLADE
 	if (coop->value){
 		spot = SelectCoopSpawnPoint(ent);
-	} else if (training_mode->value) {
+	} else if (training->value) {
 		spot = SelectTrainingModeSpawnPoint(ent);
 	} else if (ctf->value) {
 		spot = SelectCTFSpawnPoint(ent);

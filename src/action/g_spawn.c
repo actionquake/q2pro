@@ -1074,7 +1074,7 @@ int Gamemode(void)
 		gamemode = GM_ASSASSINATE_THE_LEADER;
 	} else if (esp->value && espsettings.esp_mode == ESPMODE_ETV) {
 		gamemode = GM_ESCORT_THE_VIP;
-	} else if (training_mode->value) {
+	} else if (training->value) {
 		gamemode = GM_TRAINING;
 	}
 	return gamemode;
@@ -1395,13 +1395,13 @@ void SpawnEntities (const char *mapname, const char *entities, const char *spawn
 			gi.cvar_forceset(teamplay->name, "1");
 		}
 	}
-	else if (training_mode->value)
+	else if (training->value)
 	{
 		gi.cvar_forceset(gm->name, "training");
-		if (training_mode->value == 1) {
+		if (training->value == 1) {
 			gameSettings |= (GS_DEATHMATCH);
 		}
-		else if (training_mode->value == 2) {
+		else if (training->value == 2) {
 			gameSettings |= (GS_DEATHMATCH | GS_WEAPONCHOOSE);
 		}
 		// Training mode specific settings, overridable of course
@@ -1588,7 +1588,7 @@ void SpawnEntities (const char *mapname, const char *entities, const char *spawn
 			NS_GetSpawnPoints();
 	}
 	
-	if (training_mode->value)
+	if (training->value)
 	{
 		GetBotSpawnPoints();
 	}

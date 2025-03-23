@@ -2926,7 +2926,7 @@ void BOTLIB_Attack(edict_t* self, usercmd_t* ucmd)
 	if (self->enemy == NULL) return;
 	if (self->enemy && self->enemy->deadflag != DEAD_NO) return;
 	if (teamplay->value && lights_camera_action > 0) return;
-	if (training_mode->value && 
+	if (training->value && 
 		(self->bot_behavior & BOT_NOSHOOT)) return;
 
 	//Com_Printf("%s [%d] %s attack enemy %s\n", __func__, level.framenum, self->client->pers.netname, self->enemy->client->pers.netname);

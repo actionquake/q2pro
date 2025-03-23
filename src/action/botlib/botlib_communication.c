@@ -617,7 +617,7 @@ void BOTLIB_Radio(edict_t* self, usercmd_t* ucmd)
 {
 	char buffer[256]; // Chat buffer
 	
-	if (training_mode->value) return; // Don't radio in training mode
+	if (training->value) return; // Don't radio in training mode
 	if (teamplay->value == 0) return; // Only radio in TP games
 	if (team_round_going == false || lights_camera_action) return; // Only allow radio during a real match (after LCA and before win/loss announcement)
 	//if (team_round_going && lights_camera_action == 0)

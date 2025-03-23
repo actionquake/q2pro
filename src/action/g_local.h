@@ -1384,7 +1384,7 @@ extern cvar_t *msgflags;
 extern cvar_t *use_pickup;
 //end cUrl integration
 
-extern cvar_t *training_mode; // Sets training mode vars
+extern cvar_t *training; // Sets training mode vars
 extern cvar_t *g_highscores_dir; // Sets the highscores directory
 extern cvar_t *g_highscores_countbots; // Toggles if we save highscores achieved by bots
 extern cvar_t *lca_grenade; // Allows grenade pin pulling during LCA

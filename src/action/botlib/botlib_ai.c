@@ -710,7 +710,7 @@ void BOTLIB_Think(edict_t* self)
 	{
 		// Do nothing until this is fixed
 		BOTLIB_ESP_Goals(self);
-	} else if (training_mode->value) { // Training mode
+	} else if (training->value) { // Training mode
 		// Do not move if bot_behavior includes BOT_NOMOVE
 		if (self->bot_behavior & BOT_NOMOVE) {
 			self->bot.state = BOT_MOVE_STATE_STAND;
@@ -786,7 +786,7 @@ void BOTLIB_Think(edict_t* self)
 	//gi.dprintf("%s is currently at node %i\n", self->client->pers.netname, self->bot.current_node);
 
 	// Non-teamplay stuck suicide and no training mode
-	if (!teamplay->value || !training_mode->value) {
+	if (!teamplay->value || !training->value) {
 		if (self->bot.node_travel_time > 120) {
 			killPlayer(self, true);
 		}
