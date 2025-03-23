@@ -344,6 +344,7 @@ typedef struct gclient_s gclient_t;
 #define SPAWNFLAG_NOT_HARD              BIT(10)
 #define SPAWNFLAG_NOT_DEATHMATCH        BIT(11)
 #define SPAWNFLAG_NOT_COOP              BIT(12)
+#define SPAWNFLAG_ONLY_BOTLIB_SPAWN     BIT(13) // Only BOTLIB bots will spawn here
 
 // edict->flags
 #define FL_FLY                  BIT(0)

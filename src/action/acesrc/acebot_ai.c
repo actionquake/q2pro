@@ -251,6 +251,11 @@ void BOTLIB_PickLongRangeGoal(edict_t* self)
 				VectorCopy(spot->s.origin, sp_origin[sp_counter]);
 				sp_counter++;
 			}
+			while ((spot = G_Find(spot, FOFS(classname), "info_player_team3")) != NULL)
+			{
+				VectorCopy(spot->s.origin, sp_origin[sp_counter]);
+				sp_counter++;
+			}
 			if (sp_counter) // If we found spawn points
 			{
 				byte spot_picked = rand() % sp_counter; // Pick a random spot
@@ -1014,7 +1019,7 @@ qboolean BOTLIB_FindEnemy(edict_t *self)
 			return false;
 		if (players[i]->is_bot && self->bot_spawnpoint->botflags & BOT_IGNORE_BOTS) // Ignore bots
 			return false;
-		if (!players[i]->is_bot && self->bot_spawnpoint->botflags & BOT_IGNORE_PLAYERS) // Ignore players
+		if (!self->bot_spawnpoint->botflags || (!players[i]->is_bot && self->bot_spawnpoint->botflags & BOT_IGNORE_PLAYERS)) // Ignore players
 			return false;
 	}
 

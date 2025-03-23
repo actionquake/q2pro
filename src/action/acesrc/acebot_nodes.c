@@ -1115,6 +1115,36 @@ void BOTLIB_SelfExpandNodesFromSpawnpoints(edict_t *ent)
 
 		sp_counter++;
 	}
+	while ((spot = G_Find(spot, FOFS(classname), "info_player_team3")) != NULL)
+	{
+		VectorCopy(spot->s.origin, sp_origin[sp_counter]);
+
+		// Try crawling down
+		sp_origin[sp_counter][2] += 0.01;
+		tr = gi.trace(sp_origin[sp_counter], mins, maxs, tv(sp_origin[sp_counter][0], sp_origin[sp_counter][1], sp_origin[sp_counter][2] - NODE_MAX_CROUCH_FALL_HEIGHT_UNSAFE), ent, MASK_PLAYERSOLID);
+		if (tr.startsolid)
+			continue;
+		else
+			sp_origin[sp_counter][2] = tr.endpos[2];
+
+		sp_counter++;
+	}
+
+	/// Remove this later?
+	while ((spot = G_Find(spot, FOFS(classname), "info_bot_deathmatch")) != NULL)
+	{
+		VectorCopy(spot->s.origin, sp_origin[sp_counter]);
+
+		// Try crawling down
+		sp_origin[sp_counter][2] += 0.01;
+		tr = gi.trace(sp_origin[sp_counter], mins, maxs, tv(sp_origin[sp_counter][0], sp_origin[sp_counter][1], sp_origin[sp_counter][2] - NODE_MAX_CROUCH_FALL_HEIGHT_UNSAFE), ent, MASK_PLAYERSOLID);
+		if (tr.startsolid)
+			continue;
+		else
+			sp_origin[sp_counter][2] = tr.endpos[2];
+
+		sp_counter++;
+	}
 
 	// Qsort in order of highest to lowest z value
 	qsort(sp_origin, sp_counter, sizeof(vec3_t), SortByHeight);

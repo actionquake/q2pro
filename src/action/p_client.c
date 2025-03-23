@@ -964,13 +964,6 @@ void SP_info_player_start( edict_t * self )
 // BOTLIB-specific spawnpoints
 void SP_info_bot_deathmatch( edict_t * self )
 {
-	// // Make sure the botflags field is properly initialized
-    // if (!self->botflags) {
-    //     self->botflags = 0; // Default to 0 if not specified
-    // }
-    
-    // gi.dprintf("Bot spawn point with botflags %d at %f %f %f\n", 
-    //           self->bot_spawnpoint->botflags, self->s.origin[0], self->s.origin[1], self->s.origin[2]);
 }
 
 /*QUAKED info_player_deathmatch (1 0 1) (-16 -16 -24) (16 16 32)
@@ -2359,8 +2352,8 @@ edict_t *SelectBotSpawnPoint(edict_t *ent)
             return ent->bot_spawnpoint;
         }
         // If we get here, the spawn point is no longer valid
-        gi.dprintf("SelectBotSpawnPoint: Existing spawnpoint is no longer valid\n");
-        ent->bot_spawnpoint = NULL;
+        //gi.dprintf("SelectBotSpawnPoint: Existing spawnpoint is no longer valid\n");
+        //ent->bot_spawnpoint = NULL;
     }
     
     // If no bot spawn points are available, fall back to deathmatch spawns

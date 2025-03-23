@@ -16,6 +16,12 @@ void BOTLIB_Init(edict_t* self)
 	self->show_node_links = INVALID;
 	self->show_node_links_time = 0;
 
+	// Create dummy spawnpoint in non-training modes
+	if (!training->value) {
+		self->bot_spawnpoint = G_Spawn();
+		self->bot_spawnpoint->botflags = BOT_NORMAL;
+	}
+
 	//RiEvEr - new node pathing system
 	memset(&(self->pathList), 0, sizeof(self->pathList));
 	self->pathList.head = self->pathList.tail = NULL;
@@ -629,14 +635,42 @@ int BOTLIB_AutoAdjustSkill(edict_t * self)
 	*/
 }
 
-///////////////////////////////////////////////////////////////////////
-// Main Think function for bot
-///////////////////////////////////////////////////////////////////////
-void BOTLIB_Think(edict_t* self)
+static void BOTLIB_Think_Training(edict_t* self)
 {
-	usercmd_t ucmd;
+	int botflags = 0;
+	
+	if (self->bot_spawnpoint)
+		botflags = self->bot_spawnpoint->botflags;
 
-	//rekkie -- Fake Bot Client -- s
+	// Do not move if botflags includes BOT_NOMOVE
+	if (botflags & BOT_NOMOVE) {
+		self->bot.state = BOT_MOVE_STATE_STAND;
+	}
+
+	if (botflags & BOT_NOSHOOT) {
+		// Does not attack
+		self->enemy = NULL;
+		self->bot.bi.actionflags &= ~ACTION_ATTACK;
+	}
+
+	if (botflags & BOT_IGNORE_PLAYERS) {
+		if (self->enemy && !self->enemy->is_bot) {
+			self->enemy = NULL;
+			self->bot.bi.actionflags &= ~ACTION_ATTACK;
+		}
+	}
+
+	if (botflags & BOT_IGNORE_BOTS) {
+		if (self->enemy && self->enemy->is_bot) {
+			self->enemy = NULL;
+			self->bot.bi.actionflags &= ~ACTION_ATTACK;
+		}
+	}
+	
+}
+
+static void BOTLIB_Think_Client(edict_t* self)
+{
 	if (level.framenum % 10 == 0) // Update bot info every 10th frame
 	{
 		// Set self->client->ping to random bot->bot_baseline_ping, then vary by +-3 (ping jitter)
@@ -651,8 +685,67 @@ void BOTLIB_Think(edict_t* self)
 		if (bot_reportasclient->value) {
 			SV_BotUpdateInfo(self->client->pers.netname, self->bot.bot_ping, self->client->resp.score); // So the server can fake the bot as a 'client'
 		}
-		//gi.SV_BotUpdateInfo(self->client->pers.netname, self->bot.bot_ping, self->client->resp.score);
 	}
+}
+
+static void BOTLIB_Think_Respawn(edict_t* self)
+{
+	usercmd_t ucmd;
+
+	if (self->deadflag == DEAD_DEAD) {
+
+		// If the bot is dead and we're not respawning, then we're leaving the server
+		if (self->bot_spawnpoint->botflags & BOT_NORESPAWN) {
+			BOTLIB_RemoveBot(self->client->pers.netname);
+			return;
+		}
+
+		// Let's respawn!
+		self->client->buttons = 0;
+		ucmd.buttons = BUTTON_ATTACK;
+	}
+}
+
+
+static void BOTLIB_Think_Gamemode(edict_t* self)
+{
+	if (ctf->value) { // CTF Goals
+		BOTLIB_CTF_Goals(self);
+	} else if (esp->value) { // ESP Goals
+		// Do nothing until this is fixed
+		BOTLIB_ESP_Goals(self);
+	}
+	// If nothing else, bot will go into search & destroy mode
+	// Check if the bot is in a NAV state (I need a nav) or if NONE
+	else if (self->bot.state == BOT_MOVE_STATE_NAV || self->bot.state == BOT_MOVE_STATE_NONE){
+		BOTLIB_PickLongRangeGoal(self);
+	}
+
+	// Non-teamplay stuck suicide and no training mode
+	if (!teamplay->value) {
+		if (self->bot.node_travel_time > 120) {
+			if (!training->value) {
+				killPlayer(self, true);
+			}
+		}
+		// Too often teamplay bots will suicide because there's a bit of waiting around
+	} else if (self->bot.node_travel_time > 160 && 
+		current_round_length > 60 && 
+		!lights_camera_action &&
+		!holding_on_tie_check) {
+			BOTLIB_PickLongRangeGoal(self);
+	}
+}
+
+///////////////////////////////////////////////////////////////////////
+// Main Think function for bot
+///////////////////////////////////////////////////////////////////////
+void BOTLIB_Think(edict_t* self)
+{
+	usercmd_t ucmd;
+
+	//rekkie -- Fake Bot Client -- s
+	BOTLIB_Think_Client(self);
 	//rekkie -- Fake Bot Client -- e
 
 	// Set up client movement
@@ -673,14 +766,8 @@ void BOTLIB_Think(edict_t* self)
 		goto end_think;
 	}
 
-	// Force respawn
-	if (self->deadflag == DEAD_DEAD)
-	{
-		if (!(self->bot_spawnpoint->botflags & BOT_NORESPAWN)) {
-			self->client->buttons = 0;
-			ucmd.buttons = BUTTON_ATTACK;
-		}
-	}
+	// Respawn logic
+	BOTLIB_Think_Respawn(self);
 
 	// Don't execute thinking code if not alive
 	if (self->deadflag != DEAD_NO || self->health <= 0)
@@ -701,111 +788,8 @@ void BOTLIB_Think(edict_t* self)
 	if (level.framenum < 15) // Wait for a little before processing AI on a new map
 		goto end_think; // Skip bot logic
 
-	//gi.dprintf("%s: My bot state is %d\n", __func__, self->bot.state);
-	if (ctf->value) // CTF Goals
-	{
-		BOTLIB_CTF_Goals(self);
-	}
-	else if (esp->value) // ESP Goals
-	{
-		// Do nothing until this is fixed
-		BOTLIB_ESP_Goals(self);
-	} else if (training->value) { // Training mode
-		// Do not move if botflags includes BOT_NOMOVE
-		if (self->bot_spawnpoint->botflags & BOT_NOMOVE) {
-			self->bot.state = BOT_MOVE_STATE_STAND;
-		}
-	}
-
-	// Check if the bot is in a NAV state (I need a nav) or if NONE
-	else if (self->bot.state == BOT_MOVE_STATE_NAV || self->bot.state == BOT_MOVE_STATE_NONE)
-	{
-		/*
-		if (rand() % 2) // Area 1
-		{
-			BOTLIB_CanGotoNode(self, nodes[64].nodenum, 0);
-		}
-		else // Area 9
-		{
-			BOTLIB_CanGotoNode(self, nodes[3344].nodenum, 0);
-		}
-		*/
-
-		/*
-		//int curr_node = ACEND_FindClosestReachableNode(self, NODE_DENSITY, NODE_ALL);
-		//if (curr_node != 2505)
-		if (1 && rand() % 2) // Area 0
-		{
-			if (rand() % 2)
-				BOTLIB_CanGotoNode(self, nodes[2505].nodenum, 0);
-			else
-				BOTLIB_CanGotoNode(self, nodes[3346].nodenum, 0);
-		}
-		else // Area 1
-		{
-			if (rand() % 2)
-				BOTLIB_CanGotoNode(self, nodes[999].nodenum, 0);
-			else
-				BOTLIB_CanGotoNode(self, nodes[38].nodenum, 0);
-		}
-		*/
-
-		//else // DM and TP goals
-		{
-			//self->bot.pause_time = 100;
-			//Com_Printf("\n%s %s [%d] BOT_MOVE_STATE_NAV BOTLIB_PickLongRangeGoal() -------------------- \n", __func__, self->client->pers.netname, level.framenum);
-
-			//Com_Printf("%s %s [%d] BOT_MOVE_STATE_NAV BOTLIB_PickLongRangeGoal()\n", __func__, self->client->pers.netname, level.framenum);
-			
-			//nav_area.total_areas = 0; // Turn off area based nav
-
-			// THIS IS WHERE THE bot.current_node is set //
-			BOTLIB_PickLongRangeGoal(self);
-
-			//Com_Printf("%s %s [%d] BOT_MOVE_STATE_NAV BOTLIB_PickLongRangeGoal() curr[%d] goal[%d] -------------------- \n", __func__, self->client->pers.netname, level.framenum, self->bot.current_node, self->bot.goal_node);
-		}
-	}
-	/*
-	if (self->bot.state == BOT_MOVE_STATE_NAV_NEXT) // If map has nodes grouped into areas
-	{
-		//self->bot.pause_time = 100;
-		//Com_Printf("%s %s [%d] BOT_MOVE_STATE_NAV_NEXT BOTLIB_GetNextAreaNode() -------------------- \n", __func__, self->client->pers.netname, level.framenum);
-		BOTLIB_GetNextAreaNode(self); // Get next area
-	}
-	*/
-
-
-
-	// Kill the bot if completely stuck somewhere
-	//if(VectorLength(self->velocity) > 37) //
-	//	self->suicide_timeout = level.framenum + 10.0 * HZ;
-	//if( self->suicide_timeout < level.framenum && !teamplay->value )
-	//	killPlayer( self, true );
-
-	// Kill the bot if they've not moved between nodes in a timely manner, stuck!
-	//gi.dprintf("%s is currently at node %i\n", self->client->pers.netname, self->bot.current_node);
-
-	// Non-teamplay stuck suicide and no training mode
-	if (!teamplay->value) {
-		if (self->bot.node_travel_time > 120) {
-			if (!training->value) {
-				killPlayer(self, true);
-			}
-		}
-		// Too often teamplay bots will suicide because there's a bit of waiting around
-	} else if (self->bot.node_travel_time > 160 && 
-		current_round_length > 60 && 
-		!lights_camera_action &&
-		!holding_on_tie_check) {
-			BOTLIB_PickLongRangeGoal(self);
-			//killPlayer(self, true);
-	}
-
-	// Find any short range goal
-	//ACEAI_PickShortRangeGoal(self);
-
-	//BOTLIB_GetWeaponsAndAmmo(self); //rekkie -- Locate and pickup a primary weapon if we need one
-
+	// Make decisions based on gamemode
+	BOTLIB_Think_Gamemode(self);
 
 	if (0) // Always follow player -- && (level.framenum % HZ == 0))
 	{
@@ -827,113 +811,95 @@ void BOTLIB_Think(edict_t* self)
 		}
 	}
 
+	BOTLIB_FindVisibleAllies(self); // Find visible allies
+	BOTLIB_Radio(self, &ucmd);
+	self->bot.see_enemies = BOTLIB_FindEnemy(self); // Find visible enemies
+	BOTLIB_Reload(self); // Reload the weapon if needed
 
-
-
-	//if (1)
+	// This doesn't mean that the bot sees itself as an enemy
+	// self->enemy is which bot the current self->bot is targeting
+	if (self->enemy)
 	{
-		BOTLIB_FindVisibleAllies(self); // Find visible allies
-		BOTLIB_Radio(self, &ucmd);
-		self->bot.see_enemies = BOTLIB_FindEnemy(self); // Find visible enemies
-		BOTLIB_Reload(self); // Reload the weapon if needed
-
-		// This doesn't mean that the bot sees itself as an enemy
-		// self->enemy is which bot the current self->bot is targeting
-		if (self->enemy)
+		// Chase after the new enemy
+		if (self->bot.enemy_chase_time < level.framenum && self->enemy->bot.current_node != self->bot.goal_node)
 		{
-			// Chase after the new enemy
-			if (self->bot.enemy_chase_time < level.framenum && self->enemy->bot.current_node != self->bot.goal_node)
+			qboolean chase_enemy = false;
+			if ((FindItem(HC_NAME) == self->client->weapon ||
+				FindItem(M3_NAME) == self->client->weapon ||
+				FindItem(DUAL_NAME) == self->client->weapon ||
+				FindItem(KNIFE_NAME) == self->client->weapon)
+				&& self->bot.enemy_dist > 200)
 			{
-				qboolean chase_enemy = false;
-				if ((FindItem(HC_NAME) == self->client->weapon ||
-					FindItem(M3_NAME) == self->client->weapon ||
-					FindItem(DUAL_NAME) == self->client->weapon ||
-					FindItem(KNIFE_NAME) == self->client->weapon)
-					&& self->bot.enemy_dist > 200)
-				{
-					chase_enemy = true;
-					self->bot.enemy_chase_time = level.framenum + 1 * HZ; // Delay next call
-				}
-				else if (FindItem(SNIPER_NAME) == self->client->weapon)// && self->bot.enemy_dist > 1500)
-				{
-					chase_enemy = false;
-					self->bot.enemy_chase_time = level.framenum + (((rand() % 20) + 10) * HZ); // Delay next call
-				}
-				else if ((FindItem(M4_NAME) == self->client->weapon || FindItem(MP5_NAME) == self->client->weapon) && self->bot.enemy_dist > 1024)
-				{
-					chase_enemy = true;
-					self->bot.enemy_chase_time = level.framenum + (((rand() % 10) + 10) * HZ); // Delay next call
-				}
+				chase_enemy = true;
+				self->bot.enemy_chase_time = level.framenum + 1 * HZ; // Delay next call
+			}
+			else if (FindItem(SNIPER_NAME) == self->client->weapon)// && self->bot.enemy_dist > 1500)
+			{
+				chase_enemy = false;
+				self->bot.enemy_chase_time = level.framenum + (((rand() % 20) + 10) * HZ); // Delay next call
+			}
+			else if ((FindItem(M4_NAME) == self->client->weapon || FindItem(MP5_NAME) == self->client->weapon) && self->bot.enemy_dist > 1024)
+			{
+				chase_enemy = true;
+				self->bot.enemy_chase_time = level.framenum + (((rand() % 10) + 10) * HZ); // Delay next call
+			}
 
-				if (chase_enemy)
+			if (chase_enemy)
+			{
+				// Get enemy node
+				if (BOTLIB_CanGotoNode(self, self->enemy->bot.current_node, false)) // Make sure we can visit the node they're at
 				{
-					// Get enemy node
-					if (BOTLIB_CanGotoNode(self, self->enemy->bot.current_node, false)) // Make sure we can visit the node they're at
-					{
-						//self->bot.state = BOT_MOVE_STATE_MOVE;
-						//BOTLIB_SetGoal(self, self->enemy->bot.current_node);
-						//Com_Printf("%s %s visiting enemy %s node %i [delay: %i vs %i] [wep: %s]\n", __func__, self->client->pers.netname, self->enemy->client->pers.netname, self->enemy->bot.current_node, self->bot.enemy_chase_time, level.framenum, self->client->weapon->pickup_name);
-					}
+					//self->bot.state = BOT_MOVE_STATE_MOVE;
+					//BOTLIB_SetGoal(self, self->enemy->bot.current_node);
+					//Com_Printf("%s %s visiting enemy %s node %i [delay: %i vs %i] [wep: %s]\n", __func__, self->client->pers.netname, self->enemy->client->pers.netname, self->enemy->bot.current_node, self->bot.enemy_chase_time, level.framenum, self->client->weapon->pickup_name);
 				}
 			}
 		}
+	}
 
-		// If the bot is on a slope, raise it up depending on the slope normal and the bot mins/maxs hit box
-		{
-			self->bot.touch_ground = gi.trace(self->s.origin, self->mins, self->maxs, tv(self->s.origin[0], self->s.origin[1], self->s.origin[2] - 48), self, (MASK_PLAYERSOLID | MASK_OPAQUE));
+	// If the bot is on a slope, raise it up depending on the slope normal and the bot mins/maxs hit box
+	{
+		self->bot.touch_ground = gi.trace(self->s.origin, self->mins, self->maxs, tv(self->s.origin[0], self->s.origin[1], self->s.origin[2] - 48), self, (MASK_PLAYERSOLID | MASK_OPAQUE));
+	}
 
-			/*
-			self->bot.touch_ground = gi.trace(self->s.origin, self->mins, self->maxs, tv(self->s.origin[0], self->s.origin[1], self->s.origin[2] - 128), self, (MASK_PLAYERSOLID | MASK_OPAQUE));
-			vec3_t exp_up;
-			VectorCopy(self->bot.touch_ground.plane.normal, exp_up);
-			exp_up[2] = 0;
-			VectorNormalize(exp_up);
-			exp_up[2] = 1;
-			VectorScale(exp_up, 24, exp_up);
-			// Feed the raised up position back into the trace
-			VectorAdd(self->bot.touch_ground.endpos, exp_up, self->bot.touch_ground.endpos);
-			self->bot.touch_ground = gi.trace(self->bot.touch_ground.endpos, NULL, NULL, self->bot.touch_ground.endpos, self, (MASK_PLAYERSOLID | MASK_OPAQUE));
-			*/
+	if (self->bot.state == BOT_MOVE_STATE_MOVE || self->bot.state == BOT_MOVE_STATE_WANDER || self->bot.state == BOT_MOVE_STATE_STAND)
+	{
+		BOTLIB_FollowPath(self); // Get current and next node back from nav code.
+		BOTLIB_Wander(self, &ucmd);
+	}
 
-		}
+	BOTLIB_TouchingLadder(self);
+	BOTLIB_Look(self, &ucmd);
 
-		if (self->bot.state == BOT_MOVE_STATE_MOVE || self->bot.state == BOT_MOVE_STATE_WANDER || self->bot.state == BOT_MOVE_STATE_STAND)
-		{
-			BOTLIB_FollowPath(self); // Get current and next node back from nav code.
-			BOTLIB_Wander(self, &ucmd);
-		}
+	BOTLIB_ChooseWeapon(self);
 
-		BOTLIB_TouchingLadder(self);
-		BOTLIB_Look(self, &ucmd);
+	// When out of sight of enemies
+	if (self->bot.see_enemies == false)
+	{
+		BOTLIB_Healing(self, &ucmd); // Check if bot needs to heal
+		BOTLIB_ReadyWeapon(self); // Change to a better weapon
 
-		BOTLIB_ChooseWeapon(self);
+		// Sniper bots should zoom in before an encounter
+		if ((rand() % 10) == 0)
+			BOTLIB_SniperZoom(self);
 
-		// When out of sight of enemies
-		if (self->bot.see_enemies == false)
-		{
-			BOTLIB_Healing(self, &ucmd); // Check if bot needs to heal
-			BOTLIB_ReadyWeapon(self); // Change to a better weapon
+	}
 
-			// Sniper bots should zoom in before an encounter
-			if ((rand() % 10) == 0)
-				BOTLIB_SniperZoom(self);
+	if (self->bot.see_enemies)
+	{
+		if (self->bot.enemy_in_xhair)
+			BOTLIB_Attack(self, &ucmd);
 
-		}
+		else if (self->client->weapon == FindItemByNum(HC_NUM) && BOTLIB_Infront(self, self->enemy, 0.3))
+			BOTLIB_Attack(self, &ucmd);
 
-		//if (self->bot.see_enemies == true && self->bot.enemy_in_xhair && //(self->enemy && self->enemy->deadflag == DEAD_NO) &&
-		//	(self->client->weaponstate != WEAPON_RELOADING) && (self->client->bandaging == 0) &&
-		//	(teamplay->value && lights_camera_action <= 1) || teamplay->value == 0)
-		if (self->bot.see_enemies)
-		{
-			if (self->bot.enemy_in_xhair)
-				BOTLIB_Attack(self, &ucmd);
+		else if (self->client->weapon == FindItemByNum(GRENADE_NUM) && BOTLIB_Infront(self, self->enemy, 0.3))
+			BOTLIB_Attack(self, &ucmd);
+	}
 
-			else if (self->client->weapon == FindItemByNum(HC_NUM) && BOTLIB_Infront(self, self->enemy, 0.3))
-				BOTLIB_Attack(self, &ucmd);
-
-			else if (self->client->weapon == FindItemByNum(GRENADE_NUM) && BOTLIB_Infront(self, self->enemy, 0.3))
-				BOTLIB_Attack(self, &ucmd);
-		}
+	// Training mode overrides
+	if (training->value) {
+		BOTLIB_Think_Training(self);
 	}
 
 	// Remember where we were, to check if we got stuck.

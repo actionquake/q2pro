@@ -306,6 +306,26 @@ void BOTLIB_Show_Spawnpoints(void)
 		gi.linkentity(ent);
 	}
 
+	while ((spot = G_Find(spot, FOFS(classname), "info_player_team3")) != NULL)
+	{
+		// Show a visible spawn point
+		edict_t* ent;
+		ent = G_Spawn();
+		ent->classname = "dc_spawnpoint_team3";
+		ent->movetype = MOVETYPE_NONE;
+		ent->solid = SOLID_NOT;
+		ent->model = "models/objects/dmspot/tris.md2";	// deathmatch spawn point
+		ent->s.modelindex = gi.modelindex("models/objects/dmspot/tris.md2");
+		ent->owner = ent;
+		ent->nextthink = level.framenum + free_time * HZ;
+		ent->think = G_FreeEdict;
+		VectorCopy(spot->s.origin, ent->s.origin);
+		VectorCopy(spot->s.angles, ent->s.angles);
+		VectorSet(ent->mins, -16, -16, -24);
+		VectorSet(ent->maxs, 16, 16, 32);
+		gi.linkentity(ent);
+	}
+
 	// Show custom user spawn points
 	if (dc_sp_count && dc_sp != NULL)
 	{

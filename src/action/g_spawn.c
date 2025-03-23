@@ -281,6 +281,7 @@ static const spawn_func_t spawn_funcs[] = {
 
 	{"info_player_team1", SP_info_player_team1},
 	{"info_player_team2", SP_info_player_team2},
+	{"info_player_team3", SP_info_player_team3},
 
 	{"func_plat", SP_func_plat},
 	{"func_button", SP_func_button},
