@@ -644,8 +644,6 @@ void BOTLIB_Think(edict_t* self)
 		if (ping_jitter && (rand() % 1) == 0)
 			ping_jitter -= (ping_jitter * 2); // Negative jitter
 
-		//Com_Printf("%s %s [%d + %d]\n", __func__, self->client->pers.netname, self->bot.bot_baseline_ping, ping_jitter);
-
 		self->bot.bot_ping = self->bot.bot_baseline_ping + ping_jitter;
 		if (self->bot.bot_ping < 5) self->bot.bot_ping = 1; // Min ping
 		self->client->ping = self->bot.bot_ping;
@@ -675,11 +673,13 @@ void BOTLIB_Think(edict_t* self)
 		goto end_think;
 	}
 
-	// Force respawn 
+	// Force respawn
 	if (self->deadflag == DEAD_DEAD)
 	{
-		self->client->buttons = 0;
-		ucmd.buttons = BUTTON_ATTACK;
+		if (!(self->bot_behavior & BOT_NORESPAWN)) {
+			self->client->buttons = 0;
+			ucmd.buttons = BUTTON_ATTACK;
+		}
 	}
 
 	// Don't execute thinking code if not alive
@@ -711,8 +711,8 @@ void BOTLIB_Think(edict_t* self)
 		// Do nothing until this is fixed
 		BOTLIB_ESP_Goals(self);
 	} else if (training_mode->value) { // Training mode
-		// Do not move if bot_behavior is BOT_NOMOVE or BOT_DUMMY (bitwise flags)
-		if (self->bot_behavior == BOT_NOMOVE || self->bot_behavior == BOT_DUMMY) {
+		// Do not move if bot_behavior includes BOT_NOMOVE
+		if (self->bot_behavior & BOT_NOMOVE) {
 			self->bot.state = BOT_MOVE_STATE_STAND;
 		}
 	}

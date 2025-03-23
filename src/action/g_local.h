@@ -437,11 +437,15 @@ ammo_t;
 // g_spawn.c
 typedef enum
 {
-  BOT_NORMAL,
-  BOT_NOMOVE,
-  BOT_NOSHOOT,
-  BOT_DUMMY, // Do not move or shoot
-} bot_behavior_t;
+  BOT_NORMAL = BIT(0),
+  BOT_NOMOVE = BIT(1),
+  BOT_NOSHOOT = BIT(2),
+  BOT_NOJUMP = BIT(3),  // Bot never jumps (+moveup)
+  BOT_NODUCK = BIT(4),  // Bot never ducks (+movedown)
+  BOT_NORESPAWN = BIT(5), // Bot never respawns (does not use the player respawn method)
+  BOT_IGNORE_PLAYERS = BIT(6), // Bot ignores players
+  BOT_IGNORE_BOTS = BIT(7), // Bot ignores other bots
+} bot_spawn_behavior_t;
 #endif
 
 //tng_net.c
@@ -2754,7 +2758,7 @@ struct edict_s
 	int equipchoice; 
 	float	fLastZoomTime;	// Time we last changed sniper zoom mode
 	// Spawnpoint BOTLIB bot behavior
-	bot_behavior_t	bot_behavior;
+	bot_spawn_behavior_t	bot_behavior;
 	edict_t *bot_spawnpoint;
  
 	// Enemy related 
