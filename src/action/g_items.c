@@ -339,8 +339,12 @@ qboolean Pickup_Special (edict_t * ent, edict_t * other)
 
 	AddItem(other, ent->item);
 
-	if(!(ent->spawnflags & (DROPPED_ITEM | DROPPED_PLAYER_ITEM)) && item_respawnmode->value)
+	if (training->value){
+		// Always make original items respawn immediately in training mode
+		ent->flags |= FL_RESPAWN;
+	} else if (!(ent->spawnflags & (DROPPED_ITEM | DROPPED_PLAYER_ITEM)) && item_respawnmode->value) {
 		SetRespawn (ent, item_respawn->value);
+	}
 
 	return true;
 }
@@ -744,6 +748,10 @@ qboolean Pickup_Ammo (edict_t * ent, edict_t * other)
 
 	if (!(ent->spawnflags & (DROPPED_ITEM | DROPPED_PLAYER_ITEM)))
 		SetRespawn (ent, ammo_respawn->value);
+
+	if (training->value)
+		// Always make ammo respawn immediately in training mode
+		ent->flags |= FL_RESPAWN;
 
 	return true;
 }

@@ -438,12 +438,11 @@ ammo_t;
 // g_spawn.c
 typedef enum
 {
-  BOT_NORMAL = BIT(0),
-  BOT_NOMOVE = BIT(1),  // Bot will not move from their spawnpoint, but will still shoot enemy entities
-  BOT_NOSHOOT = BIT(2),  // Bot will not shoot enemy entities, but will still move/interact and behave as if they were 
-  BOT_NORESPAWN = BIT(3), // Bot never respawns (does not use the player respawn method)
-  BOT_IGNORE_PLAYERS = BIT(4), // Bot ignores players
-  BOT_IGNORE_BOTS = BIT(5), // Bot ignores other bots
+  BOT_NOMOVE = BIT(0),  // Bot will not move from their spawnpoint, but will still shoot enemy entities
+  BOT_NOSHOOT = BIT(1),  // Bot will not shoot enemy entities, but will still move/interact and behave as if they were 
+  BOT_NORESPAWN = BIT(2), // Bot never respawns (does not use the player respawn method)
+  BOT_IGNORE_PLAYERS = BIT(3), // Bot ignores players
+  BOT_IGNORE_BOTS = BIT(4), // Bot ignores other bots
 }
   bot_spawn_behavior_t;
 #endif

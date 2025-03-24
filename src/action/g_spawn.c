@@ -1442,6 +1442,9 @@ void SpawnEntities (const char *mapname, const char *entities, const char *spawn
 		}
 	}
 
+	// Global enforce training mode off unless it's explicitly set
+	if (!training->value)
+		gi.cvar_forceset("training", "0");
 
 	gi.cvar_forceset(maptime->name, "0:00");
 

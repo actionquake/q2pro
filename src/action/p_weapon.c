@@ -436,7 +436,10 @@ qboolean Pickup_Weapon(edict_t* ent, edict_t* other)
 		break;
 	}
 
-	if (!(ent->spawnflags & (DROPPED_ITEM | DROPPED_PLAYER_ITEM))
+	if (training->value){
+		// Always make original weapons respawn immediately in training mode
+		ent->flags |= FL_RESPAWN;
+	} else if (!(ent->spawnflags & (DROPPED_ITEM | DROPPED_PLAYER_ITEM))
 		&& (SPEC_WEAPON_RESPAWN) && special)
 	{
 		if (DMFLAGS(DF_WEAPON_RESPAWN) && ((gameSettings & GS_DEATHMATCH) || ctf->value == 2))
@@ -447,7 +450,6 @@ qboolean Pickup_Weapon(edict_t* ent, edict_t* other)
 
 	return true;
 }
-
 
 // zucc vwep 3.17(?) vwep support
 void ShowGun(edict_t* ent)
@@ -706,6 +708,12 @@ void SpecialWeaponRespawnTimer(edict_t* ent)
 	// Espionage, CTF and Domination weapons disappear after 30s
 	if (esp->value || dom->value || ctf->value) {
 		ent->nextthink = eztimer(30);
+		ent->think = G_FreeEdict;
+		return;
+	}
+	// Training mode weapons disappear in 2 seconds to reduce clutter
+	if (training->value) {
+		ent->nextthink = eztimer(2);
 		ent->think = G_FreeEdict;
 		return;
 	}

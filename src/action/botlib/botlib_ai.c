@@ -19,7 +19,7 @@ void BOTLIB_Init(edict_t* self)
 	// Create dummy spawnpoint in non-training modes
 	if (!training->value) {
 		self->bot_spawnpoint = G_Spawn();
-		self->bot_spawnpoint->botflags = BOT_NORMAL;
+		self->bot_spawnpoint->botflags = 0;
 	}
 
 	//RiEvEr - new node pathing system
@@ -688,15 +688,16 @@ static void BOTLIB_Think_Client(edict_t* self)
 	}
 }
 
-static qboolean BOTLIB_Think_Respawn(edict_t* self)
+static void BOTLIB_Think_Respawn(edict_t* self, usercmd_t* ucmd)
 {
 
 	// If the bot is dead and we're not respawning, then we're leaving the server
 	if (self->bot_spawnpoint->botflags & BOT_NORESPAWN) {
 		BOTLIB_RemoveBot(self->client->pers.netname);
-		return false;
 	}
-	return true;
+	// Let's respawn!
+	self->client->buttons = 0;
+	ucmd->buttons = BUTTON_ATTACK;
 }
 
 
@@ -759,13 +760,9 @@ void BOTLIB_Think(edict_t* self)
 		goto end_think;
 	}
 
-	// Respawn logic (must be done here due to ucmd)
+	// Respawn logic
 	if (self->deadflag == DEAD_DEAD) {
-		if (BOTLIB_Think_Respawn(self)) {
-			// Let's respawn!
-			self->client->buttons = 0;
-			ucmd.buttons = BUTTON_ATTACK;
-		}
+		BOTLIB_Think_Respawn(self, &ucmd);
 	}
 
 	// Don't execute thinking code if not alive
