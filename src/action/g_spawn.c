@@ -1403,6 +1403,7 @@ void SpawnEntities (const char *mapname, const char *entities, const char *spawn
 			gameSettings |= (GS_DEATHMATCH | GS_WEAPONCHOOSE);
 		}
 		// Training mode specific settings, overridable of course
+		gi.cvar_forceset("matchmode", "0");
 		gi.cvar_forceset("item_respawnmode", "1");
 		gi.cvar_forceset("items", "2");
 		gi.cvar_forceset("dmweapon", "Combat Knife");

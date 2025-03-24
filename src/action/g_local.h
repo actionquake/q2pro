@@ -444,18 +444,18 @@ typedef enum
   BOT_NORESPAWN = BIT(3), // Bot never respawns (does not use the player respawn method)
   BOT_IGNORE_PLAYERS = BIT(4), // Bot ignores players
   BOT_IGNORE_BOTS = BIT(5), // Bot ignores other bots
-  /*
-    A combination of BOT_IGNORE_PLAYERS and BOT_IGNORE_BOTS should make the bot navigate freely but otherwise do nothing,
-    the difference between that and BOT_NOSHOOT is that the bot will interact (avoid, strafe around, etc) with the player
-    as if they were going to shoot, but does not
-  */
 }
   bot_spawn_behavior_t;
 #endif
 
 #define BOT_DUMMY (BOT_NOMOVE | BOT_NOSHOOT)
 #define BOT_IGNORE_ALL (BOT_IGNORE_PLAYERS | BOT_IGNORE_BOTS)
-
+  /*
+    The combination of BOT_IGNORE_PLAYERS and BOT_IGNORE_BOTS (BOT_IGNORE_ALL) should make the bot navigate freely,
+	but otherwise do nothing.
+    The difference between that and BOT_NOSHOOT is that the BOT_NOSHOOT bot will interact (avoid, strafe around, etc) with the player
+    as if they were going to attack, but does not
+  */
 
 //tng_net.c
 typedef enum {
@@ -2768,8 +2768,8 @@ struct edict_s
 	int weaponchoice; 
 	int equipchoice; 
 	float	fLastZoomTime;	// Time we last changed sniper zoom mode
-	// Spawnpoint BOTLIB bot behavior
-	int	botflags;
+	// for info_bot_deathmatch spawnpoint BOTLIB botflags
+	int botflags;
 	edict_t *bot_spawnpoint;
  
 	// Enemy related 
