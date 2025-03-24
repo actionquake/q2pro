@@ -439,15 +439,23 @@ ammo_t;
 typedef enum
 {
   BOT_NORMAL = BIT(0),
-  BOT_NOMOVE = BIT(1),
-  BOT_NOSHOOT = BIT(2),
-  BOT_NOJUMP = BIT(3),  // Bot never jumps (+moveup)
-  BOT_NODUCK = BIT(4),  // Bot never ducks (+movedown)
-  BOT_NORESPAWN = BIT(5), // Bot never respawns (does not use the player respawn method)
-  BOT_IGNORE_PLAYERS = BIT(6), // Bot ignores players
-  BOT_IGNORE_BOTS = BIT(7), // Bot ignores other bots
-} bot_spawn_behavior_t;
+  BOT_NOMOVE = BIT(1),  // Bot will not move from their spawnpoint, but will still shoot enemy entities
+  BOT_NOSHOOT = BIT(2),  // Bot will not shoot enemy entities, but will still move/interact and behave as if they were 
+  BOT_NORESPAWN = BIT(3), // Bot never respawns (does not use the player respawn method)
+  BOT_IGNORE_PLAYERS = BIT(4), // Bot ignores players
+  BOT_IGNORE_BOTS = BIT(5), // Bot ignores other bots
+  /*
+    A combination of BOT_IGNORE_PLAYERS and BOT_IGNORE_BOTS should make the bot navigate freely but otherwise do nothing,
+    the difference between that and BOT_NOSHOOT is that the bot will interact (avoid, strafe around, etc) with the player
+    as if they were going to shoot, but does not
+  */
+}
+  bot_spawn_behavior_t;
 #endif
+
+#define BOT_DUMMY (BOT_NOMOVE | BOT_NOSHOOT)
+#define BOT_IGNORE_ALL (BOT_IGNORE_PLAYERS | BOT_IGNORE_BOTS)
+
 
 //tng_net.c
 typedef enum {
