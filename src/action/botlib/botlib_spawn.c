@@ -2065,7 +2065,8 @@ int BOTLIB_TPBotTeamScaling(void)
         return 0;
     }
 }
-void BOTLIB_TPBotCountManual(void)
+
+static void BOTLIB_TPBotCountManual(void)
 {
 	// Sanity check
 	if (bot_connections.desire_team1 < 0) bot_connections.desire_team1 = 0;
@@ -2146,14 +2147,52 @@ void BOTLIB_TPBotCountManual(void)
 	}
 }
 
-void BOTLIB_TPBotCountManager(void)
+static void BOTLIB_TPBotCountManager(void)
 {
 	int bots_to_spawn = BOTLIB_TPBotTeamScaling();
 	BOTLIB_TeamBotShuffle();
 	BOTLIB_BotCountManager(bots_to_spawn);
 }
 
-void BOTLIB_DMBotCountManager(void)
+static void BOTLIB_TrainingBotCountManager(void)
+{
+	// Manage bot counts in training mode
+	int bots_to_spawn = num_bot_spawns;
+	if (bot_playercount->value > 0 && (gameSettings & GS_DEATHMATCH)) {
+		// Calculate the desired number of bots based on bot_playercount and total_humans
+		bot_connections.desire_bots = (int)bot_playercount->value - bot_connections.total_humans;
+
+		// Ensure desire_bots does not exceed maxclients - total_humans
+		if (bot_connections.desire_bots + bot_connections.total_humans > maxclients->value) {
+			bot_connections.desire_bots = (int)(maxclients->value - bot_connections.total_humans);
+		}
+
+		// Sanity check - safety limits
+		if (bot_connections.desire_bots < 0) bot_connections.desire_bots = 0;
+		int bots_adj = 0;
+		int total_players = bot_connections.total_bots + bot_connections.total_humans;
+
+		if (total_players > bot_playercount->value) {
+			//gi.dprintf("I should remove a bot\n");
+			bots_adj = -1;
+		} else if (total_players < bot_playercount->value) {
+			// gi.dprintf("I should add a bot\n");
+			// gi.dprintf("total_players: %d, bot_playercount->value: %d\n", total_players, bot_playercount->value);
+			bots_adj = 1;
+		} else {
+			bots_to_spawn = (int)bot_playercount->value;
+			bot_connections.desire_bots = bots_to_spawn;
+		}
+
+		bots_to_spawn = bots_adj; // Set bots_to_spawn to +1 or -1 based on the adjustment needed
+		//gi.dprintf("bots_adj: %d\n", bots_to_spawn);
+	} else {
+		bots_to_spawn = bot_connections.desire_bots - bot_connections.total_bots;
+	}
+	BOTLIB_BotCountManager(bots_to_spawn);
+}
+
+static void BOTLIB_DMBotCountManager(void)
 {
 	// Manage bot counts in DM mode
 	int bots_to_spawn = 0;
@@ -2247,6 +2286,12 @@ void BOTLIB_CheckBotRules(void)
 		BOTLIB_TPBotCountManual();
 	} else if (teamplay->value && bot_connections.auto_balance_bots) {
 		BOTLIB_TPBotCountManager();
+	} else if (training->value) {
+			// We know exactly how many bots to spawn, remove all and start over if needed
+			if (bot_connections.total_bots != num_bot_spawns) {
+				BOTLIB_RemoveBot("ALL");
+				BOTLIB_BotCountManager(num_bot_spawns);
+			}
 	} else {
 		BOTLIB_DMBotCountManager();
 	}

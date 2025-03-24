@@ -1786,6 +1786,7 @@ void ClientDisconnect(edict_t* ent);
 void CopyToBodyQue(edict_t* ent);
 void Announce_Reward(edict_t *ent, int rewardType);
 void FreeBotSpawnpoint(edict_t *ent);
+extern int num_bot_spawns;
 
 //p_weapon.c
 void Weapon_Generic( edict_t * ent, int FRAME_ACTIVATE_LAST, int FRAME_FIRE_LAST,

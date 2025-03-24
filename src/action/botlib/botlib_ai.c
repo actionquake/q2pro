@@ -692,7 +692,7 @@ static void BOTLIB_Think_Respawn(edict_t* self, usercmd_t* ucmd)
 {
 
 	// If the bot is dead and we're not respawning, then we're leaving the server
-	if (self->bot_spawnpoint->botflags & BOT_NORESPAWN) {
+	if (self->bot_spawnpoint && self->bot_spawnpoint->botflags & BOT_NORESPAWN) {
 		BOTLIB_RemoveBot(self->client->pers.netname);
 	}
 	// Let's respawn!
