@@ -937,6 +937,11 @@ static void drop_make_touchable (edict_t * ent)
 		ent->nextthink = level.framenum + 6 * HZ;
 		ent->think = G_FreeEdict;
 	}
+	else if( training->value ) // All items disappear after 2 seconds in training mode
+	{
+		ent->nextthink = eztimer(2);
+		ent->think = G_FreeEdict;
+	}
 	else
 	{
 		ent->nextthink = level.framenum + 119 * HZ;

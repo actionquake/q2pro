@@ -1689,6 +1689,9 @@ void TossItemsOnDeath(edict_t * ent)
 	if (allweapon->value)// don't drop weapons if allweapons is on
 		return;
 
+	if (training->value) // don't drop weapons if training is on
+		return;
+
 	if (WPF_ALLOWED(MK23_NUM) && WPF_ALLOWED(DUAL_NUM)) {
 		// give the player a dual pistol so they can be sure to drop one
 		item = GET_ITEM(DUAL_NUM);
@@ -3093,11 +3096,17 @@ void PutClientInServer(edict_t * ent)
 
 	client->clientNum = index;
 
-	//zucc give some ammo
-	// changed to mk23
-	item = GET_ITEM( MK23_NUM );
-	client->selected_item = ITEM_INDEX( item );
-	client->inventory[client->selected_item] = 1;
+	if (training->value && ent->is_bot) {
+		item = GET_ITEM( KNIFE_NUM );
+		client->selected_item = ITEM_INDEX( item );
+		client->inventory[client->selected_item] = 1;
+	} else {
+		//zucc give some ammo
+		// changed to mk23
+		item = GET_ITEM( MK23_NUM );
+		client->selected_item = ITEM_INDEX( item );
+		client->inventory[client->selected_item] = 1;
+	}
 
 	client->weapon = item;
 	client->lastweapon = item;
