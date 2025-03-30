@@ -1407,6 +1407,7 @@ void SpawnEntities (const char *mapname, const char *entities, const char *spawn
 		gi.cvar_forceset("item_respawnmode", "1");
 		gi.cvar_forceset("items", "2");
 		gi.cvar_forceset("dmweapon", "Combat Knife");
+		gi.cvar_forceset("use_rewards", "0");  // No reward announcements in training mode
 	}
 	else if (teamplay->value)
 	{
