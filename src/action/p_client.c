@@ -3096,6 +3096,7 @@ void PutClientInServer(edict_t * ent)
 
 	client->clientNum = index;
 
+	// Give training mode bots a knife instead of a pistol
 	if (training->value && ent->is_bot) {
 		item = GET_ITEM( KNIFE_NUM );
 		client->selected_item = ITEM_INDEX( item );
