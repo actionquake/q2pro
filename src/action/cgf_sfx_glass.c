@@ -219,6 +219,7 @@ CGF_SFX_InstallBreakableGlass (edict_t * aGlassPane)
   aGlassPane->takedamage = DAMAGE_YES;
   aGlassPane->solid = SOLID_BSP;
   aGlassPane->movetype = MOVETYPE_FLYMISSILE;
+  aGlassPane->flags |= FL_NO_KNOCKBACK;  // This prevents grenades from moving glass
   // for other movetypes, cannot move pane to hidden location and back
 
   // try to establish size
