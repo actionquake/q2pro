@@ -275,7 +275,7 @@ CGF_SFX_ShootBreakableGlass (edict_t * aGlassPane, edict_t * anAttacker,
       case MOD_KNIFE:		// slash damage
         destruct = true;
         break;
-      default:
+      default:   //Otherwise, randomly break
         destruct = (rand () % 3 == 0);
         break;
       };
