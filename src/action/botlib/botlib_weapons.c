@@ -982,7 +982,7 @@ int BOTLIB_Need_Special(edict_t* self, int* primary_weapon, int* secondary_weapo
 int BOTLIB_LocateFloorItem(edict_t* self, int* items_to_get, int items_counter)
 {
 	qboolean found = false;
-	edict_t* items[32]; // Items we find
+	edict_t* found_items[32]; // Items we find
 	int item_nodes[32]; // Keep track of the nodes near those items
 	int item_count = 0; // Total items we found
 	int base = 1 + game.maxclients + BODY_QUEUE_SIZE;
@@ -999,6 +999,15 @@ int BOTLIB_LocateFloorItem(edict_t* self, int* items_to_get, int items_counter)
 	{
 		if (ent->inuse == false) continue;
 		if (!ent->classname) continue;
+		
+		// Skip items the bot already has
+		if (self->client->inventory[ITEM_INDEX(GET_ITEM(SIL_NUM))]) continue;
+		if (self->client->inventory[ITEM_INDEX(GET_ITEM(SLIP_NUM))]) continue;
+		if (self->client->inventory[ITEM_INDEX(GET_ITEM(BAND_NUM))]) continue;
+		if (self->client->inventory[ITEM_INDEX(GET_ITEM(KEV_NUM))]) continue;
+		if (self->client->inventory[ITEM_INDEX(GET_ITEM(LASER_NUM))]) continue;
+		if (self->client->inventory[ITEM_INDEX(GET_ITEM(HELM_NUM))]) continue;
+
 
 		switch (ent->typeNum) {
 		case MK23_NUM:
@@ -1046,7 +1055,7 @@ int BOTLIB_LocateFloorItem(edict_t* self, int* items_to_get, int items_counter)
 						trace_t tr = gi.trace(nodes[j].origin, NULL, NULL, tv(ent->s.origin[0], ent->s.origin[1], ent->s.origin[2] + 0), NULL, MASK_PLAYERSOLID);
 						if (tr.fraction == 1.0 && (self->bot.state == BOT_MOVE_STATE_NAV || self->bot.state == BOT_MOVE_STATE_NONE) && BOTLIB_CanGotoNode(self, nodes[j].nodenum, false)) // Check if bot can nav to item
 						{
-							items[item_count] = ent;
+							found_items[item_count] = ent;
 							item_nodes[item_count] = nodes[j].nodenum;
 							item_count++;
 							//outer_break = true; // Set flag to break the outer loop
@@ -1067,7 +1076,7 @@ int BOTLIB_LocateFloorItem(edict_t* self, int* items_to_get, int items_counter)
 		}
 	}
 
-	//Com_Printf("%s %s -----\n\n", __func__, self->client->pers.netname);
+	//Com_Printf("I need an item!: %s %s -----\n\n", __func__, self->client->pers.netname);
 
 	// Find the closest item
 	float closest = 999999;
@@ -1076,11 +1085,11 @@ int BOTLIB_LocateFloorItem(edict_t* self, int* items_to_get, int items_counter)
 	ent = NULL;
 	for (int i = 0; i < item_count; i++)
 	{
-		dist = VectorDistance(self->s.origin, items[i]->s.origin);
+		dist = VectorDistance(self->s.origin, found_items[i]->s.origin);
 		if (dist < closest)
 		{
 			closest = dist;
-			ent = items[i];
+			ent = found_items[i];
 			node = item_nodes[i];
 
 		}
@@ -1112,6 +1121,7 @@ int BOTLIB_GetEquipment(edict_t* self)
 	int special = BOTLIB_Need_Special(self, &primary_weapon, &secondary_weapon);
 	qboolean need_grenades = BOTLIB_Need_Grenades(self);
 	qboolean need_dual_mk23 = BOTLIB_Need_Dual_MK23(self);
+
 	//qboolean need_knives = BOTLIB_Need_Knives(self);
 	//Com_Printf("%s wep[%d][%d][%d] gren[%d] knife[%d] dual[%d] ammo[%d] special[%d]\n", __func__, need_weapon, primary_weapon, secondary_weapon, need_grenades, need_knives, need_dual_mk23, ammo_type, special);
 

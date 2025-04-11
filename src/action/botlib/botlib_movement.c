@@ -6533,7 +6533,7 @@ void BOTLIB_Wander(edict_t* self, usercmd_t* ucmd)
 		}
 
 		// Pull bot in when close to the next node, help guide it in
-		if (0)
+		if (1)
 		{
 			if (self->groundentity == false && level.framenum > self->bot.stuck_last_negate)
 			{
