@@ -404,14 +404,19 @@ client_deps = [png, curl, sdl2]
 server_deps = []
 game_deps = [zlib]
 
-jpeg = dependency('libjpeg',
-  required:        get_option('libjpeg'),
-  default_options: fallback_opt + [ 'jpeg-turbo=disabled', 'tests=disabled' ],
-  # Statically link if we're MacOS
-  if host_machine.system() == 'darwin'
+# Statically link if we're MacOS
+if host_machine.system() == 'darwin'
+  jpeg = dependency('libjpeg',
+    required:        get_option('libjpeg'),
+    default_options: fallback_opt + [ 'jpeg-turbo=disabled', 'tests=disabled' ],
     static: true
-  endif
-)
+  )
+else
+jpeg = dependency('libjpeg',
+    required:        get_option('libjpeg'),
+    default_options: fallback_opt + [ 'jpeg-turbo=disabled', 'tests=disabled' ],
+  )
+endif
 
 if jpeg.found()
   if jpeg.type_name() == 'internal'
