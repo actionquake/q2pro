@@ -406,7 +406,7 @@ game_deps = [zlib]
 
 jpeg = dependency('libjpeg',
   required:        get_option('libjpeg'),
-  default_options: fallback_opt + [ 'jpeg-turbo=disabled', 'tests=disabled' ],
+  default_options: ['default_library=static', 'jpeg-turbo=disabled', 'tests=disabled'],
   static:          true
 )
 
