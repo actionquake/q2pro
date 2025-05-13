@@ -406,7 +406,11 @@ game_deps = [zlib]
 
 jpeg = dependency('libjpeg',
   required:        get_option('libjpeg'),
-  default_options: fallback_opt + [ 'jpeg-turbo=disabled', 'tests=disabled' ]
+  default_options: fallback_opt + [ 'jpeg-turbo=disabled', 'tests=disabled' ],
+  # Statically link if we're MacOS
+  if host_machine.system() == 'darwin'
+    static: true
+  endif
 )
 
 if jpeg.found()
