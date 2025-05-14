@@ -91,6 +91,8 @@ typedef struct {
     vec3_t      viewangles;
     vec4_t      screen_blend;       // rgba 0-1 full screen blend
     vec4_t      damage_blend;       // rgba 0-1 damage blend
+    player_fog_t        fog;
+    player_heightfog_t  heightfog;
     float       time;               // time is uesed to auto animate
     int         rdflags;            // RDF_UNDERWATER, etc
     bool        extended;
@@ -235,3 +237,11 @@ void    R_EndFrame(void);
 void    R_ModeChanged(int width, int height, int flags);
 
 r_opengl_config_t R_GetGLConfig(void);
+
+
+// This used to be in images.c but I moved it because
+// download.c in src/client needs to know what to do
+#if USE_PNG || USE_JPG || USE_TGA
+extern cvar_t   *r_override_textures;
+extern cvar_t   *r_texture_overrides;
+#endif
