@@ -1599,7 +1599,7 @@ void vectoangles (vec3_t vec, vec3_t angles);
 
 // g_trigger.c
 void hurt_touch(edict_t* self, edict_t* other, cplane_t* plane, csurface_t* surf);
-void SP_trigger_gravity (edict_t * self);
+
 //
 // g_combat.c
 //
@@ -1758,7 +1758,7 @@ void EspionageChaseCam(edict_t *self, edict_t *attacker);
 //
 // g_spawn.c
 //
-int GetBotSpawnPoints(void);
+void GetBotSpawnPoints(void);
 void ChangePlayerSpawns(void);
 void ED_CallSpawn( edict_t *ent );
 char* ED_NewString(const char* string);
