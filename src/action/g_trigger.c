@@ -546,13 +546,6 @@ SP_trigger_gravity (edict_t * self)
     }
 
   InitTrigger (self);
-
-  // If spawnflag 8 is set, ensure we can interact with players (see action.fgd)
-  if (self->spawnflags & 8)
-  {
-    self->svflags &= ~SVF_NOCLIENT;
-  }
-  
   self->gravity = atoi (st.gravity);
   self->touch = trigger_gravity_touch;
 }
