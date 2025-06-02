@@ -2184,52 +2184,68 @@ cannot spawn.
 edict_t *UncommonSpawnPoint(void)
 {
 	edict_t *spot = NULL;
+	edict_t *first_valid_spot = NULL;
 
-	if (!spot) {
-		gi.dprintf("Warning: failed to find deathmatch spawn point, unexpected spawns will be utilized\n");
+	/*
+	Try all possible classes of spawn points, and use DM weapon spawns as a last resort.
+	*/
+	char* spawnpoints[] = {
+		"info_player_start",
+		"info_player_coop",
+		"info_player_team1",
+		"info_player_team2",
+		"info_player_team3",
+		"info_player_deathmatch",
+		"weapon_bfg",
+		"weapon_chaingun",
+		"weapon_machinegun",
+		"weapon_rocketlauncher",
+		"weapon_shotgun",
+		"weapon_supershotgun",
+		"weapon_railgun"
+	};
+	size_t num_spawnpoints = sizeof(spawnpoints) / sizeof(spawnpoints[0]);
 
-		/*
-		Try all possible classes of spawn points, and use DM weapon spawns as a last resort.
-		*/
-		char* spawnpoints[] = {
-			"info_player_start",
-			"info_player_coop",
-			"info_player_team1",
-			"info_player_team2",
-			"info_player_team3",
-			"info_player_deathmatch",
-			"weapon_bfg",
-			"weapon_chaingun",
-			"weapon_machinegun",
-			"weapon_rocketlauncher",
-			"weapon_shotgun",
-			"weapon_supershotgun",
-			"weapon_railgun"
-		};
-		size_t num_spawnpoints = sizeof(spawnpoints) / sizeof(spawnpoints[0]);
-		int i;
-		for (i = 0; i < num_spawnpoints; ++i) {
-			while ((spot = G_Find(spot, FOFS(classname), spawnpoints[i])) != NULL) {
-				if (!game.spawnpoint[0] && !spot->targetname)
-					break;
+	// Try each spawn point type in order
+	for (int i = 0; i < num_spawnpoints; ++i) {
+		spot = NULL; // Reset spot for each new spawn point type
 
-				if (!game.spawnpoint[0] || !spot->targetname)
-					continue;
-
-				if (Q_stricmp(game.spawnpoint, spot->targetname) == 0)
-					break;
+		// Find all entities of this type
+		while ((spot = G_Find(spot, FOFS(classname), spawnpoints[i])) != NULL) {
+			// Save the first valid spot we find of any type as a fallback
+			if (!first_valid_spot) {
+				first_valid_spot = spot;
 			}
 
-			if (spot) {
-				gi.dprintf("Warning: Uncommon spawn point of class %s\n", spawnpoints[i]);
-				gi.dprintf("**If you are the map author, you need to be utilizing MULTIPLE info_player_deathmatch or info_player_team entities**\n");
-				break;
+			// If no specific spawn point is requested, any entity without a targetname will do
+			if (!game.spawnpoint[0] && !spot->targetname) {
+				gi.dprintf("Found spawn point of class %s\n", spawnpoints[i]);
+				return spot;
+			}
+
+			// If a specific spawn point is requested, match by targetname
+			if (game.spawnpoint[0] && spot->targetname && 
+				(Q_stricmp(game.spawnpoint, spot->targetname) == 0)) {
+				gi.dprintf("Found requested spawn point %s of class %s\n", 
+					game.spawnpoint, spawnpoints[i]);
+				return spot;
 			}
 		}
 	}
 
-	return spot;
+	// If we get here, we didn't find an ideal spawn point, but we might have a fallback
+	if (first_valid_spot) {
+		gi.dprintf("Warning: failed to find ideal deathmatch spawn point, using fallback spawn\n");
+		gi.dprintf("**If you are the map author, you need to be utilizing MULTIPLE info_player_deathmatch or info_player_team entities**\n");
+		return first_valid_spot;
+	}
+
+	// Truly no spawn points found
+	gi.dprintf("Warning: failed to find ANY spawn point, map is not playable\n");
+	return NULL;
 }
+
+
 
 edict_t *SelectCoopSpawnPoint(edict_t *ent)
 {
