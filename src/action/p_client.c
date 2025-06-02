@@ -2278,7 +2278,7 @@ int num_bot_spawns;
 
 // GetBotSpawnPoints:
 // Put the spawn points into our bot_spawns array so we can work with them easily.
-void GetBotSpawnPoints(void)
+int GetBotSpawnPoints(void)
 {
     edict_t *spot = NULL;
     num_bot_spawns = 0;
@@ -2301,6 +2301,8 @@ void GetBotSpawnPoints(void)
     }
 
     gi.dprintf("GetBotSpawnPoints: Found %d bot spawn points\n", num_bot_spawns);
+
+	return num_bot_spawns;
 }
 
 

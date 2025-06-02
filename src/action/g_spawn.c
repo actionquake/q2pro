@@ -1589,7 +1589,7 @@ void SpawnEntities (const char *mapname, const char *entities, const char *spawn
 		if(!use_oldspawns->value)
 			NS_GetSpawnPoints();
 	}
-	
+
 	if (training->value)
 	{
 		GetBotSpawnPoints();
