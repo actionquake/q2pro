@@ -965,6 +965,7 @@ COLLISION DETECTION
 #define CONTENTS_SLIME          BIT(4)
 #define CONTENTS_WATER          BIT(5)
 #define CONTENTS_MIST           BIT(6)
+#define CONTENTS_VACUUM         BIT(7)      // "SPACE!"
 
 // remaining contents are non-visible, and don't eat brushes
 

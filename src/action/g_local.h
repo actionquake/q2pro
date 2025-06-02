@@ -1599,7 +1599,7 @@ void vectoangles (vec3_t vec, vec3_t angles);
 
 // g_trigger.c
 void hurt_touch(edict_t* self, edict_t* other, cplane_t* plane, csurface_t* surf);
-
+void SP_trigger_gravity (edict_t * self);
 //
 // g_combat.c
 //
