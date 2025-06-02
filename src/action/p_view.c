@@ -520,7 +520,7 @@ void SV_CalcBlend (edict_t * ent)
 	else if (contents & CONTENTS_WATER)
 		SV_AddBlend (0.5f, 0.3f, 0.2f, 0.4f, ent->client->ps.blend);
 	else if (contents & CONTENTS_MIST) // A very light blue hue
-		SV_AddBlend (0.0f, 0.0f, 0.3f, 0.05f, ent->client->ps.blend);
+		SV_AddBlend (0.0f, 0.0f, 0.3f, 0.2f, ent->client->ps.blend);
 
 	// AQ2:TNG - Igor[Rock] adding new irvision mode
 	if (new_irvision->value && ent->client->pers.irvision && INV_AMMO(ent, BAND_NUM))
@@ -787,22 +787,22 @@ void P_WorldEffects (void)
 	envirosuit = current_client->enviro_framenum > level.framenum;
 
 	//
-	// if just entered a water volume, play a sound
+	// if just entered a water volume, play a sound (except for mist)
 	//
 	if (!old_waterlevel && waterlevel)
 	{
-		PlayerNoise (current_player, current_player->s.origin, PNOISE_SELF);
-		if (current_player->watertype & CONTENTS_LAVA)
-			gi.sound (current_player, CHAN_BODY,
-			gi.soundindex ("player/lava_in.wav"), 1, ATTN_NORM, 0);
-		else if (current_player->watertype & CONTENTS_SLIME)
-			gi.sound (current_player, CHAN_BODY,
-			gi.soundindex ("player/watr_in.wav"), 1, ATTN_NORM, 0);
-		else if (current_player->watertype & CONTENTS_WATER)
-			gi.sound (current_player, CHAN_BODY,
-			gi.soundindex ("player/watr_in.wav"), 1, ATTN_NORM, 0);
-		else if (current_player->watertype & CONTENTS_MIST)
-			; //No sound effect for mist?		
+		if (!(current_player->watertype & CONTENTS_MIST)) {
+			PlayerNoise (current_player, current_player->s.origin, PNOISE_SELF);
+			if (current_player->watertype & CONTENTS_LAVA)
+				gi.sound (current_player, CHAN_BODY,
+				gi.soundindex ("player/lava_in.wav"), 1, ATTN_NORM, 0);
+			else if (current_player->watertype & CONTENTS_SLIME)
+				gi.sound (current_player, CHAN_BODY,
+				gi.soundindex ("player/watr_in.wav"), 1, ATTN_NORM, 0);
+			else if (current_player->watertype & CONTENTS_WATER)
+				gi.sound (current_player, CHAN_BODY,
+				gi.soundindex ("player/watr_in.wav"), 1, ATTN_NORM, 0);
+		}
 
 		current_player->flags |= FL_INWATER;
 
@@ -813,11 +813,13 @@ void P_WorldEffects (void)
 	//
 	// if just completely exited a water volume, play a sound (except for mist)
 	//
-	if (old_waterlevel && !waterlevel && !(current_player->watertype & CONTENTS_MIST))
+	if (old_waterlevel && !waterlevel)
 	{
-		PlayerNoise (current_player, current_player->s.origin, PNOISE_SELF);
-		gi.sound (current_player, CHAN_BODY,
-		gi.soundindex ("player/watr_out.wav"), 1, ATTN_NORM, 0);
+		if (!(current_player->watertype & CONTENTS_MIST)) {
+			PlayerNoise (current_player, current_player->s.origin, PNOISE_SELF);
+			gi.sound (current_player, CHAN_BODY,
+			gi.soundindex ("player/watr_out.wav"), 1, ATTN_NORM, 0);
+		}
 		current_player->flags &= ~FL_INWATER;
 	}
 
@@ -826,8 +828,10 @@ void P_WorldEffects (void)
 	//
 	if (old_waterlevel != 3 && waterlevel == 3)
 	{
-		gi.sound (current_player, CHAN_BODY,
-		gi.soundindex ("player/watr_un.wav"), 1, ATTN_NORM, 0);
+		if (!(current_player->watertype & CONTENTS_MIST)) {
+			gi.sound (current_player, CHAN_BODY,
+			gi.soundindex ("player/watr_un.wav"), 1, ATTN_NORM, 0);
+		}
 	}
 
 	//
@@ -835,16 +839,19 @@ void P_WorldEffects (void)
 	//
 	if (old_waterlevel == 3 && waterlevel != 3)
 	{
-		if (current_player->air_finished_framenum < level.framenum)
-		{			// gasp for air
-			gi.sound (current_player, CHAN_VOICE,
-			gi.soundindex ("player/gasp1.wav"), 1, ATTN_NORM, 0);
-			PlayerNoise (current_player, current_player->s.origin, PNOISE_SELF);
-		}
-		else if (current_player->air_finished_framenum < level.framenum + 11 * HZ)
-		{			// just break surface
-			gi.sound (current_player, CHAN_VOICE,
-			gi.soundindex ("player/gasp2.wav"), 1, ATTN_NORM, 0);
+		if (!(current_player->watertype & CONTENTS_MIST)) {
+				
+			if (current_player->air_finished_framenum < level.framenum)
+			{			// gasp for air
+				gi.sound (current_player, CHAN_VOICE,
+				gi.soundindex ("player/gasp1.wav"), 1, ATTN_NORM, 0);
+				PlayerNoise (current_player, current_player->s.origin, PNOISE_SELF);
+			}
+			else if (current_player->air_finished_framenum < level.framenum + 11 * HZ)
+			{			// just break surface
+				gi.sound (current_player, CHAN_VOICE,
+				gi.soundindex ("player/gasp2.wav"), 1, ATTN_NORM, 0);
+			}
 		}
 	}
 
@@ -951,10 +958,10 @@ void P_WorldEffects (void)
 		}
 	}
 
-	if (waterlevel && (current_player->watertype & CONTENTS_MIST))
-	{
-		SP_trigger_gravity(current_player);
-	}
+	// if (waterlevel && (current_player->watertype & CONTENTS_MIST))
+	// {
+	// 	SP_trigger_gravity(current_player);
+	// }
 }
 
 
