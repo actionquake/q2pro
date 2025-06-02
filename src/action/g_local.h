@@ -1758,7 +1758,7 @@ void EspionageChaseCam(edict_t *self, edict_t *attacker);
 //
 // g_spawn.c
 //
-void GetBotSpawnPoints(void);
+int GetBotSpawnPoints(void);
 void ChangePlayerSpawns(void);
 void ED_CallSpawn( edict_t *ent );
 char* ED_NewString(const char* string);
