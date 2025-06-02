@@ -1408,6 +1408,9 @@ void SpawnEntities (const char *mapname, const char *entities, const char *spawn
 		gi.cvar_forceset("items", "2");
 		gi.cvar_forceset("dmweapon", "Combat Knife");
 		gi.cvar_forceset("use_rewards", "0");  // No reward announcements in training mode
+		gi.cvar_forceset("weapon_respawn", "1"); // Near-instant weapon respawn
+		gi.cvar_forceset("item_respawn", "1"); // Near instant item respawn
+		gi.cvar_forceset("ammo_respawn", "1"); // Near instant ammo respawn
 	}
 	else if (teamplay->value)
 	{

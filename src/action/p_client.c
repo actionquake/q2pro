@@ -3098,6 +3098,7 @@ void PutClientInServer(edict_t * ent)
 
 	client->clientNum = index;
 
+	// Give training mode bots a knife instead of a pistol
 	if (training->value && ent->is_bot) {
 		item = GET_ITEM( KNIFE_NUM );
 		client->selected_item = ITEM_INDEX( item );
@@ -6505,7 +6506,7 @@ void ClientBeginServerFrame(edict_t * ent)
 
 		if( (ppl_idletime->value > 0) && idleframes && (idleframes % (int)(ppl_idletime->value * HZ) == 0) )
 			//plays a random sound/insane sound, insane1-11.wav
-			if (!jump->value || training->value) // Don't play insane sounds in jmod or training mode
+			if (!(jump->value || !training->value)) // Don't play insane sounds in jmod or training mode
 				gi.sound( ent, CHAN_VOICE, gi.soundindex(va( "insane/insane%i.wav", rand() % 11 + 1 )), 1, ATTN_NORM, 0 );
 
 		if( (sv_idleremove->value > 0) && (idleframes > (sv_idleremove->value * HZ)) && client->resp.team )

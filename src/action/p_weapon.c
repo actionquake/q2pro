@@ -436,10 +436,7 @@ qboolean Pickup_Weapon(edict_t* ent, edict_t* other)
 		break;
 	}
 
-	if (training->value){
-		// Always make original weapons respawn immediately in training mode
-		ent->flags |= FL_RESPAWN;
-	} else if (!(ent->spawnflags & (DROPPED_ITEM | DROPPED_PLAYER_ITEM))
+	if (!(ent->spawnflags & (DROPPED_ITEM | DROPPED_PLAYER_ITEM))
 		&& (SPEC_WEAPON_RESPAWN) && special)
 	{
 		if (DMFLAGS(DF_WEAPON_RESPAWN) && ((gameSettings & GS_DEATHMATCH) || ctf->value == 2))
@@ -694,7 +691,7 @@ void SpecialWeaponRespawnTimer(edict_t* ent)
 	*/
 
 	// Allweapon setting makes dropped weapons disappear in 1s
-	if (allweapon->value) { // allweapon set
+	if (allweapon->value || training->value) { // allweapon set
 		ent->nextthink = eztimer(1);
 		ent->think = G_FreeEdict;
 		return;
@@ -714,7 +711,7 @@ void SpecialWeaponRespawnTimer(edict_t* ent)
 	// Training mode weapons disappear in 2 seconds to reduce clutter
 	if (training->value) {
 		ent->nextthink = eztimer(2);
-		ent->think = G_FreeEdict;
+		ent->think = ThinkSpecWeap;
 		return;
 	}
 	// Normal teamplay, weapons basically never disappear
