@@ -448,7 +448,7 @@ static qboolean uses_simple_damage(int mod) {
         case MOD_M3:           // Shotgun
         case MOD_HC:           // Hand Cannon
         case MOD_HELD_GRENADE:
-        case MOD_HG_SPLASH:    // Grenade splash
+        case MOD_HG_SPLASH:
         case MOD_G_SPLASH:
         case MOD_BREAKINGGLASS:
         case MOD_FALLING:
@@ -535,7 +535,7 @@ void T_Damage (edict_t * targ, edict_t * inflictor, edict_t * attacker, const ve
 	// Simple damage path - skip all locational damage calculations
 	if (client && uses_simple_damage(mod)) {
         // FAST PATH - skip all locational damage calculations
-		client->took_damage++;  // For shotgun damage reports
+        client->took_damage++;  // For shotgun damage reports
         bleeding = (mod != MOD_TELEFRAG && mod != MOD_CRUSH);
         instant_dam = (mod == MOD_FALLING || mod == MOD_CRUSH);
 
@@ -543,9 +543,8 @@ void T_Damage (edict_t * targ, edict_t * inflictor, edict_t * attacker, const ve
     }
 
 	// COMPLEX PATH - full locational damage for precision weapons
-	if (client)
+	else if (client && !uses_simple_damage(mod))
 	{
-
 		switch (mod) {
 		case MOD_MK23:
 		case MOD_DUAL:
