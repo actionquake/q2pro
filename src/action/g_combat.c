@@ -463,6 +463,10 @@ void T_Damage (edict_t * targ, edict_t * inflictor, edict_t * attacker, const ve
 
 	if ((targ->flags & FL_GODMODE) || targ->solid == SOLID_NOT) return; //rekkie -- specators don't take damage
 
+	// Add health check early to prevent processing dead entities
+	if (targ->health <= 0 || !IS_ALIVE(targ))
+		return;
+
 	// do this before teamplay check
 	if (!targ->takedamage)
 		return;
