@@ -442,6 +442,27 @@ qboolean check_head_success(const vec3_t point, const vec3_t dir, vec3_t targ_or
     return false;
 }
 
+// Fast path check - avoid expensive locational damage for simple weapons
+static qboolean uses_simple_damage(int mod) {
+    switch (mod) {
+        case MOD_M3:           // Shotgun
+        case MOD_HC:           // Hand Cannon
+        case MOD_HELD_GRENADE:
+        case MOD_HG_SPLASH:    // Grenade splash
+        case MOD_G_SPLASH:
+        case MOD_BREAKINGGLASS:
+        case MOD_FALLING:
+        case MOD_CRUSH:
+        case MOD_TELEFRAG:
+        case MOD_WATER:
+        case MOD_SLIME:
+        case MOD_LAVA:
+            return true;
+        default:
+            return false;
+    }
+}
+
 void T_Damage (edict_t * targ, edict_t * inflictor, edict_t * attacker, const vec3_t dir,
 	  const vec3_t point, const vec3_t normal, int damage, int knockback, int dflags,
 	  int mod)
@@ -510,6 +531,18 @@ void T_Damage (edict_t * targ, edict_t * inflictor, edict_t * attacker, const ve
 
 	// locational damage code
 	// base damage is head shot damage, so all the scaling is downwards
+
+	// Simple damage path - skip all locational damage calculations
+	if (client && uses_simple_damage(mod)) {
+        // FAST PATH - skip all locational damage calculations
+		client->took_damage++;  // For shotgun damage reports
+        bleeding = (mod != MOD_TELEFRAG && mod != MOD_CRUSH);
+        instant_dam = (mod == MOD_FALLING || mod == MOD_CRUSH);
+
+        goto apply_damage;  // Skip the complex path switch statement
+    }
+
+	// COMPLEX PATH - full locational damage for precision weapons
 	if (client)
 	{
 
@@ -707,23 +740,27 @@ void T_Damage (edict_t * targ, edict_t * inflictor, edict_t * attacker, const ve
 				}
 			}
 			break;
-		case MOD_M3:
-		case MOD_HC:
-		case MOD_HELD_GRENADE:
-		case MOD_HG_SPLASH:
-		case MOD_G_SPLASH:
-		case MOD_BREAKINGGLASS:
-			//shotgun damage report stuff
-			if (client)
-				client->took_damage++;
+		
+		// Simple damage types are evaluated above instead of this
+		// case MOD_M3:
+		// case MOD_HC:
+		// case MOD_HELD_GRENADE:
+		// case MOD_HG_SPLASH:
+		// case MOD_G_SPLASH:
+		// case MOD_BREAKINGGLASS:
+		// 	//shotgun damage report stuff
+		// 	if (client)
+		// 		client->took_damage++;
 
-			bleeding = 1;
-			instant_dam = 0;
-			break;
-		default:
+		// 	bleeding = 1;
+		// 	instant_dam = 0;
+		// 	break;
+		default: // Safe default check
 			break;
 		}
-		if(friendlyFire && team_round_going)
+
+apply_damage:
+	if(friendlyFire && team_round_going)
 		{
 			Add_TeamWound(attacker, targ, mod);
 		}
