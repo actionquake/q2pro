@@ -1264,6 +1264,9 @@ qboolean Ghost_Exist(edict_t *ent)
 	int i;
 	gghost_t *ghost;
 
+	if (!use_ghosts->value || num_ghost_players == 0)
+		return false;
+
 	for (i = 0, ghost = ghost_players; i < num_ghost_players; i++, ghost++) {
 		if (!strcmp(ghost->ip, ent->client->pers.ip) && !strcmp(ghost->netname, ent->client->pers.netname)) {
 			return true;
