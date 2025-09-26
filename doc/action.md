@@ -589,7 +589,7 @@ TNG offers a new spawn code for Teamplay. This mode prevents teams to spawn twic
 With the use of the ghost command, the client can get back when he has been disconnected and get your frags and stats back. Ghost does require the client to have the same nick and ip when using the ghost command.
 
 **Commands:**
-- `use_ghosts [0/1]` - when set to on (1), the server allows the clients to use the ghost command.
+- `use_ghosts [0/1/2]` - when set to on (1), the server allows the clients to use the ghost command.  When set to (2), this with automatically restore ghost data on rejoin (if the ghost exists)
 - `ghost` - this will restore the scores, stats, teams and items of the client. (client side)
 
 ### Bandolier behavior

@@ -1258,6 +1258,20 @@ Cmd_Ghost_f
 
 Person gets frags/kills/damage/weapon/item/team/stats back if he disconnected
 */
+
+qboolean Ghost_Exist(edict_t *ent)
+{
+	int i;
+	gghost_t *ghost;
+
+	for (i = 0, ghost = ghost_players; i < num_ghost_players; i++, ghost++) {
+		if (!strcmp(ghost->ip, ent->client->pers.ip) && !strcmp(ghost->netname, ent->client->pers.netname)) {
+			return true;
+		}
+	}
+	return false;
+}
+
 void Cmd_Ghost_f(edict_t * ent)
 {
 	int i = 0, frames_since = 0;
