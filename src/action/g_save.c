@@ -594,10 +594,6 @@ void InitGame( void )
 
 	// BEGIN AQ2 ETE
 	esp = gi.cvar( "esp", "0", /*CVAR_SERVERINFO | */ CVAR_LATCH );  //Removed in favor of 'gm' (gamemode)
-	if (esp->value) {
-		atl = gi.cvar( "atl", "1", CVAR_LATCH );
-		etv = gi.cvar( "etv", "0", CVAR_LATCH );
-	};
 	esp_atl = gi.cvar( "esp_atl", "0", 0 ); // This forces ATL mode even if ETV mode is set in the .esp file
 	esp_punish = gi.cvar("esp_punish", "0", 0);
 	esp_etv_halftime = gi.cvar("esp_etv_halftime", "0", CVAR_LATCH);

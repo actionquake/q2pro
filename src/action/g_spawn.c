@@ -1062,10 +1062,12 @@ int Gamemode(void)
 		gi.cvar_forceset(gm->name, "dom");
 	} else if (esp->value && espsettings.esp_mode == ESPMODE_ATL) {
 		gamemode = GM_ASSASSINATE_THE_LEADER;
-		gi.cvar_forceset(gm->name, "atl");
+		//gi.cvar_forceset(gm->name, "atl");
+		// Config load happens AFTER g_spawn, updates must occur in a_esp.c
 	} else if (esp->value && espsettings.esp_mode == ESPMODE_ETV) {
 		gamemode = GM_ESCORT_THE_VIP;
-		gi.cvar_forceset(gm->name, "etv");
+		//gi.cvar_forceset(gm->name, "etv");
+		// Config load happens AFTER g_spawn, updates must occur in a_esp.c
 	} else if (jump->value) {
 		gamemode = GM_JUMP;
 		gi.cvar_forceset(gm->name, "jump");
