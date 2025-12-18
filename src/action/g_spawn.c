@@ -1050,20 +1050,32 @@ int Gamemode(void)
 	int gamemode = 0;
 	if (teamdm->value) {
 		gamemode = GM_TEAMDM;
+		gi.cvar_forceset(gm->name, "tdm");
 	} else if (ctf->value) {
 		gamemode = GM_CTF;
+		gi.cvar_forceset(gm->name, "ctf");
 	} else if (use_tourney->value) {
 		gamemode = GM_TOURNEY;
+		gi.cvar_forceset(gm->name, "tourney");
 	} else if (teamplay->value) {
 		gamemode = GM_TEAMPLAY;
+		gi.cvar_forceset(gm->name, "tp");
 	} else if (dom->value) {
 		gamemode = GM_DOMINATION;
-	} else if (deathmatch->value) {
-		gamemode = GM_DEATHMATCH;
+		gi.cvar_forceset(gm->name, "dom");
 	} else if (esp->value && espsettings.esp_mode == ESPMODE_ATL) {
 		gamemode = GM_ASSASSINATE_THE_LEADER;
+		gi.cvar_forceset(gm->name, "atl");
 	} else if (esp->value && espsettings.esp_mode == ESPMODE_ETV) {
 		gamemode = GM_ESCORT_THE_VIP;
+		gi.cvar_forceset(gm->name, "etv");
+	} else if (jump->value) {
+		gamemode = GM_JUMP;
+		gi.cvar_forceset(gm->name, "jump");
+	} else {
+		// Default to deathmatch if no other matches
+		gamemode = GM_DEATHMATCH;
+		gi.cvar_forceset(gm->name, "dm");
 	}
 	return gamemode;
 }
@@ -1181,7 +1193,6 @@ void SpawnEntities (const char *mapname, const char *entities, const char *spawn
 	}
 	else if (ctf->value)
 	{
-	gi.cvar_forceset(gm->name, "ctf");
 		if (ctf->value == 2)
 			gi.cvar_forceset(ctf->name, "1"); //for now
 
@@ -1232,7 +1243,6 @@ void SpawnEntities (const char *mapname, const char *entities, const char *spawn
 	}
 	else if (esp->value)
 	{
-	gi.cvar_forceset(gm->name, "esp");
 		//gameSettings |= GS_WEAPONCHOOSE;
 		gameSettings |= (GS_ROUNDBASED | GS_WEAPONCHOOSE);
 
@@ -1281,7 +1291,6 @@ void SpawnEntities (const char *mapname, const char *entities, const char *spawn
 	}
 	else if (dom->value)
 	{
-		gi.cvar_forceset(gm->name, "dom");
 		gameSettings |= GS_WEAPONCHOOSE;
 		if (!teamplay->value)
 		{
@@ -1315,7 +1324,6 @@ void SpawnEntities (const char *mapname, const char *entities, const char *spawn
 	}
 	else if(teamdm->value)
 	{
-		gi.cvar_forceset(gm->name, "tdm");
 		gameSettings |= GS_DEATHMATCH;
 
 		if (dm_choose->value)
@@ -1334,7 +1342,6 @@ void SpawnEntities (const char *mapname, const char *entities, const char *spawn
 	}
 	else if (use_3teams->value)
 	{
-		gi.cvar_forceset(gm->name, "tp");
 		gameSettings |= (GS_ROUNDBASED | GS_WEAPONCHOOSE);
 
 		if (!teamplay->value)
@@ -1374,7 +1381,6 @@ void SpawnEntities (const char *mapname, const char *entities, const char *spawn
 	}
 	else if (use_tourney->value)
 	{
-		gi.cvar_forceset(gm->name, "tourney");
 		gameSettings |= (GS_ROUNDBASED | GS_WEAPONCHOOSE);
 
 		if (!teamplay->value)
@@ -1385,11 +1391,9 @@ void SpawnEntities (const char *mapname, const char *entities, const char *spawn
 	}
 	else if (teamplay->value)
 	{
-		gi.cvar_forceset(gm->name, "tp");
 		gameSettings |= (GS_ROUNDBASED | GS_WEAPONCHOOSE);
 	}
 	else { //Its deathmatch
-		gi.cvar_forceset(gm->name, "dm");
 		gameSettings |= GS_DEATHMATCH;
 		if (dm_choose->value)
 			gameSettings |= GS_WEAPONCHOOSE;

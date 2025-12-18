@@ -1080,6 +1080,7 @@ typedef enum {
     GM_DOMINATION,
     GM_ASSASSINATE_THE_LEADER,
     GM_ESCORT_THE_VIP,
+	GM_JUMP,
 	GM_MAX
 } GameMode;
 
