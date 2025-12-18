@@ -1080,6 +1080,7 @@ typedef enum {
     GM_DOMINATION,
     GM_ASSASSINATE_THE_LEADER,
     GM_ESCORT_THE_VIP,
+	GM_JUMP,
 	GM_MAX
 } GameMode;
 
@@ -1340,7 +1341,6 @@ extern cvar_t *esp_debug; // Enable or disable debug mode (very spammy)
 
 // 2023
 extern cvar_t *use_killcounts;  // Adjust how kill streaks are counted
-extern cvar_t *am; // Enable or disable Attract Mode (ltk bots)
 extern cvar_t *zoom_comp;  // Enable or disable zoom compensation
 extern cvar_t *item_kit_mode;  // Enable or disable item kit mode
 extern cvar_t *gun_dualmk23_enhance; // Enable or disable enhanced dual mk23s (laser + silencer)
@@ -1373,7 +1373,12 @@ extern cvar_t *g_highscores_countbots; // Toggles if we save highscores achieved
 extern cvar_t *lca_grenade; // Allows grenade pin pulling during LCA
 extern cvar_t *breakableglass; // Moved from cgf_sfx_glass, enables breakable glass (0,1,2)
 extern cvar_t *glassfragmentlimit; // Moved from cgf_sfx_glass, sets glass fragment limit
+extern cvar_t *knife_catch; // Enables or disables knife catching
 extern cvar_t *grenade_drop; // Allows grenades to be dropped on death
+
+// 2025
+extern cvar_t *ctf_rewards; // Enables CTF awards
+extern cvar_t *bots; // If bots are enabled and in the server
 
 #ifdef AQTION_EXTENSION
 extern int (*engine_Client_GetVersion)(edict_t *ent);
@@ -1766,6 +1771,7 @@ void Weapon_Generic( edict_t * ent, int FRAME_ACTIVATE_LAST, int FRAME_FIRE_LAST
 	int *pause_frames, int *fire_frames,
 	void( *fire ) (edict_t * ent) );
 void PlayWeaponSound( edict_t *ent );
+int Knife_Fire(edict_t* ent);
 
 void P_ProjectSource(gclient_t *client, vec3_t point, vec3_t distance, vec3_t forward, vec3_t right, vec3_t result);
 void weapon_grenade_fire(edict_t* ent, qboolean held);

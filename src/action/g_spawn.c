@@ -1050,20 +1050,34 @@ int Gamemode(void)
 	int gamemode = 0;
 	if (teamdm->value) {
 		gamemode = GM_TEAMDM;
+		gi.cvar_forceset(gm->name, "tdm");
 	} else if (ctf->value) {
 		gamemode = GM_CTF;
+		gi.cvar_forceset(gm->name, "ctf");
 	} else if (use_tourney->value) {
 		gamemode = GM_TOURNEY;
-	} else if (teamplay->value) {
-		gamemode = GM_TEAMPLAY;
+		gi.cvar_forceset(gm->name, "tourney");
 	} else if (dom->value) {
 		gamemode = GM_DOMINATION;
-	} else if (deathmatch->value) {
-		gamemode = GM_DEATHMATCH;
+		gi.cvar_forceset(gm->name, "dom");
 	} else if (esp->value && espsettings.esp_mode == ESPMODE_ATL) {
 		gamemode = GM_ASSASSINATE_THE_LEADER;
+		//gi.cvar_forceset(gm->name, "atl");
+		// Config load happens AFTER g_spawn, updates must occur in a_esp.c
 	} else if (esp->value && espsettings.esp_mode == ESPMODE_ETV) {
 		gamemode = GM_ESCORT_THE_VIP;
+		//gi.cvar_forceset(gm->name, "etv");
+		// Config load happens AFTER g_spawn, updates must occur in a_esp.c
+	} else if (jump->value) {
+		gamemode = GM_JUMP;
+		gi.cvar_forceset(gm->name, "jump");
+	} else if (teamplay->value) {
+		gamemode = GM_TEAMPLAY;
+		gi.cvar_forceset(gm->name, "tp");
+	} else {
+		// Default to deathmatch if no other matches
+		gamemode = GM_DEATHMATCH;
+		gi.cvar_forceset(gm->name, "dm");
 	}
 	return gamemode;
 }
@@ -1140,7 +1154,6 @@ void SpawnEntities (const char *mapname, const char *entities, const char *spawn
 	gi.cvar_forceset(dm_choose->name, "0"); // Turn off dm_choose for jump mode
 	gi.cvar_forceset(uvtime->name, "0"); // Turn off uvtime in jump mode
 	gi.cvar_forceset(unique_items->name, "6"); // Enables holding all items at once, if toggled
-	gi.cvar_forceset(am->name, "0"); // Turns off attract mode
 	gi.cvar_forceset(ltk_loadbots->name, "0"); // Turns off bots
 	//
 		if (teamplay->value)
@@ -1181,7 +1194,6 @@ void SpawnEntities (const char *mapname, const char *entities, const char *spawn
 	}
 	else if (ctf->value)
 	{
-	gi.cvar_forceset(gm->name, "ctf");
 		if (ctf->value == 2)
 			gi.cvar_forceset(ctf->name, "1"); //for now
 
@@ -1232,7 +1244,6 @@ void SpawnEntities (const char *mapname, const char *entities, const char *spawn
 	}
 	else if (esp->value)
 	{
-	gi.cvar_forceset(gm->name, "esp");
 		//gameSettings |= GS_WEAPONCHOOSE;
 		gameSettings |= (GS_ROUNDBASED | GS_WEAPONCHOOSE);
 
@@ -1281,7 +1292,6 @@ void SpawnEntities (const char *mapname, const char *entities, const char *spawn
 	}
 	else if (dom->value)
 	{
-		gi.cvar_forceset(gm->name, "dom");
 		gameSettings |= GS_WEAPONCHOOSE;
 		if (!teamplay->value)
 		{
@@ -1315,7 +1325,6 @@ void SpawnEntities (const char *mapname, const char *entities, const char *spawn
 	}
 	else if(teamdm->value)
 	{
-		gi.cvar_forceset(gm->name, "tdm");
 		gameSettings |= GS_DEATHMATCH;
 
 		if (dm_choose->value)
@@ -1334,7 +1343,6 @@ void SpawnEntities (const char *mapname, const char *entities, const char *spawn
 	}
 	else if (use_3teams->value)
 	{
-		gi.cvar_forceset(gm->name, "tp");
 		gameSettings |= (GS_ROUNDBASED | GS_WEAPONCHOOSE);
 
 		if (!teamplay->value)
@@ -1374,7 +1382,6 @@ void SpawnEntities (const char *mapname, const char *entities, const char *spawn
 	}
 	else if (use_tourney->value)
 	{
-		gi.cvar_forceset(gm->name, "tourney");
 		gameSettings |= (GS_ROUNDBASED | GS_WEAPONCHOOSE);
 
 		if (!teamplay->value)
@@ -1385,11 +1392,9 @@ void SpawnEntities (const char *mapname, const char *entities, const char *spawn
 	}
 	else if (teamplay->value)
 	{
-		gi.cvar_forceset(gm->name, "tp");
 		gameSettings |= (GS_ROUNDBASED | GS_WEAPONCHOOSE);
 	}
 	else { //Its deathmatch
-		gi.cvar_forceset(gm->name, "dm");
 		gameSettings |= GS_DEATHMATCH;
 		if (dm_choose->value)
 			gameSettings |= GS_WEAPONCHOOSE;
@@ -1417,6 +1422,10 @@ void SpawnEntities (const char *mapname, const char *entities, const char *spawn
 		}
 	}
 
+	// Reset unique items if changing from jump to any other mode
+	if (!jump->value) {
+		gi.cvar_forceset(unique_items->name, "1");
+	}
 
 	gi.cvar_forceset(maptime->name, "0:00");
 
@@ -2189,10 +2198,17 @@ int LoadFlagsFromFile (const char *mapname)
 
 		VectorCopy(position, ent->s.origin);
 
-		if (!flagCount)	// Red Flag
-			ent->classname = ED_NewString ("item_flag_team1");
-		else	// Blue Flag
-			ent->classname = ED_NewString ("item_flag_team2");
+		if (!flagCount) {	// Red Flag / Black Briefcase
+			if (ctf_mode->value)
+				ent->classname = ED_NewString ("item_bcase_team1");
+			else
+				ent->classname = ED_NewString ("item_flag_team1");
+		} else {	// Blue Flag / Silver Briefcase
+			if (ctf_mode->value)
+				ent->classname = ED_NewString ("item_bcase_team2");
+			else
+				ent->classname = ED_NewString ("item_flag_team2");
+		}
 
 		ED_CallSpawn (ent);
 		flagCount++;
@@ -2220,8 +2236,13 @@ void ChangePlayerSpawns (void)
 	range1 = range2 = range3 = range4 = 99999;
 	spot = spot1 = spot2 = spot3 = spot4 = NULL;
 
-	flag1 = G_Find (flag1, FOFS(classname), "item_flag_team1");
-	flag2 = G_Find (flag2, FOFS(classname), "item_flag_team2");
+	if (ctf_mode->value){
+		flag1 = G_Find (flag1, FOFS(classname), "item_bcase_team1");
+		flag2 = G_Find (flag2, FOFS(classname), "item_bcase_team2");
+	} else {
+		flag1 = G_Find (flag1, FOFS(classname), "item_flag_team1");
+		flag2 = G_Find (flag2, FOFS(classname), "item_flag_team2");
+	}
 
 	if(!flag1 || !flag2) {
 		gi.dprintf("Warning: ChangePlayerSpawns() requires both flags!\n");

@@ -80,6 +80,7 @@ Additions and enhancements by darksaint, Reki, Rektek and the AQ2World team
     - [Weapon Banning](#weapon-banning)
     - [Item Banning](#item-banning)
     - [Weapon/Item Counts](#weaponitem-counts)
+    - [Knife Catching](#knife-catching)
     - [Teamkilling after a Round](#teamkilling-after-a-round)
     - [New IR Vision](#new-ir-vision)
     - [Radio and Voice Flood Protection](#radio-and-voice-flood-protection)
@@ -501,6 +502,11 @@ Normally, AQ2 allows one item and one weapon.  These settings can adjust that so
 - `allitem [0/1]` - default 0, if enabled, all players spawn with all items, with exception of any item bans
 - `allow_hoarding [#]` - default 0, if enabled, allows players to pick up more than 1 special item or weapon, but does not spawn with them, like allweapon or allitem will do
 
+### Knife Catching
+Ever wish you could catch a knife thrown at you like they did in all the cool action movies?  Well now you can!  Ask your server operator to enable `knife_catch`!  You only have a couple of frames to make this happen, so timing is important!
+- `knife_catch [0/1/2]` - default `0` (classic, no catching possible).
+  - If set to `1`, use the `punch` command to catch a knife in-flight.  This will add 1 knife to your inventory and prevent all damage.
+  - If set to `2`, use the `punch` command to catch a knife in-flight, and immediately throw it back where your crosshair is, just like in Big Trouble in Little China!  This prevents all damage, but you do not get an extra knife in your inventory (because you just threw it back!)
 
 ### Teamkilling after a Round
 To add a little more fun in the game, we've added an option which will allow a team to TK each other after a round has ended during Teamplay. This is only available to servers where FF is off.
@@ -630,6 +636,7 @@ Taking aspects of the existing bots and greatly enhancing their navigation and b
 - `bot_navautogen [0/1]` - Server cvar, enabling this will auto generate a navmesh for any maps that do not already have one, on map load time.  This automatic navmesh is far from perfect, but it does allow bots to traverse maps rather than stand still.  A far superior option is to have a handcrafted navmesh for the map, as described below in Client Commands.
 - `bot_debug [0/1]` - Server cvar, will enable debug messaging for BOTLIB functionality where enabled
 - `bot_reportasclient [0/1]` - Server cvar, if enabled, will report bots as real clients to server masters.  Default is disabled [0]
+- `bot_reportpings [0/1]` - Server cvar, if enabled, will simulate bot pings, else it prints BOT instead.  Default is disabled [0]
 
 **Client Commands:**
 These commands only work on local map loads, not connections to dedicated servers.  They are meant to be used to create navmeshes.  You need to have `gl_shaders 0` (GLSL disabled) for this to work, newer shader renderers are incompatible with navmesh generation at this time.
