@@ -640,7 +640,6 @@ void InitGame( void )
 
 	// 2023
 	use_killcounts = gi.cvar("use_killcounts", "0", 0);
-	am = gi.cvar("am", "0", CVAR_LATCH | CVAR_SERVERINFO);
 	zoom_comp = gi.cvar("zoom_comp", "1", 0);
 	item_kit_mode = gi.cvar("item_kit_mode", "0", CVAR_LATCH);
 	gun_dualmk23_enhance = gi.cvar("gun_dualmk23_enhance", "0", 0);
@@ -679,6 +678,8 @@ void InitGame( void )
 	lca_grenade = gi.cvar("lca_grenade", "0", 0);
 	knife_catch = gi.cvar("knife_catch", "0", 0);
 
+	// 2025
+	bots = gi.cvar("bots", "0", CVAR_SERVERINFO);
 
 	// new AQtion Extension cvars
 #ifdef AQTION_EXTENSION

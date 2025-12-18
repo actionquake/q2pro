@@ -549,7 +549,6 @@ cvar_t *g_spawn_items;
 
 // 2023
 cvar_t *use_killcounts;  // Display kill counts in console to clients on frag
-cvar_t *am;  // Attract mode toggle
 cvar_t *zoom_comp; // Compensates zoom-in frames with ping (high ping = fewer frames)
 cvar_t *item_kit_mode;  // Toggles item kit mode
 cvar_t *gun_dualmk23_enhance; // Enables laser sight for dual mk23 pistols
@@ -585,6 +584,9 @@ cvar_t *breakableglass; // Moved from cgf_sfx_glass, enables breakable glass (0,
 cvar_t *glassfragmentlimit; // Moved from cgf_sfx_glass, sets glass fragment limit
 cvar_t *knife_catch; // Enables knife catching
 cvar_t *grenade_drop; // Allows grenades to be dropped on death
+
+// 2025
+cvar_t *bots; 		// If bots are enabled and in the server
 
 #ifdef AQTION_EXTENSION
 cvar_t *use_newirvision;

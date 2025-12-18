@@ -1057,9 +1057,6 @@ int Gamemode(void)
 	} else if (use_tourney->value) {
 		gamemode = GM_TOURNEY;
 		gi.cvar_forceset(gm->name, "tourney");
-	} else if (teamplay->value) {
-		gamemode = GM_TEAMPLAY;
-		gi.cvar_forceset(gm->name, "tp");
 	} else if (dom->value) {
 		gamemode = GM_DOMINATION;
 		gi.cvar_forceset(gm->name, "dom");
@@ -1072,6 +1069,9 @@ int Gamemode(void)
 	} else if (jump->value) {
 		gamemode = GM_JUMP;
 		gi.cvar_forceset(gm->name, "jump");
+	} else if (teamplay->value) {
+		gamemode = GM_TEAMPLAY;
+		gi.cvar_forceset(gm->name, "tp");
 	} else {
 		// Default to deathmatch if no other matches
 		gamemode = GM_DEATHMATCH;
@@ -1152,7 +1152,6 @@ void SpawnEntities (const char *mapname, const char *entities, const char *spawn
 	gi.cvar_forceset(dm_choose->name, "0"); // Turn off dm_choose for jump mode
 	gi.cvar_forceset(uvtime->name, "0"); // Turn off uvtime in jump mode
 	gi.cvar_forceset(unique_items->name, "6"); // Enables holding all items at once, if toggled
-	gi.cvar_forceset(am->name, "0"); // Turns off attract mode
 	gi.cvar_forceset(ltk_loadbots->name, "0"); // Turns off bots
 	//
 		if (teamplay->value)
@@ -1421,6 +1420,10 @@ void SpawnEntities (const char *mapname, const char *entities, const char *spawn
 		}
 	}
 
+	// Reset unique items if changing from jump to any other mode
+	if (!jump->value) {
+		gi.cvar_forceset(unique_items->name, "1");
+	}
 
 	gi.cvar_forceset(maptime->name, "0:00");
 
