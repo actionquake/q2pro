@@ -850,6 +850,9 @@ void fire_grenade2 (edict_t * self, vec3_t start, vec3_t aimdir, int damage,
 		grenade->spawnflags = 1;
 	//grenade->s.sound = gi.soundindex("weapons/hgrenc1b.wav");
 
+	// Track grenade thrown stat
+	self->client->resp.gunstats[MOD_HG_SPLASH].shots++;
+
 	if (timer <= 0) {
 		Grenade_Explode(grenade);
 	} else {
@@ -1035,6 +1038,7 @@ void punch_attack(edict_t * ent)
 		}
 	}
 	gi.sound(ent, CHAN_WEAPON, gi.soundindex("weapons/swish.wav"), 1, ATTN_NORM, 0);
+	Stats_AddShot(ent, MOD_PUNCH);
 
 	// animate the punch
 	// can't animate a punch when ducked
