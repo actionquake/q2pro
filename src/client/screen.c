@@ -2549,9 +2549,9 @@ static void SCR_DrawGhudElement(ghud_element_t *element, float alpha_base, color
         int length = strlen(element->text);
         int uiflags = element->size[0] | (element->size[1] << 16);
         if ((uiflags & UI_CENTER) == UI_CENTER)
-            x -= (length * CHAR_WIDTH * 0.5);
+            x -= (length * CONCHAR_WIDTH * 0.5);
         else if (uiflags & UI_RIGHT)
-            x -= (length * CHAR_WIDTH);
+            x -= (length * CONCHAR_WIDTH);
 
         if ((uiflags & UI_MIDDLE) == UI_MIDDLE)
             y -= (length * CONCHAR_HEIGHT * 0.5);
