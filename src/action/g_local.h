@@ -1377,6 +1377,7 @@ extern cvar_t *knife_catch; // Enables or disables knife catching
 extern cvar_t *grenade_drop; // Allows grenades to be dropped on death
 
 // 2025
+extern cvar_t *ctf_rewards; // Enables CTF awards
 extern cvar_t *bots; // If bots are enabled and in the server
 
 #ifdef AQTION_EXTENSION

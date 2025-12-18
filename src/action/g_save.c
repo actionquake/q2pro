@@ -415,7 +415,7 @@ void InitGame( void )
 	use_scramblevote = gi.cvar( "use_scramblevote", "1", 0 );	//slicer
 	ctf = gi.cvar( "ctf", "0", /*CVAR_SERVERINFO | */ CVAR_LATCH );  //Removed in favor of 'gm' (gamemode)
 	ctf_forcejoin = gi.cvar( "ctf_forcejoin", "", 0 );
-	ctf_mode = gi.cvar( "ctf_mode", "0", 0 );
+	ctf_mode = gi.cvar( "ctf_mode", "0", CVAR_LATCH ); // Repurposed in 2025 -- now toggles between CTF and CTB modes. Rewards now handled via `ctf_rewards` cvar
 	ctf_dropflag = gi.cvar( "ctf_dropflag", "1", 0 );
 	ctf_respawn = gi.cvar( "ctf_respawn", "4", 0 );
 	ctf_model = gi.cvar( "ctf_model", "male", CVAR_LATCH );
@@ -675,6 +675,7 @@ void InitGame( void )
 	knife_catch = gi.cvar("knife_catch", "0", 0);
 
 	// 2025
+	ctf_rewards = gi.cvar("ctf_rewards", "1", 0);
 	bots = gi.cvar("bots", "0", CVAR_SERVERINFO);
 
 	// new AQtion Extension cvars
