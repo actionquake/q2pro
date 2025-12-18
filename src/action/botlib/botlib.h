@@ -8,6 +8,8 @@
 #define BOT_NAV_VERSION_2 2
 #define BOT_NAV_VERSION_MAX BOT_NAV_VERSION_2
 
+#define IS_BOT(ent) (ent->is_bot)
+
 // Bot move states
 typedef enum
 {

@@ -718,7 +718,7 @@ void G_RegisterScore(void)
         return;
     }
 
-	if (strcmp(gm->string, "tp") == 0 || strcmp(gm->string, "esp") == 0)
+	if (strcmp(gm->string, "tp") == 0 || strcmp(gm->string, "atl") == 0 || strcmp(gm->string, "etv") == 0)
 		roundbased = true;
 	else
 		roundbased = false;
@@ -1074,7 +1074,11 @@ void LogKill(edict_t *self, edict_t *inflictor, edict_t *attacker)
 
 		// Item identifier, taking item kit mode into account
 		if (!item_kit_mode->value) {
-			chosenItem = attacker->client->pers.chosenItem->typeNum;
+			if (!attacker->client->pers.chosenItem) {
+				chosenItem = 0;
+			} else {
+				chosenItem = attacker->client->pers.chosenItem->typeNum;
+			}
 		} else {
 			if (attacker->client->pers.chosenItem->typeNum == KEV_NUM) {
 				chosenItem = KEV_NUM;
@@ -1263,11 +1267,11 @@ void LogCapture(edict_t *capturer)
 	if (game.ai_ent_found) {
 		return;
 	}
+
 	// If stats aren't enabled, do nothing
 	if (!stat_logs->value) {
 		return;
 	}
-
 	int mode = Gamemode();
 	switch (mode) {
 		case GM_CTF:
@@ -1288,9 +1292,6 @@ void LogCapture(edict_t *capturer)
 			capstreak = 0;
 			break;
 	}
-
-	// (matchid,capturer,capturername,team,gamemode,gamemodeflag,cap,capstreak)
-	// (mid,steamid,cn,t,team,gm,gmf,c,cs,ttc)
 
 	Q_snprintf(
 		msg, sizeof(msg),

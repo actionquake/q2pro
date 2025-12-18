@@ -35,6 +35,9 @@ static precache_t precache_check;
 static int precache_sexed_sounds[MAX_SOUNDS];
 static int precache_sexed_total;
 
+cvar_t   *r_override_textures;
+cvar_t   *r_texture_overrides;
+
 /*
 ===============
 CL_QueueDownload
@@ -825,8 +828,10 @@ void CL_RequestNextDownload(void)
             for (i = 0; i < cl.bsp->numtexinfo; i++) {
                 if (cl.bsp->texinfo[i].c.flags & SURF_NODRAW)
                     continue;
-                len = Q_concat(fn, sizeof(fn), "textures/", cl.bsp->texinfo[i].name, ".jpg");
-                check_file_len(fn, len, DL_OTHER);
+                if (r_override_textures->integer == 2 || (r_texture_overrides->integer & 16)) {
+                    len = Q_concat(fn, sizeof(fn), "textures/", cl.bsp->texinfo[i].name, ".jpg");
+                    check_file_len(fn, len, DL_OTHER);
+                }
                 len = Q_concat(fn, sizeof(fn), "textures/", cl.bsp->texinfo[i].name, ".wal");
                 check_file_len(fn, len, DL_OTHER);
             }

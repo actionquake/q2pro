@@ -46,8 +46,10 @@ void EspForceEspionage(espmode_t espmode)
 	gi.cvar_forceset("esp", "1");
 	if (espmode == 0 || esp_atl->value) {
 		espsettings.esp_mode = ESPMODE_ATL;
+		gi.cvar_forceset(gm->name, "atl");
 	} else if (espmode == 1) {
 		espsettings.esp_mode = ESPMODE_ETV;
+		gi.cvar_forceset(gm->name, "etv");
 	}
 
 	//gi.dprintf("Espionage mode set to %s\n", (espmode == 0) ? "ATL" : "ETV");
@@ -242,7 +244,7 @@ void _EspBonusCapture(edict_t *attacker, edict_t *flag)
 	flag->owner->client->resp.esp_capstreak++;
 	if (flag->owner->client->resp.esp_capstreak > flag->owner->client->resp.esp_capstreakbest)
 		flag->owner->client->resp.esp_capstreakbest = flag->owner->client->resp.esp_capstreak;
-	LogCapture(flag->owner);
+	LOG_CAPTURE(flag->owner);
 
 	// Bonus points awarded
 	flag->owner->client->resp.score += ESP_LEADER_CAPTURE_BONUS;
@@ -964,6 +966,13 @@ qboolean EspLoadConfig(const char *mapname)
 		EspForceEspionage(ESPMODE_ATL);
 	}
 
+	// Config load happens AFTER g_spawn, updates must occur here
+	if (espsettings.esp_mode == ESPMODE_ATL) {
+		gi.cvar_forceset(gm->name, "atl");
+	} else if (espsettings.esp_mode == ESPMODE_ETV) {
+		gi.cvar_forceset(gm->name, "etv");
+	}
+
 	return true;
 }
 
@@ -1568,6 +1577,8 @@ qboolean AllTeamsHaveLeaders(void)
 		teams[TEAM2].leader_dead = false;
 		if (teamCount == 3)
 			teams[TEAM3].leader_dead = false;
+
+		return true;
 	} else {
 		return false;
 	}

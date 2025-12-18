@@ -704,10 +704,15 @@ void PrintMOTD(edict_t * ent)
 		}
 	}
 
-	if (!auto_menu->value || ent->client->pers.menu_shown) {
+	// Print the MOTD
+	if (auto_menu->value == 2) {
 		gi.centerprintf(ent, "%s", msg_buf);
 	} else {
-		gi.cprintf(ent, PRINT_LOW, "%s", msg_buf);
+       if (!auto_menu->value || ent->client->pers.menu_shown) {
+               gi.centerprintf(ent, "%s", msg_buf);
+       } else {
+               gi.cprintf(ent, PRINT_LOW, "%s", msg_buf);
+       }
 	}
 }
 

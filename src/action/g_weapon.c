@@ -850,6 +850,9 @@ void fire_grenade2 (edict_t * self, vec3_t start, vec3_t aimdir, int damage,
 		grenade->spawnflags = 1;
 	//grenade->s.sound = gi.soundindex("weapons/hgrenc1b.wav");
 
+	// Track grenade thrown stat
+	self->client->resp.gunstats[MOD_HG_SPLASH].shots++;
+
 	if (timer <= 0) {
 		Grenade_Explode(grenade);
 	} else {
@@ -1035,6 +1038,7 @@ void punch_attack(edict_t * ent)
 		}
 	}
 	gi.sound(ent, CHAN_WEAPON, gi.soundindex("weapons/swish.wav"), 1, ATTN_NORM, 0);
+	Stats_AddShot(ent, MOD_PUNCH);
 
 	// animate the punch
 	// can't animate a punch when ducked
@@ -1131,7 +1135,20 @@ void knife_touch(edict_t *ent, edict_t *other, cplane_t *plane, csurface_t *surf
 		if( other->client && (INV_AMMO(other,KNIFE_NUM) < other->client->knife_max) )
 			INV_AMMO(other,KNIFE_NUM) ++;
 
-		T_Damage(other, ent, ent->owner, ent->velocity, ent->s.origin, plane->normal, ent->dmg, 0, 0, MOD_KNIFE_THROWN);
+		if (knife_catch->value  && !other->is_bot) {  // 3 frames to catch the knife
+			if (other->client->punch_framenum >= (level.framenum - 3)) {
+					gi.cprintf(other, PRINT_HIGH, "You caught a knife!\n");
+					gi.cprintf(ent->owner, PRINT_HIGH, "%s caught your knife!\n", other->client->pers.netname);
+
+				if (knife_catch->value == 2)
+					//Throw it back!
+					Knife_Fire(other);
+			} else {
+				T_Damage(other, ent, ent->owner, ent->velocity, ent->s.origin, plane->normal, ent->dmg, 0, 0, MOD_KNIFE_THROWN);
+			}
+		} else {
+			T_Damage(other, ent, ent->owner, ent->velocity, ent->s.origin, plane->normal, ent->dmg, 0, 0, MOD_KNIFE_THROWN);
+		}
 	}
 	else
 	{

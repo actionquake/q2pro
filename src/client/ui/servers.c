@@ -202,7 +202,7 @@ static uint32_t ColorForStatus(const serverStatus_t *status, unsigned ping)
     if (Q_stricmp(Info_ValueForKey(status->infostring, "NoFake"), "ENABLED") == 0)
         return uis.color.disabled.u32;
 
-    if (atoi(Info_ValueForKey(status->infostring, "am")) > 0)
+    if (atoi(Info_ValueForKey(status->infostring, "bots")) > 0)
         return U32_MAGENTA;
     
     if (ping > (ui_colorpingmax->value * 3))
@@ -262,7 +262,7 @@ void UI_StatusEvent(const serverStatus_t *status)
     const char *am = "No";
     #if USE_AQTION
     // This checks if the server has bots, if so, turn the color of the server to MAGENTA
-    const char *hasBotsCheck = Info_ValueForKey(status->infostring, "am");
+    const char *hasBotsCheck = Info_ValueForKey(status->infostring, "bots");
 
     if (hasBotsCheck == NULL || COM_IsWhite(hasBotsCheck) || *hasBotsCheck == '0') {
         am = "No";
