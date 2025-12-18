@@ -2203,12 +2203,6 @@ void BOTLIB_CheckBotRules(void)
 
   if (matchmode->value) // Bots never allowed in matchmode
 		return;
-  
-	// This is so we automatically report when a server has bots or not
-	if (bot_connections.desire_bots == 0)
-		gi.cvar_forceset("am", "0"); // Turn off attract mode
-	else
-		gi.cvar_forceset("am", "1"); // Turn on attract mode
 	
 	if (ctf->value)
 	{
@@ -2261,9 +2255,9 @@ void BOTLIB_CheckBotRules(void)
 
 	// Update 'am' cvar to reflect in Server UI list if server has bots or not
 	if (bot_connections.total_bots > 0) {
-		gi.cvar_forceset(am->name, "1");
+		gi.cvar_forceset(bots->name, "1");
 	} else {
-		gi.cvar_forceset(am->name, "0");
+		gi.cvar_forceset(bots->name, "0");
 	}
 }
 //rekkie -- DEV_1 -- e

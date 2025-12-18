@@ -594,10 +594,6 @@ void InitGame( void )
 
 	// BEGIN AQ2 ETE
 	esp = gi.cvar( "esp", "0", /*CVAR_SERVERINFO | */ CVAR_LATCH );  //Removed in favor of 'gm' (gamemode)
-	if (esp->value) {
-		atl = gi.cvar( "atl", "1", CVAR_LATCH );
-		etv = gi.cvar( "etv", "0", CVAR_LATCH );
-	};
 	esp_atl = gi.cvar( "esp_atl", "0", 0 ); // This forces ATL mode even if ETV mode is set in the .esp file
 	esp_punish = gi.cvar("esp_punish", "0", 0);
 	esp_etv_halftime = gi.cvar("esp_etv_halftime", "0", CVAR_LATCH);
@@ -640,7 +636,6 @@ void InitGame( void )
 
 	// 2023
 	use_killcounts = gi.cvar("use_killcounts", "0", 0);
-	am = gi.cvar("am", "0", CVAR_LATCH | CVAR_SERVERINFO);
 	zoom_comp = gi.cvar("zoom_comp", "1", 0);
 	item_kit_mode = gi.cvar("item_kit_mode", "0", CVAR_LATCH);
 	gun_dualmk23_enhance = gi.cvar("gun_dualmk23_enhance", "0", 0);
@@ -681,7 +676,7 @@ void InitGame( void )
 
 	// 2025
 	ctf_rewards = gi.cvar("ctf_rewards", "1", 0);
-
+	bots = gi.cvar("bots", "0", CVAR_SERVERINFO);
 
 	// new AQtion Extension cvars
 #ifdef AQTION_EXTENSION
@@ -728,6 +723,7 @@ void InitGame( void )
 	bot_count_max = gi.cvar("bot_count_max", "0", 0);
 	bot_rotate = gi.cvar("bot_rotate", "0", 0);
 	bot_reportasclient = gi.cvar("bot_reportasclient", "0", CVAR_LATCH);
+	bot_reportpings = gi.cvar("bot_reportpings", "0", 0);
 	bot_navautogen = gi.cvar("bot_navautogen", "0", 0);
 	//bot_randteamskin = gi.cvar("bot_randteamskin", "0", 0);
 	gl_shaders = gi.cvar("gl_shaders", "0", 0);

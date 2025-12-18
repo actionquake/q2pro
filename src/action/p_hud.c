@@ -370,10 +370,23 @@ void DeathmatchScoreboardMessage (edict_t * ent, edict_t * killer)
 			stringlength += j;
 		}
 
+		// Convert ping to string so we can report pings as BOT if needed
+		char pingstr[8];
+		Q_snprintf(pingstr, sizeof(pingstr), "%d", min(cl->ping, 999));
+
+		#ifndef NO_BOTS
+		if (IS_BOT(cl_ent)) {
+			if (!bot_reportasclient->value || !bot_reportpings->value) {
+				Q_snprintf(pingstr, sizeof(pingstr), "BOT");
+			}
+		}
+		#endif
+
 		// send the layout
 		Q_snprintf (entry, sizeof (entry),
-			"client %i %i %i %i %i %i ",
-			x, y, (int)(cl - game.clients), cl->resp.score, cl->ping,
+			"client %i %i %i %i %s %i ",
+			x, y, (int)(cl - game.clients), cl->resp.score,
+			pingstr,
 			(level.framenum - cl->resp.enterframe) / 600 / FRAMEDIV);
 		j = strlen (entry);
 		if (stringlength + j > 1023)

@@ -1080,6 +1080,7 @@ typedef enum {
     GM_DOMINATION,
     GM_ASSASSINATE_THE_LEADER,
     GM_ESCORT_THE_VIP,
+	GM_JUMP,
 	GM_MAX
 } GameMode;
 
@@ -1340,7 +1341,6 @@ extern cvar_t *esp_debug; // Enable or disable debug mode (very spammy)
 
 // 2023
 extern cvar_t *use_killcounts;  // Adjust how kill streaks are counted
-extern cvar_t *am; // Enable or disable Attract Mode (ltk bots)
 extern cvar_t *zoom_comp;  // Enable or disable zoom compensation
 extern cvar_t *item_kit_mode;  // Enable or disable item kit mode
 extern cvar_t *gun_dualmk23_enhance; // Enable or disable enhanced dual mk23s (laser + silencer)
@@ -1378,6 +1378,7 @@ extern cvar_t *grenade_drop; // Allows grenades to be dropped on death
 
 // 2025
 extern cvar_t *ctf_rewards; // Enables CTF awards
+extern cvar_t *bots; // If bots are enabled and in the server
 
 #ifdef AQTION_EXTENSION
 extern int (*engine_Client_GetVersion)(edict_t *ent);
