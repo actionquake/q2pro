@@ -718,7 +718,7 @@ void G_RegisterScore(void)
         return;
     }
 
-	if (strcmp(gm->string, "tp") == 0 || strcmp(gm->string, "esp") == 0)
+	if (strcmp(gm->string, "tp") == 0 || strcmp(gm->string, "atl") == 0 || strcmp(gm->string, "etv") == 0)
 		roundbased = true;
 	else
 		roundbased = false;

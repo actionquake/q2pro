@@ -3379,7 +3379,7 @@ STAT_BOT_CHECK();
 		PrintMOTD(ent);
 	}
 
-	if(am->value && game.bot_count > 0){
+	if(game.bot_count > 0){
 		char msg[128];
 		Q_snprintf(msg, sizeof(msg), "** This server contains BOTS for you to play with until real players join up!  Enjoy! **");
 		gi.centerprintf(ent, "%s", msg);

@@ -2375,11 +2375,6 @@ void RunWarmup (void)
 				gi.centerprintf(ent, "WARMUP");
 		}
 	}
-	#if USE_AQTION
-	if (warmup_bots->value){
-		gi.cvar_forceset("am", "1");
-	}
-	#endif
 }
 
 void StartRound (void)
@@ -2915,7 +2910,6 @@ int CheckTeamRules (void)
 				#if USE_AQTION
 				// Cleanup and remove all bots, it's go time!
 				if (warmup_bots->value){
-					gi.cvar_forceset("am", "0");
 					bot_connections.desire_bots = 0;
 					ACESP_RemoveBot("all");
 					CenterPrintAll("All bots removed, good luck and have fun!");
