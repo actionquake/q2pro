@@ -564,6 +564,7 @@ extern cvar_t       *sv_enhanced_setplayer;
 
 extern cvar_t       *sv_status_limit;
 extern cvar_t       *sv_status_show;
+extern cvar_t       *sv_status_ext;
 extern cvar_t       *sv_auth_limit;
 extern cvar_t       *sv_rcon_limit;
 extern cvar_t       *sv_uptime;

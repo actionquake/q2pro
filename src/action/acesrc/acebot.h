@@ -554,6 +554,7 @@ extern cvar_t* bot_count_min;
 extern cvar_t* bot_count_max;
 extern cvar_t* bot_rotate;
 extern cvar_t* bot_reportasclient;
+extern cvar_t* bot_reportpings;
 extern cvar_t* bot_navautogen;
 //extern cvar_t* bot_randteamskin;
 extern cvar_t* gl_shaders;

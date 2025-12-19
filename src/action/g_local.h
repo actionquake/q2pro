@@ -787,6 +787,38 @@ typedef struct precache_s {
     void                (*func)(void);
 } precache_t;
 
+/*
+ * LRCON (Limited Remote Console) data structures
+ */
+
+#define MAX_LRCON_CVARS 32
+#define MAX_LRCON_MODES 16
+
+/* LRCON state - tracks current server claim */
+typedef struct {
+  qboolean claimed;           /* Is server currently claimed? */
+  char claimer_name[16];      /* Name of current claimer */
+  char claimer_ip[64];        /* IP address of current claimer */
+  int claim_time;             /* Frame number when claimed */
+  edict_t *claimer_ent;       /* Pointer to claimer entity (NULL if disconnected) */
+} lrcon_state_t;
+
+/* Server mode definition */
+typedef struct {
+  char name[64];              /* Mode name (e.g., "teamdm", "ctf") */
+  char command[256];          /* Config command to execute (e.g., "exec cfg/teamdm.cfg") */
+} lrcon_mode_t;
+
+/* LRCON configuration */
+typedef struct {
+  qboolean enabled;           /* Is LRCON enabled? */
+  qboolean quit_on_empty;     /* Quit server when last player leaves? */
+  int allowed_cvars_count;    /* Number of whitelisted cvars */
+  char allowed_cvars[MAX_LRCON_CVARS][64];  /* Whitelisted cvar names */
+  int modes_count;            /* Number of available modes */
+  lrcon_mode_t modes[MAX_LRCON_MODES];      /* Available server modes */
+} lrcon_config_t;
+
 //
 // this structure is left intact through an entire game
 // it should be initialized at dll load time, and read/written to
@@ -842,8 +874,11 @@ typedef struct
   #if AQTION_CURL
   // Discord Webhook limits
   qboolean time_warning_sent; 	// This is set to true when the time warning has been sent, resets every map
-  
+
   #endif
+
+  // LRCON configuration
+  lrcon_config_t lrcon_config;
 }
 game_locals_t;
 
@@ -953,6 +988,9 @@ typedef struct
   int lc_recently_sent[NOTIFY_MAX];	// Used to prevent spamming of the endpoint
   // Map features
   map_features_t map_features;
+
+  // LRCON state
+  lrcon_state_t lrcon;
 }
 level_locals_t;
 
@@ -1103,6 +1141,7 @@ typedef enum {
     GM_DOMINATION,
     GM_ASSASSINATE_THE_LEADER,
     GM_ESCORT_THE_VIP,
+	GM_JUMP,
 	GM_TRAINING,
 	GM_MAX
 } GameMode;
@@ -1365,7 +1404,6 @@ extern cvar_t *esp_debug; // Enable or disable debug mode (very spammy)
 
 // 2023
 extern cvar_t *use_killcounts;  // Adjust how kill streaks are counted
-extern cvar_t *am; // Enable or disable Attract Mode (ltk bots)
 extern cvar_t *zoom_comp;  // Enable or disable zoom compensation
 extern cvar_t *item_kit_mode;  // Enable or disable item kit mode
 extern cvar_t *gun_dualmk23_enhance; // Enable or disable enhanced dual mk23s (laser + silencer)
@@ -1400,6 +1438,10 @@ extern cvar_t *breakableglass; // Moved from cgf_sfx_glass, enables breakable gl
 extern cvar_t *glassfragmentlimit; // Moved from cgf_sfx_glass, sets glass fragment limit
 extern cvar_t *knife_catch; // Enables or disables knife catching
 extern cvar_t *grenade_drop; // Allows grenades to be dropped on death
+
+// 2025
+extern cvar_t *ctf_rewards; // Enables CTF awards
+extern cvar_t *bots; // If bots are enabled and in the server
 
 #ifdef AQTION_EXTENSION
 extern int (*engine_Client_GetVersion)(edict_t *ent);

@@ -188,6 +188,7 @@ action_src = [
   'src/action/g_func.c',
   'src/action/g_grapple.c',
   'src/action/g_items.c',
+  'src/action/g_lrcon.c',
   'src/action/g_main.c',
   'src/action/g_misc.c',
   'src/action/g_phys.c',

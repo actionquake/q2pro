@@ -319,7 +319,10 @@
 #include "g_local.h"
 #include "m_player.h"
 #include "cgf_sfx_glass.h"
+#include "g_lrcon.h"
 
+extern cvar_t *lrcon_claimer_name;
+extern cvar_t *lrcon_claimer_ip;
 
 static void FreeClientEdicts(gclient_t *client)
 {
@@ -3565,7 +3568,7 @@ STAT_BOT_CHECK();
 		PrintMOTD(ent);
 	}
 
-	if(am->value && game.bot_count > 0){
+	if(game.bot_count > 0){
 		char msg[128];
 		Q_snprintf(msg, sizeof(msg), "** This server contains BOTS for you to play with until real players join up!  Enjoy! **");
 		gi.centerprintf(ent, "%s", msg);
@@ -3831,6 +3834,21 @@ qboolean ClientConnect(edict_t * ent, char *userinfo)
 		IRC_printf(IRC_T_SERVER, "%n@%s connected", value, ipaddr_buf);
 	}
 
+	// LRCON: Check if reconnecting claimer and restore claim
+	value = Info_ValueForKey(userinfo, "name");
+	if (game.lrcon_config.enabled && lrcon_claimer_name->string && *lrcon_claimer_name->string &&
+		!strcmp(lrcon_claimer_name->string, value) &&
+		!strcmp(lrcon_claimer_ip->string, ipaddr_buf)) {
+		level.lrcon.claimed = true;
+		Q_strncpyz(level.lrcon.claimer_name, lrcon_claimer_name->string,
+				   sizeof(level.lrcon.claimer_name));
+		Q_strncpyz(level.lrcon.claimer_ip, lrcon_claimer_ip->string,
+				   sizeof(level.lrcon.claimer_ip));
+		level.lrcon.claimer_ent = ent;
+		level.lrcon.claim_time = level.framenum;
+		gi.bprintf(PRINT_HIGH, "LRCON: %s reconnected, claim restored\n", value);
+	}
+
 	//rekkie -- silence ban -- s
 	if (SV_FilterSBPacket(ipaddr_buf, NULL)) // Check if player has been silenced
 	{
@@ -3846,10 +3864,20 @@ qboolean ClientConnect(edict_t * ent, char *userinfo)
 	//guarantee a client is actually making it all the way into the game.
 	//ent->client->pers.connected = true;
 
+	qboolean is_bot = false;
 	#ifndef NO_BOTS
 	if(bot_chat->value)
 		BOTLIB_Chat(ent, CHAT_WELCOME);
+
+	if (IS_BOT(ent))
+		is_bot = true;
 	#endif
+
+	if (!is_bot && use_ghosts->value == 2) {
+		if (Ghost_Exist(ent)) {
+			Cmd_Ghost_f(ent);
+		}
+	}
 
 	return true;
 }
@@ -3895,6 +3923,12 @@ void ClientDisconnect(edict_t * ent)
 
 	gi.bprintf(PRINT_HIGH, "%s disconnected\n", ent->client->pers.netname);
 	IRC_printf(IRC_T_SERVER, "%n disconnected", ent->client->pers.netname);
+
+	// LRCON: Clear claim if claimer disconnects
+	if (level.lrcon.claimed && level.lrcon.claimer_ent == ent) {
+		gi.bprintf(PRINT_HIGH, "LRCON: Released (claimer disconnected)\n");
+		Lrcon_ClearClaim();
+	}
 
 	if( !teamplay->value && !ent->client->pers.spectator )
 	{
@@ -6401,8 +6435,15 @@ void ClientBeginServerFrame(edict_t * ent)
 		}
 	}
 
-	// show team or weapon menu immediately when connected
-	if (auto_menu->value && ent->client->layout != LAYOUT_MENU && !client->pers.menu_shown && (teamplay->value || dm_choose->value)) {
+	//show team or weapon menu immediately when connected
+	//gi.dprintf("last refresh: %d, mod refresh: %d, realframenum: %d\n", client->resp.last_motd_refresh, (client->resp.last_motd_refresh * 2), level.realFramenum);
+	if (auto_menu->value == 2) {
+		if (level.realFramenum == (ent->client->resp.last_motd_refresh * 2)) {
+			if (auto_menu->value && ent->client->layout != LAYOUT_MENU && !client->pers.menu_shown && (teamplay->value || dm_choose->value)) {
+				Cmd_Inven_f( ent );
+			}
+		}
+	} else if (auto_menu->value == 1 && ent->client->layout != LAYOUT_MENU && !client->pers.menu_shown && (teamplay->value || dm_choose->value)) {
 		Cmd_Inven_f( ent );
 	}
 

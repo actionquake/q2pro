@@ -286,6 +286,11 @@ int stopAP;
 edict_t *g_edicts;
 
 //FIREBLADE
+/* LRCON cvars */
+cvar_t *lrcon_config;
+cvar_t *lrcon_claimer_name;
+cvar_t *lrcon_claimer_ip;
+
 cvar_t *hostname;
 cvar_t *teamplay;
 cvar_t *radiolog;
@@ -506,6 +511,7 @@ cvar_t* bot_count_min;	// Minimum number of bots to keep on the server (will ran
 cvar_t* bot_count_max;	// Maximum number of bots to keep on the server (will range between this and bot_count_min)
 cvar_t* bot_rotate;		// Disable/enable rotating bots on the server
 cvar_t* bot_reportasclient; // Report bots as clients to the server browser
+cvar_t* bot_reportpings; // Report bots simulated pings
 cvar_t* bot_navautogen;	// Enable/Disable automatic generation of navigation files
 //cvar_t* bot_randteamskin; // Bots can randomize team skins each map
 
@@ -549,7 +555,6 @@ cvar_t *g_spawn_items;
 
 // 2023
 cvar_t *use_killcounts;  // Display kill counts in console to clients on frag
-cvar_t *am;  // Attract mode toggle
 cvar_t *zoom_comp; // Compensates zoom-in frames with ping (high ping = fewer frames)
 cvar_t *item_kit_mode;  // Toggles item kit mode
 cvar_t *gun_dualmk23_enhance; // Enables laser sight for dual mk23 pistols
@@ -585,6 +590,10 @@ cvar_t *breakableglass; // Moved from cgf_sfx_glass, enables breakable glass (0,
 cvar_t *glassfragmentlimit; // Moved from cgf_sfx_glass, sets glass fragment limit
 cvar_t *knife_catch; // Enables knife catching
 cvar_t *grenade_drop; // Allows grenades to be dropped on death
+
+// 2025
+cvar_t *ctf_rewards; // Enables CTF awards
+cvar_t *bots; 		// If bots are enabled and in the server
 
 #ifdef AQTION_EXTENSION
 cvar_t *use_newirvision;
@@ -1295,6 +1304,21 @@ void G_RunFrame (void)
 	{
 		ExitLevel ();
 		return;
+	}
+
+	// LRCON quit_on_empty logic
+	if (game.lrcon_config.quit_on_empty) {
+		if (empty) {
+			if (level.emptyTime == 0) {
+				level.emptyTime = level.time;
+				gi.dprintf("LRCON: Server empty, will quit in 5 seconds\n");
+			} else if (level.time - level.emptyTime > 5.0) {
+				gi.dprintf("LRCON: Quitting server (empty for 5+ seconds)\n");
+				gi.AddCommandString("quit\n");
+			}
+		} else {
+			level.emptyTime = 0;
+		}
 	}
 
 	// TNG Darkmatch Cycle

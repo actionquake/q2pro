@@ -498,6 +498,22 @@ void ChangeWeapon(edict_t* ent)
 	// zucc - prevent reloading queue for previous weapon from doing anything
 	ent->client->reload_attempts = 0;
 
+	// TODO: Make this work
+	// CTB prevents changing to a non-mk23/knife/grenade if carrying a briefcase
+	if (ctf_mode->value && 
+	(ent->client->inventory[ITEM_INDEX(team_flag[TEAM1])] ||
+	ent->client->inventory[ITEM_INDEX(team_flag[TEAM2])]))
+	{
+		if (ent->client->weapon->typeNum != KNIFE_NUM &&
+			ent->client->weapon->typeNum != GRENADE_NUM &&
+			ent->client->weapon->typeNum != DUAL_NUM)
+		{
+			ent->client->newweapon = NULL;
+			ent->client->weapon = NULL;
+			return;
+		}
+	}
+
 	ent->client->lastweapon = ent->client->weapon;
 	ent->client->weapon = ent->client->newweapon;
 	ent->client->newweapon = NULL;
