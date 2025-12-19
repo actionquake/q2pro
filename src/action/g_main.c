@@ -286,6 +286,11 @@ int stopAP;
 edict_t *g_edicts;
 
 //FIREBLADE
+/* LRCON cvars */
+cvar_t *lrcon_config;
+cvar_t *lrcon_claimer_name;
+cvar_t *lrcon_claimer_ip;
+
 cvar_t *hostname;
 cvar_t *teamplay;
 cvar_t *radiolog;
@@ -1299,6 +1304,21 @@ void G_RunFrame (void)
 	{
 		ExitLevel ();
 		return;
+	}
+
+	// LRCON quit_on_empty logic
+	if (game.lrcon_config.quit_on_empty) {
+		if (empty) {
+			if (level.emptyTime == 0) {
+				level.emptyTime = level.time;
+				gi.dprintf("LRCON: Server empty, will quit in 5 seconds\n");
+			} else if (level.time - level.emptyTime > 5.0) {
+				gi.dprintf("LRCON: Quitting server (empty for 5+ seconds)\n");
+				gi.AddCommandString("quit\n");
+			}
+		} else {
+			level.emptyTime = 0;
+		}
 	}
 
 	// TNG Darkmatch Cycle

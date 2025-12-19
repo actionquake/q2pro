@@ -1514,3 +1514,124 @@ void _PickupRequest (edict_t * ent, pmenu_t * p)
 
 	Cmd_Pickup_f(ent);
 }
+
+void ReadLrconConfig(void)
+{
+	FILE *config_file;
+	char buf[MAX_STR_LEN], reading_section[MAX_STR_LEN], cfgpath[MAX_STR_LEN];
+	cvar_t *lrcon_config_cvar;
+	int lines_into_section = -1;
+
+	// Initialize defaults
+	game.lrcon_config.enabled = 0;
+	game.lrcon_config.quit_on_empty = 0;
+	game.lrcon_config.allowed_cvars_count = 0;
+	game.lrcon_config.modes_count = 0;
+
+	// Get config filename from cvar
+	lrcon_config_cvar = gi.cvar("lrcon_config", "lrcon.cfg", 0);
+	if (lrcon_config_cvar->string && *(lrcon_config_cvar->string))
+		sprintf(cfgpath, "%s/%s", GAMEVERSION, lrcon_config_cvar->string);
+	else
+		sprintf(cfgpath, "%s/%s", GAMEVERSION, "lrcon.cfg");
+
+	// Try to open config file
+	config_file = fopen(cfgpath, "r");
+	if (config_file == NULL) {
+		gi.dprintf("LRCON: Unable to read %s (lrcon disabled)\n", cfgpath);
+		return;
+	}
+
+	// Parse config file
+	while (fgets(buf, MAX_STR_LEN - 10, config_file) != NULL) {
+		int bs;
+		char *space, *key, *value;
+
+		// Strip newlines/carriage returns
+		bs = strlen(buf);
+		while (bs > 0 && (buf[bs - 1] == '\r' || buf[bs - 1] == '\n')) {
+			buf[bs - 1] = 0;
+			bs--;
+		}
+
+		// Skip empty lines and comments
+		if ((buf[0] == '/' && buf[1] == '/') || buf[0] == 0) {
+			continue;
+		}
+
+		// Handle section headers
+		if (buf[0] == '[') {
+			char *p;
+
+			p = strchr(buf, ']');
+			if (p == NULL)
+				continue;
+			*p = 0;
+			strcpy(reading_section, buf + 1);
+			lines_into_section = 0;
+			continue;
+		}
+
+		// Skip special markers
+		if (buf[0] == '#' && buf[1] == '#' && buf[2] == '#') {
+			lines_into_section = -1;
+			continue;
+		}
+
+		// Process section content
+		if (lines_into_section > -1) {
+			if (!strcmp(reading_section, "settings")) {
+				// Parse key-value pairs in settings section
+				space = strchr(buf, ' ');
+				if (space != NULL) {
+					*space = 0;
+					key = buf;
+					value = space + 1;
+
+					if (!strcmp(key, "enabled")) {
+						game.lrcon_config.enabled = atoi(value) ? 1 : 0;
+						gi.dprintf("LRCON: enabled = %d\n", game.lrcon_config.enabled);
+					} else if (!strcmp(key, "quit_on_empty")) {
+						game.lrcon_config.quit_on_empty = atoi(value) ? 1 : 0;
+						gi.dprintf("LRCON: quit_on_empty = %d\n", game.lrcon_config.quit_on_empty);
+					}
+				}
+			} else if (!strcmp(reading_section, "allowed_cvars")) {
+				// Each line is a cvar name
+				if (game.lrcon_config.allowed_cvars_count < MAX_LRCON_CVARS) {
+					Q_strncpyz(game.lrcon_config.allowed_cvars[game.lrcon_config.allowed_cvars_count],
+							   buf, sizeof(game.lrcon_config.allowed_cvars[0]));
+					gi.dprintf("LRCON: allowed cvar %d = %s\n",
+							   game.lrcon_config.allowed_cvars_count,
+							   game.lrcon_config.allowed_cvars[game.lrcon_config.allowed_cvars_count]);
+					game.lrcon_config.allowed_cvars_count++;
+				}
+			} else if (!strcmp(reading_section, "modes")) {
+				// Format: name|command
+				char *pipe = strchr(buf, '|');
+				if (pipe != NULL && game.lrcon_config.modes_count < MAX_LRCON_MODES) {
+					*pipe = 0;
+					Q_strncpyz(game.lrcon_config.modes[game.lrcon_config.modes_count].name,
+							   buf, sizeof(game.lrcon_config.modes[0].name));
+					Q_strncpyz(game.lrcon_config.modes[game.lrcon_config.modes_count].command,
+							   pipe + 1, sizeof(game.lrcon_config.modes[0].command));
+					gi.dprintf("LRCON: mode %d = %s -> %s\n",
+							   game.lrcon_config.modes_count,
+							   game.lrcon_config.modes[game.lrcon_config.modes_count].name,
+							   game.lrcon_config.modes[game.lrcon_config.modes_count].command);
+					game.lrcon_config.modes_count++;
+				}
+			}
+			lines_into_section++;
+		}
+	}
+
+	fclose(config_file);
+
+	if (game.lrcon_config.enabled) {
+		gi.dprintf("LRCON: Configuration loaded successfully (%d cvars, %d modes)\n",
+				   game.lrcon_config.allowed_cvars_count, game.lrcon_config.modes_count);
+	} else {
+		gi.dprintf("LRCON: Not enabled in config\n");
+	}
+}
