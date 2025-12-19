@@ -100,6 +100,7 @@ cvar_t  *sv_enhanced_setplayer;
 cvar_t  *sv_iplimit;
 cvar_t  *sv_status_limit;
 cvar_t  *sv_status_show;
+cvar_t  *sv_status_ext;
 cvar_t  *sv_uptime;
 cvar_t  *sv_auth_limit;
 cvar_t  *sv_rcon_limit;
@@ -521,6 +522,422 @@ static void SVC_Status(void)
 
     // send the datagram
     NET_SendPacket(NS_SERVER, buffer, len, &net_from);
+}
+
+/*
+================
+Extended Status Protocol (statusx)
+
+Multi-packet extended status response with player statistics
+================
+*/
+
+#define STATUSX_CHUNK_SIZE 1200
+#define STATUSX_MAX_CHUNKS 32
+#define STATUSX_CACHE_TIME 5000  // 5 seconds
+
+typedef struct {
+    char data[STATUSX_CHUNK_SIZE * STATUSX_MAX_CHUNKS];
+    size_t total_size;
+    int chunk_count;
+    unsigned timestamp;
+} statusx_cache_t;
+
+static statusx_cache_t statusx_cache;
+
+/*
+================
+SV_BuildExtendedStatus
+
+Builds the complete extended status response with server info,
+team data, and detailed player statistics.
+Returns the total size written to buffer.
+================
+*/
+static size_t SV_BuildExtendedStatus(char *buffer, size_t max_size)
+{
+    size_t pos = 0;
+    size_t len;
+    char entry[1024];
+    client_t *cl;
+    int i, num_clients, num_bots;
+
+    // Count real clients and bots
+    num_clients = SV_CountClients();
+    num_bots = 0;
+    for (i = 0; i < MAX_CLIENTS; i++) {
+        if (bot_clients[i].in_use) {
+            num_bots++;
+        }
+    }
+
+    // [SERVER_INFO]
+    len = Q_scnprintf(entry, sizeof(entry), "[SERVER_INFO]\n");
+    if (pos + len >= max_size) return pos;
+    memcpy(buffer + pos, entry, len);
+    pos += len;
+
+    // Server info fields
+    len = Q_scnprintf(entry, sizeof(entry), "hostname\\%s\n", sv_hostname->string);
+    if (pos + len >= max_size) return pos;
+    memcpy(buffer + pos, entry, len);
+    pos += len;
+
+    len = Q_scnprintf(entry, sizeof(entry), "mapname\\%s\n", sv.name);
+    if (pos + len >= max_size) return pos;
+    memcpy(buffer + pos, entry, len);
+    pos += len;
+
+    len = Q_scnprintf(entry, sizeof(entry), "clients\\%i\n", num_clients);
+    if (pos + len >= max_size) return pos;
+    memcpy(buffer + pos, entry, len);
+    pos += len;
+
+    len = Q_scnprintf(entry, sizeof(entry), "bots\\%i\n", num_bots);
+    if (pos + len >= max_size) return pos;
+    memcpy(buffer + pos, entry, len);
+    pos += len;
+
+    len = Q_scnprintf(entry, sizeof(entry), "maxclients\\%i\n",
+                      sv_maxclients->integer - sv_reserved_slots->integer);
+    if (pos + len >= max_size) return pos;
+    memcpy(buffer + pos, entry, len);
+    pos += len;
+
+    // Game mode and settings from CVAR_SERVERINFO
+    // Add common game cvars that clients need to know about
+    cvar_t *gamename = Cvar_FindVar("gamename");
+    cvar_t *fraglimit = Cvar_FindVar("fraglimit");
+    cvar_t *timelimit = Cvar_FindVar("timelimit");
+    cvar_t *dmflags = Cvar_FindVar("dmflags");
+    cvar_t *teamplay = Cvar_FindVar("teamplay");
+
+    if (gamename) {
+        len = Q_scnprintf(entry, sizeof(entry), "gamename\\%s\n", gamename->string);
+        if (pos + len >= max_size) return pos;
+        memcpy(buffer + pos, entry, len);
+        pos += len;
+    }
+
+    if (fraglimit) {
+        len = Q_scnprintf(entry, sizeof(entry), "fraglimit\\%s\n", fraglimit->string);
+        if (pos + len >= max_size) return pos;
+        memcpy(buffer + pos, entry, len);
+        pos += len;
+    }
+
+    if (timelimit) {
+        len = Q_scnprintf(entry, sizeof(entry), "timelimit\\%s\n", timelimit->string);
+        if (pos + len >= max_size) return pos;
+        memcpy(buffer + pos, entry, len);
+        pos += len;
+    }
+
+    if (dmflags) {
+        len = Q_scnprintf(entry, sizeof(entry), "dmflags\\%s\n", dmflags->string);
+        if (pos + len >= max_size) return pos;
+        memcpy(buffer + pos, entry, len);
+        pos += len;
+    }
+
+    if (teamplay) {
+        len = Q_scnprintf(entry, sizeof(entry), "teamplay\\%s\n", teamplay->string);
+        if (pos + len >= max_size) return pos;
+        memcpy(buffer + pos, entry, len);
+        pos += len;
+    }
+
+    // [PLAYERS]
+    len = Q_scnprintf(entry, sizeof(entry), "[PLAYERS]\n");
+    if (pos + len >= max_size) return pos;
+    memcpy(buffer + pos, entry, len);
+    pos += len;
+
+    // Real clients
+    FOR_EACH_CLIENT(cl) {
+        if (cl->state == cs_zombie) {
+            continue;
+        }
+
+        int frags = SV_GetClient_Stat(cl, STAT_FRAGS);
+        int ping = cl->ping;
+
+        len = Q_scnprintf(entry, sizeof(entry),
+                         "%i %i \"%s\"\n",
+                         frags, ping, cl->name);
+        if (len >= sizeof(entry)) {
+            continue;
+        }
+        if (pos + len >= max_size) {
+            break;
+        }
+        memcpy(buffer + pos, entry, len);
+        pos += len;
+    }
+
+    // Bot clients
+    for (i = 0; i < MAX_CLIENTS; i++) {
+        if (bot_clients[i].in_use) {
+            len = Q_scnprintf(entry, sizeof(entry),
+                             "%i %i \"%s\" (BOT)\n",
+                             bot_clients[i].score, bot_clients[i].ping,
+                             bot_clients[i].name);
+            if (len >= sizeof(entry)) {
+                continue;
+            }
+            if (pos + len >= max_size) {
+                break;
+            }
+            memcpy(buffer + pos, entry, len);
+            pos += len;
+        }
+    }
+
+    // [END]
+    len = Q_scnprintf(entry, sizeof(entry), "[END]\n");
+    if (pos + len >= max_size) return pos;
+    memcpy(buffer + pos, entry, len);
+    pos += len;
+
+    return pos;
+}
+
+/*
+================
+SV_SendStatusChunk
+
+Sends a single chunk of the extended status data.
+================
+*/
+static void SV_SendStatusChunk(int chunk_num)
+{
+    char buffer[MAX_PACKETLEN_DEFAULT];
+    size_t len;
+    size_t chunk_start;
+    size_t chunk_data_size;
+
+    if (chunk_num < 0 || chunk_num >= statusx_cache.chunk_count) {
+        return;
+    }
+
+    chunk_start = chunk_num * STATUSX_CHUNK_SIZE;
+    chunk_data_size = (chunk_num == statusx_cache.chunk_count - 1) ?
+                      (statusx_cache.total_size - chunk_start) : STATUSX_CHUNK_SIZE;
+
+    len = Q_scnprintf(buffer, sizeof(buffer),
+                     "\xff\xff\xff\xffstatusxdata %d/%d %zu\n",
+                     chunk_num, statusx_cache.chunk_count, chunk_data_size);
+
+    if (len + chunk_data_size >= sizeof(buffer)) {
+        Com_DPrintf("Chunk %d too large to send\n", chunk_num);
+        return;
+    }
+
+    memcpy(buffer + len, statusx_cache.data + chunk_start, chunk_data_size);
+    len += chunk_data_size;
+
+    NET_SendPacket(NS_SERVER, buffer, len, &net_from);
+}
+
+/*
+================
+SVC_StatusExt
+
+Handles extended status queries (statusx command).
+Supports requesting metadata (-1) or specific chunks.
+================
+*/
+static void SVC_StatusExt(void)
+{
+    int chunk_num;
+    char buffer[MAX_PACKETLEN_DEFAULT];
+    size_t len;
+    unsigned now;
+
+    if (!sv_status_ext->integer) {
+        return;  // Feature disabled
+    }
+
+    if (SV_RateLimited(&svs.ratelimit_status)) {
+        Com_DPrintf("Dropping statusx request from %s\n",
+                    NET_AdrToString(&net_from));
+        return;
+    }
+
+    now = Sys_Milliseconds();
+
+    // Rebuild cache if expired or first time
+    if (!statusx_cache.chunk_count || (now - statusx_cache.timestamp) > STATUSX_CACHE_TIME) {
+        statusx_cache.total_size = SV_BuildExtendedStatus(statusx_cache.data,
+                                                         sizeof(statusx_cache.data));
+        statusx_cache.chunk_count = (statusx_cache.total_size + STATUSX_CHUNK_SIZE - 1) /
+                                     STATUSX_CHUNK_SIZE;
+        statusx_cache.timestamp = now;
+    }
+
+    // Get requested chunk number (default to 0)
+    chunk_num = (Cmd_Argc() > 1) ? Q_atoi(Cmd_Argv(1)) : 0;
+
+    // Handle metadata request (-1)
+    if (chunk_num == -1) {
+        len = Q_scnprintf(buffer, sizeof(buffer),
+                         "\xff\xff\xff\xffstatusxmeta %d %zu\n",
+                         statusx_cache.chunk_count, statusx_cache.total_size);
+        NET_SendPacket(NS_SERVER, buffer, len, &net_from);
+        return;
+    }
+
+    // Send requested chunk
+    SV_SendStatusChunk(chunk_num);
+}
+
+/*
+================
+Extended Rules Protocol (rulesext)
+
+Multi-packet extended rules response with CVARs marked CVAR_SERVERINFO_EXT
+================
+*/
+
+#define RULESEXT_CHUNK_SIZE 1200
+#define RULESEXT_MAX_CHUNKS 32
+#define RULESEXT_CACHE_TIME 5000  // 5 seconds
+
+typedef struct {
+    char data[RULESEXT_CHUNK_SIZE * RULESEXT_MAX_CHUNKS];
+    size_t total_size;
+    int chunk_count;
+    unsigned timestamp;
+} rulesext_cache_t;
+
+static rulesext_cache_t rulesext_cache;
+
+/*
+================
+SV_BuildExtendedRules
+
+Builds the complete extended rules response with all CVARs
+marked with CVAR_SERVERINFO_EXT flag.
+Returns the total size written to buffer.
+================
+*/
+static size_t SV_BuildExtendedRules(char *buffer, size_t max_size)
+{
+    size_t pos = 0;
+    size_t len;
+    char entry[1024];
+    cvar_t *cv;
+    int count = 0;
+
+    // [EXTENDED_RULES]
+    len = Q_scnprintf(entry, sizeof(entry), "[EXTENDED_RULES]\n");
+    if (pos + len >= max_size) return pos;
+    memcpy(buffer + pos, entry, len);
+    pos += len;
+
+    // Add all CVARs marked with CVAR_SERVERINFO_EXT flag
+    for (cv = cvar_vars; cv; cv = cv->next) {
+        if (cv->flags & CVAR_SERVERINFO_EXT) {
+            count++;
+            len = Q_scnprintf(entry, sizeof(entry), "%s\\%s\n", cv->name, cv->string);
+            if (len < sizeof(entry) && pos + len < max_size) {
+                memcpy(buffer + pos, entry, len);
+                pos += len;
+            }
+        }
+    }
+
+    // [END]
+    len = Q_scnprintf(entry, sizeof(entry), "[END]\n");
+    if (pos + len >= max_size) return pos;
+    memcpy(buffer + pos, entry, len);
+    pos += len;
+
+    return pos;
+}
+
+/*
+================
+SV_SendRulesChunk
+
+Sends a single chunk of the extended rules data.
+================
+*/
+static void SV_SendRulesChunk(int chunk_num)
+{
+    char buffer[MAX_PACKETLEN_DEFAULT];
+    size_t len;
+    size_t chunk_start;
+    size_t chunk_data_size;
+
+    if (chunk_num < 0 || chunk_num >= rulesext_cache.chunk_count) {
+        return;
+    }
+
+    chunk_start = chunk_num * RULESEXT_CHUNK_SIZE;
+    chunk_data_size = (chunk_num == rulesext_cache.chunk_count - 1) ?
+                      (rulesext_cache.total_size - chunk_start) : RULESEXT_CHUNK_SIZE;
+
+    len = Q_scnprintf(buffer, sizeof(buffer),
+                     "\xff\xff\xff\xffrulesxdata %d/%d %zu\n",
+                     chunk_num, rulesext_cache.chunk_count, chunk_data_size);
+
+    if (len + chunk_data_size >= sizeof(buffer)) {
+        Com_DPrintf("Rules chunk %d too large to send\n", chunk_num);
+        return;
+    }
+
+    memcpy(buffer + len, rulesext_cache.data + chunk_start, chunk_data_size);
+    NET_SendPacket(NS_SERVER, buffer, len + chunk_data_size, &net_from);
+}
+
+/*
+================
+SVC_RulesExt
+
+Extended rules query handler
+================
+*/
+static void SVC_RulesExt(void)
+{
+    char buffer[MAX_PACKETLEN_DEFAULT];
+    int chunk_num = 0;
+    size_t len;
+
+    if (!sv_status_ext->integer) {
+        return;
+    }
+
+    if (SV_RateLimited(&svs.ratelimit_status)) {
+        Com_DPrintf("Dropping rulesext request from %s\n",
+                    NET_AdrToString(&net_from));
+        return;
+    }
+
+    // Check if we need to rebuild the cache
+    if (svs.realtime - rulesext_cache.timestamp > RULESEXT_CACHE_TIME) {
+        len = SV_BuildExtendedRules(rulesext_cache.data, sizeof(rulesext_cache.data));
+        rulesext_cache.total_size = len;
+        rulesext_cache.chunk_count = (len + RULESEXT_CHUNK_SIZE - 1) / RULESEXT_CHUNK_SIZE;
+        rulesext_cache.timestamp = svs.realtime;
+    }
+
+    // Parse chunk number from command
+    if (Cmd_Argc() > 1) {
+        chunk_num = atoi(Cmd_Argv(1));
+    }
+
+    // Handle metadata request
+    if (chunk_num == -1) {
+        len = Q_scnprintf(buffer, sizeof(buffer),
+                         "\xff\xff\xff\xffrulesxmeta %d %zu\n",
+                         rulesext_cache.chunk_count, rulesext_cache.total_size);
+        NET_SendPacket(NS_SERVER, buffer, len, &net_from);
+        return;
+    }
+
+    // Send requested chunk
+    SV_SendRulesChunk(chunk_num);
 }
 
 /*
@@ -1448,6 +1865,8 @@ static const ucmd_t svcmds[] = {
     { "ping",           SVC_Ping          },
     { "ack",            SVC_Ack           },
     { "status",         SVC_Status        },
+    { "statusx",        SVC_StatusExt     },
+    { "rulesx",         SVC_RulesExt      },
     { "info",           SVC_Info          },
     { "getchallenge",   SVC_GetChallenge  },
     { "connect",        SVC_DirectConnect },
@@ -2433,6 +2852,8 @@ void SV_Init(void)
     sv_iplimit = Cvar_Get("sv_iplimit", "3", 0);
 
     sv_status_show = Cvar_Get("sv_status_show", "2", 0);
+
+    sv_status_ext = Cvar_Get("sv_status_ext", "0", 0);
 
     sv_status_limit = Cvar_Get("sv_status_limit", "15", 0);
     sv_status_limit->changed = sv_status_limit_changed;
