@@ -29,53 +29,55 @@ Additions and enhancements by darksaint, Reki, Rektek and the AQ2World team
       - [Commands](#commands-7)
     - [Matchmode](#matchmode)
       - [Commands](#commands-8)
-    - [Voice Command](#voice-command)
+    - [Limited Remote Console (LRCON)](#limited-remote-console-lrcon)
       - [Commands](#commands-9)
-    - [Low Lag Sounds](#low-lag-sounds)
-      - [Commands](#commands-10)
-    - [Announcer](#announcer)
+    - [Voice Command](#voice-command)
       - [Commands](#commands-11)
+    - [Low Lag Sounds](#low-lag-sounds)
+      - [Commands](#commands-12)
+    - [Announcer](#announcer)
+      - [Commands](#commands-13)
     - [Kevlar Helmet](#kevlar-helmet)
     - [Single Barreled Handcannon](#single-barreled-handcannon)
-      - [Commands](#commands-12)
+      - [Commands](#commands-14)
     - [Enemy Down Radio Reporting](#enemy-down-radio-reporting)
     - [Player Ignoring](#player-ignoring)
-      - [Commands](#commands-13)
+      - [Commands](#commands-15)
     - [Video Setting Checking](#video-setting-checking)
-      - [Commands](#commands-14)
+      - [Commands](#commands-16)
     - [Location Files](#location-files)
     - [Punching](#punching)
-      - [Commands](#commands-15)
+      - [Commands](#commands-17)
     - [Sniper Zooming](#sniper-zooming)
       - [Cvars](#cvars)
-      - [Commands](#commands-16)
+      - [Commands](#commands-18)
     - [New Say Variables](#new-say-variables)
     - [Time and Roundtimeleft](#time-and-roundtimeleft)
-      - [Commands](#commands-17)
-    - [sv stuffcmd](#sv-stuffcmd)
-      - [Commands](#commands-18)
-    - [Grenade Strength](#grenade-strength)
       - [Commands](#commands-19)
+    - [sv stuffcmd](#sv-stuffcmd)
+      - [Commands](#commands-20)
+    - [Grenade Strength](#grenade-strength)
+      - [Commands](#commands-21)
     - [Total Kills](#total-kills)
     - [Random Rotation](#random-rotation)
-      - [Commands](#commands-20)
-    - [Vote Rotation](#vote-rotation)
-      - [Commands](#commands-21)
-    - [MapVote Next](#mapvote-next)
       - [Commands](#commands-22)
-    - [Empty Rotate](#empty-rotate)
+    - [Vote Rotation](#vote-rotation)
       - [Commands](#commands-23)
+    - [MapVote Next](#mapvote-next)
+      - [Commands](#commands-24)
+    - [Empty Rotate](#empty-rotate)
+      - [Commands](#commands-25)
     - [Bandage Text](#bandage-text)
     - [Deathmatch Weapon](#deathmatch-weapon)
-      - [Commands](#commands-24)
-    - [Control Characters](#control-characters)
-      - [Commands](#commands-25)
-    - [Anti Camping](#anti-camping)
       - [Commands](#commands-26)
-    - [Anti Idle](#anti-idle)
+    - [Control Characters](#control-characters)
       - [Commands](#commands-27)
-    - [Gibs](#gibs)
+    - [Anti Camping](#anti-camping)
       - [Commands](#commands-28)
+    - [Anti Idle](#anti-idle)
+      - [Commands](#commands-29)
+    - [Gibs](#gibs)
+      - [Commands](#commands-30)
     - [Automatic Reloading of Pistol](#automatic-reloading-of-pistol)
     - [Weapon Banning](#weapon-banning)
     - [Item Banning](#item-banning)
@@ -247,6 +249,170 @@ Clients will have a few more things to do during matchmode: they have to have a 
   - `matchadmin <pass>` - this will allow a player to get admin status
   - `lock` - allows a captain to lock his team. When a team is locked, no one can join it. Locks are removed on a new map
   - `unlock` - allows a captain to unlock his team
+
+### Limited Remote Console (LRCON)
+Limited Remote Console (LRCON) provides controlled admin access through a claim/release system. One player at a time can claim temporary admin rights and execute restricted server commands without needing full rcon access. The claim persists across map changes and reconnects (matched by player name and IP).
+
+This is a native implementation of the popular q2admin lrcon functionality, built directly into the action gamelib for better integration and performance.
+
+#### Features
+- **Claim/Release System**: One player claims admin access at a time
+- **Persistence**: Claims survive map changes and player reconnects (matched by name + IP)
+- **Player Management**: View player list with IPs, kick players, remove from teams
+- **Map Control**: Change maps (hard or soft), switch server modes via configured exec commands
+- **Cvar Management**: Query and modify whitelisted cvars only
+- **Client Commands**: Execute commands on individual players or broadcast to all
+- **Config File**: INI-format configuration for allowed cvars and server modes
+- **Auto-Quit**: Optional auto-shutdown when server is empty for 5+ seconds
+- **Broadcast Notifications**: All admin actions announced to all players
+
+#### Setup and Configuration
+
+**Step 1: Enable LRCON in config**
+Create or edit `action/lrcon.cfg` with the following format:
+
+```ini
+[settings]
+enabled 1
+quit_on_empty 0
+
+[allowed_cvars]
+timelimit
+fraglimit
+teamdm
+ctf
+maxclients
+hostname
+dmflags
+roundlimit
+matchmode
+teamplay
+password
+g_select_empty
+sv_gravity
+sv_fps
+sv_antilag
+
+[modes]
+teamdm|exec cfg/teamdm.cfg
+ctf|exec cfg/ctf.cfg
+ffa|exec cfg/ffa.cfg
+duel|exec cfg/1v1.cfg
+```
+
+**Configuration Explanation:**
+- `[settings]` section:
+  - `enabled 1` - Turn LRCON on/off (1=on, 0=off)
+  - `quit_on_empty 0` - Auto-quit server after 5 seconds empty (1=on, 0=off)
+
+- `[allowed_cvars]` section:
+  - List cvars (one per line) that players can query and modify via LRCON
+  - Only whitelisted cvars can be changed, preventing abuse
+
+- `[modes]` section:
+  - Define server configuration modes players can switch between
+  - Format: `mode_name|exec command_to_run`
+  - Example: `ctf|exec cfg/ctf.cfg` loads CTF config when mode is selected
+
+**Step 2: Server cvars**
+Add to your server config if needed:
+
+```
+lrcon_config "lrcon.cfg"  # Config file location (relative to action dir)
+```
+
+These cvars track the claimer and persist across maps:
+```
+lrcon_claimer_name ""     # Automatically set when someone claims
+lrcon_claimer_ip ""       # Automatically set when someone claims
+```
+
+#### Commands (In-Game)
+
+**Claiming the Server:**
+- `lrcon claim` - Claim server control (only one player at a time)
+- `lrcon release` - Release your control of the server
+- `lrcon` - Show help with all available commands
+
+**Admin Commands (when claimed):**
+- `lrcon status` - Display all players with ID numbers and IP addresses
+- `lrcon kick <id>` - Kick a player by their ID number
+- `lrcon teamnone <id>` - Remove a player from their team (send to team 0)
+- `lrcon map <mapname>` - Change to a specific map (hard change, disconnects all)
+- `lrcon softmap <mapname>` - Change map while keeping player scores/state
+- `lrcon mode <modename|list>` - Switch server mode (e.g., `lrcon mode ctf`)
+  - `lrcon mode list` - Show all available modes
+- `lrcon stuffcmd <id|all> <command>` - Send command(s) to client(s)
+  - Example: `lrcon stuffcmd 3 say I am an admin` - Send message as player 3
+  - Example: `lrcon stuffcmd all record demo` - Record demos on all clients
+
+**Cvar Management:**
+- `lrcon <cvar>` - Query a cvar value (must be whitelisted)
+  - Example: `lrcon timelimit` - Show current timelimit
+- `lrcon <cvar> <value>` - Set a cvar value (must be whitelisted)
+  - Example: `lrcon timelimit 25` - Set timelimit to 25 minutes
+
+#### Permission and Security
+
+- **Claim tied to player identity**: Matched by both name AND IP address
+  - Prevents simple impersonation or claim stealing
+  - Claimer must reconnect with same name and IP to restore claim
+
+- **Cvar whitelist enforcement**: Only configured cvars can be modified
+  - Prevents dangerous cvar changes (e.g., rcon password)
+  - Admin must explicitly whitelist each allowed cvar
+
+- **Self-protection**: Players cannot kick or remove themselves
+
+- **Client-side only**: Requires being connected to server
+  - No remote UDP access like traditional rcon
+  - More intuitive in-game command experience
+
+#### User Experience Examples
+
+**Example 1: Simple Mode Switch**
+```
+Player 1: lrcon claim
+[BROADCAST] Player 1 claimed server control
+Player 1: lrcon mode list
+[CHAT] Available modes: teamdm, ctf, ffa, duel
+Player 1: lrcon mode ctf
+[BROADCAST] Player 1 switched server to ctf mode
+Player 1: lrcon release
+[BROADCAST] Player 1 released server control
+```
+
+**Example 2: Admin Actions During Game**
+```
+Player 1: lrcon claim
+[BROADCAST] Player 1 claimed server control
+Player 1: lrcon status
+[CHAT] 1: Player1 (192.168.1.10)
+[CHAT] 2: Player2 (192.168.1.11)
+[CHAT] 3: Griefer (192.168.1.12)
+Player 1: lrcon kick 3
+[BROADCAST] Griefer was kicked by Admin
+```
+
+**Example 3: Persistence Across Reconnect**
+```
+Player 1: lrcon claim
+[BROADCAST] Player 1 claimed server control
+Player 1: [Disconnects]
+[Map changes]
+Player 1: [Reconnects from same IP with same name]
+[BROADCAST] LRCON: Player 1 reconnected, claim restored
+Player 1: lrcon release
+```
+
+#### Notes
+
+- Only one player can claim the server at any time
+- If the claimer disconnects, the claim is automatically released
+- The claim information is stored in cvars and persists across map changes
+- If a player changes their name or connects from a different IP, they lose the claim
+- The `quit_on_empty` feature counts down from when the last player leaves; a 5+ second empty period triggers server shutdown
+- Use `lrcon softmap` when you want to keep game state (scores, items), use `lrcon map` for a fresh map start
 
 ### Voice Command
 The voice command allows clients to play taunts for other players to hear. (as long as they have the sound file)

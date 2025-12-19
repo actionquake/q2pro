@@ -319,7 +319,10 @@
 #include "g_local.h"
 #include "m_player.h"
 #include "cgf_sfx_glass.h"
+#include "g_lrcon.h"
 
+extern cvar_t *lrcon_claimer_name;
+extern cvar_t *lrcon_claimer_ip;
 
 static void FreeClientEdicts(gclient_t *client)
 {
@@ -3645,6 +3648,21 @@ qboolean ClientConnect(edict_t * ent, char *userinfo)
 		IRC_printf(IRC_T_SERVER, "%n@%s connected", value, ipaddr_buf);
 	}
 
+	// LRCON: Check if reconnecting claimer and restore claim
+	value = Info_ValueForKey(userinfo, "name");
+	if (game.lrcon_config.enabled && lrcon_claimer_name->string && *lrcon_claimer_name->string &&
+		!strcmp(lrcon_claimer_name->string, value) &&
+		!strcmp(lrcon_claimer_ip->string, ipaddr_buf)) {
+		level.lrcon.claimed = true;
+		Q_strncpyz(level.lrcon.claimer_name, lrcon_claimer_name->string,
+				   sizeof(level.lrcon.claimer_name));
+		Q_strncpyz(level.lrcon.claimer_ip, lrcon_claimer_ip->string,
+				   sizeof(level.lrcon.claimer_ip));
+		level.lrcon.claimer_ent = ent;
+		level.lrcon.claim_time = level.framenum;
+		gi.bprintf(PRINT_HIGH, "LRCON: %s reconnected, claim restored\n", value);
+	}
+
 	//rekkie -- silence ban -- s
 	if (SV_FilterSBPacket(ipaddr_buf, NULL)) // Check if player has been silenced
 	{
@@ -3709,6 +3727,12 @@ void ClientDisconnect(edict_t * ent)
 
 	gi.bprintf(PRINT_HIGH, "%s disconnected\n", ent->client->pers.netname);
 	IRC_printf(IRC_T_SERVER, "%n disconnected", ent->client->pers.netname);
+
+	// LRCON: Clear claim if claimer disconnects
+	if (level.lrcon.claimed && level.lrcon.claimer_ent == ent) {
+		gi.bprintf(PRINT_HIGH, "LRCON: Released (claimer disconnected)\n");
+		Lrcon_ClearClaim();
+	}
 
 	if( !teamplay->value && !ent->client->pers.spectator )
 	{

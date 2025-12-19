@@ -255,6 +255,9 @@
 #include "g_local.h"
 #include "cgf_sfx_glass.h"
 
+extern cvar_t *lrcon_config;
+extern cvar_t *lrcon_claimer_name;
+extern cvar_t *lrcon_claimer_ip;
 
 void InitCommandList( void );
 
@@ -335,6 +338,7 @@ void InitGame( void )
 
 	ReadConfigFile();
 	ReadMOTDFile();
+	ReadLrconConfig();
 
 	gun_x = gi.cvar( "gun_x", "0", 0 );
 	gun_y = gi.cvar( "gun_y", "0", 0 );
@@ -669,6 +673,12 @@ void InitGame( void )
 		gi.cvar_forceset("dmweapon", "Combat Knife");
 		gi.cvar_forceset("bholelimit", "30");
 	}
+
+	/* LRCON persistence cvars */
+	lrcon_config = gi.cvar("lrcon_config", "lrcon.cfg", 0);
+	lrcon_claimer_name = gi.cvar("lrcon_claimer_name", "", 0);
+	lrcon_claimer_ip = gi.cvar("lrcon_claimer_ip", "", 0);
+
 	g_highscores_dir = gi.cvar("g_highscores_dir", "highscores", 0);
 	g_highscores_countbots = gi.cvar("g_highscores_countbots", "0", 0);
 	lca_grenade = gi.cvar("lca_grenade", "0", 0);
