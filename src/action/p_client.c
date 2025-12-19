@@ -440,7 +440,7 @@ void Add_Frag(edict_t * ent, int mod)
 
 	// Increment team score if TeamDM is enabled
 	if(teamdm->value)
-		teams[ent->client->resp.team].score++;
+		UpdateTeamScore(ent->client->resp.team, teams[ent->client->resp.team].score + 1);
 
 	// Streak kill rewards in Deathmatch mode
 	if (deathmatch->value && !teamplay->value) {
@@ -468,7 +468,7 @@ void Add_Frag(edict_t * ent, int mod)
 
 		// Award team with appropriate streak reward count
 		if(teamdm->value)
-			teams[ent->client->resp.team].score += frags;
+			UpdateTeamScore(ent->client->resp.team, teams[ent->client->resp.team].score + frags);
 
 		// AQ:TNG Igor[Rock] changing sound dir
 		if (fraglimit->value && use_warnings->value) {
@@ -830,7 +830,7 @@ void Subtract_Frag(edict_t * ent)
 	ent->client->resp.streakKills = 0;
 	ent->client->resp.roundStreakKills = 0;
 	if(teamdm->value)
-		teams[ent->client->resp.team].score--;
+		UpdateTeamScore(ent->client->resp.team, teams[ent->client->resp.team].score - 1);
 }
 
 void Add_Death( edict_t *ent, qboolean end_streak )
