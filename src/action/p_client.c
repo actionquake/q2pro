@@ -3678,10 +3678,20 @@ qboolean ClientConnect(edict_t * ent, char *userinfo)
 	//guarantee a client is actually making it all the way into the game.
 	//ent->client->pers.connected = true;
 
+	qboolean is_bot = false;
 	#ifndef NO_BOTS
 	if(bot_chat->value)
 		BOTLIB_Chat(ent, CHAT_WELCOME);
+
+	if (IS_BOT(ent))
+		is_bot = true;
 	#endif
+
+	if (!is_bot && use_ghosts->value == 2) {
+		if (Ghost_Exist(ent)) {
+			Cmd_Ghost_f(ent);
+		}
+	}
 
 	return true;
 }
