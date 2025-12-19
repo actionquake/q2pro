@@ -791,6 +791,10 @@ qboolean CTFPickup_Flag(edict_t * ent, edict_t * other)
 				else
 					ctfgame.team2++;
 
+				// Update team scores
+				teams[TEAM1].score = ctfgame.team1;
+				teams[TEAM2].score = ctfgame.team2;
+
 				CTFDynamicRespawnTimer(); // Dynamic respawn time
 
 				gi.sound(ent, CHAN_RELIABLE + CHAN_NO_PHS_ADD + CHAN_VOICE,

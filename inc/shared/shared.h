@@ -907,12 +907,13 @@ CVARS (console variables)
 #ifndef CVAR
 #define CVAR
 
-#define CVAR_ARCHIVE    BIT(0)  // set to cause it to be saved to vars.rc
-#define CVAR_USERINFO   BIT(1)  // added to userinfo when changed
-#define CVAR_SERVERINFO BIT(2)  // added to serverinfo when changed
-#define CVAR_NOSET      BIT(3)  // don't allow change from console at all,
-                                // but can be set from the command line
-#define CVAR_LATCH      BIT(4)  // save changes until server restart
+#define CVAR_ARCHIVE        BIT(0)  // set to cause it to be saved to vars.rc
+#define CVAR_USERINFO       BIT(1)  // added to userinfo when changed
+#define CVAR_SERVERINFO     BIT(2)  // added to serverinfo when changed
+#define CVAR_NOSET          BIT(3)  // don't allow change from console at all,
+                                    // but can be set from the command line
+#define CVAR_LATCH          BIT(4)  // save changes until server restart
+#define CVAR_SERVERINFO_EXT BIT(16) // queryable via rulesext protocol
 
 #if USE_CLIENT || USE_SERVER
 struct cvar_s;

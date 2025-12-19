@@ -737,7 +737,7 @@ For the lazy players under us, we have created three new commands to make things
 **Commands:**
 - `auto_join [0/1/2]` - when on (1), the players will automatically join the team he was in during the last map. If set to 2, it will automatically join the team with the least players, or randomly if equal.
 - `auto_equip [0/1]` - when on (1), the players will automatically be given the equipment he had during the last map.
-- `auto_menu [0/1]` - when on (1), the menu will automatically open when you join the server.
+- `auto_menu [0/1/2]` - when on (1), the menu will automatically open when you join the server. when set to (2), it will automatically render the menu AFTER the MOTD renders
 
 ### Automatic Demo Recording
 To ease the recording of demos by a client over several maps, we have implemented a feature which will let the client automatically record a demo on each new map. When enabled, the server will keep track of the recording of the client, and will create a demo of the map with the following name: date_time-map.dm2 In matchmode, the demo's name will be: date_time-team1_vs_team2-map.dm2
