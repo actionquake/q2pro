@@ -270,6 +270,10 @@
 
 #include <time.h>
 #include "g_local.h"
+#include "a_game.h"
+
+// Demo recording state
+extern qboolean is_demo_recording;
 
 game_locals_t game;
 level_locals_t level;
@@ -1295,6 +1299,15 @@ void G_RunFrame (void)
 
 	if( level.intermission_framenum && empty )
 		level.intermission_exit = 1;
+
+	// TODO #2: Stop demo if no active players (all spectators or empty server)
+	if (use_mvd2->value && is_demo_recording) {
+		int active_players = CountActivePlayers();
+		if (active_players == 0) {
+			gi.dprintf("No active players, stopping demo recording\n");
+			StopAutoRecordDemo();
+		}
+	}
 
 	// exit intermissions
 	if (level.intermission_exit)

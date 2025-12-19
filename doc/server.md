@@ -255,6 +255,25 @@ Default burst value is 5. Custom *burst* can be specified after an
 asterisk. Burst specifies initial number of extra packets that are
 permitted even if they arrive at rate higher than allowed.
 
+### sv\_status\_ext
+
+Enables extended query protocols for detailed server information. The
+standard Quake 2 status and rules commands provide basic server info.
+These extended protocols deliver the same information with support for
+larger responses via automatic chunking, allowing game mods to expose
+additional configuration variables to server browsers and admin tools.
+Default value is 0.
+
+-   0 — extended protocols disabled (default)
+
+-   1 — extended protocols enabled (statusx and rulesext)
+
+When enabled, clients can query statusx for enhanced player rosters and
+rulesext for extended game rules. Both protocols cache responses for 5
+seconds and share rate limiting with `sv_status_limit`. Game mods can
+expose custom configuration by marking cvars with the CVAR_SERVERINFO_EXT
+flag, allowing server browsers to query mod-specific settings.
+
 ### sv\_auth\_limit  
 Limits the rate of client connection attempts with invalid password.
 Default value is 1 invalid authentication attempt per second.

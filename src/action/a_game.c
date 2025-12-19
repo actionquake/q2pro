@@ -1517,6 +1517,29 @@ void _PickupRequest (edict_t * ent, pmenu_t * p)
 	Cmd_Pickup_f(ent);
 }
 
+// Count active (non-spectator) players
+static int CountActivePlayers(void) {
+	int count = 0;
+	int i;
+	edict_t *other;
+
+	for (i = 0, other = g_edicts + 1; i < game.maxclients; i++, other++) {
+		if (!other->inuse || !other->client || !other->client->pers.connected)
+			continue;
+
+		// Skip MVD spectators
+		if (other->client->pers.mvdspec)
+			continue;
+
+		// Skip regular spectators
+		if (other->client->pers.spectator)
+			continue;
+
+		count++;
+	}
+	return count;
+}
+
 static void ServerAutoRecordDemo(void){
 	time_t tnow = 0;
 	struct tm *now = NULL;
@@ -1587,6 +1610,16 @@ void StartAutoRecordDemo(void){
 
 	// Demo is already recording
 	if (is_demo_recording) {
+		return;
+	}
+
+	// TODO #1: For deathmatch servers, only record if timelimit or fraglimit is set
+	// This prevents infinite demos on servers without limits
+	qboolean is_deathmatch = (!teamplay->value && !ctf->value && !use_tourney->value &&
+	                          !dom->value && !esp->value && !jump->value);
+
+	if (is_deathmatch && timelimit->value == 0 && fraglimit->value == 0) {
+		gi.dprintf("Deathmatch server has no timelimit or fraglimit, not recording demo\n");
 		return;
 	}
 
