@@ -149,6 +149,11 @@ void MakeAllLivePlayersObservers( void );
 void Cmd_NextMap_f( edict_t * ent );
 void Cmd_PrintRules_f(edict_t *ent);
 
+// Demo recording
+void StartAutoRecordDemo(void);
+void StopAutoRecordDemo(void);
+int CountActivePlayers(void);
+
 //a_game.c
 #if AQTION_CURL
 
