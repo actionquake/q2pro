@@ -2702,27 +2702,27 @@ void AllItems(edict_t * ent)
 	gitem_t *it;
 
 	// For bots in training mode, give items directly without using Pickup_Special
-    if (training->value && ent->is_bot) {
+    if (training->value && ent && ent->is_bot && ent->client && game.num_items > 0) {
         //gi.dprintf("AllItems: Giving special items directly to bot %s\n", ent->client->pers.netname);
-        
+
         // Give all special items directly
         for (int i = 0; i < game.num_items; i++) {
             gitem_t *it = itemlist + i;
-            if (!it->pickup)
+            if (!it || !it->pickup)
                 continue;
             if (!(it->flags & IT_ITEM))
                 continue;
-            
+
             // Add the item directly to inventory
             ent->client->inventory[ITEM_INDEX(it)] = 1;
         }
-        
+
         return;
     }
 
 	for (i = 0; i < game.num_items; i++) {
 		it = itemlist + i;
-		if (!it->pickup)
+		if (!it || !it->pickup)
 			continue;
 		if (!(it->flags & IT_ITEM))
 			continue;
@@ -6561,7 +6561,7 @@ void ClientBeginServerFrame(edict_t * ent)
 
 		if( (ppl_idletime->value > 0) && idleframes && (idleframes % (int)(ppl_idletime->value * HZ) == 0) )
 			//plays a random sound/insane sound, insane1-11.wav
-			if (!(jump->value || !training->value)) // Don't play insane sounds in jmod or training mode
+			if (!(jump->value || training->value)) // Don't play insane sounds in jmod or training mode
 				gi.sound( ent, CHAN_VOICE, gi.soundindex(va( "insane/insane%i.wav", rand() % 11 + 1 )), 1, ATTN_NORM, 0 );
 
 		if( (sv_idleremove->value > 0) && (idleframes > (sv_idleremove->value * HZ)) && client->resp.team )
