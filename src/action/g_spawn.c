@@ -1106,6 +1106,77 @@ int Gamemodeflag(void)
 	return gamemodeflag;
 }
 
+char* GamemodeName(qboolean shortname)
+{
+    static char gamemode[64] = "";
+
+    if (esp->value)
+		if (!shortname)
+			strcpy(gamemode, GMN_ESPIONAGE);
+		else
+			strcpy(gamemode, "ESP");
+    else if (ctf->value)
+		if (!shortname)
+			strcpy(gamemode, GMN_CTF);
+		else
+			strcpy(gamemode, "CTF");
+    else if (dom->value)
+		if (!shortname)
+			strcpy(gamemode, GMN_DOMINATION);
+		else
+			strcpy(gamemode, "DOM");
+    else if (use_tourney->value)
+		if (!shortname)
+			strcpy(gamemode, GMN_TOURNEY);
+		else
+			strcpy(gamemode, "TO");
+    else if (teamdm->value)
+		if (!shortname)
+			strcpy(gamemode, GMN_TEAMDM);
+		else
+			strcpy(gamemode, "TDM");
+    else if (teamplay->value)
+		if (!shortname)
+			strcpy(gamemode, GMN_TEAMPLAY);
+		else
+			strcpy(gamemode, "TP");
+    else if (jump->value)
+		// "Jump" is already a short name
+		strcpy(gamemode, GMN_JUMP);
+    else
+		if (!shortname)
+			strcpy(gamemode, GMN_DEATHMATCH);
+		else
+			strcpy(gamemode, "DM");
+
+    return gamemode;
+}
+
+char* GamemodeFlagName(qboolean shortname)
+{
+    static char gamemode[64] = "";
+    if (matchmode->value)
+		if (!shortname)
+			strcpy(gamemode, GMN_MATCHMODE);
+		else
+			strcpy(gamemode, "MM");
+    else if (use_3teams->value)
+		if (!shortname)
+			strcpy(gamemode, GMN_3TEAMS);
+		else
+			strcpy(gamemode, "3T");
+    else if (darkmatch->value)
+		if (!shortname)
+			strcpy(gamemode, GMN_DARKMATCH);
+		else
+			strcpy(gamemode, "DARK");
+    else
+        strcpy(gamemode, "NONE");
+
+    return gamemode;
+}
+
+
 /*
 ==============
 SpawnEntities

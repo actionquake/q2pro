@@ -3398,6 +3398,10 @@ STAT_BOT_CHECK();
 
 	G_UpdatePlayerStatusbar(ent, 1);
 
+	// Begin recording a demo if we're setup correctly
+	if (use_mvd2->value == 2) // Must be set to 2, 1 is classic behavior of teamplay-only recording
+		StartAutoRecordDemo(); // Even though this is called on every player join, only the 'first' player initiates the demo
+
 	// make sure all view stuff is valid
 	ClientEndServerFrame(ent);
 }
