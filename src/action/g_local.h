@@ -2944,6 +2944,7 @@ extern char ml_creator[101];
 
 void Cmd_Ghost_f (edict_t * ent);
 void Cmd_AutoRecord_f(edict_t * ent);
+qboolean Ghost_Exist(edict_t *ent);
 
 typedef struct team_s
 {
