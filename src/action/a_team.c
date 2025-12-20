@@ -1928,7 +1928,8 @@ void UpdateTeamScore(int team_index, int new_score)
 		return;
 
 	teams[team_index].score = new_score;
-	gi.cvar_forceset(teams[team_index].teamscore->name, va("%i", new_score));
+	if (teams[team_index].teamscore)
+		gi.cvar_forceset(teams[team_index].teamscore->name, va("%i", new_score));
 }
 
 void ResetScores (qboolean playerScores)
@@ -1954,7 +1955,8 @@ void ResetScores (qboolean playerScores)
 		teams[i].ready = teams[i].locked = 0;
 		teams[i].pauses_used = teams[i].wantReset = 0;
 		teams[i].timeout_count = (int)mm_timeoutcount->value;
-		gi.cvar_forceset(teams[i].teamscore->name, "0");
+		if (teams[i].teamscore)
+			gi.cvar_forceset(teams[i].teamscore->name, "0");
 	}
 
 	ctfgame.team1 = 0;
@@ -2807,7 +2809,8 @@ int WonGame (int winner)
 			teams[winner].score++;
 			if (esp->value)
 				EspEndOfRoundCleanup();
-			gi.cvar_forceset(teams[winner].teamscore->name, va("%i", teams[winner].score));
+			if (teams[winner].teamscore)
+				gi.cvar_forceset(teams[winner].teamscore->name, va("%i", teams[winner].score));
 
 			PrintScores ();
 		}

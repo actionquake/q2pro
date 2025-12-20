@@ -881,7 +881,8 @@ void SVCmd_SetTeamScore_f( int team )
 	}
 
 	teams[team].score = atoi(gi.argv(2));
-	gi.cvar_forceset( teams[team].teamscore->name, va( "%i", teams[team].score ) );
+	if (teams[team].teamscore)
+		gi.cvar_forceset( teams[team].teamscore->name, va( "%i", teams[team].score ) );
 
 	gi.bprintf( PRINT_HIGH, "Team %i score set to %i by console.\n", team, teams[team].score );
 }

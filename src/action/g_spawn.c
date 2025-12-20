@@ -1213,7 +1213,8 @@ void SpawnEntities (const char *mapname, const char *entities, const char *spawn
 			teams[i].leader = NULL;
 			teams[i].leader_dead = false;
 		}
-		gi.cvar_forceset(teams[i].teamscore->name, "0");
+		if (teams[i].teamscore)
+			gi.cvar_forceset(teams[i].teamscore->name, "0");
 	}
 
 	day_cycle_at = 0;
