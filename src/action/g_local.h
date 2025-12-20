@@ -3057,6 +3057,9 @@ typedef struct {
 } Message;
 extern Message *timedMessages;
 
+// Team score management
+void UpdateTeamScore(int team_index, int new_score);
+
 void addTimedMessage(int teamNum, edict_t *ent, int seconds, char *msg);
 void FireTimedMessages(void);
 
