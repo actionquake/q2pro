@@ -1426,7 +1426,7 @@ void G_RunFrame (void)
 			CenterPrintAll( "Prepare yourselves!\nThe match will continue in 10 seconds!" );
 			timeout_requested = false;
 		}
-		else if ((level.timeoutFrames % 10 * HZ) == 0) {
+		else if ((level.timeoutFrames % (10 * HZ)) == 0) {
 			gi.bprintf( PRINT_HIGH, "Match is in timeout for %i:%02i.\n", (level.timeoutFrames / HZ) / 60, (level.timeoutFrames / HZ) % 60 );
 		}
 		level.timeoutFrames--;

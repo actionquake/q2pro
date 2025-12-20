@@ -2427,6 +2427,9 @@ void StartRound (void)
 {
 	team_round_going = 1;
 	current_round_length = 0;
+	timeout_requested = false;
+	timeout_granted = false;
+	level.timeoutFrames = 0;
 }
 
 static void StartLCA(void)
