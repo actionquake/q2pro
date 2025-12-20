@@ -339,6 +339,9 @@ void CTFDynamicRespawnTimer(void)
 /* returns the respawn time for this particular client */
 int CTFGetRespawnTime(edict_t *ent)
 {
+	if (!ent || !ent->client)
+		return 0;
+
 	int spawntime = ctf_respawn->value;
 	if(ent->client->resp.team == TEAM1 && ctfgame.spawn_red > -1)
 		spawntime = ctfgame.spawn_red;
@@ -355,7 +358,7 @@ int CTFGetRespawnTime(edict_t *ent)
  */
 qboolean HasFlag(edict_t * ent)
 {
-	if (!ctf->value)
+	if (!ctf->value || !ent || !ent->client)
 		return false;
 	if (ent->client->inventory[items[FLAG_T1_NUM].index] || ent->client->inventory[items[FLAG_T2_NUM].index])
 		return true;
@@ -422,7 +425,7 @@ void CTFSwapTeams(void)
 
 	for (i = 0; i < game.maxclients; i++) {
 		ent = &g_edicts[1 + i];
-		if (ent->inuse && ent->client->resp.team) {
+		if (ent->inuse && ent->client && ent->client->resp.team) {
 			ent->client->resp.team = CTFOtherTeam(ent->client->resp.team);
 			AssignSkin(ent, teams[ent->client->resp.team].skin, false);
 			ent->client->ctf_hasflag = false;
@@ -456,7 +459,7 @@ void CTFAssignTeam(gclient_t * who)
 
 	for (i = 1; i <= game.maxclients; i++) {
 		player = &g_edicts[i];
-		if (!player->inuse || player->client == who)
+		if (!player->inuse || !player->client || player->client == who)
 			continue;
 		switch (player->client->resp.team) {
 		case TEAM1:
@@ -593,7 +596,7 @@ void CTFFragBonuses(edict_t * targ, edict_t * inflictor, edict_t * attacker)
 		// field on the other team
 		for (i = 1; i <= game.maxclients; i++) {
 			ent = g_edicts + i;
-			if (ent->inuse && ent->client->resp.team == otherteam)
+			if (ent->inuse && ent->client && ent->client->resp.team == otherteam)
 				ent->client->resp.ctf_lasthurtcarrier = 0;
 		}
 		return;
@@ -629,7 +632,7 @@ void CTFFragBonuses(edict_t * targ, edict_t * inflictor, edict_t * attacker)
 	// find attacker's team's flag carrier
 	for (i = 1; i <= game.maxclients; i++) {
 		carrier = g_edicts + i;
-		if (carrier->inuse && carrier->client->inventory[ITEM_INDEX(flag_item)])
+		if (carrier->inuse && carrier->client && carrier->client->inventory[ITEM_INDEX(flag_item)])
 			break;
 		carrier = NULL;
 	}
@@ -703,7 +706,7 @@ void CTFResetFlag(int team)
 
 	/* hifi: drop this team flag if a player is carrying one (so the next loop returns it correctly) */
 	for (i = 0, ent = &g_edicts[1]; i < game.maxclients; i++, ent++) {
-		if (!ent->inuse)
+		if (!ent->inuse || !ent->client)
 			continue;
 
 		if (ent->client->inventory[ITEM_INDEX(teamFlag)]) {
@@ -794,8 +797,10 @@ qboolean CTFPickup_Flag(edict_t * ent, edict_t * other)
 				// Update team scores
 				teams[TEAM1].score = ctfgame.team1;
 				teams[TEAM2].score = ctfgame.team2;
-				gi.cvar_forceset(teams[TEAM1].teamscore->name, va("%i", ctfgame.team1));
-  				gi.cvar_forceset(teams[TEAM2].teamscore->name, va("%i", ctfgame.team2));
+				if (teams[TEAM1].teamscore)
+					gi.cvar_forceset(teams[TEAM1].teamscore->name, va("%i", ctfgame.team1));
+  				if (teams[TEAM2].teamscore)
+					gi.cvar_forceset(teams[TEAM2].teamscore->name, va("%i", ctfgame.team2));
 
 				CTFDynamicRespawnTimer(); // Dynamic respawn time
 
@@ -815,7 +820,7 @@ qboolean CTFPickup_Flag(edict_t * ent, edict_t * other)
 				// Ok, let's do the player loop, hand out the bonuses
 				for (i = 1; i <= game.maxclients; i++) {
 					player = &g_edicts[i];
-					if (!player->inuse)
+					if (!player->inuse || !player->client)
 						continue;
 
 					if (player->client->resp.team != other->client->resp.team)

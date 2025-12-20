@@ -1252,7 +1252,8 @@ void ExitLevel (void)
 		{
 			teams[i].score = 0;
 			// AQ2 TNG - Reset serverinfo score cvars too
-			gi.cvar_forceset(teams[i].teamscore->name, "0");
+			if (teams[i].teamscore)
+				gi.cvar_forceset(teams[i].teamscore->name, "0");
 		}
 	}
 }
