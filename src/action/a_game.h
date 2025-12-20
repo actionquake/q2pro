@@ -163,3 +163,6 @@ int CountActivePlayers(void);
 void Cmd_Pickup_f( edict_t * ent );
 #endif
 #define MSG_PICKUP_UNSUPPORTED "This server does not support pickup requests.\n"
+
+/* g_lrcon.c */
+void ReadLrconConfig(void);

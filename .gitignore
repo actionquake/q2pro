@@ -9,3 +9,5 @@ build.sh
 /build_win
 clang-build.sh
 /bots
+/dev
+.DS_Store

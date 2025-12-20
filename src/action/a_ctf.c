@@ -791,6 +791,12 @@ qboolean CTFPickup_Flag(edict_t * ent, edict_t * other)
 				else
 					ctfgame.team2++;
 
+				// Update team scores
+				teams[TEAM1].score = ctfgame.team1;
+				teams[TEAM2].score = ctfgame.team2;
+				gi.cvar_forceset(teams[TEAM1].teamscore->name, va("%i", ctfgame.team1));
+  				gi.cvar_forceset(teams[TEAM2].teamscore->name, va("%i", ctfgame.team2));
+
 				CTFDynamicRespawnTimer(); // Dynamic respawn time
 
 				gi.sound(ent, CHAN_RELIABLE + CHAN_NO_PHS_ADD + CHAN_VOICE,
