@@ -752,9 +752,9 @@ qboolean CTFPickup_Flag(edict_t * ent, edict_t * other)
 		strcpy(flag_name, "briefcase");
 
 	// figure out what team this flag is
-	if (ctf_mode->value && strcmp(ent->classname, "item_bcase_team1") == 0)
+	if (ctf_mode->value == 2 && strcmp(ent->classname, "item_bcase_team1") == 0)
 		team = TEAM1;
-	else if (ctf_mode->value && strcmp(ent->classname, "item_bcase_team2") == 0)
+	else if (ctf_mode->value == 2 && strcmp(ent->classname, "item_bcase_team2") == 0)
 		team = TEAM2;
 	else if (strcmp(ent->classname, "item_flag_team1") == 0)
 		team = TEAM1;
@@ -876,7 +876,7 @@ qboolean CTFPickup_Flag(edict_t * ent, edict_t * other)
 
 	// TODO: Make this work
 	// in CTB mode, you must have a hand free to pick up the briefcase...
-	if (ctf_mode->value && 
+	if (ctf_mode->value == 2 && 
 	other->client->curr_weap != MK23_NUM || 
 	other->client->curr_weap != KNIFE_NUM || 
 	other->client->curr_weap != GRENADE_NUM ){
@@ -886,15 +886,15 @@ qboolean CTFPickup_Flag(edict_t * ent, edict_t * other)
 
 	if (other->client->uvTime) {
 		other->client->uvTime = 0;
-		if (ctf_mode->value)
+		if (ctf_mode->value == 1)
 			gi.centerprintf(other, "Flag taken! Shields are DOWN! Run for it!");
 		else
 			gi.centerprintf(other, "Briefcase taken! Shields are DOWN! Run for it!");
 	} else {
-		if (ctf_mode->value)
-			gi.centerprintf(other, "You've got the ENEMY BRIEFCASE! Run for it!");
-		else
+		if (ctf_mode->value == 1)
 			gi.centerprintf(other, "You've got the ENEMY FLAG! Run for it!");
+		else
+			gi.centerprintf(other, "You've got the ENEMY BRIEFCASE! Run for it!");
 	}
 	// hey, its not our flag, pick it up
 	gi.bprintf(PRINT_HIGH, "%s got the %s %s!\n", other->client->pers.netname, CTFTeamName(team), flag_name);
@@ -930,7 +930,7 @@ static void CTFDropFlagThink(edict_t * ent)
 {
 	// auto return the flag
 	// reset flag will remove ourselves
-	if (ctf_mode->value) {
+	if (ctf_mode->value == 2) {
 		if (strcmp(ent->classname, "item_bcase_team1") == 0) {
 			CTFResetFlag(TEAM1);
 			gi.bprintf(PRINT_HIGH, "The %s briefcase has returned!\n", CTFTeamName(TEAM1));
@@ -958,7 +958,7 @@ void CTFDeadDropFlag(edict_t * self)
 {
 	edict_t *dropped = NULL;
 
-	if (ctf_mode->value) {
+	if (ctf_mode->value == 2) {
 		if (self->client->inventory[ITEM_INDEX(team_flag[TEAM1])]) {
 			dropped = Drop_Item(self, team_flag[TEAM1]);
 			self->client->inventory[ITEM_INDEX(team_flag[TEAM1])] = 0;
@@ -1084,7 +1084,7 @@ void CTFEffects(edict_t * player)
     char t2modelpath[MAX_QPATH] = "";
 
 	// This sets the briefcase vwep in place of your weapon in CTB mode
-	if (ctf_mode->value) {
+	if (ctf_mode->value == 2) {
         if (player->client->inventory[ITEM_INDEX(team_flag[TEAM1])]) {
             Q_snprintf(t1modelpath, sizeof(t1modelpath), "players/%s/w_bc1.md2", model);
             player->s.modelindex2 = gi.modelindex(t1modelpath);
@@ -1422,7 +1422,7 @@ void CTFDestroyFlag(edict_t * self)
 {
 	//flags are important
 	if (ctf->value) {
-		if (ctf_mode->value) {
+		if (ctf_mode->value == 2) {
 			if (strcmp(self->classname, "item_bcase_team1") == 0) {
 				CTFResetFlag(TEAM1);	// this will free self!
 				gi.bprintf(PRINT_HIGH, "The %s %s has returned!\n", CTFTeamName(TEAM1), team_flag[TEAM1]->pickup_name);
@@ -1469,7 +1469,7 @@ void CTFCapReward(edict_t * ent)
 	if (!ent || !ent->client || !ent->inuse)
 	    return;
 
-	if(ctf_mode->value > 1)
+	if(ctf_rewards->value)
 		ent->client->resp.ctf_capstreak++;
 	else /* capstreak is used as a multiplier so default it to one */
 		ent->client->resp.ctf_capstreak = 1;
