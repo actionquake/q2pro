@@ -82,6 +82,8 @@ int num_maps, cur_map, rand_map, num_allvotes;	// num_allvotes added by Igor[Roc
 char motd_lines[MAX_TOTAL_MOTD_LINES][40];
 int motd_num_lines;
 
+qboolean is_demo_recording = false;
+
 /*
  * ReadConfigFile()
  * Config file format is backwards compatible with Action's, but doesn't need 
@@ -702,10 +704,15 @@ void PrintMOTD(edict_t * ent)
 		}
 	}
 
-	if (!auto_menu->value || ent->client->pers.menu_shown) {
+	// Print the MOTD
+	if (auto_menu->value == 2) {
 		gi.centerprintf(ent, "%s", msg_buf);
 	} else {
-		gi.cprintf(ent, PRINT_LOW, "%s", msg_buf);
+       if (!auto_menu->value || ent->client->pers.menu_shown) {
+               gi.centerprintf(ent, "%s", msg_buf);
+       } else {
+               gi.cprintf(ent, PRINT_LOW, "%s", msg_buf);
+       }
 	}
 }
 
@@ -1508,4 +1515,255 @@ void _PickupRequest (edict_t * ent, pmenu_t * p)
 	PMenu_Close(ent);
 
 	Cmd_Pickup_f(ent);
+}
+
+// Count active (non-spectator) players
+static int CountActivePlayers(void) {
+	int count = 0;
+	int i;
+	edict_t *other;
+
+	for (i = 0, other = g_edicts + 1; i < game.maxclients; i++, other++) {
+		if (!other->inuse || !other->client || !other->client->pers.connected)
+			continue;
+
+		// Skip MVD spectators
+		if (other->client->pers.mvdspec)
+			continue;
+
+		// Skip regular spectators
+		if (other->client->pers.spectator)
+			continue;
+
+		count++;
+	}
+	return count;
+}
+
+static void ServerAutoRecordDemo(void){
+	time_t tnow = 0;
+	struct tm *now = NULL;
+	char ltm[MAX_QPATH] = "";
+	char mvdstring[MAX_INFO_STRING] = "";
+	char filename[MAX_INFO_STRING] = "";
+
+	// JBravo: Autostart q2pro MVD2 recording on the server
+	// darksaint: Moved to its own function and enhanced
+
+	// Determine game mode names (short names)
+	char *gamemode = GamemodeName(true);
+	char *gamemodeflag = GamemodeFlagName(true);
+
+	// Determine team names
+	char t1name[MAX_QPATH];
+	char t2name[MAX_QPATH];
+	char t3name[MAX_QPATH];
+
+	strcpy(t1name, teams[TEAM1].name);
+	strcpy(t2name, teams[TEAM2].name);
+	strcpy(t3name, teams[TEAM3].name);
+
+
+	// Cleanup team names
+	if (teamCount == 3) {
+		RemoveSpaces(t1name);
+		RemoveSpaces(t2name);
+		RemoveSpaces(t3name);
+	} else if (teamCount == 2) {
+		RemoveSpaces(t1name);
+		RemoveSpaces(t2name);
+	}
+
+	// Construct filename
+	if (strcmp(gamemodeflag, "NONE") == 0) {
+		if (teamCount == 3) // 3 Teams
+			Q_snprintf(filename, sizeof(filename), "%s-%s_%s_%s-%s-%s", gamemode, t1name, t2name, t3name, net_port->string, level.mapname);
+		else if (teamCount == 2) // Teamplay modes
+			Q_snprintf(filename, sizeof(filename), "%s-%s_%s-%s-%s", gamemode, t1name, t2name, net_port->string, level.mapname);
+		else // Anything else (DM?)
+			Q_snprintf(filename, sizeof(filename), "%s-%s-%s", gamemode, net_port->string, level.mapname);
+	} else {
+		if (teamCount == 3)
+			Q_snprintf(filename, sizeof(filename), "%s-%s-%s_%s_%s-%s-%s", gamemode, gamemodeflag, t1name, t2name, t3name, net_port->string, level.mapname);
+		else if (teamCount == 2)
+			Q_snprintf(filename, sizeof(filename), "%s-%s-%s_%s-%s-%s", gamemode, gamemodeflag, t1name, t2name, net_port->string, level.mapname);
+		else // Anything else (GMFlags don't apply to non-teamplay but this is here just in case)
+			Q_snprintf(filename, sizeof(filename), "%s-%s-%s", gamemode, net_port->string, level.mapname);
+	}
+
+	tnow = time(NULL);
+	now = localtime(&tnow);
+	strftime( ltm, 64, "%Y%m%d-%H%M%S", now );
+	Q_snprintf( mvdstring, sizeof(mvdstring), "mvdrecord -z %s-%s\n", ltm, filename );
+	gi.AddCommandString( mvdstring );
+	gi.bprintf( PRINT_HIGH, "Starting MVD recording to file %s-%s.mvd2.gz\n", ltm, filename );
+	is_demo_recording = true;
+	// JBravo: End MVD2
+}
+
+void StartAutoRecordDemo(void){
+	// Skip this if demo recording is disabled
+	if(!use_mvd2->value) {
+		gi.dprintf("use_mvd2 is not enabled, not automatically recording demo\n");
+		return;
+	}
+
+	// Demo is already recording
+	if (is_demo_recording) {
+		return;
+	}
+
+	// TODO #1: For deathmatch servers, only record if timelimit or fraglimit is set
+	// This prevents infinite demos on servers without limits
+	qboolean is_deathmatch = (!teamplay->value && !ctf->value && !use_tourney->value &&
+	                          !dom->value && !esp->value && !jump->value);
+
+	if (is_deathmatch && timelimit->value == 0 && fraglimit->value == 0) {
+		gi.dprintf("Deathmatch server has no timelimit or fraglimit, not recording demo\n");
+		return;
+	}
+
+	ServerAutoRecordDemo();
+}
+
+void StopAutoRecordDemo(void){
+	// Skip this if demo recording is disabled
+	if(!use_mvd2->value && is_demo_recording) {
+		gi.dprintf("use_mvd2 is not enabled, but stopping in-progress demo anyway\n");
+		gi.AddCommandString( "mvdstop\n" );
+		return;
+	}
+
+	if(!use_mvd2->value) {
+		gi.dprintf("use_mvd2 is not enabled, we can't stop what isn't started\n");
+		return;
+	}
+
+	if (!is_demo_recording) {
+		gi.dprintf("Demo is/was not currently recording!\n");
+		return;
+	}
+
+	gi.AddCommandString( "mvdstop\n" );
+	is_demo_recording = false;
+}
+void ReadLrconConfig(void)
+{
+	FILE *config_file;
+	char buf[MAX_STR_LEN], reading_section[MAX_STR_LEN], cfgpath[MAX_STR_LEN];
+	cvar_t *lrcon_config_cvar;
+	int lines_into_section = -1;
+
+	// Initialize defaults
+	game.lrcon_config.enabled = 0;
+	game.lrcon_config.quit_on_empty = 0;
+	game.lrcon_config.allowed_cvars_count = 0;
+	game.lrcon_config.modes_count = 0;
+
+	// Get config filename from cvar
+	lrcon_config_cvar = gi.cvar("lrcon_config", "lrcon.cfg", 0);
+	if (lrcon_config_cvar->string && *(lrcon_config_cvar->string))
+		sprintf(cfgpath, "%s/%s", GAMEVERSION, lrcon_config_cvar->string);
+	else
+		sprintf(cfgpath, "%s/%s", GAMEVERSION, "lrcon.cfg");
+
+	// Try to open config file
+	config_file = fopen(cfgpath, "r");
+	if (config_file == NULL) {
+		gi.dprintf("LRCON: Unable to read %s (lrcon disabled)\n", cfgpath);
+		return;
+	}
+
+	// Parse config file
+	while (fgets(buf, MAX_STR_LEN - 10, config_file) != NULL) {
+		int bs;
+		char *space, *key, *value;
+
+		// Strip newlines/carriage returns
+		bs = strlen(buf);
+		while (bs > 0 && (buf[bs - 1] == '\r' || buf[bs - 1] == '\n')) {
+			buf[bs - 1] = 0;
+			bs--;
+		}
+
+		// Skip empty lines and comments
+		if ((buf[0] == '/' && buf[1] == '/') || buf[0] == 0) {
+			continue;
+		}
+
+		// Handle section headers
+		if (buf[0] == '[') {
+			char *p;
+
+			p = strchr(buf, ']');
+			if (p == NULL)
+				continue;
+			*p = 0;
+			strcpy(reading_section, buf + 1);
+			lines_into_section = 0;
+			continue;
+		}
+
+		// Skip special markers
+		if (buf[0] == '#' && buf[1] == '#' && buf[2] == '#') {
+			lines_into_section = -1;
+			continue;
+		}
+
+		// Process section content
+		if (lines_into_section > -1) {
+			if (!strcmp(reading_section, "settings")) {
+				// Parse key-value pairs in settings section
+				space = strchr(buf, ' ');
+				if (space != NULL) {
+					*space = 0;
+					key = buf;
+					value = space + 1;
+
+					if (!strcmp(key, "enabled")) {
+						game.lrcon_config.enabled = atoi(value) ? 1 : 0;
+						gi.dprintf("LRCON: enabled = %d\n", game.lrcon_config.enabled);
+					} else if (!strcmp(key, "quit_on_empty")) {
+						game.lrcon_config.quit_on_empty = atoi(value) ? 1 : 0;
+						gi.dprintf("LRCON: quit_on_empty = %d\n", game.lrcon_config.quit_on_empty);
+					}
+				}
+			} else if (!strcmp(reading_section, "allowed_cvars")) {
+				// Each line is a cvar name
+				if (game.lrcon_config.allowed_cvars_count < MAX_LRCON_CVARS) {
+					Q_strncpyz(game.lrcon_config.allowed_cvars[game.lrcon_config.allowed_cvars_count],
+							   buf, sizeof(game.lrcon_config.allowed_cvars[0]));
+					gi.dprintf("LRCON: allowed cvar %d = %s\n",
+							   game.lrcon_config.allowed_cvars_count,
+							   game.lrcon_config.allowed_cvars[game.lrcon_config.allowed_cvars_count]);
+					game.lrcon_config.allowed_cvars_count++;
+				}
+			} else if (!strcmp(reading_section, "modes")) {
+				// Format: name|command
+				char *pipe = strchr(buf, '|');
+				if (pipe != NULL && game.lrcon_config.modes_count < MAX_LRCON_MODES) {
+					*pipe = 0;
+					Q_strncpyz(game.lrcon_config.modes[game.lrcon_config.modes_count].name,
+							   buf, sizeof(game.lrcon_config.modes[0].name));
+					Q_strncpyz(game.lrcon_config.modes[game.lrcon_config.modes_count].command,
+							   pipe + 1, sizeof(game.lrcon_config.modes[0].command));
+					gi.dprintf("LRCON: mode %d = %s -> %s\n",
+							   game.lrcon_config.modes_count,
+							   game.lrcon_config.modes[game.lrcon_config.modes_count].name,
+							   game.lrcon_config.modes[game.lrcon_config.modes_count].command);
+					game.lrcon_config.modes_count++;
+				}
+			}
+			lines_into_section++;
+		}
+	}
+
+	fclose(config_file);
+
+	if (game.lrcon_config.enabled) {
+		gi.dprintf("LRCON: Configuration loaded successfully (%d cvars, %d modes)\n",
+				   game.lrcon_config.allowed_cvars_count, game.lrcon_config.modes_count);
+	} else {
+		gi.dprintf("LRCON: Not enabled in config\n");
+	}
 }

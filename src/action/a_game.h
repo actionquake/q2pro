@@ -149,6 +149,11 @@ void MakeAllLivePlayersObservers( void );
 void Cmd_NextMap_f( edict_t * ent );
 void Cmd_PrintRules_f(edict_t *ent);
 
+// Demo recording
+void StartAutoRecordDemo(void);
+void StopAutoRecordDemo(void);
+int CountActivePlayers(void);
+
 //a_game.c
 #if AQTION_CURL
 
@@ -158,3 +163,6 @@ void Cmd_PrintRules_f(edict_t *ent);
 void Cmd_Pickup_f( edict_t * ent );
 #endif
 #define MSG_PICKUP_UNSUPPORTED "This server does not support pickup requests.\n"
+
+/* g_lrcon.c */
+void ReadLrconConfig(void);

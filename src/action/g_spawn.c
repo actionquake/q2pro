@@ -173,7 +173,6 @@ typedef struct
   void (*spawn) (edict_t * ent);
 } spawn_t;
 
-
 void SP_item_health (edict_t * self);
 void SP_item_health_small (edict_t * self);
 void SP_item_health_large (edict_t * self);
@@ -182,6 +181,8 @@ void SP_item_health_mega (edict_t * self);
 void SP_info_player_start (edict_t * ent);
 void SP_info_player_deathmatch (edict_t * ent);
 void SP_info_player_intermission (edict_t * ent);
+// Bot-specific Spawnpoint
+void SP_info_bot_deathmatch (edict_t * ent);
 
 void SP_func_plat (edict_t * ent);
 void SP_func_rotating (edict_t * ent);
@@ -280,6 +281,7 @@ static const spawn_func_t spawn_funcs[] = {
 
 	{"info_player_team1", SP_info_player_team1},
 	{"info_player_team2", SP_info_player_team2},
+	{"info_player_team3", SP_info_player_team3},
 
 	{"func_plat", SP_func_plat},
 	{"func_button", SP_func_button},
@@ -353,6 +355,9 @@ static const spawn_func_t spawn_funcs[] = {
 	{"info_teleport_destination", SP_info_teleport_destination},
 	{"misc_blackhole", SP_misc_blackhole},
 
+	#ifndef NO_BOTS
+	{"info_bot_deathmatch", SP_info_bot_deathmatch},
+	#endif
 	{NULL, NULL}
 };
 
@@ -389,7 +394,9 @@ static const spawn_field_t spawn_fields[] = {
 	{"origin", FOFS(s.origin), F_VECTOR},
 	{"angles", FOFS(s.angles), F_VECTOR},
 	{"angle", FOFS(s.angles), F_ANGLEHACK},
-
+	#ifndef NO_BOTS
+	{"botflags", FOFS(botflags), F_INT},
+	#endif
 	{NULL}
 };
 
@@ -712,7 +719,6 @@ static bool ED_ParseField(const spawn_field_t* fields, const char* key, const ch
 	// 			b = (byte *)ent;
 	for (f = fields; f->name; f++) {
 		if (!Q_stricmp(f->name, key)) {
-
 			switch (f->type)
 			{
 			case F_LSTRING:
@@ -747,6 +753,7 @@ static bool ED_ParseField(const spawn_field_t* fields, const char* key, const ch
 			return true;
 		}
 	}
+
 	return false;
 }
 
@@ -1050,20 +1057,35 @@ int Gamemode(void)
 	int gamemode = 0;
 	if (teamdm->value) {
 		gamemode = GM_TEAMDM;
+		gi.cvar_forceset(gm->name, "tdm");
 	} else if (ctf->value) {
 		gamemode = GM_CTF;
+		gi.cvar_forceset(gm->name, "ctf");
 	} else if (use_tourney->value) {
 		gamemode = GM_TOURNEY;
-	} else if (teamplay->value) {
-		gamemode = GM_TEAMPLAY;
+		gi.cvar_forceset(gm->name, "tourney");
 	} else if (dom->value) {
 		gamemode = GM_DOMINATION;
-	} else if (deathmatch->value) {
-		gamemode = GM_DEATHMATCH;
+		gi.cvar_forceset(gm->name, "dom");
 	} else if (esp->value && espsettings.esp_mode == ESPMODE_ATL) {
 		gamemode = GM_ASSASSINATE_THE_LEADER;
+		// Config load happens AFTER g_spawn, updates must occur in a_esp.c
 	} else if (esp->value && espsettings.esp_mode == ESPMODE_ETV) {
 		gamemode = GM_ESCORT_THE_VIP;
+		// Config load happens AFTER g_spawn, updates must occur in a_esp.c
+	} else if (training->value) {
+		gamemode = GM_TRAINING;
+		gi.cvar_forceset(gm->name, "training");
+	} else if (jump->value) {
+		gamemode = GM_JUMP;
+		gi.cvar_forceset(gm->name, "jump");
+	} else if (teamplay->value) {
+		gamemode = GM_TEAMPLAY;
+		gi.cvar_forceset(gm->name, "tp");
+	} else {
+		// Default to deathmatch if no other matches
+		gamemode = GM_DEATHMATCH;
+		gi.cvar_forceset(gm->name, "dm");
 	}
 	return gamemode;
 }
@@ -1091,6 +1113,77 @@ int Gamemodeflag(void)
 	gi.cvar_forceset("gmf", gmfstr);
 	return gamemodeflag;
 }
+
+char* GamemodeName(qboolean shortname)
+{
+    static char gamemode[64] = "";
+
+    if (esp->value)
+		if (!shortname)
+			strcpy(gamemode, GMN_ESPIONAGE);
+		else
+			strcpy(gamemode, "ESP");
+    else if (ctf->value)
+		if (!shortname)
+			strcpy(gamemode, GMN_CTF);
+		else
+			strcpy(gamemode, "CTF");
+    else if (dom->value)
+		if (!shortname)
+			strcpy(gamemode, GMN_DOMINATION);
+		else
+			strcpy(gamemode, "DOM");
+    else if (use_tourney->value)
+		if (!shortname)
+			strcpy(gamemode, GMN_TOURNEY);
+		else
+			strcpy(gamemode, "TO");
+    else if (teamdm->value)
+		if (!shortname)
+			strcpy(gamemode, GMN_TEAMDM);
+		else
+			strcpy(gamemode, "TDM");
+    else if (teamplay->value)
+		if (!shortname)
+			strcpy(gamemode, GMN_TEAMPLAY);
+		else
+			strcpy(gamemode, "TP");
+    else if (jump->value)
+		// "Jump" is already a short name
+		strcpy(gamemode, GMN_JUMP);
+    else
+		if (!shortname)
+			strcpy(gamemode, GMN_DEATHMATCH);
+		else
+			strcpy(gamemode, "DM");
+
+    return gamemode;
+}
+
+char* GamemodeFlagName(qboolean shortname)
+{
+    static char gamemode[64] = "";
+    if (matchmode->value)
+		if (!shortname)
+			strcpy(gamemode, GMN_MATCHMODE);
+		else
+			strcpy(gamemode, "MM");
+    else if (use_3teams->value)
+		if (!shortname)
+			strcpy(gamemode, GMN_3TEAMS);
+		else
+			strcpy(gamemode, "3T");
+    else if (darkmatch->value)
+		if (!shortname)
+			strcpy(gamemode, GMN_DARKMATCH);
+		else
+			strcpy(gamemode, "DARK");
+    else
+        strcpy(gamemode, "NONE");
+
+    return gamemode;
+}
+
 
 /*
 ==============
@@ -1140,7 +1233,6 @@ void SpawnEntities (const char *mapname, const char *entities, const char *spawn
 	gi.cvar_forceset(dm_choose->name, "0"); // Turn off dm_choose for jump mode
 	gi.cvar_forceset(uvtime->name, "0"); // Turn off uvtime in jump mode
 	gi.cvar_forceset(unique_items->name, "6"); // Enables holding all items at once, if toggled
-	gi.cvar_forceset(am->name, "0"); // Turns off attract mode
 	gi.cvar_forceset(ltk_loadbots->name, "0"); // Turns off bots
 	//
 		if (teamplay->value)
@@ -1181,7 +1273,6 @@ void SpawnEntities (const char *mapname, const char *entities, const char *spawn
 	}
 	else if (ctf->value)
 	{
-	gi.cvar_forceset(gm->name, "ctf");
 		if (ctf->value == 2)
 			gi.cvar_forceset(ctf->name, "1"); //for now
 
@@ -1232,7 +1323,6 @@ void SpawnEntities (const char *mapname, const char *entities, const char *spawn
 	}
 	else if (esp->value)
 	{
-	gi.cvar_forceset(gm->name, "esp");
 		//gameSettings |= GS_WEAPONCHOOSE;
 		gameSettings |= (GS_ROUNDBASED | GS_WEAPONCHOOSE);
 
@@ -1281,7 +1371,6 @@ void SpawnEntities (const char *mapname, const char *entities, const char *spawn
 	}
 	else if (dom->value)
 	{
-		gi.cvar_forceset(gm->name, "dom");
 		gameSettings |= GS_WEAPONCHOOSE;
 		if (!teamplay->value)
 		{
@@ -1315,7 +1404,6 @@ void SpawnEntities (const char *mapname, const char *entities, const char *spawn
 	}
 	else if(teamdm->value)
 	{
-		gi.cvar_forceset(gm->name, "tdm");
 		gameSettings |= GS_DEATHMATCH;
 
 		if (dm_choose->value)
@@ -1334,7 +1422,6 @@ void SpawnEntities (const char *mapname, const char *entities, const char *spawn
 	}
 	else if (use_3teams->value)
 	{
-		gi.cvar_forceset(gm->name, "tp");
 		gameSettings |= (GS_ROUNDBASED | GS_WEAPONCHOOSE);
 
 		if (!teamplay->value)
@@ -1374,7 +1461,6 @@ void SpawnEntities (const char *mapname, const char *entities, const char *spawn
 	}
 	else if (use_tourney->value)
 	{
-		gi.cvar_forceset(gm->name, "tourney");
 		gameSettings |= (GS_ROUNDBASED | GS_WEAPONCHOOSE);
 
 		if (!teamplay->value)
@@ -1383,13 +1469,31 @@ void SpawnEntities (const char *mapname, const char *entities, const char *spawn
 			gi.cvar_forceset(teamplay->name, "1");
 		}
 	}
+	else if (training->value)
+	{
+		gi.cvar_forceset(gm->name, "training");
+		if (training->value == 1) {
+			gameSettings |= GS_DEATHMATCH;
+			gi.cvar_forceset("dm_choose", "0");
+		}
+		else if (training->value == 2) {
+			gameSettings |= (GS_DEATHMATCH | GS_WEAPONCHOOSE);
+		}
+		// Training mode specific settings, overridable of course
+		gi.cvar_forceset("matchmode", "0");
+		gi.cvar_forceset("item_respawnmode", "1");
+		gi.cvar_forceset("items", "2");
+		gi.cvar_forceset("dmweapon", "Combat Knife");
+		gi.cvar_forceset("use_rewards", "0");  // No reward announcements in training mode
+		gi.cvar_forceset("weapon_respawn", "1"); // Near-instant weapon respawn
+		gi.cvar_forceset("item_respawn", "1"); // Near instant item respawn
+		gi.cvar_forceset("ammo_respawn", "1"); // Near instant ammo respawn
+	}
 	else if (teamplay->value)
 	{
-		gi.cvar_forceset(gm->name, "tp");
 		gameSettings |= (GS_ROUNDBASED | GS_WEAPONCHOOSE);
 	}
 	else { //Its deathmatch
-		gi.cvar_forceset(gm->name, "dm");
 		gameSettings |= GS_DEATHMATCH;
 		if (dm_choose->value)
 			gameSettings |= GS_WEAPONCHOOSE;
@@ -1417,6 +1521,14 @@ void SpawnEntities (const char *mapname, const char *entities, const char *spawn
 		}
 	}
 
+	// Global enforce training mode off unless it's explicitly set
+	if (!training->value)
+		gi.cvar_forceset("training", "0");
+
+	// Reset unique items if changing from jump to any other mode
+	if (!jump->value) {
+		gi.cvar_forceset(unique_items->name, "1");
+	}
 
 	gi.cvar_forceset(maptime->name, "0:00");
 
@@ -1559,6 +1671,11 @@ void SpawnEntities (const char *mapname, const char *entities, const char *spawn
 		//TNG:Freud - New spawning system
 		if(!use_oldspawns->value)
 			NS_GetSpawnPoints();
+	}
+	
+	if (training->value)
+	{
+		GetBotSpawnPoints();
 	}
 
 	G_LoadLocations();
@@ -2196,10 +2313,17 @@ int LoadFlagsFromFile (const char *mapname)
 
 		VectorCopy(position, ent->s.origin);
 
-		if (!flagCount)	// Red Flag
-			ent->classname = ED_NewString ("item_flag_team1");
-		else	// Blue Flag
-			ent->classname = ED_NewString ("item_flag_team2");
+		if (!flagCount) {	// Red Flag / Black Briefcase
+			if (ctf_mode->value)
+				ent->classname = ED_NewString ("item_bcase_team1");
+			else
+				ent->classname = ED_NewString ("item_flag_team1");
+		} else {	// Blue Flag / Silver Briefcase
+			if (ctf_mode->value)
+				ent->classname = ED_NewString ("item_bcase_team2");
+			else
+				ent->classname = ED_NewString ("item_flag_team2");
+		}
 
 		ED_CallSpawn (ent);
 		flagCount++;
@@ -2227,8 +2351,13 @@ void ChangePlayerSpawns (void)
 	range1 = range2 = range3 = range4 = 99999;
 	spot = spot1 = spot2 = spot3 = spot4 = NULL;
 
-	flag1 = G_Find (flag1, FOFS(classname), "item_flag_team1");
-	flag2 = G_Find (flag2, FOFS(classname), "item_flag_team2");
+	if (ctf_mode->value){
+		flag1 = G_Find (flag1, FOFS(classname), "item_bcase_team1");
+		flag2 = G_Find (flag2, FOFS(classname), "item_bcase_team2");
+	} else {
+		flag1 = G_Find (flag1, FOFS(classname), "item_flag_team1");
+		flag2 = G_Find (flag2, FOFS(classname), "item_flag_team2");
+	}
 
 	if(!flag1 || !flag2) {
 		gi.dprintf("Warning: ChangePlayerSpawns() requires both flags!\n");

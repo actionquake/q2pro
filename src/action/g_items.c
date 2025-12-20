@@ -194,6 +194,20 @@ void DoRespawn (edict_t * ent)
 
 void SetRespawn (edict_t * ent, float delay)
 {
+	// Safety check to prevent crashes with invalid entities
+    // if (!ent || !ent->inuse) {
+    //     gi.dprintf("WARNING: SetRespawn called with invalid entity\n");
+    //     return;
+    // }
+    
+    // Additional safety check for linked list pointers
+    // if (ent->area.prev == NULL || ent->area.next == NULL) {
+    //     gi.dprintf("WARNING: SetRespawn called with unlinked entity (classname: %s, item: %s)\n", 
+    //               ent->classname ? ent->classname : "NULL",
+    //               ent->item ? ent->item->classname : "NULL");
+    //     return;
+    // }
+
 	ent->flags |= FL_RESPAWN;
 	ent->svflags |= SVF_NOCLIENT;
 	ent->solid = SOLID_NOT;
@@ -325,8 +339,9 @@ qboolean Pickup_Special (edict_t * ent, edict_t * other)
 
 	AddItem(other, ent->item);
 
-	if(!(ent->spawnflags & (DROPPED_ITEM | DROPPED_PLAYER_ITEM)) && item_respawnmode->value)
+	if (!(ent->spawnflags & (DROPPED_ITEM | DROPPED_PLAYER_ITEM)) && item_respawnmode->value) {
 		SetRespawn (ent, item_respawn->value);
+	}
 
 	return true;
 }
@@ -913,6 +928,11 @@ static void drop_make_touchable (edict_t * ent)
 	else if( ctf->value )
 	{
 		ent->nextthink = level.framenum + 6 * HZ;
+		ent->think = G_FreeEdict;
+	}
+	else if( training->value ) // All items disappear after 2 seconds in training mode
+	{
+		ent->nextthink = eztimer(2);
 		ent->think = G_FreeEdict;
 	}
 	else
@@ -1850,7 +1870,7 @@ always owned, never in the world^M
    NULL,
    0,
    /* precache */ "tng/flagcap.wav tng/flagret.wav",
-	FLAG_T1_NUM
+  FLAG_T1_NUM
    }
   ,
 
@@ -1876,6 +1896,51 @@ always owned, never in the world^M
    /* precache */ "tng/flagcap.wav tng/flagret.wav",
    FLAG_T2_NUM
    }
+  ,
+
+  /*QUAKED item_bcase_team1 (1 0.2 0) (-16 -16 -24) (16 16 32)
+   */
+  {
+   "item_bcase_team1",          // classname
+   CTFPickup_Flag,             // pickup function
+   NULL,                       // use function
+   CTFDrop_Flag,              // drop function
+   NULL,                       // weaponthink function
+   "tng/flagtk.wav",          // pickup sound
+   "models/items/bcase/g_bc1.md2", EF_FLAG1|EF_ROTATE,  // world model and effects
+   "w_bc1",                   // weapon model (vwep)
+   "i_bc1",                   // icon name
+   "Black Briefcase",           // pickup name
+   2,                         // width
+   0,                         // quantity
+   NULL,                      // ammo
+   IT_FLAG,                   // item type
+   NULL,                      // info
+   0,                         // tag
+   "tng/flagcap.wav tng/flagret.wav",  // precache
+   FLAG_T1_NUM                // index
+  }
+  ,
+  {
+   "item_bcase_team2",          // classname
+   CTFPickup_Flag,             // pickup function
+   NULL,                       // use function
+   CTFDrop_Flag,              // drop function
+   NULL,                       // weaponthink function
+   "tng/flagtk.wav",          // pickup sound
+   "models/items/bcase/g_bc2.md2", EF_FLAG2|EF_ROTATE,  // world model and effects
+   "w_bc2",                   // weapon model (vwep)
+   "i_bc2",                   // icon name
+   "Silver Briefcase",           // pickup name
+   2,                         // width
+   0,                         // quantity
+   NULL,                      // ammo
+   IT_FLAG,                   // item type
+   NULL,                      // info
+   0,                         // tag
+   "tng/flagcap.wav tng/flagret.wav",  // precache
+   FLAG_T1_NUM                // index
+  }
   ,
 
   // end of list marker

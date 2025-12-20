@@ -319,7 +319,10 @@
 #include "g_local.h"
 #include "m_player.h"
 #include "cgf_sfx_glass.h"
+#include "g_lrcon.h"
 
+extern cvar_t *lrcon_claimer_name;
+extern cvar_t *lrcon_claimer_ip;
 
 static void FreeClientEdicts(gclient_t *client)
 {
@@ -437,7 +440,7 @@ void Add_Frag(edict_t * ent, int mod)
 
 	// Increment team score if TeamDM is enabled
 	if(teamdm->value)
-		teams[ent->client->resp.team].score++;
+		UpdateTeamScore(ent->client->resp.team, teams[ent->client->resp.team].score + 1);
 
 	// Streak kill rewards in Deathmatch mode
 	if (deathmatch->value && !teamplay->value) {
@@ -465,7 +468,7 @@ void Add_Frag(edict_t * ent, int mod)
 
 		// Award team with appropriate streak reward count
 		if(teamdm->value)
-			teams[ent->client->resp.team].score += frags;
+			UpdateTeamScore(ent->client->resp.team, teams[ent->client->resp.team].score + frags);
 
 		// AQ:TNG Igor[Rock] changing sound dir
 		if (fraglimit->value && use_warnings->value) {
@@ -827,7 +830,7 @@ void Subtract_Frag(edict_t * ent)
 	ent->client->resp.streakKills = 0;
 	ent->client->resp.roundStreakKills = 0;
 	if(teamdm->value)
-		teams[ent->client->resp.team].score--;
+		UpdateTeamScore(ent->client->resp.team, teams[ent->client->resp.team].score - 1);
 }
 
 void Add_Death( edict_t *ent, qboolean end_streak )
@@ -958,6 +961,11 @@ void Add_TeamKill(edict_t * attacker)
 The normal starting point for a level.
 */
 void SP_info_player_start( edict_t * self )
+{
+}
+
+// BOTLIB-specific spawnpoints
+void SP_info_bot_deathmatch( edict_t * self )
 {
 }
 
@@ -1684,6 +1692,9 @@ void TossItemsOnDeath(edict_t * ent)
 	if (allweapon->value)// don't drop weapons if allweapons is on
 		return;
 
+	if (training->value) // don't drop weapons if training is on
+		return;
+
 	if (WPF_ALLOWED(MK23_NUM) && WPF_ALLOWED(DUAL_NUM)) {
 		// give the player a dual pistol so they can be sure to drop one
 		item = GET_ITEM(DUAL_NUM);
@@ -2176,52 +2187,68 @@ cannot spawn.
 edict_t *UncommonSpawnPoint(void)
 {
 	edict_t *spot = NULL;
+	edict_t *first_valid_spot = NULL;
 
-	if (!spot) {
-		gi.dprintf("Warning: failed to find deathmatch spawn point, unexpected spawns will be utilized\n");
+	/*
+	Try all possible classes of spawn points, and use DM weapon spawns as a last resort.
+	*/
+	char* spawnpoints[] = {
+		"info_player_start",
+		"info_player_coop",
+		"info_player_team1",
+		"info_player_team2",
+		"info_player_team3",
+		"info_player_deathmatch",
+		"weapon_bfg",
+		"weapon_chaingun",
+		"weapon_machinegun",
+		"weapon_rocketlauncher",
+		"weapon_shotgun",
+		"weapon_supershotgun",
+		"weapon_railgun"
+	};
+	size_t num_spawnpoints = sizeof(spawnpoints) / sizeof(spawnpoints[0]);
 
-		/*
-		Try all possible classes of spawn points, and use DM weapon spawns as a last resort.
-		*/
-		char* spawnpoints[] = {
-			"info_player_start",
-			"info_player_coop",
-			"info_player_team1",
-			"info_player_team2",
-			"info_player_team3",
-			"info_player_deathmatch",
-			"weapon_bfg",
-			"weapon_chaingun",
-			"weapon_machinegun",
-			"weapon_rocketlauncher",
-			"weapon_shotgun",
-			"weapon_supershotgun",
-			"weapon_railgun"
-		};
-		size_t num_spawnpoints = sizeof(spawnpoints) / sizeof(spawnpoints[0]);
-		int i;
-		for (i = 0; i < num_spawnpoints; ++i) {
-			while ((spot = G_Find(spot, FOFS(classname), spawnpoints[i])) != NULL) {
-				if (!game.spawnpoint[0] && !spot->targetname)
-					break;
+	// Try each spawn point type in order
+	for (int i = 0; i < num_spawnpoints; ++i) {
+		spot = NULL; // Reset spot for each new spawn point type
 
-				if (!game.spawnpoint[0] || !spot->targetname)
-					continue;
-
-				if (Q_stricmp(game.spawnpoint, spot->targetname) == 0)
-					break;
+		// Find all entities of this type
+		while ((spot = G_Find(spot, FOFS(classname), spawnpoints[i])) != NULL) {
+			// Save the first valid spot we find of any type as a fallback
+			if (!first_valid_spot) {
+				first_valid_spot = spot;
 			}
 
-			if (spot) {
-				gi.dprintf("Warning: Uncommon spawn point of class %s\n", spawnpoints[i]);
-				gi.dprintf("**If you are the map author, you need to be utilizing MULTIPLE info_player_deathmatch or info_player_team entities**\n");
-				break;
+			// If no specific spawn point is requested, any entity without a targetname will do
+			if (!game.spawnpoint[0] && !spot->targetname) {
+				gi.dprintf("Found spawn point of class %s\n", spawnpoints[i]);
+				return spot;
+			}
+
+			// If a specific spawn point is requested, match by targetname
+			if (game.spawnpoint[0] && spot->targetname && 
+				(Q_stricmp(game.spawnpoint, spot->targetname) == 0)) {
+				gi.dprintf("Found requested spawn point %s of class %s\n", 
+					game.spawnpoint, spawnpoints[i]);
+				return spot;
 			}
 		}
 	}
 
-	return spot;
+	// If we get here, we didn't find an ideal spawn point, but we might have a fallback
+	if (first_valid_spot) {
+		gi.dprintf("Warning: failed to find ideal deathmatch spawn point, using fallback spawn\n");
+		gi.dprintf("**If you are the map author, you need to be utilizing MULTIPLE info_player_deathmatch or info_player_team entities**\n");
+		return first_valid_spot;
+	}
+
+	// Truly no spawn points found
+	gi.dprintf("Warning: failed to find ANY spawn point, map is not playable\n");
+	return NULL;
 }
+
+
 
 edict_t *SelectCoopSpawnPoint(edict_t *ent)
 {
@@ -2257,6 +2284,159 @@ edict_t *SelectCoopSpawnPoint(edict_t *ent)
     return spot;
 }
 
+// Define a structure to hold bot spawn information
+typedef struct {
+    edict_t *spawnpoint;  // The actual spawn point entity
+    qboolean in_use;      // Whether this spawn point is currently being used
+    edict_t *assigned_bot; // Which bot is using this spawn point
+} bot_spawn_t;
+
+// Global array to store bot spawn points
+bot_spawn_t bot_spawns[MAX_SPAWNS];
+int num_bot_spawns;
+
+// GetBotSpawnPoints:
+// Put the spawn points into our bot_spawns array so we can work with them easily.
+void GetBotSpawnPoints(void)
+{
+    edict_t *spot = NULL;
+    num_bot_spawns = 0;
+
+    gi.dprintf("GetBotSpawnPoints: Starting search for bot spawn points\n");
+
+    while ((spot = G_Find(spot, FOFS(classname), "info_bot_deathmatch")) != NULL)
+    {
+        if (num_bot_spawns < MAX_SPAWNS) {
+            bot_spawns[num_bot_spawns].spawnpoint = spot;
+            bot_spawns[num_bot_spawns].in_use = false;
+            bot_spawns[num_bot_spawns].assigned_bot = NULL;
+            gi.dprintf("GetBotSpawnPoints: Found bot spawn point %d at %s\n", 
+                      num_bot_spawns, vtos(spot->s.origin));
+            num_bot_spawns++;
+        } else {
+            gi.dprintf("WARNING: Maximum number of bot spawn points exceeded (%d)\n", MAX_SPAWNS);
+            break;
+        }
+    }
+
+    gi.dprintf("GetBotSpawnPoints: Found %d bot spawn points\n", num_bot_spawns);
+}
+
+
+// Free a bot's spawn point when it leaves
+void FreeBotSpawnpoint(edict_t *ent)
+{
+    if (ent->bot_spawnpoint) {
+        for (int i = 0; i < num_bot_spawns; i++) {
+            if (bot_spawns[i].spawnpoint == ent->bot_spawnpoint) {
+                bot_spawns[i].in_use = false;
+                bot_spawns[i].assigned_bot = NULL;
+                break;
+            }
+        }
+        ent->bot_spawnpoint = NULL;
+    }
+}
+
+edict_t *SelectBotSpawnPoint(edict_t *ent)
+{
+    edict_t *spot = NULL;
+    int bot_index = 0;
+    
+    gi.dprintf("SelectBotSpawnPoint: Called for bot %s\n", ent->client ? ent->client->pers.netname : "unknown");
+    
+    // Set bot count to the amount of info_bot_deathmatch
+    bot_connections.desire_bots = num_bot_spawns;
+    gi.dprintf("SelectBotSpawnPoint: num_bot_spawns = %d\n", num_bot_spawns);
+    
+    // If this bot already has an assigned spawn point, use it
+    if (ent->bot_spawnpoint) {
+        gi.dprintf("SelectBotSpawnPoint: Bot has existing spawnpoint at %s\n", 
+                  vtos(ent->bot_spawnpoint->s.origin));
+        
+        // Verify the spawn point is still valid
+        if (ent->bot_spawnpoint->inuse && 
+            !strcmp(ent->bot_spawnpoint->classname, "info_bot_deathmatch")) {
+            // Find this spawn point in our array and mark it as used
+            for (int i = 0; i < num_bot_spawns; i++) {
+                if (bot_spawns[i].spawnpoint == ent->bot_spawnpoint) {
+                    gi.dprintf("SelectBotSpawnPoint: Found existing spawnpoint in array at index %d\n", i);
+                    bot_spawns[i].in_use = true;
+                    bot_spawns[i].assigned_bot = ent;
+
+					gi.dprintf("SelectBotSpawnPoint: %s botflags are %d\n", ent->client->pers.netname, ent->bot_spawnpoint->botflags);
+
+                    return ent->bot_spawnpoint;
+                }
+            }
+            // If we didn't find it in our array, it's still valid to use
+            gi.dprintf("SelectBotSpawnPoint: Existing spawnpoint not found in array, using anyway\n");
+            return ent->bot_spawnpoint;
+        }
+        // If we get here, the spawn point is no longer valid
+        //gi.dprintf("SelectBotSpawnPoint: Existing spawnpoint is no longer valid\n");
+        //ent->bot_spawnpoint = NULL;
+    }
+    
+    // If no bot spawn points are available, fall back to deathmatch spawns
+    if (num_bot_spawns == 0) {
+        gi.dprintf("SelectBotSpawnPoint: No bot spawn points found, falling back to deathmatch spawns\n");
+        return SelectDeathmatchSpawnPoint();
+    }
+    
+    // Determine which bot index this is (based on entity number or other unique identifier)
+    for (int i = 0; i < globals.num_edicts; i++) {
+        edict_t *e = &g_edicts[i];
+        if (e->inuse && e->is_bot && e != ent) {
+            bot_index++;
+        }
+    }
+    
+    gi.dprintf("SelectBotSpawnPoint: This is bot index %d\n", bot_index);
+    
+    // Try to find a spawn point specifically assigned to this bot index
+    for (int i = 0; i < num_bot_spawns; i++) {
+        gi.dprintf("SelectBotSpawnPoint: Checking spawn point %d, count = %d, in_use = %d\n", 
+                  i, bot_spawns[i].spawnpoint->count, bot_spawns[i].in_use);
+                  
+        if (bot_spawns[i].spawnpoint->count == bot_index + 1 && !bot_spawns[i].in_use) { // +1 because bot indices are 0-based but count is typically 1-based
+            gi.dprintf("SelectBotSpawnPoint: Found specific spawn point for this bot at index %d\n", i);
+            bot_spawns[i].in_use = true;
+            bot_spawns[i].assigned_bot = ent;
+            ent->bot_spawnpoint = bot_spawns[i].spawnpoint;
+            return bot_spawns[i].spawnpoint;
+        }
+    }
+    
+    // If no specific assignment, find any unused spawn point
+    for (int i = 0; i < num_bot_spawns; i++) {
+        if (!bot_spawns[i].in_use) {
+            gi.dprintf("SelectBotSpawnPoint: Assigning bot to unused spawn point at index %d\n", i);
+            bot_spawns[i].in_use = true;
+            bot_spawns[i].assigned_bot = ent;
+            ent->bot_spawnpoint = bot_spawns[i].spawnpoint;
+            return bot_spawns[i].spawnpoint;
+        }
+    }
+    
+    // Fall back to regular deathmatch spawn points if no bot spawn points are available
+    gi.dprintf("SelectBotSpawnPoint: All bot spawn points are in use, falling back to deathmatch spawns\n");
+	return SelectDeathmatchSpawnPoint();
+}
+
+
+edict_t *SelectTrainingModeSpawnPoint(edict_t *ent)
+{
+	if ((!ent) || (!ent->client)) // Do not spawn non-client entities
+		return NULL;
+	// Non-bot entities spawn on normal DM spawnpoints
+	if (!ent->is_bot) {
+		return SelectDeathmatchSpawnPoint();
+	}
+	return SelectBotSpawnPoint(ent);
+}
+
+
 /*
 ===========
 SelectSpawnPoint
@@ -2274,6 +2454,8 @@ void SelectSpawnPoint(edict_t * ent, vec3_t origin, vec3_t angles)
 	//FIREBLADE
 	if (coop->value){
 		spot = SelectCoopSpawnPoint(ent);
+	} else if (training->value) {
+		spot = SelectTrainingModeSpawnPoint(ent);
 	} else if (ctf->value) {
 		spot = SelectCTFSpawnPoint(ent);
 	} else if (esp->value) {
@@ -2519,9 +2701,28 @@ void AllItems(edict_t * ent)
 	int i;
 	gitem_t *it;
 
+	// For bots in training mode, give items directly without using Pickup_Special
+    if (training->value && ent && ent->is_bot && ent->client && game.num_items > 0) {
+        //gi.dprintf("AllItems: Giving special items directly to bot %s\n", ent->client->pers.netname);
+
+        // Give all special items directly
+        for (int i = 0; i < game.num_items; i++) {
+            gitem_t *it = itemlist + i;
+            if (!it || !it->pickup)
+                continue;
+            if (!(it->flags & IT_ITEM))
+                continue;
+
+            // Add the item directly to inventory
+            ent->client->inventory[ITEM_INDEX(it)] = 1;
+        }
+
+        return;
+    }
+
 	for (i = 0; i < game.num_items; i++) {
 		it = itemlist + i;
-		if (!it->pickup)
+		if (!it || !it->pickup)
 			continue;
 		if (!(it->flags & IT_ITEM))
 			continue;
@@ -2889,9 +3090,6 @@ void PutClientInServer(edict_t * ent)
 	cvarsyncvalue_t cl_cvar[CVARSYNC_MAX];
 #endif
 
-	// find a spawn point
-	// do it before setting health back up, so farthest
-	// ranging doesn't count this client
 	SelectSpawnPoint(ent, spawn_origin, spawn_angles);
 
 	index = ent - g_edicts - 1;
@@ -2917,11 +3115,18 @@ void PutClientInServer(edict_t * ent)
 
 	client->clientNum = index;
 
-	//zucc give some ammo
-	// changed to mk23
-	item = GET_ITEM( MK23_NUM );
-	client->selected_item = ITEM_INDEX( item );
-	client->inventory[client->selected_item] = 1;
+	// Give training mode bots a knife instead of a pistol
+	if (training->value && ent->is_bot) {
+		item = GET_ITEM( KNIFE_NUM );
+		client->selected_item = ITEM_INDEX( item );
+		client->inventory[client->selected_item] = 1;
+	} else {
+		//zucc give some ammo
+		// changed to mk23
+		item = GET_ITEM( MK23_NUM );
+		client->selected_item = ITEM_INDEX( item );
+		client->inventory[client->selected_item] = 1;
+	}
 
 	client->weapon = item;
 	client->lastweapon = item;
@@ -3363,7 +3568,7 @@ STAT_BOT_CHECK();
 		PrintMOTD(ent);
 	}
 
-	if(am->value && game.bot_count > 0){
+	if(game.bot_count > 0){
 		char msg[128];
 		Q_snprintf(msg, sizeof(msg), "** This server contains BOTS for you to play with until real players join up!  Enjoy! **");
 		gi.centerprintf(ent, "%s", msg);
@@ -3378,6 +3583,10 @@ STAT_BOT_CHECK();
 	ent->client->resp.checkframe[2] = checkFrame + 3 * HZ;
 
 	G_UpdatePlayerStatusbar(ent, 1);
+
+	// Begin recording a demo if we're setup correctly
+	if (use_mvd2->value == 2) // Must be set to 2, 1 is classic behavior of teamplay-only recording
+		StartAutoRecordDemo(); // Even though this is called on every player join, only the 'first' player initiates the demo
 
 	// make sure all view stuff is valid
 	ClientEndServerFrame(ent);
@@ -3629,6 +3838,21 @@ qboolean ClientConnect(edict_t * ent, char *userinfo)
 		IRC_printf(IRC_T_SERVER, "%n@%s connected", value, ipaddr_buf);
 	}
 
+	// LRCON: Check if reconnecting claimer and restore claim
+	value = Info_ValueForKey(userinfo, "name");
+	if (game.lrcon_config.enabled && lrcon_claimer_name->string && *lrcon_claimer_name->string &&
+		!strcmp(lrcon_claimer_name->string, value) &&
+		!strcmp(lrcon_claimer_ip->string, ipaddr_buf)) {
+		level.lrcon.claimed = true;
+		Q_strncpyz(level.lrcon.claimer_name, lrcon_claimer_name->string,
+				   sizeof(level.lrcon.claimer_name));
+		Q_strncpyz(level.lrcon.claimer_ip, lrcon_claimer_ip->string,
+				   sizeof(level.lrcon.claimer_ip));
+		level.lrcon.claimer_ent = ent;
+		level.lrcon.claim_time = level.framenum;
+		gi.bprintf(PRINT_HIGH, "LRCON: %s reconnected, claim restored\n", value);
+	}
+
 	//rekkie -- silence ban -- s
 	if (SV_FilterSBPacket(ipaddr_buf, NULL)) // Check if player has been silenced
 	{
@@ -3644,10 +3868,20 @@ qboolean ClientConnect(edict_t * ent, char *userinfo)
 	//guarantee a client is actually making it all the way into the game.
 	//ent->client->pers.connected = true;
 
+	qboolean is_bot = false;
 	#ifndef NO_BOTS
 	if(bot_chat->value)
 		BOTLIB_Chat(ent, CHAT_WELCOME);
+
+	if (IS_BOT(ent))
+		is_bot = true;
 	#endif
+
+	if (!is_bot && use_ghosts->value == 2) {
+		if (Ghost_Exist(ent)) {
+			Cmd_Ghost_f(ent);
+		}
+	}
 
 	return true;
 }
@@ -3693,6 +3927,12 @@ void ClientDisconnect(edict_t * ent)
 
 	gi.bprintf(PRINT_HIGH, "%s disconnected\n", ent->client->pers.netname);
 	IRC_printf(IRC_T_SERVER, "%n disconnected", ent->client->pers.netname);
+
+	// LRCON: Clear claim if claimer disconnects
+	if (level.lrcon.claimed && level.lrcon.claimer_ent == ent) {
+		gi.bprintf(PRINT_HIGH, "LRCON: Released (claimer disconnected)\n");
+		Lrcon_ClearClaim();
+	}
 
 	if( !teamplay->value && !ent->client->pers.spectator )
 	{
@@ -3745,6 +3985,7 @@ void ClientDisconnect(edict_t * ent)
 	ent->is_bot = false;
 	ent->think = NULL;
 	ACEIT_RebuildPlayerList();
+	FreeBotSpawnpoint(ent);
 
 // Check if bots are in the game, if so, disable stat collection
 STAT_BOT_CHECK();
@@ -6198,8 +6439,15 @@ void ClientBeginServerFrame(edict_t * ent)
 		}
 	}
 
-	// show team or weapon menu immediately when connected
-	if (auto_menu->value && ent->client->layout != LAYOUT_MENU && !client->pers.menu_shown && (teamplay->value || dm_choose->value)) {
+	//show team or weapon menu immediately when connected
+	//gi.dprintf("last refresh: %d, mod refresh: %d, realframenum: %d\n", client->resp.last_motd_refresh, (client->resp.last_motd_refresh * 2), level.realFramenum);
+	if (auto_menu->value == 2) {
+		if (level.realFramenum == (ent->client->resp.last_motd_refresh * 2)) {
+			if (auto_menu->value && ent->client->layout != LAYOUT_MENU && !client->pers.menu_shown && (teamplay->value || dm_choose->value)) {
+				Cmd_Inven_f( ent );
+			}
+		}
+	} else if (auto_menu->value == 1 && ent->client->layout != LAYOUT_MENU && !client->pers.menu_shown && (teamplay->value || dm_choose->value)) {
 		Cmd_Inven_f( ent );
 	}
 
@@ -6317,7 +6565,7 @@ void ClientBeginServerFrame(edict_t * ent)
 
 		if( (ppl_idletime->value > 0) && idleframes && (idleframes % (int)(ppl_idletime->value * HZ) == 0) )
 			//plays a random sound/insane sound, insane1-11.wav
-			if (!jump->value) // Don't play insane sounds in jmod
+			if (!(jump->value || training->value)) // Don't play insane sounds in jmod or training mode
 				gi.sound( ent, CHAN_VOICE, gi.soundindex(va( "insane/insane%i.wav", rand() % 11 + 1 )), 1, ATTN_NORM, 0 );
 
 		if( (sv_idleremove->value > 0) && (idleframes > (sv_idleremove->value * HZ)) && client->resp.team )

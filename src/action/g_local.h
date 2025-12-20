@@ -344,6 +344,7 @@ typedef struct gclient_s gclient_t;
 #define SPAWNFLAG_NOT_HARD              BIT(10)
 #define SPAWNFLAG_NOT_DEATHMATCH        BIT(11)
 #define SPAWNFLAG_NOT_COOP              BIT(12)
+#define SPAWNFLAG_ONLY_BOTLIB_SPAWN     BIT(13) // Only BOTLIB bots will spawn here
 
 // edict->flags
 #define FL_FLY                  BIT(0)
@@ -432,6 +433,28 @@ typedef enum
   AMMO_SLUGS
 }
 ammo_t;
+
+#ifndef NO_BOTS
+// g_spawn.c
+typedef enum
+{
+  BOT_NOMOVE = BIT(0),  // Bot will not move from their spawnpoint, but will still shoot enemy entities
+  BOT_NOSHOOT = BIT(1),  // Bot will not shoot enemy entities, but will still move/interact and behave as if they were 
+  BOT_NORESPAWN = BIT(2), // Bot never respawns (does not use the player respawn method)
+  BOT_IGNORE_PLAYERS = BIT(3), // Bot ignores players
+  BOT_IGNORE_BOTS = BIT(4), // Bot ignores other bots
+}
+  bot_spawn_behavior_t;
+#endif
+
+#define BOT_DUMMY (BOT_NOMOVE | BOT_NOSHOOT)
+#define BOT_IGNORE_ALL (BOT_IGNORE_PLAYERS | BOT_IGNORE_BOTS)
+  /*
+    The combination of BOT_IGNORE_PLAYERS and BOT_IGNORE_BOTS (BOT_IGNORE_ALL) should make the bot navigate freely,
+	but otherwise do nothing.
+    The difference between that and BOT_NOSHOOT is that the BOT_NOSHOOT bot will interact (avoid, strafe around, etc) with the player
+    as if they were going to attack, but does not
+  */
 
 //tng_net.c
 typedef enum {
@@ -764,6 +787,38 @@ typedef struct precache_s {
     void                (*func)(void);
 } precache_t;
 
+/*
+ * LRCON (Limited Remote Console) data structures
+ */
+
+#define MAX_LRCON_CVARS 32
+#define MAX_LRCON_MODES 16
+
+/* LRCON state - tracks current server claim */
+typedef struct {
+  qboolean claimed;           /* Is server currently claimed? */
+  char claimer_name[16];      /* Name of current claimer */
+  char claimer_ip[64];        /* IP address of current claimer */
+  int claim_time;             /* Frame number when claimed */
+  edict_t *claimer_ent;       /* Pointer to claimer entity (NULL if disconnected) */
+} lrcon_state_t;
+
+/* Server mode definition */
+typedef struct {
+  char name[64];              /* Mode name (e.g., "teamdm", "ctf") */
+  char command[256];          /* Config command to execute (e.g., "exec cfg/teamdm.cfg") */
+} lrcon_mode_t;
+
+/* LRCON configuration */
+typedef struct {
+  qboolean enabled;           /* Is LRCON enabled? */
+  qboolean quit_on_empty;     /* Quit server when last player leaves? */
+  int allowed_cvars_count;    /* Number of whitelisted cvars */
+  char allowed_cvars[MAX_LRCON_CVARS][64];  /* Whitelisted cvar names */
+  int modes_count;            /* Number of available modes */
+  lrcon_mode_t modes[MAX_LRCON_MODES];      /* Available server modes */
+} lrcon_config_t;
+
 //
 // this structure is left intact through an entire game
 // it should be initialized at dll load time, and read/written to
@@ -819,8 +874,11 @@ typedef struct
   #if AQTION_CURL
   // Discord Webhook limits
   qboolean time_warning_sent; 	// This is set to true when the time warning has been sent, resets every map
-  
+
   #endif
+
+  // LRCON configuration
+  lrcon_config_t lrcon_config;
 }
 game_locals_t;
 
@@ -932,6 +990,8 @@ typedef struct
   // Map features
   map_features_t map_features;
 
+  // LRCON state
+  lrcon_state_t lrcon;
 }
 level_locals_t;
 
@@ -1082,6 +1142,8 @@ typedef enum {
     GM_DOMINATION,
     GM_ASSASSINATE_THE_LEADER,
     GM_ESCORT_THE_VIP,
+	GM_JUMP,
+	GM_TRAINING,
 	GM_MAX
 } GameMode;
 
@@ -1100,8 +1162,9 @@ typedef enum {
 #define GMN_DEATHMATCH "Deathmatch"
 #define GMN_DOMINATION "Domination"
 #define GMN_ESPIONAGE "Espionage"
+#define GMN_TRAINING "Training"
 #define GMN_JUMP "Jump"
-#define GMN_3TEAMS "3 Teams"
+#define GMN_3TEAMS "3Teams"
 //#define GMN_NEW_MODE 2       // If new game mode flags are created, use 2 for its value first
 #define GMN_DARKMATCH "Darkmatch"
 #define GMN_MATCHMODE "Matchmode"
@@ -1344,7 +1407,6 @@ extern cvar_t *esp_debug; // Enable or disable debug mode (very spammy)
 
 // 2023
 extern cvar_t *use_killcounts;  // Adjust how kill streaks are counted
-extern cvar_t *am; // Enable or disable Attract Mode (ltk bots)
 extern cvar_t *zoom_comp;  // Enable or disable zoom compensation
 extern cvar_t *item_kit_mode;  // Enable or disable item kit mode
 extern cvar_t *gun_dualmk23_enhance; // Enable or disable enhanced dual mk23s (laser + silencer)
@@ -1371,7 +1433,7 @@ extern cvar_t *msgflags;
 extern cvar_t *use_pickup;
 //end cUrl integration
 
-extern cvar_t *training_mode; // Sets training mode vars
+extern cvar_t *training; // Sets training mode vars
 extern cvar_t *g_highscores_dir; // Sets the highscores directory
 extern cvar_t *g_highscores_countbots; // Toggles if we save highscores achieved by bots
 extern cvar_t *lca_grenade; // Allows grenade pin pulling during LCA
@@ -1379,6 +1441,10 @@ extern cvar_t *breakableglass; // Moved from cgf_sfx_glass, enables breakable gl
 extern cvar_t *glassfragmentlimit; // Moved from cgf_sfx_glass, sets glass fragment limit
 extern cvar_t *knife_catch; // Enables or disables knife catching
 extern cvar_t *grenade_drop; // Allows grenades to be dropped on death
+
+// 2025
+extern cvar_t *ctf_rewards; // Enables CTF awards
+extern cvar_t *bots; // If bots are enabled and in the server
 
 #ifdef AQTION_EXTENSION
 extern int (*engine_Client_GetVersion)(edict_t *ent);
@@ -1614,6 +1680,7 @@ void door_use(edict_t* self, edict_t* other, edict_t* activator);
 
 // from a_cmds.c
 void _SetSniper(edict_t * ent, int zoom);
+void RemoveSpaces(char *s);
 //rekkie -- DEV_1 -- e
 
 //
@@ -1737,6 +1804,7 @@ void EspionageChaseCam(edict_t *self, edict_t *attacker);
 //
 // g_spawn.c
 //
+void GetBotSpawnPoints(void);
 void ChangePlayerSpawns(void);
 void ED_CallSpawn( edict_t *ent );
 char* ED_NewString(const char* string);
@@ -1744,6 +1812,8 @@ void G_UpdateSpectatorStatusbar( void );
 void G_UpdatePlayerStatusbar( edict_t *ent, int force );
 int Gamemodeflag(void);
 int Gamemode(void);
+char* GamemodeName(qboolean shortname);
+char* GamemodeFlagName(qboolean shortname);
 #if USE_AQTION
 #define GENERATE_UUID() generate_uuid()
 void generate_uuid(void);
@@ -1763,6 +1833,8 @@ void ClientUserinfoChanged(edict_t* ent, char* userinfo);
 void ClientDisconnect(edict_t* ent);
 void CopyToBodyQue(edict_t* ent);
 void Announce_Reward(edict_t *ent, int rewardType);
+void FreeBotSpawnpoint(edict_t *ent);
+extern int num_bot_spawns;
 
 //p_weapon.c
 void Weapon_Generic( edict_t * ent, int FRAME_ACTIVATE_LAST, int FRAME_FIRE_LAST,
@@ -2739,13 +2811,14 @@ struct edict_s
 	int node_timeout; 
 	int last_node; 
 	int tries;
-
-
 	 
 	// AI related stuff 
 	int weaponchoice; 
 	int equipchoice; 
-	float	fLastZoomTime;	// Time we last changed sniper zoom mode 
+	float	fLastZoomTime;	// Time we last changed sniper zoom mode
+	// for info_bot_deathmatch spawnpoint BOTLIB botflags
+	int botflags;
+	edict_t *bot_spawnpoint;
  
 	// Enemy related 
 	qboolean	killchat;	// Have we reported an enemy death and taunted him 
@@ -2906,6 +2979,7 @@ extern char ml_creator[101];
 
 void Cmd_Ghost_f (edict_t * ent);
 void Cmd_AutoRecord_f(edict_t * ent);
+qboolean Ghost_Exist(edict_t *ent);
 
 typedef struct team_s
 {
@@ -3020,6 +3094,9 @@ typedef struct {
     qboolean fired;
 } Message;
 extern Message *timedMessages;
+
+// Team score management
+void UpdateTeamScore(int team_index, int new_score);
 
 void addTimedMessage(int teamNum, edict_t *ent, int seconds, char *msg);
 void FireTimedMessages(void);

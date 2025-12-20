@@ -251,6 +251,11 @@ void BOTLIB_PickLongRangeGoal(edict_t* self)
 				VectorCopy(spot->s.origin, sp_origin[sp_counter]);
 				sp_counter++;
 			}
+			while ((spot = G_Find(spot, FOFS(classname), "info_player_team3")) != NULL)
+			{
+				VectorCopy(spot->s.origin, sp_origin[sp_counter]);
+				sp_counter++;
+			}
 			if (sp_counter) // If we found spawn points
 			{
 				byte spot_picked = rand() % sp_counter; // Pick a random spot
@@ -1008,7 +1013,15 @@ qboolean BOTLIB_FindEnemy(edict_t *self)
 	// If a player enables notarget, disable search for ALL enemies
 	for (i = 0; i <= num_players; i++)
 	{
+		if (players[i] == NULL || !players[i]->inuse) // obviously ignore dead players
+			continue;
+		if (!self->bot_spawnpoint) // if we don't have a spawnpoint, don't think anymore
+			return false;
 		if (players[i] != NULL && players[i]->flags & FL_NOTARGET)
+			return false;
+		if (players[i]->is_bot && self->bot_spawnpoint && self->bot_spawnpoint->botflags & BOT_IGNORE_BOTS) // Ignore bots
+			return false;
+		if ((!players[i]->is_bot && self->bot_spawnpoint && self->bot_spawnpoint->botflags & BOT_IGNORE_PLAYERS)) // Ignore players
 			return false;
 	}
 

@@ -213,6 +213,7 @@
 
 #include "g_local.h"
 #include "m_player.h"
+#include "g_lrcon.h"
 
 #ifndef NO_BOTS
 //void Cmd_Placenode_f( edict_t *ent );
@@ -2029,6 +2030,7 @@ static cmdList_t commandList[] =
 	{ "leader", Cmd_Volunteer_f, 0},
 	{ "highscores", Cmd_HighScores_f, 0},
 	{ "pickup", Cmd_Pickup_f, 0},
+	{ "lrcon", Cmd_Lrcon_f, 0 },
 
 };
 

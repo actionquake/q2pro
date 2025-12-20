@@ -350,6 +350,10 @@ static size_t transparentEntryCount = 0;
 transparent_list_t *transparent_list = NULL;
 static transparent_list_t *transparentlistFree = NULL;
 
+void SP_info_player_team3(edict_t * self)
+{
+}
+
 void InitTransparentList( void )
 {
 	transparent_list = NULL;
@@ -1917,6 +1921,16 @@ void CleanLevel (void)
 
 void MakeAllLivePlayersObservers(void);
 
+// UpdateTeamScore: Updates team score and syncs with t1/t2/t3 CVARs
+void UpdateTeamScore(int team_index, int new_score)
+{
+	if (team_index < TEAM1 || team_index >= TEAM_TOP)
+		return;
+
+	teams[team_index].score = new_score;
+	gi.cvar_forceset(teams[team_index].teamscore->name, va("%i", new_score));
+}
+
 void ResetScores (qboolean playerScores)
 {
 	int i;
@@ -2407,11 +2421,6 @@ void RunWarmup (void)
 				gi.centerprintf(ent, "WARMUP");
 		}
 	}
-	#if USE_AQTION
-	if (warmup_bots->value){
-		gi.cvar_forceset("am", "1");
-	}
-	#endif
 }
 
 void StartRound (void)
@@ -2845,10 +2854,6 @@ int CheckTeamRules (void)
 	int winner = WINNER_NONE, i;
 	int checked_tie = 0;
 	char buf[1024];
-	struct tm *now = NULL;
-	time_t tnow = 0;
-	char ltm[64] = "";
-	char mvdstring[512] = "";
 
 	if (round_delay_time && use_tourney->value)
 	{
@@ -2947,7 +2952,6 @@ int CheckTeamRules (void)
 				#if USE_AQTION
 				// Cleanup and remove all bots, it's go time!
 				if (warmup_bots->value){
-					gi.cvar_forceset("am", "0");
 					bot_connections.desire_bots = 0;
 					ACESP_RemoveBot("all");
 					CenterPrintAll("All bots removed, good luck and have fun!");
@@ -3069,17 +3073,7 @@ int CheckTeamRules (void)
 					CenterPrintAll( buf );
 					team_round_countdown = warmup_length * 10 + 2;
 
-					// JBravo: Autostart q2pro MVD2 recording on the server
-					if( use_mvd2->value )
-					{
-						tnow = time(NULL);
-						now = localtime(&tnow);
-						strftime( ltm, 64, "%Y%m%d-%H%M%S", now );
-						Q_snprintf( mvdstring, sizeof(mvdstring), "mvdrecord %s-%s\n", ltm, level.mapname );
-						gi.AddCommandString( mvdstring );
-						gi.bprintf( PRINT_HIGH, "Starting MVD recording to file %s-%s.mvd2\n", ltm, level.mapname );
-					}
-					// JBravo: End MVD2
+					StartAutoRecordDemo();
 				}
 			}
 		}
@@ -3376,13 +3370,24 @@ void A_NewScoreboardMessage(edict_t * ent)
 			cl_ent = g_edicts + 1 + (cl - game.clients);
 			alive = IS_ALIVE(cl_ent);
 
-			Q_snprintf( buf, sizeof( buf ), "xv 44 yv %d string%c \"%-15s %3d %3d %3d\"",
+			char pingstr[8];
+			Q_snprintf(pingstr, sizeof(pingstr), "%d", min(cl->ping, 999));
+
+			#ifndef NO_BOTS
+			if (IS_BOT(cl_ent)) {
+				if (!bot_reportasclient->value || !bot_reportpings->value) {
+					Q_snprintf(pingstr, sizeof(pingstr), "BOT");
+				}
+			}
+			#endif
+
+			Q_snprintf( buf, sizeof( buf ), "xv 44 yv %d string%c \"%-15s %3d %3d %3s\"",
 				line++ * lineh,
 				(alive && dead ? '2' : ' '),
 				cl->pers.netname,
 				cl->resp.score,
 				(level.framenum - cl->resp.enterframe) / 600 / FRAMEDIV,
-				min(cl->ping, 999) );
+				pingstr );
 			Q_strncatz( string, buf, sizeof( string ) );
 			printCount++;
 			if (printCount >= maxPlayers)
@@ -3655,15 +3660,26 @@ void A_ScoreboardMessage (edict_t * ent, edict_t * killer)
 						playername[1] = 0;
 					}
 					Q_strncatz(playername, cl->pers.netname, sizeof(playername));
+
+					char pingstr[8];
+					Q_snprintf(pingstr, sizeof(pingstr), "%d", min(cl->ping, 999));
+
+					#ifndef NO_BOTS
+					if (IS_BOT(cl_ent)) {
+						if (!bot_reportasclient->value || !bot_reportpings->value) {
+							Q_snprintf(pingstr, sizeof(pingstr), "BOT");
+						}
+					}
+					#endif
 					if (showExtra) {
 						sprintf( string + len,
-							"yv %d string%s \"%-15s %3d %3d %3d\" ",
+							"yv %d string%s \"%-15s %3d %3d %3s\" ",
 							line_y,
 							(deadview && cl_ent->solid != SOLID_NOT) ? "2" : "",
 							playername,
 							cl->resp.score,
 							(level.framenum - cl->resp.enterframe) / (60 * HZ),
-							min(cl->ping, 999) );
+							pingstr );
 					} else {
 						sprintf( string + len,
 							"yv %i string%s \"%s\" ",
@@ -3909,11 +3925,15 @@ void A_ScoreboardMessage (edict_t * ent, edict_t * killer)
 				{
 #ifndef NO_BOTS
 					//rekkie -- Fake Bot Client -- s
-					if (cl_ent->is_bot)
+					if (IS_BOT(cl_ent)) {
 						if (bot_reportasclient->value)
 							Q_snprintf(buf, sizeof(buf), "%4i", min(9999, cl_ent->bot.bot_ping));
 						else
 							Q_snprintf(buf, sizeof(buf), " BOT");
+
+						if (!bot_reportpings->value)
+							Q_snprintf(buf, sizeof(buf), " BOT");
+					}
 					//if (0)
 					//rekkie -- Fake Bot Client -- e
 					//if( cl_ent->is_bot )
@@ -4021,6 +4041,12 @@ void GetSpawnPoints (void)
 	}
 
 	if ((spot = G_Find (spot, FOFS (classname), "info_player_team2")) != NULL)
+	{
+		potential_spawns[num_potential_spawns] = spot;
+		num_potential_spawns++;
+	}
+	
+	if ((spot = G_Find (spot, FOFS (classname), "info_player_team3")) != NULL)
 	{
 		potential_spawns[num_potential_spawns] = spot;
 		num_potential_spawns++;

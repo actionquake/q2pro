@@ -188,6 +188,7 @@ action_src = [
   'src/action/g_func.c',
   'src/action/g_grapple.c',
   'src/action/g_items.c',
+  'src/action/g_lrcon.c',
   'src/action/g_main.c',
   'src/action/g_misc.c',
   'src/action/g_phys.c',
@@ -404,11 +405,19 @@ client_deps = [png, curl, sdl2]
 server_deps = []
 game_deps = [zlib]
 
+# Statically link if we're MacOS
+if host_machine.system() == 'darwin'
+  jpeg = dependency('libjpeg',
+    required:        get_option('libjpeg'),
+    default_options: fallback_opt + [ 'jpeg-turbo=disabled', 'tests=disabled' ],
+    static: true
+  )
+else
 jpeg = dependency('libjpeg',
-  required:        get_option('libjpeg'),
-  default_options: fallback_opt + [ 'jpeg-turbo=disabled', 'tests=disabled' ],
-  static:          true
-)
+    required:        get_option('libjpeg'),
+    default_options: fallback_opt + [ 'jpeg-turbo=disabled', 'tests=disabled' ],
+  )
+endif
 
 if jpeg.found()
   if jpeg.type_name() == 'internal'

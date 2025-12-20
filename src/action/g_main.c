@@ -270,6 +270,10 @@
 
 #include <time.h>
 #include "g_local.h"
+#include "a_game.h"
+
+// Demo recording state
+extern qboolean is_demo_recording;
 
 game_locals_t game;
 level_locals_t level;
@@ -286,6 +290,11 @@ int stopAP;
 edict_t *g_edicts;
 
 //FIREBLADE
+/* LRCON cvars */
+cvar_t *lrcon_config;
+cvar_t *lrcon_claimer_name;
+cvar_t *lrcon_claimer_ip;
+
 cvar_t *hostname;
 cvar_t *teamplay;
 cvar_t *radiolog;
@@ -508,6 +517,7 @@ cvar_t* bot_count_min;	// Minimum number of bots to keep on the server (will ran
 cvar_t* bot_count_max;	// Maximum number of bots to keep on the server (will range between this and bot_count_min)
 cvar_t* bot_rotate;		// Disable/enable rotating bots on the server
 cvar_t* bot_reportasclient; // Report bots as clients to the server browser
+cvar_t* bot_reportpings; // Report bots simulated pings
 cvar_t* bot_navautogen;	// Enable/Disable automatic generation of navigation files
 //cvar_t* bot_randteamskin; // Bots can randomize team skins each map
 
@@ -551,7 +561,6 @@ cvar_t *g_spawn_items;
 
 // 2023
 cvar_t *use_killcounts;  // Display kill counts in console to clients on frag
-cvar_t *am;  // Attract mode toggle
 cvar_t *zoom_comp; // Compensates zoom-in frames with ping (high ping = fewer frames)
 cvar_t *item_kit_mode;  // Toggles item kit mode
 cvar_t *gun_dualmk23_enhance; // Enables laser sight for dual mk23 pistols
@@ -579,7 +588,7 @@ cvar_t *msgflags;						// Message flags (like dmflags) see Discord_Notifications
 cvar_t *use_pickup;						// Enable pickup notifications from the server
 // end cURL integration cvars
 
-cvar_t *training_mode; // Sets training mode vars
+cvar_t *training; // Sets training mode vars
 cvar_t *g_highscores_dir; // Sets the highscores directory
 cvar_t *g_highscores_countbots; // Toggles if we save highscores achieved by bots
 cvar_t *lca_grenade; // Allows grenade pin pulling during LCA
@@ -587,6 +596,10 @@ cvar_t *breakableglass; // Moved from cgf_sfx_glass, enables breakable glass (0,
 cvar_t *glassfragmentlimit; // Moved from cgf_sfx_glass, sets glass fragment limit
 cvar_t *knife_catch; // Enables knife catching
 cvar_t *grenade_drop; // Allows grenades to be dropped on death
+
+// 2025
+cvar_t *ctf_rewards; // Enables CTF awards
+cvar_t *bots; 		// If bots are enabled and in the server
 
 #ifdef AQTION_EXTENSION
 cvar_t *use_newirvision;
@@ -922,8 +935,10 @@ void EndDMLevel (void)
 	// JBravo: Stop q2pro MVD2 recording
 	if (use_mvd2->value)
 	{
-		Q_snprintf( mvdstring, sizeof(mvdstring), "mvdstop\n" );
-		gi.AddCommandString( mvdstring );
+		// If we were reecording a demo, stop it here
+		StopAutoRecordDemo();
+		// Q_snprintf( mvdstring, sizeof(mvdstring), "mvdstop\n" );
+		// gi.AddCommandString( mvdstring );
 		gi.bprintf( PRINT_HIGH, "Ending MVD recording.\n" );
 	}
 	// JBravo: End MVD2
@@ -1294,11 +1309,35 @@ void G_RunFrame (void)
 	if( level.intermission_framenum && empty )
 		level.intermission_exit = 1;
 
+	// TODO #2: Stop demo if no active players (all spectators or empty server)
+	if (use_mvd2->value && is_demo_recording) {
+		int active_players = CountActivePlayers();
+		if (active_players == 0) {
+			gi.dprintf("No active players, stopping demo recording\n");
+			StopAutoRecordDemo();
+		}
+	}
+
 	// exit intermissions
 	if (level.intermission_exit)
 	{
 		ExitLevel ();
 		return;
+	}
+
+	// LRCON quit_on_empty logic
+	if (game.lrcon_config.quit_on_empty) {
+		if (empty) {
+			if (level.emptyTime == 0) {
+				level.emptyTime = level.time;
+				gi.dprintf("LRCON: Server empty, will quit in 5 seconds\n");
+			} else if (level.time - level.emptyTime > 5.0) {
+				gi.dprintf("LRCON: Quitting server (empty for 5+ seconds)\n");
+				gi.AddCommandString("quit\n");
+			}
+		} else {
+			level.emptyTime = 0;
+		}
 	}
 
 	// TNG Darkmatch Cycle

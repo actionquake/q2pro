@@ -45,6 +45,12 @@
 #define WINNER_NONE     NOTEAM
 #define WINNER_TIE      TEAM_TOP
 
+/*QUAKED info_player_team2 (0 0 1) (-16 -16 -24) (16 16 32)
+potential team3 spawning position for 3team games
+*/
+//Prototype
+void SP_info_player_team3(edict_t * self);
+
 // Pre- and post-trace code for our teamplay anti-stick stuff.  If there are
 // still "transparent" (SOLID_TRIGGER) players, they need to be set to
 // SOLID_BBOX before a trace is performed, then changed back again
