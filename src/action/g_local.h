@@ -2973,6 +2973,7 @@ extern char ml_creator[101];
 
 void Cmd_Ghost_f (edict_t * ent);
 void Cmd_AutoRecord_f(edict_t * ent);
+qboolean Ghost_Exist(edict_t *ent);
 
 typedef struct team_s
 {
@@ -3085,6 +3086,9 @@ typedef struct {
     qboolean fired;
 } Message;
 extern Message *timedMessages;
+
+// Team score management
+void UpdateTeamScore(int team_index, int new_score);
 
 void addTimedMessage(int teamNum, edict_t *ent, int seconds, char *msg);
 void FireTimedMessages(void);

@@ -1918,6 +1918,16 @@ void CleanLevel (void)
 
 void MakeAllLivePlayersObservers(void);
 
+// UpdateTeamScore: Updates team score and syncs with t1/t2/t3 CVARs
+void UpdateTeamScore(int team_index, int new_score)
+{
+	if (team_index < TEAM1 || team_index >= TEAM_TOP)
+		return;
+
+	teams[team_index].score = new_score;
+	gi.cvar_forceset(teams[team_index].teamscore->name, va("%i", new_score));
+}
+
 void ResetScores (qboolean playerScores)
 {
 	int i;
