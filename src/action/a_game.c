@@ -1518,7 +1518,7 @@ void _PickupRequest (edict_t * ent, pmenu_t * p)
 }
 
 // Count active (non-spectator) players
-static int CountActivePlayers(void) {
+int CountActivePlayers(void) {
 	int count = 0;
 	int i;
 	edict_t *other;
