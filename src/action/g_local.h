@@ -969,6 +969,7 @@ typedef struct
 
   int realFramenum; //when game paused, framenum stays the same
   int pauseFrames;
+  int timeoutFrames;
   float matchTime;
   float emptyTime;
   int weapon_sound_framenum;
@@ -1274,6 +1275,8 @@ extern cvar_t *mm_adminpwd;
 extern cvar_t *mm_allowlock;
 extern cvar_t *mm_pausecount;
 extern cvar_t *mm_pausetime;
+extern cvar_t *mm_timeoutcount;
+extern cvar_t *mm_timeouttime;
 
 extern cvar_t *teamdm;
 extern cvar_t *teamdm_respawn;
@@ -3002,6 +3005,8 @@ typedef struct team_s
 	byte ghud_num;
 #endif
 #endif
+  	// Timeout feature
+  	int timeout_count;
 }team_t;
 
 extern team_t teams[TEAM_TOP];

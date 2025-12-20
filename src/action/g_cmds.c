@@ -1796,6 +1796,10 @@ static void Cmd_PrintStats_f (edict_t *ent) {
 	Cmd_Stats_f(ent, gi.argv(1));
 }
 
+static void Cmd_Timeout_f (edict_t *ent) {
+	Cmd_CallTimeout_f(ent);
+}
+
 static void Cmd_PauseGame_f (edict_t *ent) {
 	Cmd_TogglePause_f(ent, true);
 }
@@ -1996,6 +2000,7 @@ static cmdList_t commandList[] =
 	{ "ghost", Cmd_Ghost_f, 0 },
 	{ "pausegame", Cmd_PauseGame_f, 0 },
 	{ "unpausegame", Cmd_UnpauseGame_f, 0 },
+	{ "timeout", Cmd_Timeout_f, 0 },
 	{ "resetscores", Cmd_ResetScores_f, 0 },
 	{ "gamesettings", Cmd_PrintSettings_f, 0 },
 	{ "follow", Cmd_Follow_f, 0 },

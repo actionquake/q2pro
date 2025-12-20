@@ -426,6 +426,8 @@ cvar_t *mm_adminpwd;
 cvar_t *mm_allowlock;
 cvar_t *mm_pausecount;
 cvar_t *mm_pausetime;
+cvar_t *mm_timeoutcount;
+cvar_t *mm_timeouttime;
 
 cvar_t *teamdm;
 cvar_t *teamdm_respawn;
@@ -1229,6 +1231,7 @@ void ExitLevel (void)
 		level.intermission_exit = 0;
 		level.intermission_framenum = 0;
 		level.pauseFrames = 0;
+		level.timeoutFrames = 0;
 		ClientEndServerFrames ();
 		return;
 	}
@@ -1239,6 +1242,7 @@ void ExitLevel (void)
 	level.intermission_exit = 0;
 	level.intermission_framenum = 0;
 	level.pauseFrames = 0;
+	level.timeoutFrames = 0;
 	ClientEndServerFrames ();
 
 	// clear some things before going to next level
@@ -1411,6 +1415,21 @@ void G_RunFrame (void)
 			gi.bprintf( PRINT_HIGH, "Game is paused for %i:%02i.\n", (level.pauseFrames / HZ) / 60, (level.pauseFrames / HZ) % 60 );
 		}
 		level.pauseFrames--;
+	}
+
+	if (level.timeoutFrames && !team_round_going) {
+		if (level.timeoutFrames <= 5 * HZ) {
+			if (level.timeoutFrames % HZ == 0)
+				CenterPrintAll( va( "The match will continue in %i seconds!", level.timeoutFrames / HZ ) );
+		}
+		else if (level.timeoutFrames == 10 * HZ) {
+			CenterPrintAll( "Prepare yourselves!\nThe match will continue in 10 seconds!" );
+			timeout_requested = false;
+		}
+		else if ((level.timeoutFrames % (10 * HZ)) == 0) {
+			gi.bprintf( PRINT_HIGH, "Match is in timeout for %i:%02i.\n", (level.timeoutFrames / HZ) / 60, (level.timeoutFrames / HZ) % 60 );
+		}
+		level.timeoutFrames--;
 	}
 
 	level.realFramenum++;

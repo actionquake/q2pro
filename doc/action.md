@@ -249,6 +249,25 @@ Clients will have a few more things to do during matchmode: they have to have a 
   - `matchadmin <pass>` - this will allow a player to get admin status
   - `lock` - allows a captain to lock his team. When a team is locked, no one can join it. Locks are removed on a new map
   - `unlock` - allows a captain to unlock his team
+  - `timeout` - Request a timeout for your team. Must be a captain. The timeout will be granted at the end of the current round. Each team gets a limited number of timeouts per match.
+
+#### Timeout Settings
+
+Timeouts allow teams to pause the match for a strategic break. The following cvars control timeout behavior:
+
+- Server settings:
+  - `mm_timeoutcount [#]` - Number of timeouts each team gets per match (default: 2)
+  - `mm_timeouttime [#]` - Duration of each timeout in seconds (default: 60)
+
+#### Timeout Restrictions
+
+- Only team captains can call timeouts
+- Cannot call a timeout during the last round of the match
+- Cannot call a timeout while the match is paused or in intermission
+- Cannot call a timeout while currently in a timeout
+- Cannot call a timeout if your team has run out of timeouts for the match
+- Timeout will be granted at the end of the current round
+- All players receive a 10-second warning and final 5-second countdown before the match resumes
 
 ### Limited Remote Console (LRCON)
 Limited Remote Console (LRCON) provides controlled admin access through a claim/release system. One player at a time can claim temporary admin rights and execute restricted server commands without needing full rcon access. The claim persists across map changes and reconnects (matched by player name and IP).
