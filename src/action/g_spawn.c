@@ -173,7 +173,6 @@ typedef struct
   void (*spawn) (edict_t * ent);
 } spawn_t;
 
-
 void SP_item_health (edict_t * self);
 void SP_item_health_small (edict_t * self);
 void SP_item_health_large (edict_t * self);
@@ -182,6 +181,8 @@ void SP_item_health_mega (edict_t * self);
 void SP_info_player_start (edict_t * ent);
 void SP_info_player_deathmatch (edict_t * ent);
 void SP_info_player_intermission (edict_t * ent);
+// Bot-specific Spawnpoint
+void SP_info_bot_deathmatch (edict_t * ent);
 
 void SP_func_plat (edict_t * ent);
 void SP_func_rotating (edict_t * ent);
@@ -280,6 +281,7 @@ static const spawn_func_t spawn_funcs[] = {
 
 	{"info_player_team1", SP_info_player_team1},
 	{"info_player_team2", SP_info_player_team2},
+	{"info_player_team3", SP_info_player_team3},
 
 	{"func_plat", SP_func_plat},
 	{"func_button", SP_func_button},
@@ -353,6 +355,9 @@ static const spawn_func_t spawn_funcs[] = {
 	{"info_teleport_destination", SP_info_teleport_destination},
 	{"misc_blackhole", SP_misc_blackhole},
 
+	#ifndef NO_BOTS
+	{"info_bot_deathmatch", SP_info_bot_deathmatch},
+	#endif
 	{NULL, NULL}
 };
 
@@ -389,7 +394,9 @@ static const spawn_field_t spawn_fields[] = {
 	{"origin", FOFS(s.origin), F_VECTOR},
 	{"angles", FOFS(s.angles), F_VECTOR},
 	{"angle", FOFS(s.angles), F_ANGLEHACK},
-
+	#ifndef NO_BOTS
+	{"botflags", FOFS(botflags), F_INT},
+	#endif
 	{NULL}
 };
 
@@ -712,7 +719,6 @@ static bool ED_ParseField(const spawn_field_t* fields, const char* key, const ch
 	// 			b = (byte *)ent;
 	for (f = fields; f->name; f++) {
 		if (!Q_stricmp(f->name, key)) {
-
 			switch (f->type)
 			{
 			case F_LSTRING:
@@ -747,6 +753,7 @@ static bool ED_ParseField(const spawn_field_t* fields, const char* key, const ch
 			return true;
 		}
 	}
+
 	return false;
 }
 
@@ -1062,12 +1069,13 @@ int Gamemode(void)
 		gi.cvar_forceset(gm->name, "dom");
 	} else if (esp->value && espsettings.esp_mode == ESPMODE_ATL) {
 		gamemode = GM_ASSASSINATE_THE_LEADER;
-		//gi.cvar_forceset(gm->name, "atl");
 		// Config load happens AFTER g_spawn, updates must occur in a_esp.c
 	} else if (esp->value && espsettings.esp_mode == ESPMODE_ETV) {
 		gamemode = GM_ESCORT_THE_VIP;
-		//gi.cvar_forceset(gm->name, "etv");
 		// Config load happens AFTER g_spawn, updates must occur in a_esp.c
+	} else if (training->value) {
+		gamemode = GM_TRAINING;
+		gi.cvar_forceset(gm->name, "training");
 	} else if (jump->value) {
 		gamemode = GM_JUMP;
 		gi.cvar_forceset(gm->name, "jump");
@@ -1461,6 +1469,26 @@ void SpawnEntities (const char *mapname, const char *entities, const char *spawn
 			gi.cvar_forceset(teamplay->name, "1");
 		}
 	}
+	else if (training->value)
+	{
+		gi.cvar_forceset(gm->name, "training");
+		if (training->value == 1) {
+			gameSettings |= GS_DEATHMATCH;
+			gi.cvar_forceset("dm_choose", "0");
+		}
+		else if (training->value == 2) {
+			gameSettings |= (GS_DEATHMATCH | GS_WEAPONCHOOSE);
+		}
+		// Training mode specific settings, overridable of course
+		gi.cvar_forceset("matchmode", "0");
+		gi.cvar_forceset("item_respawnmode", "1");
+		gi.cvar_forceset("items", "2");
+		gi.cvar_forceset("dmweapon", "Combat Knife");
+		gi.cvar_forceset("use_rewards", "0");  // No reward announcements in training mode
+		gi.cvar_forceset("weapon_respawn", "1"); // Near-instant weapon respawn
+		gi.cvar_forceset("item_respawn", "1"); // Near instant item respawn
+		gi.cvar_forceset("ammo_respawn", "1"); // Near instant ammo respawn
+	}
 	else if (teamplay->value)
 	{
 		gameSettings |= (GS_ROUNDBASED | GS_WEAPONCHOOSE);
@@ -1492,6 +1520,10 @@ void SpawnEntities (const char *mapname, const char *entities, const char *spawn
 			gi.cvar_forceset(use_oldspawns->name, "1");
 		}
 	}
+
+	// Global enforce training mode off unless it's explicitly set
+	if (!training->value)
+		gi.cvar_forceset("training", "0");
 
 	// Reset unique items if changing from jump to any other mode
 	if (!jump->value) {
@@ -1639,6 +1671,11 @@ void SpawnEntities (const char *mapname, const char *entities, const char *spawn
 		//TNG:Freud - New spawning system
 		if(!use_oldspawns->value)
 			NS_GetSpawnPoints();
+	}
+	
+	if (training->value)
+	{
+		GetBotSpawnPoints();
 	}
 
 	G_LoadLocations();

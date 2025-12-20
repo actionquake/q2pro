@@ -344,6 +344,7 @@ typedef struct gclient_s gclient_t;
 #define SPAWNFLAG_NOT_HARD              BIT(10)
 #define SPAWNFLAG_NOT_DEATHMATCH        BIT(11)
 #define SPAWNFLAG_NOT_COOP              BIT(12)
+#define SPAWNFLAG_ONLY_BOTLIB_SPAWN     BIT(13) // Only BOTLIB bots will spawn here
 
 // edict->flags
 #define FL_FLY                  BIT(0)
@@ -432,6 +433,28 @@ typedef enum
   AMMO_SLUGS
 }
 ammo_t;
+
+#ifndef NO_BOTS
+// g_spawn.c
+typedef enum
+{
+  BOT_NOMOVE = BIT(0),  // Bot will not move from their spawnpoint, but will still shoot enemy entities
+  BOT_NOSHOOT = BIT(1),  // Bot will not shoot enemy entities, but will still move/interact and behave as if they were 
+  BOT_NORESPAWN = BIT(2), // Bot never respawns (does not use the player respawn method)
+  BOT_IGNORE_PLAYERS = BIT(3), // Bot ignores players
+  BOT_IGNORE_BOTS = BIT(4), // Bot ignores other bots
+}
+  bot_spawn_behavior_t;
+#endif
+
+#define BOT_DUMMY (BOT_NOMOVE | BOT_NOSHOOT)
+#define BOT_IGNORE_ALL (BOT_IGNORE_PLAYERS | BOT_IGNORE_BOTS)
+  /*
+    The combination of BOT_IGNORE_PLAYERS and BOT_IGNORE_BOTS (BOT_IGNORE_ALL) should make the bot navigate freely,
+	but otherwise do nothing.
+    The difference between that and BOT_NOSHOOT is that the BOT_NOSHOOT bot will interact (avoid, strafe around, etc) with the player
+    as if they were going to attack, but does not
+  */
 
 //tng_net.c
 typedef enum {
@@ -1119,6 +1142,7 @@ typedef enum {
     GM_ASSASSINATE_THE_LEADER,
     GM_ESCORT_THE_VIP,
 	GM_JUMP,
+	GM_TRAINING,
 	GM_MAX
 } GameMode;
 
@@ -1137,6 +1161,7 @@ typedef enum {
 #define GMN_DEATHMATCH "Deathmatch"
 #define GMN_DOMINATION "Domination"
 #define GMN_ESPIONAGE "Espionage"
+#define GMN_TRAINING "Training"
 #define GMN_JUMP "Jump"
 #define GMN_3TEAMS "3Teams"
 //#define GMN_NEW_MODE 2       // If new game mode flags are created, use 2 for its value first
@@ -1405,7 +1430,7 @@ extern cvar_t *msgflags;
 extern cvar_t *use_pickup;
 //end cUrl integration
 
-extern cvar_t *training_mode; // Sets training mode vars
+extern cvar_t *training; // Sets training mode vars
 extern cvar_t *g_highscores_dir; // Sets the highscores directory
 extern cvar_t *g_highscores_countbots; // Toggles if we save highscores achieved by bots
 extern cvar_t *lca_grenade; // Allows grenade pin pulling during LCA
@@ -1776,6 +1801,7 @@ void EspionageChaseCam(edict_t *self, edict_t *attacker);
 //
 // g_spawn.c
 //
+void GetBotSpawnPoints(void);
 void ChangePlayerSpawns(void);
 void ED_CallSpawn( edict_t *ent );
 char* ED_NewString(const char* string);
@@ -1804,6 +1830,8 @@ void ClientUserinfoChanged(edict_t* ent, char* userinfo);
 void ClientDisconnect(edict_t* ent);
 void CopyToBodyQue(edict_t* ent);
 void Announce_Reward(edict_t *ent, int rewardType);
+void FreeBotSpawnpoint(edict_t *ent);
+extern int num_bot_spawns;
 
 //p_weapon.c
 void Weapon_Generic( edict_t * ent, int FRAME_ACTIVATE_LAST, int FRAME_FIRE_LAST,
@@ -2780,13 +2808,14 @@ struct edict_s
 	int node_timeout; 
 	int last_node; 
 	int tries;
-
-
 	 
 	// AI related stuff 
 	int weaponchoice; 
 	int equipchoice; 
-	float	fLastZoomTime;	// Time we last changed sniper zoom mode 
+	float	fLastZoomTime;	// Time we last changed sniper zoom mode
+	// for info_bot_deathmatch spawnpoint BOTLIB botflags
+	int botflags;
+	edict_t *bot_spawnpoint;
  
 	// Enemy related 
 	qboolean	killchat;	// Have we reported an enemy death and taunted him 

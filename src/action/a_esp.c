@@ -1231,7 +1231,7 @@ edict_t *SelectEspSpawnPoint(edict_t *ent)
 			cname = "info_player_team2";
 			break;
 		case TEAM3:
-			cname = "info_player_deathmatch";
+			cname = "info_player_team3";
 			break;
 		default:
 			cname = "info_player_deathmatch";

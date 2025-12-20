@@ -347,6 +347,10 @@ static size_t transparentEntryCount = 0;
 transparent_list_t *transparent_list = NULL;
 static transparent_list_t *transparentlistFree = NULL;
 
+void SP_info_player_team3(edict_t * self)
+{
+}
+
 void InitTransparentList( void )
 {
 	transparent_list = NULL;
@@ -4005,6 +4009,12 @@ void GetSpawnPoints (void)
 	}
 
 	if ((spot = G_Find (spot, FOFS (classname), "info_player_team2")) != NULL)
+	{
+		potential_spawns[num_potential_spawns] = spot;
+		num_potential_spawns++;
+	}
+	
+	if ((spot = G_Find (spot, FOFS (classname), "info_player_team3")) != NULL)
 	{
 		potential_spawns[num_potential_spawns] = spot;
 		num_potential_spawns++;

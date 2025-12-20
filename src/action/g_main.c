@@ -586,7 +586,7 @@ cvar_t *msgflags;						// Message flags (like dmflags) see Discord_Notifications
 cvar_t *use_pickup;						// Enable pickup notifications from the server
 // end cURL integration cvars
 
-cvar_t *training_mode; // Sets training mode vars
+cvar_t *training; // Sets training mode vars
 cvar_t *g_highscores_dir; // Sets the highscores directory
 cvar_t *g_highscores_countbots; // Toggles if we save highscores achieved by bots
 cvar_t *lca_grenade; // Allows grenade pin pulling during LCA

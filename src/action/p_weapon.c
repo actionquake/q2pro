@@ -448,7 +448,6 @@ qboolean Pickup_Weapon(edict_t* ent, edict_t* other)
 	return true;
 }
 
-
 // zucc vwep 3.17(?) vwep support
 void ShowGun(edict_t* ent)
 {
@@ -708,7 +707,7 @@ void SpecialWeaponRespawnTimer(edict_t* ent)
 	*/
 
 	// Allweapon setting makes dropped weapons disappear in 1s
-	if (allweapon->value) { // allweapon set
+	if (allweapon->value || training->value) { // allweapon set
 		ent->nextthink = eztimer(1);
 		ent->think = G_FreeEdict;
 		return;
@@ -723,6 +722,12 @@ void SpecialWeaponRespawnTimer(edict_t* ent)
 	if (esp->value || dom->value || ctf->value) {
 		ent->nextthink = eztimer(30);
 		ent->think = G_FreeEdict;
+		return;
+	}
+	// Training mode weapons disappear in 2 seconds to reduce clutter
+	if (training->value) {
+		ent->nextthink = eztimer(2);
+		ent->think = ThinkSpecWeap;
 		return;
 	}
 	// Normal teamplay, weapons basically never disappear

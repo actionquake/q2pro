@@ -2108,6 +2108,10 @@ void kill_door(edict_t* self, edict_t* inflictor, edict_t* attacker, int damage,
 // Removes all door types
 void Remove_All_Doors(void)
 {
+	if (training->value)
+		return; // Do not remove doors in training mode
+
+
 	edict_t* door;
 	for (door = g_edicts; door < &g_edicts[globals.num_edicts]; door++)
 	{

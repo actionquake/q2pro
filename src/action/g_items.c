@@ -194,6 +194,20 @@ void DoRespawn (edict_t * ent)
 
 void SetRespawn (edict_t * ent, float delay)
 {
+	// Safety check to prevent crashes with invalid entities
+    // if (!ent || !ent->inuse) {
+    //     gi.dprintf("WARNING: SetRespawn called with invalid entity\n");
+    //     return;
+    // }
+    
+    // Additional safety check for linked list pointers
+    // if (ent->area.prev == NULL || ent->area.next == NULL) {
+    //     gi.dprintf("WARNING: SetRespawn called with unlinked entity (classname: %s, item: %s)\n", 
+    //               ent->classname ? ent->classname : "NULL",
+    //               ent->item ? ent->item->classname : "NULL");
+    //     return;
+    // }
+
 	ent->flags |= FL_RESPAWN;
 	ent->svflags |= SVF_NOCLIENT;
 	ent->solid = SOLID_NOT;
@@ -325,8 +339,9 @@ qboolean Pickup_Special (edict_t * ent, edict_t * other)
 
 	AddItem(other, ent->item);
 
-	if(!(ent->spawnflags & (DROPPED_ITEM | DROPPED_PLAYER_ITEM)) && item_respawnmode->value)
+	if (!(ent->spawnflags & (DROPPED_ITEM | DROPPED_PLAYER_ITEM)) && item_respawnmode->value) {
 		SetRespawn (ent, item_respawn->value);
+	}
 
 	return true;
 }
@@ -913,6 +928,11 @@ static void drop_make_touchable (edict_t * ent)
 	else if( ctf->value )
 	{
 		ent->nextthink = level.framenum + 6 * HZ;
+		ent->think = G_FreeEdict;
+	}
+	else if( training->value ) // All items disappear after 2 seconds in training mode
+	{
+		ent->nextthink = eztimer(2);
 		ent->think = G_FreeEdict;
 	}
 	else

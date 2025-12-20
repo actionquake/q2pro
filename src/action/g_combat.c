@@ -153,7 +153,7 @@ qboolean CanDamage (edict_t * targ, edict_t * inflictor)
 
 	// Allows grenades to destroy func_buttons if they have health (city radio room for example)
 	// in coop mode or training mode only (training maps for example)
-	if (coop->value || training_mode->value) {
+	if (coop->value || training->value) {
 		if ((0 == Q_stricmp("func_button", targ->classname)) && 0 == Q_stricmp("hgrenade", inflictor->classname)) {
 			PRETRACE ();
 			trace = gi.trace (inflictor->s.origin, vec3_origin, vec3_origin, targ->s.origin, inflictor, MASK_SOLID);

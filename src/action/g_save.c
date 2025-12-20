@@ -294,6 +294,7 @@ field_t fields[] = {
   {"volume", FOFS (volume), F_FLOAT},
   {"attenuation", FOFS (attenuation), F_FLOAT},
   {"map", FOFS (map), F_LSTRING},
+  {"botflags", FOFS (botflags), F_INT},
 
   // temp spawn vars -- only valid when the spawn function is called
   {"lip", STOFS (lip), F_INT, FFL_SPAWNTEMP},
@@ -666,8 +667,8 @@ void InitGame( void )
 	msgflags = gi.cvar("msgflags", "0", 0);
 	use_pickup = gi.cvar("use_pickup", "0", 0);
 
-	training_mode = gi.cvar("training_mode", "0", CVAR_LATCH | CVAR_SERVERINFO_EXT);
-	if (training_mode->value){
+	training = gi.cvar("training_mode", "0", CVAR_LATCH | CVAR_SERVERINFO_EXT);
+	if (training->value){
 		gi.cvar_forceset("item_respawnmode", "1");
 		gi.cvar_forceset("items", "2");
 		gi.cvar_forceset("dmweapon", "Combat Knife");
