@@ -45,7 +45,7 @@ static void CL_ParseDeltaEntity(server_frame_t           *frame,
     frame->numEntities++;
 
 #if USE_DEBUG
-    if (cl_shownet->integer > 2 && bits) {
+    if (cl_shownet->integer >= 3 && bits) {
         MSG_ShowDeltaEntityBits(bits);
         Com_LPrintf(PRINT_DEVELOPER, "\n");
     }
@@ -112,7 +112,7 @@ static void CL_ParsePacketEntities(const server_frame_t *oldframe, server_frame_
 
         while (oldnum < newnum) {
             // one or more entities from the old packet are unchanged
-            SHOWNET(3, "   unchanged:%i\n", oldnum);
+            SHOWNET(4, "   unchanged:%i\n", oldnum);
             CL_ParseDeltaEntity(frame, oldnum, oldstate, 0);
 
             oldindex++;
@@ -128,7 +128,7 @@ static void CL_ParsePacketEntities(const server_frame_t *oldframe, server_frame_
 
         if (bits & U_REMOVE) {
             // the entity present in oldframe is not in the current frame
-            SHOWNET(2, "%3u:remove:%i\n", readcount, newnum);
+            SHOWNET(3, "%3u:remove:%i\n", readcount, newnum);
             if (oldnum != newnum) {
                 Com_DPrintf("U_REMOVE: oldnum != newnum\n");
             }
@@ -150,10 +150,10 @@ static void CL_ParsePacketEntities(const server_frame_t *oldframe, server_frame_
 
         if (oldnum == newnum) {
             // delta from previous state
-            SHOWNET(2, "%3u:delta:%i ", readcount, newnum);
+            SHOWNET(3, "%3u:delta:%i ", readcount, newnum);
             CL_ParseDeltaEntity(frame, newnum, oldstate, bits);
             if (!bits) {
-                SHOWNET(2, "\n");
+                SHOWNET(3, "\n");
             }
 
             oldindex++;
@@ -170,10 +170,10 @@ static void CL_ParsePacketEntities(const server_frame_t *oldframe, server_frame_
 
         if (oldnum > newnum) {
             // delta from baseline
-            SHOWNET(2, "%3u:baseline:%i ", readcount, newnum);
+            SHOWNET(3, "%3u:baseline:%i ", readcount, newnum);
             CL_ParseDeltaEntity(frame, newnum, &cl.baselines[newnum], bits);
             if (!bits) {
-                SHOWNET(2, "\n");
+                SHOWNET(3, "\n");
             }
             continue;
         }
@@ -182,7 +182,7 @@ static void CL_ParsePacketEntities(const server_frame_t *oldframe, server_frame_
     // any remaining entities in the old frame are copied over
     while (oldnum != MAX_EDICTS) {
         // one or more entities from the old packet are unchanged
-        SHOWNET(3, "   unchanged:%i\n", oldnum);
+        SHOWNET(4, "   unchanged:%i\n", oldnum);
         CL_ParseDeltaEntity(frame, oldnum, oldstate, 0);
 
         oldindex++;
@@ -253,9 +253,15 @@ static void CL_ParseFrame(int extrabits)
                 // CLIENTDROP is implied, don't draw both
                 suppressed &= ~FF_CLIENTDROP;
             }
+            if (suppressed & FF_SUPPRESSED) {
+                cl.suppress_count = 1;
+            }
             cl.frameflags |= suppressed;
-        } else if (suppressed) {
-            cl.frameflags |= FF_SUPPRESSED;
+        } else {
+            if (suppressed) {
+                cl.frameflags |= FF_SUPPRESSED;
+            }
+            cl.suppress_count = suppressed;
         }
         extraflags = (extrabits << 4) | (bits >> SUPPRESSCOUNT_BITS);
     } else {
@@ -268,7 +274,7 @@ static void CL_ParseFrame(int extrabits)
 
         // BIG HACK to let old demos continue to work
         if (cls.serverProtocol != PROTOCOL_VERSION_OLD) {
-            suppressed = MSG_ReadByte();
+            cl.suppress_count = suppressed = MSG_ReadByte();
             if (suppressed) {
                 cl.frameflags |= FF_SUPPRESSED;
             }
@@ -333,7 +339,7 @@ static void CL_ParseFrame(int extrabits)
         frame.areabytes = 0;
     }
 
-    SHOWNET(2, "%3u:playerinfo\n", msg_read.readcount);
+    SHOWNET(3, "%3u:playerinfo\n", msg_read.readcount);
 
     if (cls.serverProtocol <= PROTOCOL_VERSION_DEFAULT || cls.serverProtocol == PROTOCOL_VERSION_AQTION) {
         if (MSG_ReadByte() != svc_playerinfo) {
@@ -369,7 +375,7 @@ static void CL_ParseFrame(int extrabits)
 	} else if (cls.serverProtocol > PROTOCOL_VERSION_DEFAULT) {
         MSG_ParseDeltaPlayerstate_Enhanced(from, &frame.ps, bits, extraflags, cl.psFlags);
 #if USE_DEBUG
-        if (cl_shownet->integer > 2 && (bits || extraflags)) {
+        if (cl_shownet->integer >= 3 && (bits || extraflags)) {
             Com_LPrintf(PRINT_DEVELOPER, "   ");
             MSG_ShowDeltaPlayerstateBits_Enhanced(bits, extraflags);
             Com_LPrintf(PRINT_DEVELOPER, "\n");
@@ -395,7 +401,7 @@ static void CL_ParseFrame(int extrabits)
     } else {
         MSG_ParseDeltaPlayerstate_Default(from, &frame.ps, bits, cl.psFlags);
 #if USE_DEBUG
-        if (cl_shownet->integer > 2 && bits) {
+        if (cl_shownet->integer >= 3 && bits) {
             Com_LPrintf(PRINT_DEVELOPER, "   ");
             MSG_ShowDeltaPlayerstateBits_Default(bits);
             Com_LPrintf(PRINT_DEVELOPER, "\n");
@@ -404,7 +410,7 @@ static void CL_ParseFrame(int extrabits)
         frame.clientNum = cl.clientNum;
     }
 
-    SHOWNET(2, "%3u:packetentities\n", msg_read.readcount);
+    SHOWNET(3, "%3u:packetentities\n", msg_read.readcount);
 
     // parse packetentities
     if (cls.serverProtocol <= PROTOCOL_VERSION_DEFAULT || cls.serverProtocol == PROTOCOL_VERSION_AQTION) {
@@ -419,7 +425,7 @@ static void CL_ParseFrame(int extrabits)
     cl.frames[currentframe & UPDATE_MASK] = frame;
 
 #if USE_DEBUG
-    if (cl_shownet->integer > 2) {
+    if (cl_shownet->integer >= 3) {
         int seq = cls.netchan.incoming_acknowledged & CMD_MASK;
         int rtt = cls.demo.playback ? 0 : cls.realtime - cl.history[seq].sent;
         Com_LPrintf(PRINT_DEVELOPER, "%3u:frame:%d  delta:%d  rtt:%d\n",
@@ -480,7 +486,7 @@ static void CL_ParseConfigstring(int index)
     maxlen = Com_ConfigstringSize(&cl.csr, index);
     len = MSG_ReadString(s, maxlen);
 
-    SHOWNET(2, "    %d \"%s\"\n", index, Com_MakePrintable(s));
+    SHOWNET(3, "    %d \"%s\"\n", index, Com_MakePrintable(s));
 
     if (len >= maxlen) {
         Com_WPrintf(
@@ -510,7 +516,7 @@ static void CL_ParseBaseline(int index, uint64_t bits)
     }
 
 #if USE_DEBUG
-    if (cl_shownet->integer > 2) {
+    if (cl_shownet->integer >= 3) {
         Com_LPrintf(PRINT_DEVELOPER, "   baseline:%i ", index);
         MSG_ShowDeltaEntityBits(bits);
         Com_LPrintf(PRINT_DEVELOPER, "\n");
@@ -802,6 +808,8 @@ static void CL_ParseServerData(void)
         }
     }
 
+    cl.max_stats = (cl.psFlags & MSG_PS_EXTENSIONS_2) ? MAX_STATS_NEW : MAX_STATS_OLD;
+
     // use full extended flags unless writing backward compatible demo
     cls.demo.esFlags = cl.csr.extended ? CL_ES_EXTENDED_MASK_2 : 0;
     cls.demo.psFlags = cl.csr.extended ? CL_PS_EXTENDED_MASK_2 : 0;
@@ -1054,7 +1062,7 @@ static void CL_ParseStartSoundPacket(void)
     if (flags & SND_POS)
         CL_ReadPos(snd.pos);
 
-    SHOWNET(2, "    %s\n", cl.configstrings[cl.csr.sounds + snd.index]);
+    SHOWNET(3, "    %s\n", cl.configstrings[cl.csr.sounds + snd.index]);
 }
 
 static void CL_ParseReconnect(void)
@@ -1143,7 +1151,7 @@ static void CL_ParsePrint(void)
     level = MSG_ReadByte();
     MSG_ReadString(s, sizeof(s));
 
-    SHOWNET(2, "    %i \"%s\"\n", level, Com_MakePrintable(s));
+    SHOWNET(3, "    %i \"%s\"\n", level, Com_MakePrintable(s));
 
     if (level != PRINT_CHAT) {
         if (cl.csr.extended && (level == PRINT_TYPEWRITER || level == PRINT_CENTER))
@@ -1204,7 +1212,7 @@ static void CL_ParseCenterPrint(void)
     char s[MAX_STRING_CHARS];
 
     MSG_ReadString(s, sizeof(s));
-    SHOWNET(2, "    \"%s\"\n", Com_MakePrintable(s));
+    SHOWNET(3, "    \"%s\"\n", Com_MakePrintable(s));
     SCR_CenterPrint(s, false);
 
     if (!cls.demo.playback && cl.serverstate != ss_broadcast) {
@@ -1218,14 +1226,14 @@ static void CL_ParseStuffText(void)
     char s[MAX_STRING_CHARS];
 
     MSG_ReadString(s, sizeof(s));
-    SHOWNET(2, "    \"%s\"\n", Com_MakePrintable(s));
+    SHOWNET(3, "    \"%s\"\n", Com_MakePrintable(s));
     Cbuf_AddText(&cl_cmdbuf, s);
 }
 
 static void CL_ParseLayout(void)
 {
     MSG_ReadString(cl.layout, sizeof(cl.layout));
-    SHOWNET(2, "    \"%s\"\n", Com_MakePrintable(cl.layout));
+    SHOWNET(3, "    \"%s\"\n", Com_MakePrintable(cl.layout));
 }
 
 static void CL_ParseInventory(void)
@@ -1446,7 +1454,7 @@ void CL_ParseServerMessage(void)
 #if USE_DEBUG
     if (cl_shownet->integer == 1) {
         Com_LPrintf(PRINT_DEVELOPER, "%u ", msg_read.cursize);
-    } else if (cl_shownet->integer > 1) {
+    } else if (cl_shownet->integer >= 2) {
         Com_LPrintf(PRINT_DEVELOPER, "------------------\n");
     }
 #endif
@@ -1459,7 +1467,7 @@ void CL_ParseServerMessage(void)
     while (1) {
         readcount = msg_read.readcount;
         if (readcount == msg_read.cursize) {
-            SHOWNET(1, "%3u:END OF MESSAGE\n", readcount);
+            SHOWNET(2, "%3u:END OF MESSAGE\n", readcount);
             break;
         }
 
@@ -1470,10 +1478,7 @@ void CL_ParseServerMessage(void)
         extrabits = cmd >> SVCMD_BITS;
         cmd &= SVCMD_MASK;
 
-        if (cmd == svc_extend)
-			cmd = MSG_ReadByte();
-
-        SHOWNET(1, "%3u:%s\n", msg_read.readcount - 1, MSG_ServerCommandString(cmd));
+        SHOWNET(2, "%3u:%s\n", msg_read.readcount - 1, MSG_ServerCommandString(cmd));
 
         // other commands
 		switch (cmd) {
@@ -1669,7 +1674,7 @@ bool CL_SeekDemoMessage(void)
 #if USE_DEBUG
     if (cl_shownet->integer == 1) {
         Com_LPrintf(PRINT_DEVELOPER, "%u ", msg_read.cursize);
-    } else if (cl_shownet->integer > 1) {
+    } else if (cl_shownet->integer >= 2) {
         Com_LPrintf(PRINT_DEVELOPER, "------------------\n");
     }
 #endif
@@ -1681,12 +1686,12 @@ bool CL_SeekDemoMessage(void)
 //
     while (1) {
         if (msg_read.readcount == msg_read.cursize) {
-            SHOWNET(1, "%3u:END OF MESSAGE\n", msg_read.readcount);
+            SHOWNET(2, "%3u:END OF MESSAGE\n", msg_read.readcount);
             break;
         }
 
         cmd = MSG_ReadByte();
-        SHOWNET(1, "%3u:%s\n", msg_read.readcount - 1, MSG_ServerCommandString(cmd));
+        SHOWNET(2, "%3u:%s\n", msg_read.readcount - 1, MSG_ServerCommandString(cmd));
 
         // other commands
         switch (cmd) {

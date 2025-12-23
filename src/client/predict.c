@@ -51,7 +51,7 @@ void CL_CheckPredictionError(void)
 
     // save the prediction error for interpolation
     len = abs(delta[0]) + abs(delta[1]) + abs(delta[2]);
-    if (len < 1 || len > 640) {
+    if (len <= 1 || len > 640) {
         // > 80 world units is a teleport or something
         VectorClear(cl.prediction_error);
         return;
@@ -104,7 +104,8 @@ static void CL_ClipMoveToEntities(trace_t *tr, const vec3_t start, const vec3_t 
 
         CM_TransformedBoxTrace(&trace, start, end,
                                mins, maxs, headnode, contentmask,
-                               ent->current.origin, ent->current.angles);
+                               ent->current.origin, ent->current.angles,
+                               cl.csr.extended);
 
         CM_ClipEntity(tr, &trace, (struct edict_s *)ent);
     }
@@ -118,7 +119,7 @@ CL_Trace
 void CL_Trace(trace_t *tr, const vec3_t start, const vec3_t end, const vec3_t mins, const vec3_t maxs, int contentmask)
 {
     // check against world
-    CM_BoxTrace(tr, start, end, mins, maxs, cl.bsp->nodes, contentmask);
+    CM_BoxTrace(tr, start, end, mins, maxs, cl.bsp->nodes, contentmask, cl.csr.extended);
     tr->ent = (struct edict_s *)cl_entities;
     if (tr->fraction == 0)
         return;     // blocked by the world
@@ -129,10 +130,10 @@ void CL_Trace(trace_t *tr, const vec3_t start, const vec3_t end, const vec3_t mi
 
 static int pm_clipmask;
 
-static trace_t q_gameabi CL_PMTrace(const vec3_t start, const vec3_t mins, const vec3_t maxs, const vec3_t end)
+static trace_t q_gameabi CL_PMTrace(const vec3_t start, const vec3_t mins, const vec3_t maxs, const vec3_t end, int contentmask)
 {
     trace_t t;
-    CL_Trace(&t, start, end, mins, maxs, pm_clipmask);
+    CL_Trace(&t, start, end, mins, maxs, (cl.csr.extended && contentmask) ? contentmask : pm_clipmask);
     return t;
 }
 
@@ -142,7 +143,7 @@ static int CL_PointContents(const vec3_t point)
     const mmodel_t  *cmodel;
     int i, contents;
 
-    contents = CM_PointContents(point, cl.bsp->nodes);
+    contents = CM_PointContents(point, cl.bsp->nodes, cl.csr.extended);
 
     for (i = 0; i < cl.numSolidEntities; i++) {
         ent = cl.solidEntities[i];
@@ -154,10 +155,8 @@ static int CL_PointContents(const vec3_t point)
         if (!cmodel)
             continue;
 
-        contents |= CM_TransformedPointContents(
-                        point, cmodel->headnode,
-                        ent->current.origin,
-                        ent->current.angles);
+        contents |= CM_TransformedPointContents(point, cmodel->headnode, ent->current.origin,
+                                                ent->current.angles, cl.csr.extended);
     }
 
     return contents;
@@ -261,8 +260,14 @@ void CL_PredictMovement(void)
     if (pm.s.pm_type != PM_SPECTATOR && (pm.s.pm_flags & PMF_ON_GROUND)) {
         oldz = cl.predicted_origins[cl.predicted_step_frame & CMD_MASK][2];
         step = pm.s.origin[2] - oldz;
-        if (step > 63 && step < 160) {
-            cl.predicted_step = step * 0.125f;
+        if (step >= 63 && step < 160) {
+            // check for stepping up before a previous step is completed
+            unsigned delta = cls.realtime - cl.predicted_step_time;
+            float prev_step = 0;
+            if (delta < 100)
+                prev_step = cl.predicted_step * (100 - delta) * 0.01f;
+
+            cl.predicted_step = min(prev_step + step * 0.125f, 32);
             cl.predicted_step_time = cls.realtime;
             cl.predicted_step_frame = frame + 1;    // don't double step
         }

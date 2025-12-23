@@ -46,7 +46,7 @@ void        CM_Init(void);
 
 void        CM_FreeMap(cm_t *cm);
 int         CM_LoadMap(cm_t *cm, const char *name);
-void        CM_LoadOverrides(cm_t *cm, char *server, size_t server_size);
+void        CM_LoadOverride(cm_t *cm, char *server, size_t server_size);
 
 const mnode_t   *CM_NodeNum(const cm_t *cm, int number);
 const mleaf_t   *CM_LeafNum(const cm_t *cm, int number);
@@ -60,25 +60,28 @@ const mleaf_t   *CM_LeafNum(const cm_t *cm, int number);
 const mnode_t   *CM_HeadnodeForBox(const vec3_t mins, const vec3_t maxs);
 
 // returns an ORed contents mask
-static inline int CM_PointContents(const vec3_t p, const mnode_t *headnode)
+static inline int CM_PointContents(const vec3_t p, const mnode_t *headnode, bool extended)
 {
     if (!headnode)
         return 0;   // map not loaded
-    return BSP_PointLeaf(headnode, p)->contents;
+    return BSP_PointLeaf(headnode, p)->contents[extended];
 }
 
 int         CM_TransformedPointContents(const vec3_t p, const mnode_t *headnode,
-                                        const vec3_t origin, const vec3_t angles);
+                                        const vec3_t origin, const vec3_t angles,
+                                        bool extended);
 
 void        CM_BoxTrace(trace_t *trace,
                         const vec3_t start, const vec3_t end,
                         const vec3_t mins, const vec3_t maxs,
-                        const mnode_t *headnode, int brushmask);
+                        const mnode_t *headnode, int brushmask,
+                        bool extended);
 void        CM_TransformedBoxTrace(trace_t *trace,
                                    const vec3_t start, const vec3_t end,
                                    const vec3_t mins, const vec3_t maxs,
                                    const mnode_t *headnode, int brushmask,
-                                   const vec3_t origin, const vec3_t angles);
+                                   const vec3_t origin, const vec3_t angles,
+                                   bool extended);
 void        CM_ClipEntity(trace_t *dst, const trace_t *src, struct edict_s *ent);
 
 // call with topnode set to the headnode, returns with topnode

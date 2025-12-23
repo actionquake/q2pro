@@ -20,9 +20,7 @@ with this program; if not, write to the Free Software Foundation, Inc.,
 
 tesselator_t tess;
 
-#define FACE_HASH_BITS  8
-#define FACE_HASH_SIZE  (1 << FACE_HASH_BITS)
-#define FACE_HASH_MASK  (FACE_HASH_SIZE - 1)
+#define FACE_HASH_SIZE  256
 
 static mface_t  *faces_head[FACE_HASH_SIZE];
 static mface_t  **faces_next[FACE_HASH_SIZE];
@@ -97,7 +95,7 @@ void GL_DrawParticles(void)
             scale = 1.0f;
             if (dist > 20)
                 scale += dist * 0.004f;
-            scale *= gl_partscale->value;
+            scale *= gl_partscale->value * p->scale;
             scale2 = scale * PARTICLE_SCALE;
 
             VectorMA(p->origin, scale2, glr.viewaxis[1], dst_vert);
@@ -138,6 +136,7 @@ static void GL_FlushBeamSegments(void)
     if (!tess.numindices)
         return;
 
+    glStateBits_t state = GLS_BLEND_BLEND | GLS_DEPTHMASK_FALSE | glr.fog_bits;
     glArrayBits_t array = GLA_VERTEX | GLA_COLOR;
     GLuint texnum = TEXNUM_BEAM;
 
@@ -146,8 +145,11 @@ static void GL_FlushBeamSegments(void)
     else
         array |= GLA_TC;
 
+    if (glr.framebuffer_bound && gl_bloom->integer)
+        state |= GLS_BLOOM_GENERATE | GLS_BLOOM_SHELL;
+
     GL_BindTexture(TMU_TEXTURE, texnum);
-    GL_StateBits(GLS_BLEND_BLEND | GLS_DEPTHMASK_FALSE | glr.fog_bits);
+    GL_StateBits(state);
     GL_ArrayBits(array);
     GL_DrawIndexed(SHOWTRIS_FX);
 
@@ -517,7 +519,7 @@ static const glVaDesc_t arraydescs[VA_TOTAL][VERT_ATTR_COUNT] = {
     [VA_OCCLUDE] = {
         [VERT_ATTR_POS] = ATTR_FLOAT(3, 3, 0),
     },
-    [VA_WATERWARP] = {
+    [VA_POSTPROCESS] = {
         [VERT_ATTR_POS] = ATTR_FLOAT(2, 4, 0),
         [VERT_ATTR_TC]  = ATTR_FLOAT(2, 4, 2),
     },
@@ -663,6 +665,8 @@ void GL_Flush3D(void)
         if (tess.texnum[TMU_GLOWMAP])
             state |= GLS_GLOWMAP_ENABLE;
     }
+    if (glr.framebuffer_bound && gl_bloom->integer)
+        state |= GLS_BLOOM_GENERATE;
 
     if (!(state & GLS_TEXTURE_REPLACE))
         array |= GLA_COLOR;

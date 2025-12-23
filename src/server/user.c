@@ -116,9 +116,9 @@ static void maybe_flush_msg(size_t size)
 
 static void write_configstrings(void)
 {
-    int     i;
-    char    *string;
-    size_t  length;
+    int         i;
+    const char *string;
+    size_t      length;
 
     // write a packet full of data
     for (i = 0; i < sv_client->csr->end; i++) {
@@ -148,7 +148,7 @@ static void write_baseline(const entity_packed_t *base)
 static void write_baselines(void)
 {
     int i, j;
-    entity_packed_t *base;
+    const entity_packed_t *base;
 
     // write a packet full of data
     for (i = 0; i < SV_BASELINES_CHUNKS; i++) {
@@ -173,9 +173,9 @@ static void write_baselines(void)
 
 static void write_configstring_stream(void)
 {
-    int     i;
-    char    *string;
-    size_t  length;
+    int         i;
+    const char *string;
+    size_t      length;
 
     MSG_WriteByte(svc_configstringstream);
 
@@ -206,7 +206,7 @@ static void write_configstring_stream(void)
 static void write_baseline_stream(void)
 {
     int i, j;
-    entity_packed_t *base;
+    const entity_packed_t *base;
 
     MSG_WriteByte(svc_baselinestream);
 
@@ -236,10 +236,10 @@ static void write_baseline_stream(void)
 
 static void write_gamestate(void)
 {
-    entity_packed_t  *base;
+    const entity_packed_t   *base;
     int         i, j;
     size_t      length;
-    char        *string;
+    const char  *string;
 
     MSG_WriteByte(svc_gamestate);
 
@@ -846,7 +846,10 @@ static void SV_NextServer_f(void)
     if (Q_atoi(Cmd_Argv(1)) != sv.spawncount)
         return;     // leftover from last server
 
-    sv.spawncount ^= 1;     // make sure another doesn't sneak in
+    if (sv.nextserver_pending)
+        return;
+
+    sv.nextserver_pending = true;   // make sure another doesn't sneak in
 
     const char *v = Cvar_VariableString("nextserver");
     if (*v) {

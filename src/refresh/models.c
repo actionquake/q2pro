@@ -260,26 +260,26 @@ static int MOD_LoadSP2(model_t *model, const void *rawdata, size_t length)
 
 static const char *MOD_ValidateMD2(const dmd2header_t *header, size_t length)
 {
-    ENSURE(header->num_tris <= TESS_MAX_INDICES / 3, "Too many tris");
-    ENSURE(header->num_st <= INT_MAX / sizeof(dmd2stvert_t), "Too many st");
-    ENSURE(header->num_xyz <= MD2_MAX_VERTS, "Too many xyz");
-    ENSURE(header->num_frames <= MD2_MAX_FRAMES, "Too many frames");
-    ENSURE(header->num_skins <= MD2_MAX_SKINS, "Too many skins");
+    ENSURE(header->num_tris   <= TESS_MAX_INDICES / 3,           "Too many tris");
+    ENSURE(header->num_st     <= INT_MAX / sizeof(dmd2stvert_t), "Too many st");
+    ENSURE(header->num_xyz    <= MD2_MAX_VERTS,                  "Too many xyz");
+    ENSURE(header->num_frames <= MD2_MAX_FRAMES,                 "Too many frames");
+    ENSURE(header->num_skins  <= MD2_MAX_SKINS,                  "Too many skins");
 
     ENSURE(header->framesize >= sizeof(dmd2frame_t) + (header->num_xyz - 1) * sizeof(dmd2trivertx_t), "Too small frame size");
     ENSURE(header->framesize <= MD2_MAX_FRAMESIZE, "Too big frame size");
 
-    ENSURE((uint64_t)header->ofs_tris + header->num_tris * sizeof(dmd2triangle_t) <= length, "Bad tris offset");
-    ENSURE((uint64_t)header->ofs_st + header->num_st * sizeof(dmd2stvert_t) <= length, "Bad st offset");
-    ENSURE((uint64_t)header->ofs_frames + header->num_frames * header->framesize <= length, "Bad frames offset");
-    ENSURE((uint64_t)header->ofs_skins + MD2_MAX_SKINNAME * header->num_skins <= length, "Bad skins offset");
+    ENSURE((uint64_t)header->ofs_tris   + header->num_tris   * sizeof(dmd2triangle_t) <= length, "Bad tris offset");
+    ENSURE((uint64_t)header->ofs_st     + header->num_st     * sizeof(dmd2stvert_t)   <= length, "Bad st offset");
+    ENSURE((uint64_t)header->ofs_frames + header->num_frames * header->framesize      <= length, "Bad frames offset");
+    ENSURE((uint64_t)header->ofs_skins  + header->num_skins  * MD2_MAX_SKINNAME       <= length, "Bad skins offset");
 
-    ENSURE(!(header->ofs_tris % q_alignof(dmd2triangle_t)), "Odd tris offset");
-    ENSURE(!(header->ofs_st % q_alignof(dmd2stvert_t)), "Odd st offset");
-    ENSURE(!(header->ofs_frames % q_alignof(dmd2frame_t)), "Odd frames offset");
-    ENSURE(!(header->framesize % q_alignof(dmd2frame_t)), "Odd frame size");
+    ENSURE(!(header->ofs_tris   % q_alignof(dmd2triangle_t)), "Odd tris offset");
+    ENSURE(!(header->ofs_st     % q_alignof(dmd2stvert_t)),   "Odd st offset");
+    ENSURE(!(header->ofs_frames % q_alignof(dmd2frame_t)),    "Odd frames offset");
+    ENSURE(!(header->framesize  % q_alignof(dmd2frame_t)),    "Odd frame size");
 
-    ENSURE(header->skinwidth >= 1 && header->skinwidth <= MAX_TEXTURE_SIZE, "Bad skin width");
+    ENSURE(header->skinwidth  >= 1 && header->skinwidth  <= MAX_TEXTURE_SIZE, "Bad skin width");
     ENSURE(header->skinheight >= 1 && header->skinheight <= MAX_TEXTURE_SIZE, "Bad skin height");
     return NULL;
 }
@@ -727,9 +727,24 @@ static int MOD_LoadMD3(model_t *model, const void *rawdata, size_t length)
 
 static void MOD_PrintError(const char *path, int err)
 {
-    Com_EPrintf("Couldn't load %s: %s\n", Com_MakePrintable(path),
-                err == Q_ERR_INVALID_FORMAT ?
-                Com_GetLastError() : Q_ErrorString(err));
+    print_type_t level = PRINT_ERROR;
+    const char *msg;
+
+    switch (err) {
+    case Q_ERR_INVALID_FORMAT:
+        msg = Com_GetLastError();
+        break;
+    case Q_ERR(ENOENT):
+        if (COM_DEVELOPER < 2)
+            return;
+        level = PRINT_DEVELOPER;
+        // fall through
+    default:
+        msg = Q_ErrorString(err);
+        break;
+    }
+
+    Com_LPrintf(level, "Couldn't load %s: %s\n", Com_MakePrintable(path), msg);
 }
 
 #if USE_MD5
@@ -1530,12 +1545,8 @@ qhandle_t R_RegisterModel(const char *name)
     }
 
     ret = FS_LoadFile(normalized, (void **)&rawdata);
-    if (!rawdata) {
-        // don't spam about missing models
-        if (ret == Q_ERR(ENOENT))
-            return 0;
+    if (!rawdata)
         goto fail1;
-    }
 
     if (ret < 4) {
         ret = Q_ERR_FILE_TOO_SMALL;

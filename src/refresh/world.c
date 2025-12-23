@@ -167,7 +167,7 @@ static bool GL_LightPoint_(const vec3_t start, vec3_t color)
     end[2] = start[2] - 8192;
 
     // get base lightpoint from world
-    BSP_LightPoint(&glr.lightpoint, start, end, bsp->nodes, gl_static.nolm_mask);
+    BSP_LightPoint(&glr.lightpoint, start, end, bsp->nodes, gl_static.nolm_mask | SURF_TRANS_MASK);
 
     // trace to other BSP models
     for (i = 0, ent = glr.fd.entities; i < glr.fd.num_entities; i++, ent++) {
@@ -201,7 +201,7 @@ static bool GL_LightPoint_(const vec3_t start, vec3_t color)
         }
 
         BSP_TransformedLightPoint(&pt, start, end, model->headnode,
-                                  gl_static.nolm_mask, ent->origin, angles);
+                                  gl_static.nolm_mask | SURF_TRANS_MASK, ent->origin, angles);
 
         if (pt.fraction < glr.lightpoint.fraction)
             glr.lightpoint = pt;
@@ -339,12 +339,12 @@ static void GL_MarkLeaves(void)
     leaf = BSP_PointLeaf(bsp->nodes, glr.fd.vieworg);
     cluster1 = cluster2 = leaf->cluster;
     VectorCopy(glr.fd.vieworg, tmp);
-    if (!leaf->contents)
+    if (!leaf->contents[0])
         tmp[2] -= 16;
     else
         tmp[2] += 16;
     leaf = BSP_PointLeaf(bsp->nodes, tmp);
-    if (!(leaf->contents & CONTENTS_SOLID))
+    if (!(leaf->contents[0] & CONTENTS_SOLID))
         cluster2 = leaf->cluster;
 
     if (cluster1 == glr.viewcluster1 && cluster2 == glr.viewcluster2)
@@ -511,7 +511,8 @@ static inline bool GL_ClipNode(const mnode_t *node, int *clipflags)
 
 static inline void GL_DrawLeaf(const mleaf_t *leaf)
 {
-    if (leaf->contents == CONTENTS_SOLID)
+    // FIXME: use `&' here?
+    if (leaf->contents[0] == CONTENTS_SOLID)
         return; // solid leaf
 
     if (glr.fd.areabits && !Q_IsBitSet(glr.fd.areabits, leaf->area))
