@@ -876,12 +876,14 @@ qboolean CTFPickup_Flag(edict_t * ent, edict_t * other)
 
 	// TODO: Make this work
 	// in CTB mode, you must have a hand free to pick up the briefcase...
-	if (ctf_mode->value && 
-	other->client->curr_weap != MK23_NUM || 
-	other->client->curr_weap != KNIFE_NUM || 
-	other->client->curr_weap != GRENADE_NUM ){
+	if (ctf_mode->value) {
+		if (
+			other->client->curr_weap != MK23_NUM &&
+			other->client->curr_weap != KNIFE_NUM &&
+			other->client->curr_weap != GRENADE_NUM ){
 			gi.centerprintf(other, "You must have a free hand to pick up the %s!\n", flag_name);
-		return false;
+			return false;
+		}
 	}
 
 	if (other->client->uvTime) {
