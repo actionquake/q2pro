@@ -500,7 +500,7 @@ void ChangeWeapon(edict_t* ent)
 
 	// TODO: Make this work
 	// CTB prevents changing to a non-mk23/knife/grenade if carrying a briefcase
-	if (ctf_mode->value == 2 && 
+	if (ctf_mode->value && 
 	(ent->client->inventory[ITEM_INDEX(team_flag[TEAM1])] ||
 	ent->client->inventory[ITEM_INDEX(team_flag[TEAM2])]))
 	{
