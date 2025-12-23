@@ -213,6 +213,8 @@ Flag locations and CTF player spawns should be specified in tng/mapname.ctf file
   - `ctf_dropflag [0/1]` - Allow clients to drop the flag or not.
   - `uvtime [#]` - The number of seconds *10 of the duration of the 'shield' effect. (for example 40 is 4 secs)
   - `ctf_dyn_respawn [0/1]` - Default 0, if enabled, this will reduce the respawn timer for a losing team periodically.  Will self-correct as that team mounts a comeback. The score discrepancy gets evaluated when a flag is captured on either team.
+  - `ctf_mode [0/1]`, default 0 -- `0` means standard CTF Mode (with flags), `1` means CTB Mode (with briefcases and one-hand-free requirement to pick one up)
+  - `ctf_rewards [0/1]`, default 1 -- this enables rewards for CTF flag caps, such as restoring health and ammo
 - Client settings:
   - `drop flag` - Drop the flag if you're holding it
 
