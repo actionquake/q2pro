@@ -38,20 +38,20 @@ option('client-ui',
   value: true,
   description: 'Enable menu-based user interface')
 
-option('q2pro-debug',
-  type: 'boolean',
-  value: true,
-  description: 'Toggle debug builds')
-
 option('default-game',
   type: 'string',
   value: 'action',
   description: 'Default value for "game" console variable')
 
-option('discord-sdk', 
-  type: 'boolean', 
-  value: false, 
+option('discord-sdk',
+  type: 'boolean',
+  value: false,
   description: 'Enable Discord SDK')
+
+option('q2pro-debug',
+  type: 'boolean',
+  value: true,
+  description: 'Enable Q2Pro debug drawing system (independent of Meson debug build type)')
 
 option('dynamic-lights', 
   type: 'boolean', 

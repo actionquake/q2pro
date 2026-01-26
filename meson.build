@@ -612,7 +612,7 @@ if get_option('tests')
   config.set10('USE_TESTS', true)
 endif
 
-if get_option('debug')
+if get_option('q2pro-debug')
   refresh_src += 'src/refresh/debug.c'
 endif
 
