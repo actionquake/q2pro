@@ -38,7 +38,7 @@ option('client-ui',
   value: true,
   description: 'Enable menu-based user interface')
 
-option('debug',
+option('q2pro-debug',
   type: 'boolean',
   value: true,
   description: 'Toggle debug builds')
