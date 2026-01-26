@@ -38,6 +38,11 @@ option('client-ui',
   value: true,
   description: 'Enable menu-based user interface')
 
+option('debug',
+  type: 'boolean',
+  value: true,
+  description: 'Toggle debug builds')
+
 option('default-game',
   type: 'string',
   value: 'action',
