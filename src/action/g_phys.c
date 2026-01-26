@@ -891,9 +891,13 @@ SV_Physics_Toss (edict_t * ent)
 
   SV_CheckVelocity (ent);
 
-// add gravity
+// add gravity (skip if in zero_g zone)
   if (ent->movetype != MOVETYPE_FLY && ent->movetype != MOVETYPE_FLYMISSILE)
-    SV_AddGravity (ent);
+  {
+    int contents = gi.pointcontents(ent->s.origin);
+    if (!(contents & CONTENTS_ZERO_G))
+      SV_AddGravity (ent);
+  }
 
 // move angles
   VectorMA (ent->s.angles, FRAMETIME, ent->avelocity, ent->s.angles);
