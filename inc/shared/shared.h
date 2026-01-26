@@ -966,7 +966,7 @@ COLLISION DETECTION
 #define CONTENTS_SLIME          BIT(4)
 #define CONTENTS_WATER          BIT(5)
 #define CONTENTS_MIST           BIT(6)
-#define CONTENTS_ZERO_G         BIT(7)      // antigravity zone
+#define CONTENTS_ZERO_G         CONTENTS_AUX  // antigravity zone (aliased to AUX for BSP compiler compatibility)
 
 // remaining contents are non-visible, and don't eat brushes
 
