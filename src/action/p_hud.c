@@ -1221,6 +1221,14 @@ void HUD_SpectatorUpdate(edict_t *clent)
 				return;
 			}
 
+			/* Determine which teams this viewer can see based on limchasecam.
+			 * If limchasecam is enabled and the viewer is on a team (dead player),
+			 * they should only see their own team's status, not the enemy team. */
+			int viewer_team = clent->client->resp.team;
+			qboolean limchase = (limchasecam->value && viewer_team != NOTEAM);
+			qboolean can_see_team1 = (!limchase || viewer_team == TEAM1);
+			qboolean can_see_team2 = (!limchase || viewer_team == TEAM2);
+
 			gclient_t *team1_players[6];
 			gclient_t *team2_players[6];
 			gclient_t *sortedClients[MAX_CLIENTS];
@@ -1264,14 +1272,15 @@ void HUD_SpectatorUpdate(edict_t *clent)
 				}
 			}
 
-			
+
 			for (i = 0; i < 6; i++)
 			{
 				int x, y, yy;
 				int h = h_nameplate_l + (i * 5);
 				gclient_t *cl = team1_players[i];
 
-				if (!cl) // if there is no player, hide all the elements for their plate
+				/* Hide Team 1 nameplates if viewer cannot see this team (limchasecam) */
+				if (!cl || !can_see_team1)
 				{
 					Ghud_SetFlags(clent, hud[h + 0], GHF_HIDE);
 					Ghud_SetFlags(clent, hud[h + 1], GHF_HIDE);
@@ -1345,7 +1354,8 @@ void HUD_SpectatorUpdate(edict_t *clent)
 				int h = h_nameplate_r + (i * 5);
 				gclient_t *cl = team2_players[i];
 
-				if (!cl) // if there is no player, hide all the elements for their plate
+				/* Hide Team 2 nameplates if viewer cannot see this team (limchasecam) */
+				if (!cl || !can_see_team2)
 				{
 					Ghud_SetFlags(clent, hud[h + 0], GHF_HIDE);
 					Ghud_SetFlags(clent, hud[h + 1], GHF_HIDE);

@@ -241,6 +241,13 @@ void Lrcon_Map(edict_t *ent)
 			   ent->client->pers.netname, mapname);
 
 	Q_strncpyz(level.nextmap, mapname, sizeof(level.nextmap));
+
+	/* In matchmode, set dosoft to bypass map rotation override in EndDMLevel.
+	 * Without this, the rotation logic would overwrite level.nextmap. */
+	if (matchmode->value && level.nextmap[0]) {
+		dosoft = 1;
+	}
+
 	EndDMLevel();
 }
 
