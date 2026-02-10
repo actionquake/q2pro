@@ -1446,6 +1446,9 @@ extern cvar_t *grenade_drop; // Allows grenades to be dropped on death
 extern cvar_t *ctf_rewards; // Enables CTF awards
 extern cvar_t *bots; // If bots are enabled and in the server
 
+// 2026
+extern cvar_t *use_buggy_ent_hitbox;
+
 #ifdef AQTION_EXTENSION
 extern int (*engine_Client_GetVersion)(edict_t *ent);
 extern int (*engine_Client_GetProtocol)(edict_t *ent);

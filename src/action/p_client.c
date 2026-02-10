@@ -1824,15 +1824,20 @@ void player_die(edict_t *self, edict_t *inflictor, edict_t *attacker, int damage
 	self->svflags |= SVF_DEADMONSTER;
 
 	// This fixes dead bodies blocking projectiles and corpse kick bug
-	if (self->solid == SOLID_TRIGGER) {
-      RemoveFromTransparentList(self);
-	}
-	self->solid = SOLID_NOT;
+	
+	if (!use_buggy_ent_hitbox->value) {
+		if (self->solid == SOLID_TRIGGER) {
+			RemoveFromTransparentList(self);
+			}
+		self->solid = SOLID_NOT;
+	} else {
 
-	// if (self->solid == SOLID_TRIGGER) {
-	// 	self->solid = SOLID_BBOX;
-	// 	RemoveFromTransparentList(self);
-	// }
+	// This is the original behavior (dead entities can sometimes block projectiles for a brief time) + corpse kick bug
+		if (self->solid == SOLID_TRIGGER) {
+			self->solid = SOLID_BBOX;
+			RemoveFromTransparentList(self);
+		}
+	}
 
 	self->client->reload_attempts = 0;	// stop them from trying to reload
 	self->client->weapon_attempts = 0;

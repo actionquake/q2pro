@@ -691,6 +691,9 @@ void InitGame( void )
 	ctf_rewards = gi.cvar("ctf_rewards", "1", CVAR_SERVERINFO_EXT);
 	bots = gi.cvar("bots", "0", CVAR_SERVERINFO | CVAR_SERVERINFO_EXT);
 
+	// 2026
+	use_buggy_ent_hitbox = gi.cvar("use_buggy_ent_hitbox", "1", 0);
+
 	// new AQtion Extension cvars
 #ifdef AQTION_EXTENSION
 	use_newirvision = gi.cvar("use_newirvision", "1", CVAR_SERVERINFO_EXT);
