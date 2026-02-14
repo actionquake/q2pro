@@ -36,6 +36,9 @@ with this program; if not, write to the Free Software Foundation, Inc.,
 extern mtexinfo_t nulltexinfo;
 
 static cvar_t *map_visibility_patch;
+#if USE_REF
+static cvar_t *gl_lightmap_external;
+#endif
 
 /*
 ===============================================================================
@@ -828,6 +831,26 @@ int BSP_Load(const char *name, bsp_t **bsp_p)
 #if USE_REF
     lump_t ext[q_countof(bspx_lumps)] = { 0 };
     memsize += BSP_ParseExtensionHeader(bsp, ext, buf, maxpos, filelen);
+
+    // Probe for external lightmap file if BSP lightmap lump is empty
+    int ext_lm_size = 0;
+    char lm_path[MAX_QPATH];
+    lm_path[0] = 0;
+    if (gl_lightmap_external->integer) {
+        uint32_t lm_len = LittleLong(header->lumps[7].filelen);
+        if (lm_len == 0) {
+            size_t namelen = strlen(name);
+            if (namelen > 4) {
+                Q_snprintf(lm_path, sizeof(lm_path), "%.*s.lm",
+                           (int)(namelen - 4), name);
+                ext_lm_size = FS_LoadFileEx(lm_path, NULL, 0, 0);
+                if (ext_lm_size <= 4)
+                    ext_lm_size = 0;
+                else
+                    memsize += Q_ALIGN(ext_lm_size - 4, BSP_ALIGN);
+            }
+        }
+    }
 #endif
 
     Hunk_Begin(&bsp->hunk, memsize);
@@ -854,6 +877,27 @@ int BSP_Load(const char *name, bsp_t **bsp_p)
     }
 
 #if USE_REF
+    // Load external lightmap if BSP had no embedded lightmaps
+    if (ext_lm_size > 0 && bsp->numlightmapbytes == 0) {
+        byte *lm_data;
+        int lm_ret = FS_LoadFileEx(lm_path, (void **)&lm_data, 0, TAG_FILESYSTEM);
+        if (lm_data && lm_ret == ext_lm_size) {
+            if (lm_data[0] == 'Q' && lm_data[1] == 'L' &&
+                lm_data[2] == 'M' && lm_data[3] == 0x01) {
+                int data_size = ext_lm_size - 4;
+                bsp->numlightmapbytes = data_size;
+                bsp->lightmap = BSP_ALLOC(data_size);
+                memcpy(bsp->lightmap, lm_data + 4, data_size);
+                Com_Printf("Loaded external lightmap from %s (%d bytes)\n",
+                           lm_path, data_size);
+            } else {
+                Com_WPrintf("Invalid lightmap file: %s\n", lm_path);
+            }
+        }
+        if (lm_data)
+            FS_FreeFile(lm_data);
+    }
+
     // load extension lumps
     for (i = 0; i < q_countof(bspx_lumps); i++) {
         if (ext[i].filelen) {
@@ -1130,6 +1174,9 @@ const mmodel_t *BSP_InlineModel(const bsp_t *bsp, const char *name)
 void BSP_Init(void)
 {
     map_visibility_patch = Cvar_Get("map_visibility_patch", "1", 0);
+#if USE_REF
+    gl_lightmap_external = Cvar_Get("gl_lightmap_external", "1", 0);
+#endif
 
     Cmd_AddCommand("bsplist", BSP_List_f);
 
