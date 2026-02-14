@@ -101,6 +101,8 @@ typedef struct {
     float           sintab[256];
     byte            latlngtab[NUMVERTEXNORMALS][2];
     byte            lightstylemap[MAX_LIGHTSTYLES];
+    float           lightstylecache[MAX_LIGHTSTYLES];
+    uint32_t        lightstyles_changed[MAX_LIGHTSTYLES / 32];
     hash_map_t      *queries;
     hash_map_t      *programs;
 } glStatic_t;
@@ -465,6 +467,7 @@ typedef struct {
 extern lightmap_builder_t lm;
 
 void GL_AdjustColor(vec3_t color);
+void GL_UpdateLightstyles(void);
 void GL_PushLights(mface_t *surf);
 void GL_UploadLightmaps(void);
 

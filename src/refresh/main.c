@@ -1751,6 +1751,8 @@ void R_RenderFrame(const refdef_t *fd)
         lm.dirty = false;
     }
 
+    GL_UpdateLightstyles();
+
     bool waterwarp = (glr.fd.rdflags & RDF_UNDERWATER) && gl_static.use_shaders && gl_waterwarp->integer;
 
     if (waterwarp) {

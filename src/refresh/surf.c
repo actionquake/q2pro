@@ -100,12 +100,42 @@ DYNAMIC BLOCKLIGHTS
 
 static float blocklights[MAX_BLOCKLIGHTS * 3];
 
+static inline byte float_to_byte(float f)
+{
+    int val = (int)f;
+    if (val < 0) return 0;
+    if (val > 255) return 255;
+    return (byte)val;
+}
+
 static void put_blocklights(const mface_t *surf)
 {
-    float add, modulate, scale = lm.scale;
     int i, j, smax, tmax, stride = 1 << lm.block_shift;
     const float *bl;
     byte *out;
+
+    smax = surf->lm_width;
+    tmax = surf->lm_height;
+
+    out = LM_PIXELS(surf->light_m, surf->light_s, surf->light_t);
+
+    // fast path: shaders handle brightness/modulate in GPU, and no
+    // desaturation. just clamp float blocklights directly to bytes.
+    if (gl_static.use_shaders && lm.scale == 1) {
+        for (i = 0, bl = blocklights; i < tmax; i++, out += stride) {
+            byte *dst;
+            for (j = 0, dst = out; j < smax; j++, bl += 3, dst += 4) {
+                dst[0] = float_to_byte(bl[0]);
+                dst[1] = float_to_byte(bl[1]);
+                dst[2] = float_to_byte(bl[2]);
+                dst[3] = 255;
+            }
+        }
+        return;
+    }
+
+    // slow path: software brightness, modulate, and saturation
+    float add, modulate, scale = lm.scale;
 
     if (gl_static.use_shaders) {
         add = 0;
@@ -114,11 +144,6 @@ static void put_blocklights(const mface_t *surf)
         add = lm.add;
         modulate = lm.modulate;
     }
-
-    smax = surf->lm_width;
-    tmax = surf->lm_height;
-
-    out = LM_PIXELS(surf->light_m, surf->light_s, surf->light_t);
 
     for (i = 0, bl = blocklights; i < tmax; i++, out += stride) {
         byte *dst;
@@ -262,10 +287,30 @@ static void update_dynamic_lightmap(mface_t *surf)
     m->maxs[1] = max(m->maxs[1], t1);
 }
 
+// build a bitmask of which lightstyles changed this frame.
+// call once per frame before drawing.
+void GL_UpdateLightstyles(void)
+{
+    memset(gl_static.lightstyles_changed, 0, sizeof(gl_static.lightstyles_changed));
+
+    for (int i = 0; i < MAX_LIGHTSTYLES; i++) {
+        int mapped = gl_static.lightstylemap[i];
+        float cur = glr.fd.lightstyles[mapped].white;
+        if (cur != gl_static.lightstylecache[i]) {
+            gl_static.lightstylecache[i] = cur;
+            gl_static.lightstyles_changed[i >> 5] |= BIT(i & 31);
+        }
+    }
+}
+
+static inline bool lightstyle_changed(int style)
+{
+    return gl_static.lightstyles_changed[style >> 5] & BIT(style & 31);
+}
+
 // updates lightmaps in RAM
 void GL_PushLights(mface_t *surf)
 {
-    const lightstyle_t *style;
     int i;
 
     if (!surf->light_m)
@@ -277,10 +322,9 @@ void GL_PushLights(mface_t *surf)
         return;
     }
 
-    // check for light style updates
+    // check for light style updates via pre-computed changed bitmask
     for (i = 0; i < surf->numstyles; i++) {
-        style = LIGHT_STYLE(surf->styles[i]);
-        if (style->white != surf->stylecache[i]) {
+        if (lightstyle_changed(surf->styles[i])) {
             update_dynamic_lightmap(surf);
             return;
         }
