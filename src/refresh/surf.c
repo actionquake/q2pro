@@ -376,12 +376,16 @@ static void LM_UploadBlock(void)
 
 int GL_EffectiveLightstyles(void)
 {
+    if (!gl_dynamic_lightstyles || !gl_dynamic)
+        return 1;
     return gl_dynamic_lightstyles->integer >= 0
         ? gl_dynamic_lightstyles->integer : gl_dynamic->integer;
 }
 
 bool GL_EffectiveMuzzleflash(void)
 {
+    if (!gl_dynamic_muzzleflash || !gl_dynamic)
+        return true;
     return gl_dynamic_muzzleflash->integer >= 0
         ? gl_dynamic_muzzleflash->integer : (gl_dynamic->integer == 1);
 }
