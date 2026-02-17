@@ -501,13 +501,16 @@ static int check_file_len(const char *path, size_t len, dltype_t type)
                 int load_ret = BSP_Load(buffer, &test_bsp);
                 if (test_bsp) {
                     if (test_bsp->checksum != server_checksum) {
+                        char fullpath[MAX_OSPATH];
+
                         Com_Printf("Map CRC mismatch: local=%d, server=%d\n",
                                    test_bsp->checksum, server_checksum);
-                        Com_Printf("Removing old map and re-downloading: %s\n", buffer);
+                        Com_Printf("Re-downloading map: %s\n", buffer);
                         BSP_Free(test_bsp);
 
-                        // Delete mismatched file
-                        remove(buffer);
+                        // Delete mismatched file using absolute filesystem path
+                        Q_concat(fullpath, sizeof(fullpath), fs_gamedir, "/", buffer);
+                        remove(fullpath);
 
                         // Mark that we've attempted retry (only once!)
                         map_crc_retry_attempted = true;
@@ -518,9 +521,12 @@ static int check_file_len(const char *path, size_t len, dltype_t type)
                         return Q_ERR(EEXIST);  // CRC matches, skip download
                     }
                 } else if (load_ret != Q_ERR_SUCCESS) {
+                    char fullpath[MAX_OSPATH];
+
                     // Failed to load map, try re-downloading
                     Com_Printf("Failed to load existing map, re-downloading: %s\n", buffer);
-                    remove(buffer);
+                    Q_concat(fullpath, sizeof(fullpath), fs_gamedir, "/", buffer);
+                    remove(fullpath);
                     map_crc_retry_attempted = true;
                 }
             } else {
