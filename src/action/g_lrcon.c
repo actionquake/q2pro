@@ -241,6 +241,7 @@ void Lrcon_Map(edict_t *ent)
 			   ent->client->pers.netname, mapname);
 
 	Q_strncpyz(level.nextmap, mapname, sizeof(level.nextmap));
+	dosoft = 1;  /* Map changes via lrcon use soft map (preserves state) */
 	EndDMLevel();
 }
 
