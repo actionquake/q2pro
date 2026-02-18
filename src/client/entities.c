@@ -826,6 +826,9 @@ static void CL_AddPacketEntities(void)
 
         ent.scale = s1->scale;
 
+        if (IS_TRACKER(effects))
+            ent.flags |= RF_TRACKER;
+
         // add to refresh list
         V_AddEntity(&ent);
 
@@ -876,12 +879,17 @@ static void CL_AddPacketEntities(void)
             ent.alpha = s1->alpha;
         }
 
+        if (IS_TRACKER(effects))
+            ent.flags |= RF_TRACKER;
+
         // duplicate for linked models
         if (s1->modelindex2) {
             if (s1->modelindex2 == MODELINDEX_PLAYER) {
                 // custom weapon
                 ci = &cl.clientinfo[s1->skinnum & 0xff];
                 i = (s1->skinnum >> 8); // 0 is default weapon model
+                if (cl.csr.extended)
+                    i &= 0xff;
                 if (i < 0 || i > cl.numWeaponModels - 1)
                     i = 0;
                 ent.model = ci->weaponmodel[i];
@@ -912,6 +920,9 @@ static void CL_AddPacketEntities(void)
             ent.flags = RF_TRANSLUCENT;
             ent.alpha = s1->alpha;
         }
+
+        if (IS_TRACKER(effects))
+            ent.flags |= RF_TRACKER;
 
         if (s1->modelindex3) {
             ent.model = cl.model_draw[s1->modelindex3];
@@ -992,11 +1003,14 @@ static void CL_AddPacketEntities(void)
         } else if (effects & EF_FLIES) {
             CL_FlyEffect(cent, ent.origin);
         } else if (effects & EF_BFG) {
+            static const uint16_t bfg_lightramp[6] = {300, 400, 600, 300, 150, 75};
             if (effects & EF_ANIM_ALLFAST) {
                 CL_BfgParticles(&ent);
                 i = 200;
+            } else if (cl.csr.extended) {
+                i = bfg_lightramp[Q_clip(ent.oldframe, 0, 5)] * ent.backlerp +
+                    bfg_lightramp[Q_clip(ent.frame,    0, 5)] * (1.0f - ent.backlerp);
             } else {
-                static const uint16_t bfg_lightramp[6] = {300, 400, 600, 300, 150, 75};
                 i = bfg_lightramp[Q_clip(s1->frame, 0, 5)];
             }
             V_AddLight(ent.origin, i, 0, 1, 0);
@@ -1086,8 +1100,13 @@ static int shell_effect_hack(void)
         flags |= RF_SHELL_DOUBLE;
     if (ent->current.effects & EF_HALF_DAMAGE)
         flags |= RF_SHELL_HALF_DAM;
-    if (ent->current.morefx & EFX_DUALFIRE)
-        flags |= RF_SHELL_LITE_GREEN;
+
+    if (cl.csr.extended) {
+        if (ent->current.morefx & EFX_DUALFIRE)
+            flags |= RF_SHELL_LITE_GREEN;
+        if (ent->current.effects & EF_COLOR_SHELL)
+            flags |= ent->current.renderfx & RF_SHELL_MASK;
+    }
 
     return flags;
 }
@@ -1270,7 +1289,7 @@ static void CL_SetupThirdPersionView(void)
     VectorMA(cl.refdef.vieworg, -range * rscale, cl.v_right, cl.refdef.vieworg);
 
     CM_BoxTrace(&trace, cl.playerEntityOrigin, cl.refdef.vieworg,
-                mins, maxs, cl.bsp->nodes, MASK_SOLID);
+                mins, maxs, cl.bsp->nodes, MASK_SOLID, cl.csr.extended);
     if (trace.fraction != 1.0f) {
         VectorCopy(trace.endpos, cl.refdef.vieworg);
     }
@@ -1377,9 +1396,6 @@ void CL_CalcViewValues(void)
         LerpVector(ops->viewoffset, ps->viewoffset, lerp, viewoffset);
 
         // smooth out stair climbing
-        if (cl.predicted_step < 127 * 0.125f) {
-            delta <<= 1; // small steps
-        }
         if (delta < 100) {
             cl.refdef.vieworg[2] -= cl.predicted_step * (100 - delta) * 0.01f;
         }
@@ -1438,9 +1454,16 @@ void CL_CalcViewValues(void)
         LerpAngles(ops->viewangles, ps->viewangles, lerp, cl.refdef.viewangles);
     }
 
-    // don't interpolate blend color
-    Vector4Copy(ps->blend, cl.refdef.screen_blend);
-    Vector4Copy(ps->damage_blend, cl.refdef.damage_blend);
+    // interpolate blend
+    if (cl.csr.extended && ops->blend[3])
+        lerp_values(ops->blend, ps->blend, lerp, cl.refdef.screen_blend, 4);
+    else
+        Vector4Copy(ps->blend, cl.refdef.screen_blend);
+
+    if (cl.csr.extended && ops->damage_blend[3])
+        lerp_values(ops->damage_blend, ps->damage_blend, lerp, cl.refdef.damage_blend, 4);
+    else
+        Vector4Copy(ps->damage_blend, cl.refdef.damage_blend);
 
     // interpolate fog
     if (cl.psFlags & MSG_PS_MOREBITS) {

@@ -18,6 +18,7 @@ with this program; if not, write to the Free Software Foundation, Inc.,
 // cl.input.c  -- builds an intended movement command to send to the server
 
 #include "client.h"
+#include "common/crc.h"
 
 static cvar_t    *cl_nodelta;
 static cvar_t    *cl_maxpackets;
@@ -958,10 +959,8 @@ CL_SendBatchedCmd
 */
 static void CL_SendBatchedCmd(void)
 {
-    int i, j, seq, bits q_unused;
-    int numCmds, numDups;
-    int totalCmds, totalMsec;
-    int cursize q_unused;
+    int i, j, seq, numCmds, numDups;
+    q_unused int totalCmds, totalMsec, cursize, bits;
     usercmd_t *cmd, *oldcmd;
     client_history_t *history, *oldest;
     byte *patch;

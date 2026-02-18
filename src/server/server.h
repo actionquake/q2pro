@@ -61,7 +61,7 @@ with this program; if not, write to the Free Software Foundation, Inc.,
 
 #if USE_DEBUG
 #define SV_DPrintf(level,...) \
-    do { if (sv_debug && sv_debug->integer > level) \
+    do { if (sv_debug && sv_debug->integer >= level) \
         Com_LPrintf(PRINT_DEVELOPER, __VA_ARGS__); } while (0)
 #else
 #define SV_DPrintf(...)
@@ -94,7 +94,7 @@ with this program; if not, write to the Free Software Foundation, Inc.,
                      GMF_IPV6_ADDRESS_AWARE | GMF_ALLOW_INDEX_OVERFLOW | \
                      GMF_PROTOCOL_EXTENSIONS)
 
-// flag indicating if game uses gclient_new_t or gclient_old_t.
+// flag indicating if game uses new versions of gclient_t and pmove_t.
 // doesn't enable protocol extensions by itself.
 #define IS_NEW_GAME_API    (ge->apiversion == GAME_API_VERSION_NEW)
 
@@ -156,6 +156,7 @@ typedef struct {
 typedef struct {
     server_state_t  state;      // precache commands are only valid during load
     int             spawncount; // random number generated each server spawn
+    bool            nextserver_pending;
 
 #if USE_FPS
     int         framerate;
@@ -356,14 +357,14 @@ typedef struct client_s {
     entity_packed_t     *entities;      // [num_entities]
 
     // server state pointers (hack for MVD channels implementation)
-    configstring_t      *configstrings;
-    const cs_remap_t    *csr;
-    char                *gamedir, *mapname;
-    const game_export_t *ge;
-    cm_t                *cm;
-    int                 infonum;    // slot number visible to client
-    int                 spawncount;
-    int                 maxclients;
+    const configstring_t    *configstrings;
+    const cs_remap_t        *csr;
+    const char              *gamedir, *mapname;
+    const game_export_t     *ge;
+    const cm_t              *cm;
+    int                     infonum;    // slot number visible to client
+    int                     spawncount;
+    int                     maxclients;
 
     // netchan type dependent methods
     void            (*AddMessage)(struct client_s *, const byte *, size_t, bool);

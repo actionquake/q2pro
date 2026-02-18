@@ -233,7 +233,7 @@ static void TH_DrawLayoutString(char *dst, const char *s)
             width = Q_atoi(token);
             token = COM_Parse(&s);
             value = Q_atoi(token);
-            if (value < 0 || value >= MAX_STATS) {
+            if (value < 0 || value >= cl.max_stats) {
                 Com_Error(ERR_DROP, "%s: invalid stat index for num: %i", __func__, value);
             }
             value = cl.frame.ps.stats[value];
@@ -244,7 +244,7 @@ static void TH_DrawLayoutString(char *dst, const char *s)
         if (!strcmp(token, "stat_string")) {
             token = COM_Parse(&s);
             index = Q_atoi(token);
-            if (index < 0 || index >= MAX_STATS) {
+            if (index < 0 || index >= cl.max_stats) {
                 Com_Error(ERR_DROP, "%s: invalid string index for stat_string: %i", __func__, index);
             }
             index = cl.frame.ps.stats[index];
@@ -273,7 +273,7 @@ static void TH_DrawLayoutString(char *dst, const char *s)
         if (!strcmp(token, "if")) {
             token = COM_Parse(&s);
             value = Q_atoi(token);
-            if (value < 0 || value >= MAX_STATS) {
+            if (value < 0 || value >= cl.max_stats) {
                 Com_Error(ERR_DROP, "%s: invalid stat index for if: %i", __func__, value);
             }
             value = cl.frame.ps.stats[value];

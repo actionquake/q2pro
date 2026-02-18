@@ -35,6 +35,9 @@ static precache_t precache_check;
 static int precache_sexed_sounds[MAX_SOUNDS];
 static int precache_sexed_total;
 
+// Track if we've already attempted a CRC-based map re-download
+static bool map_crc_retry_attempted = false;
+
 cvar_t   *r_override_textures;
 cvar_t   *r_texture_overrides;
 
@@ -154,6 +157,8 @@ void CL_CleanupDownloads(void)
 
     List_Init(&cls.download.queue);
     cls.download.pending = 0;
+
+    map_crc_retry_attempted = false;  // Reset retry flag on disconnect
 
     cls.download.current = NULL;
     cls.download.percent = 0;
@@ -485,9 +490,54 @@ static int check_file_len(const char *path, size_t len, dltype_t type)
     if (*ext != '.' || !CL_CheckDownloadExtension(ext + 1))
         return Q_ERR_INVALID_PATH;
 
-    if (FS_FileExists(buffer))
-        // it exists, no need to download
-        return Q_ERR(EEXIST);
+    if (FS_FileExists(buffer)) {
+        // For map files, validate CRC before skipping download
+        if (type == DL_MAP && !map_crc_retry_attempted) {
+            int server_checksum = Q_atoi(cl.configstrings[cl.csr.mapchecksum]);
+
+            if (server_checksum != 0) {  // Server sent a valid checksum
+                // Load and check CRC of existing map
+                bsp_t *test_bsp;
+                int load_ret = BSP_Load(buffer, &test_bsp);
+                if (test_bsp) {
+                    if (test_bsp->checksum != server_checksum) {
+                        char fullpath[MAX_OSPATH];
+
+                        Com_Printf("Map CRC mismatch: local=%d, server=%d\n",
+                                   test_bsp->checksum, server_checksum);
+                        Com_Printf("Re-downloading map: %s\n", buffer);
+                        BSP_Free(test_bsp);
+
+                        // Delete mismatched file using absolute filesystem path
+                        Q_concat(fullpath, sizeof(fullpath), fs_gamedir, "/", buffer);
+                        remove(fullpath);
+
+                        // Mark that we've attempted retry (only once!)
+                        map_crc_retry_attempted = true;
+
+                        // Fall through to download logic below
+                    } else {
+                        BSP_Free(test_bsp);
+                        return Q_ERR(EEXIST);  // CRC matches, skip download
+                    }
+                } else if (load_ret != Q_ERR_SUCCESS) {
+                    char fullpath[MAX_OSPATH];
+
+                    // Failed to load map, try re-downloading
+                    Com_Printf("Failed to load existing map, re-downloading: %s\n", buffer);
+                    Q_concat(fullpath, sizeof(fullpath), fs_gamedir, "/", buffer);
+                    remove(fullpath);
+                    map_crc_retry_attempted = true;
+                }
+            } else {
+                // No server checksum available, skip download
+                return Q_ERR(EEXIST);
+            }
+        } else {
+            // Non-map files OR already retried: keep existing behavior
+            return Q_ERR(EEXIST);
+        }
+    }
 
     if (valid == PATH_MIXED_CASE)
         // convert to lower case to make download server happy
@@ -826,7 +876,7 @@ void CL_RequestNextDownload(void)
 
         if (allow_download_textures->integer) {
             for (i = 0; i < cl.bsp->numtexinfo; i++) {
-                if (cl.bsp->texinfo[i].c.flags & SURF_NODRAW)
+                if (cl.bsp->texinfo[i].c.flags & SURF_NODRAW && cl.bsp->has_bspx)
                     continue;
                 if (r_override_textures->integer == 2 || (r_texture_overrides->integer & 16)) {
                     len = Q_concat(fn, sizeof(fn), "textures/", cl.bsp->texinfo[i].name, ".jpg");
@@ -859,6 +909,12 @@ void CL_RequestNextDownload(void)
 void CL_ResetPrecacheCheck(void)
 {
     precache_check = PRECACHE_MODELS;
+    map_crc_retry_attempted = false;  // Reset retry flag for new connection
+}
+
+bool CL_MapRetryAttempted(void)
+{
+    return map_crc_retry_attempted;
 }
 
 /*

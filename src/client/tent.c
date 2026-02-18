@@ -971,7 +971,7 @@ static void CL_AddPlayerBeams(void)
             vectoangles2(dist, angles);
 
             // if it's the heatbeam, draw the particle effect
-            if (cl_mod_heatbeam && b->model == cl_mod_heatbeam)
+            if (cl_mod_heatbeam && b->model == cl_mod_heatbeam && !sv_paused->integer)
                 CL_Heatbeam(org, dist);
 
             framenum = 1;
@@ -1342,11 +1342,17 @@ void CL_ParseTEnt(void)
         break;
 
     case TE_SPLASH:         // bullet hitting water
-        if (te.color < 0 || te.color > 6)
-            r = 0x00;
-        else
-            r = splash_color[te.color];
-        CL_ParticleEffect(te.pos1, te.dir, r, te.count);
+        if (cl.csr.extended && te.color == SPLASH_ELECTRIC_N64) {
+            CL_ParticleEffect(te.pos1, te.dir, 0x6c, te.count / 2);
+            CL_ParticleEffect(te.pos1, te.dir, 0xb0, (te.count + 1) / 2);
+            te.color = SPLASH_SPARKS;
+        } else {
+            if (te.color >= q_countof(splash_color))
+                r = 0x00;
+            else
+                r = splash_color[te.color];
+            CL_ParticleEffect(te.pos1, te.dir, r, te.count);
+        }
 
         if (te.color == SPLASH_SPARKS) {
             r = Q_rand() & 3;
