@@ -1326,10 +1326,17 @@ Default value is 1.
 ### allow\_download\_textures  
 Enables automatic downloading of map textures. Default value is 1.
 
-It is possible to specify a list of paths in ‘download-ignores.txt’ file
+If the client has a local copy of a map but its checksum does not match
+the server's version, the client will automatically attempt to re-download
+the map once. If the checksum still mismatches after re-downloading, an
+error is displayed indicating that the server is running a different map
+version than what is available for download. In that case, deleting the
+local map file and reconnecting will resolve the issue.
+
+It is possible to specify a list of paths in 'download-ignores.txt' file
 that are known to be non-existent and should never be downloaded from
 server. This file accepts wildcard patterns one per line. Empty lines
-and lines starting with ‘#’ or ‘/’ characters are ignored.
+and lines starting with '#' or '/' characters are ignored.
 
 ## HTTP Downloads
 
