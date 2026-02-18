@@ -1440,6 +1440,7 @@ static void CL_ConnectionlessPacket(void)
         cls.connect_count = 0;
         Q_strlcpy(cl.mapname, mapname, sizeof(cl.mapname)); // for levelshot screen
         cl.csr = cs_remap_old;
+        cl.max_stats = MAX_STATS_OLD;
         return;
     }
 
@@ -1529,7 +1530,11 @@ static void CL_PacketEvent(void)
     cls.errorReceived = false; // don't drop
 #endif
 
+    cl.suppress_count = 0;
+
     CL_ParseServerMessage();
+
+    SCR_AddNetgraph();
 
     SCR_LagSample();
 
@@ -1788,7 +1793,7 @@ void CL_LoadFilterList(string_entry_t **list, const char *name, const char *comm
 {
     string_entry_t *entry, *next;
     char *raw, *data, *p;
-    int len, count, line;
+    int len, count q_unused, line;
 
     // free previous entries
     for (entry = *list; entry; entry = next) {
@@ -2339,7 +2344,7 @@ static size_t CL_Surface_m(char *buffer, size_t size)
 
     VectorMA(cl.refdef.vieworg, 8192, cl.v_forward, end);
     CL_Trace(&trace, cl.refdef.vieworg, end, vec3_origin, vec3_origin, MASK_SOLID | MASK_WATER);
-    return Q_strlcpy(buffer, trace.surface->name, size);
+    return Q_snprintf(buffer, size, "%s %#x", trace.surface->name, trace.surface->flags);
 }
 
 /*
@@ -3005,35 +3010,35 @@ static void CL_SetClientTime(void)
 
     prevtime = cl.servertime - CL_FRAMETIME;
     if (cl.time > cl.servertime) {
-        SHOWCLAMP(1, "high clamp %i\n", cl.time - cl.servertime);
+        SHOWCLAMP(2, "high clamp %i\n", cl.time - cl.servertime);
         cl.time = cl.servertime;
         cl.lerpfrac = 1.0f;
     } else if (cl.time < prevtime) {
-        SHOWCLAMP(1, "low clamp %i\n", prevtime - cl.time);
+        SHOWCLAMP(2, "low clamp %i\n", prevtime - cl.time);
         cl.time = prevtime;
         cl.lerpfrac = 0;
     } else {
         cl.lerpfrac = (cl.time - prevtime) * CL_1_FRAMETIME;
     }
 
-    SHOWCLAMP(2, "time %d %d, lerpfrac %.3f\n",
+    SHOWCLAMP(3, "time %d %d, lerpfrac %.3f\n",
               cl.time, cl.servertime, cl.lerpfrac);
 
 #if USE_FPS
     prevtime = cl.keyservertime - BASE_FRAMETIME;
     if (cl.keytime > cl.keyservertime) {
-        SHOWCLAMP(1, "high keyclamp %i\n", cl.keytime - cl.keyservertime);
+        SHOWCLAMP(2, "high keyclamp %i\n", cl.keytime - cl.keyservertime);
         cl.keytime = cl.keyservertime;
         cl.keylerpfrac = 1.0f;
     } else if (cl.keytime < prevtime) {
-        SHOWCLAMP(1, "low keyclamp %i\n", prevtime - cl.keytime);
+        SHOWCLAMP(2, "low keyclamp %i\n", prevtime - cl.keytime);
         cl.keytime = prevtime;
         cl.keylerpfrac = 0;
     } else {
         cl.keylerpfrac = (cl.keytime - prevtime) * BASE_1_FRAMETIME;
     }
 
-    SHOWCLAMP(2, "keytime %d %d keylerpfrac %.3f\n",
+    SHOWCLAMP(3, "keytime %d %d keylerpfrac %.3f\n",
               cl.keytime, cl.keyservertime, cl.keylerpfrac);
 #endif
 }

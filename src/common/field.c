@@ -93,6 +93,7 @@ bool IF_KeyEvent(inputField_t *field, int key)
         while (field->text[pos] > 32) {
             pos++;
         }
+        Q_assert(pos < sizeof(field->text));
         memmove(field->text + field->cursorPos, field->text + pos,
                 sizeof(field->text) - pos);
         return true;
@@ -278,7 +279,7 @@ int IF_Draw(const inputField_t *field, int x, int y, int flags, qhandle_t font)
 
     // draw blinking cursor
     if (flags & UI_DRAWCURSOR && com_localTime & BIT(8)) {
-        R_DrawChar(x + cursorPos * CHAR_WIDTH, y, flags,
+        R_DrawChar(x + cursorPos * CONCHAR_WIDTH, y, flags,
                    Key_GetOverstrikeMode() ? 11 : '_', font);
     }
 

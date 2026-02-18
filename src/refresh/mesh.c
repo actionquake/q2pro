@@ -41,6 +41,7 @@ static vec3_t   shadedir;
 static bool     dotshading;
 
 static float    celscale;
+static float    shadowalpha;
 
 static drawshadow_t drawshadow;
 static mat4_t       m_shadow_view;
@@ -60,7 +61,7 @@ static void setup_dotshading(void)
     if (!gl_dotshading->integer)
         return;
 
-    if (glr.ent->flags & RF_SHELL_MASK)
+    if (glr.ent->flags & (RF_SHELL_MASK | RF_TRACKER))
         return;
 
     if (drawshadow == SHADOW_ONLY)
@@ -356,7 +357,7 @@ static void setup_frame_scale(const model_t *model)
 
 static void setup_color(void)
 {
-    int flags = glr.ent->flags;
+    uint64_t flags = glr.ent->flags;
     float f, m;
     int i;
 
@@ -382,6 +383,8 @@ static void setup_color(void)
         VectorSet(color, 1, 1, 1);
     } else if ((flags & RF_IR_VISIBLE) && (glr.fd.rdflags & RDF_IRGOGGLES)) {
         VectorSet(color, 1, 0, 0);
+    } else if (flags & RF_TRACKER) {
+        VectorClear(color);
     } else {
         GL_LightPoint(origin, color);
 
@@ -418,7 +421,7 @@ static void setup_celshading(void)
 {
     float value = Cvar_ClampValue(gl_celshading, 0, 10);
 
-    if (value == 0 || (glr.ent->flags & (RF_TRANSLUCENT | RF_SHELL_MASK)) || !qglPolygonMode || !qglLineWidth)
+    if (value == 0 || (glr.ent->flags & (RF_TRANSLUCENT | RF_SHELL_MASK | RF_TRACKER)) || !qglPolygonMode || !qglLineWidth)
         celscale = 0;
     else
         celscale = 1.0f - Distance(origin, glr.fd.vieworg) / 700.0f;
@@ -459,8 +462,7 @@ static void draw_celshading(const uint16_t *indices, int num_indices)
 static drawshadow_t cull_shadow(const model_t *model)
 {
     const cplane_t *plane;
-    float radius, d, w;
-    vec3_t point;
+    float radius, w;
 
     if (!gl_shadows->integer)
         return SHADOW_NO;
@@ -481,19 +483,26 @@ static drawshadow_t cull_shadow(const model_t *model)
     if (w < 0.5f)
         return SHADOW_NO;   // too steep
 
-    if (!gl_cull_models->integer)
-        return SHADOW_YES;
+    radius = (model->frames[newframenum].radius * frontlerp + model->frames[oldframenum].radius * backlerp) * glr.entscale;
 
-    // project on plane
-    d = PlaneDiffFast(origin, plane);
-    VectorMA(origin, -d, plane->normal, point);
+    shadowalpha = 0.5f;
 
-    radius = max(model->frames[newframenum].radius, model->frames[oldframenum].radius) / w;
+    // check if faded out
+    if (gl_shadows->integer >= 2) {
+        float dist = origin[2] - glr.lightpoint.pos[2] - radius;
+        if (dist > radius * 4.0f)
+            return SHADOW_NO;
+        if (dist > 0)
+            shadowalpha = 0.5f - dist / (radius * 8.0f);
+    }
 
-    for (int i = 0; i < 4; i++) {
-        if (PlaneDiff(point, &glr.frustumPlanes[i]) < -radius) {
-            c.spheresCulled++;
-            return SHADOW_NO;   // culled out
+    if (gl_cull_models->integer) {
+        float min_d = -radius / w;
+        for (int i = 0; i < 4; i++) {
+            if (PlaneDiff(glr.lightpoint.pos, &glr.frustumPlanes[i]) < min_d) {
+                c.shadowsCulled++;
+                return SHADOW_NO;   // culled out
+            }
         }
     }
 
@@ -571,7 +580,7 @@ static void draw_shadow(const uint16_t *indices, int num_indices)
     if (gls.currentva)
         GL_ArrayBits(GLA_VERTEX);
 
-    uniform_mesh_color(0, 0, 0, color[3] * 0.5f);
+    uniform_mesh_color(0, 0, 0, color[3] * shadowalpha);
     GL_LoadUniforms();
 
     qglEnable(GL_POLYGON_OFFSET_FILL);
@@ -640,6 +649,8 @@ static void draw_alias_mesh(const uint16_t *indices, int num_indices,
     glStateBits_t state;
     const image_t *skin;
 
+    c.trisDrawn += num_indices / 3;
+
     // if the model was culled, just draw the shadow
     if (drawshadow == SHADOW_ONLY) {
         GL_LockArrays(num_verts);
@@ -686,6 +697,12 @@ static void draw_alias_mesh(const uint16_t *indices, int num_indices,
     if (skin->texnum2)
         state |= GLS_GLOWMAP_ENABLE;
 
+    if (glr.framebuffer_bound && gl_bloom->integer) {
+        state |= GLS_BLOOM_GENERATE;
+        if (glr.ent->flags & RF_SHELL_MASK)
+            state |= GLS_BLOOM_SHELL;
+    }
+
     GL_StateBits(state);
 
     GL_BindTexture(TMU_TEXTURE, skin->texnum);
@@ -704,7 +721,6 @@ static void draw_alias_mesh(const uint16_t *indices, int num_indices,
     GL_LockArrays(num_verts);
 
     qglDrawElements(GL_TRIANGLES, num_indices, GL_UNSIGNED_SHORT, indices);
-    c.trisDrawn += num_indices / 3;
 
     draw_celshading(indices, num_indices);
 
@@ -807,7 +823,7 @@ static void lerp_alias_skeleton(const md5_model_t *model)
 #pragma GCC reset_options
 #endif
 
-static void bind_skel_arrays(const md5_mesh_t *mesh, const md5_joint_t *skel)
+static void bind_skel_arrays(const md5_mesh_t *mesh)
 {
     if (gl_config.caps & QGL_CAP_SHADER_STORAGE) {
         qglBindBufferRange(GL_SHADER_STORAGE_BUFFER, SSBO_WEIGHTS, buffer,
@@ -840,7 +856,7 @@ static void bind_skel_arrays(const md5_mesh_t *mesh, const md5_joint_t *skel)
 static void draw_skeleton_mesh(const md5_model_t *model, const md5_mesh_t *mesh, const md5_joint_t *skel)
 {
     if (buffer)
-        bind_skel_arrays(mesh, skel);
+        bind_skel_arrays(mesh);
     else if (glr.ent->flags & RF_SHELL_MASK)
         tess_shell_skel(mesh, skel);
     else if (dotshading)
@@ -852,11 +868,6 @@ static void draw_skeleton_mesh(const md5_model_t *model, const md5_mesh_t *mesh,
                     mesh->tcoords, mesh->num_verts,
                     model->skins, model->num_skins);
 }
-
-typedef struct {
-    vec4_t pos;
-    vec4_t axis[3];
-} glJoint_t;
 
 static void draw_alias_skeleton(const md5_model_t *model)
 {

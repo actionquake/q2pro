@@ -601,6 +601,9 @@ cvar_t *grenade_drop; // Allows grenades to be dropped on death
 cvar_t *ctf_rewards; // Enables CTF awards
 cvar_t *bots; 		// If bots are enabled and in the server
 
+// 2026
+cvar_t *use_buggy_ent_hitbox;  // Enables classic dead entity hitbox
+
 #ifdef AQTION_EXTENSION
 cvar_t *use_newirvision;
 cvar_t *use_indicators;

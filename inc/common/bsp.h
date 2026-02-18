@@ -75,7 +75,7 @@ typedef struct {
 #define SURF_COLOR_MASK (SURF_TRANS_MASK | SURF_WARP)
 
 #define SURF_NOLM_MASK_REMASTER     (SURF_SKY | SURF_NODRAW)
-#define SURF_NOLM_MASK_DEFAULT      (SURF_COLOR_MASK | SURF_FLOWING | SURF_NOLM_MASK_REMASTER)
+#define SURF_NOLM_MASK_DEFAULT      (SURF_COLOR_MASK | SURF_NOLM_MASK_REMASTER)
 
 #define DSURF_PLANEBACK     1
 
@@ -115,21 +115,21 @@ typedef struct mface_s {
 typedef struct mnode_s {
     /* ======> */
     cplane_t            *plane;     // never NULL to differentiate from leafs
+    struct mnode_s      *parent;
+
 #if USE_REF
     vec3_t              mins;
     vec3_t              maxs;
-
     unsigned            visframe;
 #endif
-    struct mnode_s      *parent;
     /* <====== */
-
-    struct mnode_s      *children[2];
 
 #if USE_REF
     int                 numfaces;
     mface_t             *firstface;
 #endif
+
+    struct mnode_s      *children[2];
 } mnode_t;
 
 typedef struct {
@@ -147,16 +147,16 @@ typedef struct {
 typedef struct {
     /* ======> */
     cplane_t            *plane;     // always NULL to differentiate from nodes
+    struct mnode_s      *parent;
+
 #if USE_REF
     vec3_t              mins;
     vec3_t              maxs;
-
     unsigned            visframe;
 #endif
-    struct mnode_s      *parent;
     /* <====== */
 
-    int             contents;
+    int             contents[2];    // 0 - original, 1 - merged
     int             cluster;
     int             area;
     int             numleafbrushes;
@@ -572,9 +572,9 @@ typedef struct {
 //#if USE_REF
     lightgrid_t     lightgrid;
 
-    qboolean        lm_decoupled;
-//#endif
-    qboolean        extended;
+    bool            lm_decoupled;
+    bool            extended;   // QBSP extended format
+    bool            has_bspx;   // has BSPX header
 
     char            name[1];
 } bsp_t;
@@ -593,6 +593,7 @@ typedef struct {
     cplane_t    plane;
     float       s, t;
     float       fraction;
+    vec3_t      pos;
 } lightpoint_t;
 
 void BSP_LightPoint(lightpoint_t *point, const vec3_t start, const vec3_t end, const mnode_t *headnode, int nolm_mask);

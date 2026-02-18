@@ -338,31 +338,44 @@ void CL_TrackerTrail(centity_t *ent, const vec3_t end)
     VectorCopy(move, ent->lerp_origin);
 }
 
+// Marsaglia 1972 rejection method
 static void RandomDir(vec3_t dir)
 {
-    dir[0] = crand();
-    dir[1] = crand();
-    dir[2] = crand();
-    VectorNormalize(dir);
+    float x, y, s, a;
+
+    do {
+        x = crand();
+        y = crand();
+        s = x * x + y * y;
+    } while (s > 1);
+
+    a = 2 * sqrtf(1 - s);
+    dir[0] = x * a;
+    dir[1] = y * a;
+    dir[2] = -1 + 2 * s;
 }
 
 void CL_Tracker_Shell(const centity_t *ent, const vec3_t origin)
 {
     vec3_t          org, dir, mid;
-    int             i;
+    int             i, count;
     cparticle_t     *p;
-    float           radius;
+    float           radius, scale;
 
     if (cl.csr.extended) {
         VectorAvg(ent->mins, ent->maxs, mid);
         VectorAdd(origin, mid, org);
         radius = ent->radius;
+        scale = Q_clipf(ent->radius / 40.0f, 1, 2);
+        count = 300 * scale;
     } else {
         VectorCopy(origin, org);
         radius = 40.0f;
+        scale = 1.0f;
+        count = 300;
     }
 
-    for (i = 0; i < 300; i++) {
+    for (i = 0; i < count; i++) {
         p = CL_AllocParticle();
         if (!p)
             return;
@@ -373,6 +386,7 @@ void CL_Tracker_Shell(const centity_t *ent, const vec3_t origin)
         p->alpha = 1.0f;
         p->alphavel = INSTANT_PARTICLE;
         p->color = 0;
+        p->scale = scale;
 
         RandomDir(dir);
         VectorMA(org, radius, dir, p->org);
