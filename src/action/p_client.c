@@ -6546,13 +6546,10 @@ void ClientBeginServerFrame(edict_t * ent)
 					EspRespawnPlayer(ent);
 				}
 				#ifdef AQTION_EXTENSION
-				// Redraw GHUD
+				// Switch to the spectator HUD. HUD_SpectatorSetup (called via
+				// HUD_SetType) immediately applies the limchasecam team filter
+				// so enemy nameplates are never visible even for a single frame.
 				HUD_SetType(ent, 1);
-				// Apply the limchasecam visibility filter immediately. HUD_SpectatorSetup
-				// creates all nameplates visible, but HUD_SpectatorUpdate (which hides the
-				// enemy team) already ran earlier this frame when hud_type was still -1.
-				// Without this call, enemy nameplates flash visible for one frame on death.
-				HUD_SpectatorUpdate(ent);
 				#endif
 			}
 			else

@@ -1203,6 +1203,12 @@ void HUD_SpectatorSetup(edict_t *clent)
 
 		// GHUD top middle time display
 		HUD_SpectatorTimerSetup(clent);
+
+		// Apply the limchasecam team visibility filter immediately after setup.
+		// All nameplates are created visible by default; this hides enemy team
+		// elements for dead team players (limchasecam=2) so they never appear
+		// visible even for a single frame before HUD_SpectatorUpdate runs.
+		HUD_SpectatorUpdate(clent);
 	}
 }
 
