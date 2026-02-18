@@ -23,6 +23,25 @@ with this program; if not, write to the Free Software Foundation, Inc.,
 
 #define GLSL(x)     SZ_Write(buf, CONST_STR_LEN(#x "\n"));
 #define GLSF(x)     SZ_Write(buf, CONST_STR_LEN(x))
+#define GLSP(...)   shader_printf(buf, __VA_ARGS__)
+
+static cvar_t *gl_bloom_sigma;
+
+q_printf(2, 3)
+static void shader_printf(sizebuf_t *buf, const char *fmt, ...)
+{
+    va_list ap;
+    size_t len;
+
+    Q_assert(buf->cursize <= buf->maxsize);
+
+    va_start(ap, fmt);
+    len = Q_vsnprintf((char *)buf->data + buf->cursize, buf->maxsize - buf->cursize, fmt, ap);
+    va_end(ap);
+
+    Q_assert(len <= buf->maxsize - buf->cursize);
+    buf->cursize += len;
+}
 
 static void write_header(sizebuf_t *buf, glStateBits_t bits)
 {
@@ -46,7 +65,7 @@ static void write_header(sizebuf_t *buf, glStateBits_t bits)
 
 static void write_block(sizebuf_t *buf, glStateBits_t bits)
 {
-    GLSF("layout(std140) uniform u_block {\n");
+    GLSF("layout(std140) uniform Uniforms {\n");
     GLSL(mat4 m_vp;);
     GLSL(mat4 m_model;);
 
@@ -87,7 +106,7 @@ static void write_block(sizebuf_t *buf, glStateBits_t bits)
         float u_heightfog_density;
         float u_heightfog_falloff;
         vec2 pad_4;
-        vec3 u_vieworg;
+        vec4 u_vieworg;
     )
     GLSF("};\n");
 }
@@ -322,34 +341,120 @@ static void write_vertex_shader(sizebuf_t *buf, glStateBits_t bits)
         GLSL(out vec3 v_world_pos;)
 
     GLSF("void main() {\n");
-        if (bits & GLS_CLASSIC_SKY) {
-            GLSL(v_dir = (m_sky[1] * a_pos).xyz;)
-        } else if (bits & GLS_DEFAULT_SKY) {
-            GLSL(v_dir = (m_sky[0] * a_pos).xyz;)
-        } else if (bits & GLS_SCROLL_ENABLE) {
-            GLSL(v_tc = a_tc + u_scroll;)
-        } else {
-            GLSL(v_tc = a_tc;)
-        }
+    if (bits & GLS_CLASSIC_SKY) {
+        GLSL(v_dir = (m_sky[1] * a_pos).xyz;)
+    } else if (bits & GLS_DEFAULT_SKY) {
+        GLSL(v_dir = (m_sky[0] * a_pos).xyz;)
+    } else if (bits & GLS_SCROLL_ENABLE) {
+        GLSL(v_tc = a_tc + u_scroll;)
+    } else {
+        GLSL(v_tc = a_tc;)
+    }
 
-        if (bits & GLS_LIGHTMAP_ENABLE)
-            GLSL(v_lmtc = a_lmtc;)
+    if (bits & GLS_LIGHTMAP_ENABLE)
+        GLSL(v_lmtc = a_lmtc;)
 
-        if (!(bits & GLS_TEXTURE_REPLACE))
-            GLSL(v_color = a_color;)
+    if (!(bits & GLS_TEXTURE_REPLACE))
+        GLSL(v_color = a_color;)
 
-        if (bits & GLS_FOG_HEIGHT)
-            GLSL(v_world_pos = (m_model * a_pos).xyz;)
+    if (bits & GLS_FOG_HEIGHT)
+        GLSL(v_world_pos = (m_model * a_pos).xyz;)
 
-        GLSL(gl_Position = m_vp * a_pos;)
+    GLSL(gl_Position = m_vp * a_pos;)
     GLSF("}\n");
 }
 
+#define MAX_SIGMA   25
+#define MAX_RADIUS  50
+
+// https://lisyarus.github.io/blog/posts/blur-coefficients-generator.html
+static void write_gaussian_blur(sizebuf_t *buf)
+{
+    float sigma = gl_static.bloom_sigma;
+    int radius = min(sigma * 2 + 0.5f, MAX_RADIUS);
+    int samples = radius + 1;
+    int raw_samples = (radius * 2) + 1;
+    float offsets[MAX_RADIUS + 1];
+    float weights[(MAX_RADIUS * 2) + 1];
+
+    // should not really happen
+    if (radius < 1) {
+        GLSL(vec4 blur(sampler2D src, vec2 tc, vec2 dir) { return texture(src, tc); })
+        return;
+    }
+
+    float sum = 0;
+    for (int i = -radius, j = 0; i <= radius; i++, j++) {
+        float w = expf(-(i * i) / (sigma * sigma));
+        weights[j] = w;
+        sum += w;
+    }
+
+    for (int i = 0; i < raw_samples; i++)
+        weights[i] /= sum;
+
+    for (int i = -radius, j = 0; i <= radius; i += 2, j++) {
+        if (i == radius) {
+            offsets[j] = i;
+            weights[j] = weights[i + radius];
+        } else {
+            float w0 = weights[i + radius + 0];
+            float w1 = weights[i + radius + 1];
+            float w = w0 + w1;
+
+            if (w > 0)
+                offsets[j] = i + w1 / w;
+            else
+                offsets[j] = i;
+
+            weights[j] = w;
+        }
+    }
+
+    GLSP("#define BLUR_SAMPLES %d\n", samples);
+
+    GLSF("const float blur_offsets[BLUR_SAMPLES] = float[BLUR_SAMPLES](\n");
+    for (int i = 0; i < samples - 1; i++)
+        GLSP("%f, ", offsets[i]);
+    GLSP("%f);\n", offsets[samples - 1]);
+
+    GLSF("const float blur_weights[BLUR_SAMPLES] = float[BLUR_SAMPLES](\n");
+    for (int i = 0; i < samples - 1; i++)
+        GLSP("%f, ", weights[i]);
+    GLSP("%f);\n", weights[samples - 1]);
+
+    GLSL(
+        vec4 blur(sampler2D src, vec2 tc, vec2 dir) {
+            vec4 result = vec4(0.0);
+            for (int i = 0; i < BLUR_SAMPLES; i++)
+                result += texture(src, tc + dir * blur_offsets[i]) * blur_weights[i];
+            return result;
+        }
+    )
+}
+
+static void write_box_blur(sizebuf_t *buf)
+{
+    GLSL(
+        vec4 blur(sampler2D src, vec2 tc, vec2 dir) {
+            vec4 result = vec4(0.0);
+            const float o = 0.25;
+            result += texture(src, tc + vec2(-o, -o) * dir) * 0.25;
+            result += texture(src, tc + vec2(-o,  o) * dir) * 0.25;
+            result += texture(src, tc + vec2( o, -o) * dir) * 0.25;
+            result += texture(src, tc + vec2( o,  o) * dir) * 0.25;
+            return result;
+        }
+    )
+}
+
 // XXX: this is very broken. but that's how it is in re-release.
-static void write_height_fog(sizebuf_t *buf)
+static void write_height_fog(sizebuf_t *buf, glStateBits_t bits)
 {
     GLSL({
-        float dir_z = normalize(v_world_pos - u_vieworg).z;
+        float dir_z = normalize(v_world_pos - u_vieworg.xyz).z;
+        float s = sign(dir_z);
+        dir_z += 0.00001 * (1.0 - s * s);
         float eye = u_vieworg.z - u_heightfog_start.w;
         float pos = v_world_pos.z - u_heightfog_start.w;
         float density = (exp(-u_heightfog_falloff * eye) -
@@ -359,7 +464,12 @@ static void write_height_fog(sizebuf_t *buf)
         vec3 fog_color = mix(u_heightfog_start.rgb, u_heightfog_end.rgb, fraction) * extinction;
         float fog = (1.0 - exp(-(u_heightfog_density * frag_depth))) * extinction;
         diffuse.rgb = mix(diffuse.rgb, fog_color.rgb, fog);
-    })
+    )
+
+    if (bits & GLS_BLOOM_GENERATE)
+        GLSL(bloom.rgb *= 1.0 - fog;)
+
+    GLSL(})
 }
 
 static void write_fragment_shader(sizebuf_t *buf, glStateBits_t bits)
@@ -381,6 +491,8 @@ static void write_fragment_shader(sizebuf_t *buf, glStateBits_t bits)
         GLSL(uniform samplerCube u_texture;)
     } else {
         GLSL(uniform sampler2D u_texture;)
+        if (bits & GLS_BLOOM_OUTPUT)
+            GLSL(uniform sampler2D u_bloom;)
     }
 
     if (bits & GLS_SKY_MASK)
@@ -399,84 +511,134 @@ static void write_fragment_shader(sizebuf_t *buf, glStateBits_t bits)
     if (!(bits & GLS_TEXTURE_REPLACE))
         GLSL(in vec4 v_color;)
 
+    if (gl_config.ver_es)
+        GLSL(layout(location = 0))
     GLSL(out vec4 o_color;)
+
+    if (bits & GLS_BLOOM_GENERATE) {
+        if (gl_config.ver_es)
+            GLSL(layout(location = 1))
+        GLSL(out vec4 o_bloom;)
+    }
 
     if (bits & GLS_FOG_HEIGHT)
         GLSL(in vec3 v_world_pos;)
 
+    if (bits & GLS_BLUR_GAUSS)
+        write_gaussian_blur(buf);
+    else if (bits & GLS_BLUR_BOX)
+        write_box_blur(buf);
+
     GLSF("void main() {\n");
-        if (bits & GLS_CLASSIC_SKY) {
-            GLSL(
-                float len = length(v_dir);
-                vec2 dir = v_dir.xy * (3.0 / len);
-                vec2 tc1 = dir + vec2(u_time * 0.0625);
-                vec2 tc2 = dir + vec2(u_time * 0.1250);
-                vec4 solid = texture(u_texture1, tc1);
-                vec4 alpha = texture(u_texture2, tc2);
-                vec4 diffuse = vec4((solid.rgb - alpha.rgb * 0.25) * 0.65, 1.0);
-            )
-        } else if (bits & GLS_DEFAULT_SKY) {
-            GLSL(vec4 diffuse = texture(u_texture, v_dir);)
-        } else {
-            GLSL(vec2 tc = v_tc;)
+    if (bits & GLS_CLASSIC_SKY) {
+        GLSL(
+            float len = length(v_dir);
+            vec2 dir = v_dir.xy * (3.0 / len);
+            vec2 tc1 = dir + vec2(u_time * 0.0625);
+            vec2 tc2 = dir + vec2(u_time * 0.1250);
+            vec4 solid = texture(u_texture1, tc1);
+            vec4 alpha = texture(u_texture2, tc2);
+            vec4 diffuse = vec4((solid.rgb - alpha.rgb * 0.25) * 0.65, 1.0);
+        )
+    } else if (bits & GLS_DEFAULT_SKY) {
+        GLSL(vec4 diffuse = texture(u_texture, v_dir);)
+    } else {
+        GLSL(vec2 tc = v_tc;)
 
-            if (bits & GLS_WARP_ENABLE)
-                GLSL(tc += w_amp * sin(tc.ts * w_phase + u_time);)
+        if (bits & GLS_WARP_ENABLE)
+            GLSL(tc += w_amp * sin(tc.ts * w_phase + u_time);)
 
+        if (bits & GLS_BLUR_MASK)
+            GLSL(vec4 diffuse = blur(u_texture, tc, u_fog_color.xy);)
+        else
             GLSL(vec4 diffuse = texture(u_texture, tc);)
-        }
+    }
 
-        if (bits & GLS_ALPHATEST_ENABLE)
-            GLSL(if (diffuse.a <= 0.666) discard;)
+    if (bits & GLS_ALPHATEST_ENABLE)
+        GLSL(if (diffuse.a <= 0.666) discard;)
 
-        if (bits & GLS_LIGHTMAP_ENABLE) {
-            GLSL(vec4 lightmap = texture(u_lightmap, v_lmtc);)
+    if (bits & GLS_BLOOM_GENERATE)
+        GLSL(vec4 bloom = vec4(0.0);)
 
-            if (bits & GLS_GLOWMAP_ENABLE) {
-                GLSL(vec4 glowmap = texture(u_glowmap, tc);)
-                GLSL(lightmap.rgb = mix(lightmap.rgb, vec3(1.0), glowmap.a);)
-            }
+    if (bits & GLS_LIGHTMAP_ENABLE) {
+        GLSL(vec4 lightmap = texture(u_lightmap, v_lmtc);)
 
-            GLSL(diffuse.rgb *= (lightmap.rgb + u_add) * u_modulate;)
-        }
-
-        if (bits & GLS_INTENSITY_ENABLE)
-            GLSL(diffuse.rgb *= u_intensity;)
-
-        if (bits & GLS_DEFAULT_FLARE)
-            GLSL(
-                 diffuse.rgb *= (diffuse.r + diffuse.g + diffuse.b) / 3.0;
-                 diffuse.rgb *= v_color.a;
-            )
-
-        if (!(bits & GLS_TEXTURE_REPLACE))
-            GLSL(diffuse *= v_color;)
-
-        if (!(bits & GLS_LIGHTMAP_ENABLE) && (bits & GLS_GLOWMAP_ENABLE)) {
+        if (bits & GLS_GLOWMAP_ENABLE) {
             GLSL(vec4 glowmap = texture(u_glowmap, tc);)
-            if (bits & GLS_INTENSITY_ENABLE)
-                GLSL(diffuse.rgb += glowmap.rgb * u_intensity2;)
-            else
-                GLSL(diffuse.rgb += glowmap.rgb;)
+            GLSL(lightmap.rgb = mix(lightmap.rgb, vec3(1.0), glowmap.a);)
+
+            if (bits & GLS_BLOOM_GENERATE) {
+                GLSL(bloom.rgb = diffuse.rgb * glowmap.a;)
+                if (bits & GLS_INTENSITY_ENABLE)
+                    GLSL(bloom.rgb *= u_intensity;)
+            }
         }
 
-        if (bits & (GLS_FOG_GLOBAL | GLS_FOG_HEIGHT))
-            GLSL(float frag_depth = gl_FragCoord.z / gl_FragCoord.w;)
+        GLSL(diffuse.rgb *= (lightmap.rgb + u_add) * u_modulate;)
+    }
 
-        if (bits & GLS_FOG_GLOBAL)
-            GLSL({
-                float d = u_fog_color.a * frag_depth;
-                float fog = 1.0f - exp(-(d * d));
-                diffuse.rgb = mix(diffuse.rgb, u_fog_color.rgb, fog);
-            })
+    if (bits & GLS_INTENSITY_ENABLE)
+        GLSL(diffuse.rgb *= u_intensity;)
 
-        if (bits & GLS_FOG_HEIGHT)
-            write_height_fog(buf);
+    if (bits & GLS_DEFAULT_FLARE)
+        GLSL(
+             diffuse.rgb *= (diffuse.r + diffuse.g + diffuse.b) / 3.0;
+             diffuse.rgb *= v_color.a;
+        )
 
-        if (bits & GLS_FOG_SKY)
-            GLSL(diffuse.rgb = mix(diffuse.rgb, u_fog_color.rgb, u_fog_sky_factor);)
+    if (!(bits & GLS_TEXTURE_REPLACE))
+        GLSL(diffuse *= v_color;)
 
-        GLSL(o_color = diffuse;)
+    if (!(bits & GLS_LIGHTMAP_ENABLE) && (bits & GLS_GLOWMAP_ENABLE)) {
+        GLSL(vec4 glowmap = texture(u_glowmap, tc);)
+        if (bits & GLS_INTENSITY_ENABLE)
+            GLSL(diffuse.rgb += glowmap.rgb * u_intensity2;)
+        else
+            GLSL(diffuse.rgb += glowmap.rgb;)
+
+        if (bits & GLS_BLOOM_GENERATE) {
+            GLSL(bloom.rgb = glowmap.rgb;)
+            if (bits & GLS_INTENSITY_ENABLE)
+                GLSL(bloom.rgb *= u_intensity2;)
+        }
+    }
+
+    if (bits & GLS_BLOOM_GENERATE) {
+        if (bits & GLS_BLOOM_SHELL)
+            GLSL(bloom = diffuse;)
+        else
+            GLSL(bloom.a = diffuse.a;)
+    }
+
+    if (bits & (GLS_FOG_GLOBAL | GLS_FOG_HEIGHT))
+        GLSL(float frag_depth = gl_FragCoord.z / gl_FragCoord.w;)
+
+    if (bits & GLS_FOG_GLOBAL) {
+        GLSL({
+            float d = u_fog_color.a * frag_depth;
+            float fog = 1.0 - exp(-(d * d));
+            diffuse.rgb = mix(diffuse.rgb, u_fog_color.rgb, fog);
+        )
+
+        if (bits & GLS_BLOOM_GENERATE)
+            GLSL(bloom.rgb *= 1.0 - fog;)
+
+        GLSL(})
+    }
+
+    if (bits & GLS_FOG_HEIGHT)
+        write_height_fog(buf, bits);
+
+    if (bits & GLS_FOG_SKY)
+        GLSL(diffuse.rgb = mix(diffuse.rgb, u_fog_color.rgb, u_fog_sky_factor);)
+
+    if (bits & GLS_BLOOM_OUTPUT)
+        GLSL(diffuse.rgb += texture(u_bloom, tc).rgb;)
+
+    if (bits & GLS_BLOOM_GENERATE)
+        GLSL(o_bloom = bloom;)
+
+    GLSL(o_color = diffuse;)
     GLSF("}\n");
 }
 
@@ -490,6 +652,9 @@ static GLuint create_shader(GLenum type, const sizebuf_t *buf)
         Com_EPrintf("Couldn't create shader\n");
         return 0;
     }
+
+    Com_DDDPrintf("Compiling %s shader (%d bytes):\n%.*s\n",
+                  type == GL_VERTEX_SHADER ? "vertex" : "fragment", size, size, data);
 
     qglShaderSource(shader, 1, &data, &size);
     qglCompileShader(shader);
@@ -513,6 +678,35 @@ static GLuint create_shader(GLenum type, const sizebuf_t *buf)
     return shader;
 }
 
+static bool bind_uniform_block(GLuint program, const char *name, size_t cpu_size, GLuint binding)
+{
+    GLuint index = qglGetUniformBlockIndex(program, name);
+    if (index == GL_INVALID_INDEX) {
+        Com_EPrintf("%s block not found\n", name);
+        return false;
+    }
+
+    GLint gpu_size = 0;
+    qglGetActiveUniformBlockiv(program, index, GL_UNIFORM_BLOCK_DATA_SIZE, &gpu_size);
+    if (gpu_size != cpu_size) {
+        Com_EPrintf("%s block size mismatch: %d != %zu\n", name, gpu_size, cpu_size);
+        return false;
+    }
+
+    qglUniformBlockBinding(program, index, binding);
+    return true;
+}
+
+static void bind_texture_unit(GLuint program, const char *name, GLuint tmu)
+{
+    GLint loc = qglGetUniformLocation(program, name);
+    if (loc == -1) {
+        Com_EPrintf("Texture %s not found\n", name);
+        return;
+    }
+    qglUniform1i(loc, tmu);
+}
+
 static GLuint create_and_use_program(glStateBits_t bits)
 {
     char buffer[MAX_SHADER_CHARS];
@@ -528,14 +722,14 @@ static GLuint create_and_use_program(glStateBits_t bits)
     write_vertex_shader(&sb, bits);
     GLuint shader_v = create_shader(GL_VERTEX_SHADER, &sb);
     if (!shader_v)
-        return program;
+        goto fail;
 
     SZ_Clear(&sb);
     write_fragment_shader(&sb, bits);
     GLuint shader_f = create_shader(GL_FRAGMENT_SHADER, &sb);
     if (!shader_f) {
         qglDeleteShader(shader_v);
-        return program;
+        goto fail;
     }
 
     qglAttachShader(program, shader_v);
@@ -563,6 +757,11 @@ static GLuint create_and_use_program(glStateBits_t bits)
             qglBindAttribLocation(program, VERT_ATTR_COLOR, "a_color");
     }
 
+    if (bits & GLS_BLOOM_GENERATE && !gl_config.ver_es) {
+        qglBindFragDataLocation(program, 0, "o_color");
+        qglBindFragDataLocation(program, 1, "o_bloom");
+    }
+
     qglLinkProgram(program);
 
     qglDeleteShader(shader_v);
@@ -580,55 +779,47 @@ static GLuint create_and_use_program(glStateBits_t bits)
             Com_Printf("%s", buffer);
 
         Com_EPrintf("Error linking program\n");
-        return program;
+        goto fail;
     }
 
-    GLuint index = qglGetUniformBlockIndex(program, "u_block");
-    if (index == GL_INVALID_INDEX) {
-        Com_EPrintf("Uniform block not found\n");
-        return program;
-    }
-
-    GLint size = 0;
-    qglGetActiveUniformBlockiv(program, index, GL_UNIFORM_BLOCK_DATA_SIZE, &size);
-    if (size != sizeof(gls.u_block)) {
-        Com_EPrintf("Uniform block size mismatch: %d != %zu\n", size, sizeof(gls.u_block));
-        return program;
-    }
-
-    qglUniformBlockBinding(program, index, UBO_UNIFORMS);
+    if (!bind_uniform_block(program, "Uniforms", sizeof(gls.u_block), UBO_UNIFORMS))
+        goto fail;
 
 #if USE_MD5
-    if (bits & GLS_MESH_MD5) {
-        index = qglGetUniformBlockIndex(program, "Skeleton");
-        if (index == GL_INVALID_INDEX) {
-            Com_EPrintf("Skeleton block not found\n");
-            return program;
-        }
-        qglUniformBlockBinding(program, index, UBO_SKELETON);
-    }
+    if (bits & GLS_MESH_MD5)
+        if (!bind_uniform_block(program, "Skeleton", sizeof(glJoint_t) * MD5_MAX_JOINTS, UBO_SKELETON))
+            goto fail;
 #endif
 
     qglUseProgram(program);
 
 #if USE_MD5
     if (bits & GLS_MESH_MD5 && !(gl_config.caps & QGL_CAP_SHADER_STORAGE)) {
-        qglUniform1i(qglGetUniformLocation(program, "u_weights"), TMU_SKEL_WEIGHTS);
-        qglUniform1i(qglGetUniformLocation(program, "u_jointnums"), TMU_SKEL_JOINTNUMS);
+        bind_texture_unit(program, "u_weights", TMU_SKEL_WEIGHTS);
+        bind_texture_unit(program, "u_jointnums", TMU_SKEL_JOINTNUMS);
     }
 #endif
+
     if (bits & GLS_CLASSIC_SKY) {
-        qglUniform1i(qglGetUniformLocation(program, "u_texture1"), TMU_TEXTURE);
-        qglUniform1i(qglGetUniformLocation(program, "u_texture2"), TMU_LIGHTMAP);
+        bind_texture_unit(program, "u_texture1", TMU_TEXTURE);
+        bind_texture_unit(program, "u_texture2", TMU_LIGHTMAP);
     } else {
-        qglUniform1i(qglGetUniformLocation(program, "u_texture"), TMU_TEXTURE);
+        bind_texture_unit(program, "u_texture", TMU_TEXTURE);
+        if (bits & GLS_BLOOM_OUTPUT)
+            bind_texture_unit(program, "u_bloom", TMU_LIGHTMAP);
     }
+
     if (bits & GLS_LIGHTMAP_ENABLE)
-        qglUniform1i(qglGetUniformLocation(program, "u_lightmap"), TMU_LIGHTMAP);
+        bind_texture_unit(program, "u_lightmap", TMU_LIGHTMAP);
+
     if (bits & GLS_GLOWMAP_ENABLE)
-        qglUniform1i(qglGetUniformLocation(program, "u_glowmap"), TMU_GLOWMAP);
+        bind_texture_unit(program, "u_glowmap", TMU_GLOWMAP);
 
     return program;
+
+fail:
+    qglDeleteProgram(program);
+    return 0;
 }
 
 static void shader_use_program(glStateBits_t key)
@@ -656,6 +847,14 @@ static void shader_state_bits(glStateBits_t bits)
     if (diff & GLS_SCROLL_MASK && bits & GLS_SCROLL_ENABLE) {
         GL_ScrollPos(gls.u_block.scroll, bits);
         gls.u_block_dirty = true;
+    }
+
+    if (diff & GLS_BLOOM_GENERATE && glr.framebuffer_bound) {
+        int n = (bits & GLS_BLOOM_GENERATE) ? 2 : 1;
+        qglDrawBuffers(n, (const GLenum []) {
+            GL_COLOR_ATTACHMENT0,
+            GL_COLOR_ATTACHMENT1
+        });
     }
 }
 
@@ -800,20 +999,57 @@ static void shader_clear_state(void)
     shader_use_program(GLS_DEFAULT);
 }
 
+void GL_UpdateBlurParams(void)
+{
+    if (!gl_static.programs)
+        return;
+    if (!gl_bloom->integer)
+        return;
+
+    float sigma = Cvar_ClampValue(gl_bloom_sigma, 1, MAX_SIGMA) * glr.fd.height / 1080;
+
+    if (gl_static.bloom_sigma == sigma)
+        return;
+
+    Com_DDPrintf("%s: %.1f\n", __func__, sigma);
+    gl_static.bloom_sigma = sigma;
+
+    bool changed = false;
+    uint32_t map_size = HashMap_Size(gl_static.programs);
+    for (int i = 0; i < map_size; i++) {
+        glStateBits_t *bits = HashMap_GetKey(glStateBits_t, gl_static.programs, i);
+        if (*bits & GLS_BLUR_GAUSS) {
+            GLuint *prog = HashMap_GetValue(GLuint, gl_static.programs, i);
+            qglDeleteProgram(*prog);
+            *prog = create_and_use_program(*bits);
+            changed = true;
+        }
+    }
+
+    if (changed)
+        shader_use_program(gls.state_bits & GLS_SHADER_MASK);
+}
+
+static void gl_bloom_sigma_changed(cvar_t *self)
+{
+    GL_UpdateBlurParams();
+}
+
 static void shader_init(void)
 {
-    gl_static.programs = HashMap_TagCreate(glStateBits_t, GLuint, HashInt32, NULL, TAG_RENDERER);
+    gl_bloom_sigma = Cvar_Get("gl_bloom_sigma", "4", 0);
+    gl_bloom_sigma->changed = gl_bloom_sigma_changed;
+
+    gl_static.programs = HashMap_TagCreate(glStateBits_t, GLuint, HashInt64, NULL, TAG_RENDERER);
 
     qglGenBuffers(1, &gl_static.uniform_buffer);
-    GL_BindBuffer(GL_UNIFORM_BUFFER, gl_static.uniform_buffer);
-    qglBindBufferBase(GL_UNIFORM_BUFFER, UBO_UNIFORMS, gl_static.uniform_buffer);
+    GL_BindBufferBase(GL_UNIFORM_BUFFER, UBO_UNIFORMS, gl_static.uniform_buffer);
     qglBufferData(GL_UNIFORM_BUFFER, sizeof(gls.u_block), NULL, GL_DYNAMIC_DRAW);
 
 #if USE_MD5
     if (gl_config.caps & QGL_CAP_SKELETON_MASK) {
         qglGenBuffers(1, &gl_static.skeleton_buffer);
-        GL_BindBuffer(GL_UNIFORM_BUFFER, gl_static.skeleton_buffer);
-        qglBindBufferBase(GL_UNIFORM_BUFFER, UBO_SKELETON, gl_static.skeleton_buffer);
+        GL_BindBufferBase(GL_UNIFORM_BUFFER, UBO_SKELETON, gl_static.skeleton_buffer);
 
         if ((gl_config.caps & QGL_CAP_SKELETON_MASK) == QGL_CAP_BUFFER_TEXTURE)
             qglGenTextures(2, gl_static.skeleton_tex);
@@ -828,6 +1064,9 @@ static void shader_shutdown(void)
 {
     shader_disable_state();
     qglUseProgram(0);
+
+    gl_static.bloom_sigma = 0;
+    gl_bloom_sigma->changed = NULL;
 
     if (gl_static.programs) {
         uint32_t map_size = HashMap_Size(gl_static.programs);

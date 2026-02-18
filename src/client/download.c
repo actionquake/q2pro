@@ -826,7 +826,7 @@ void CL_RequestNextDownload(void)
 
         if (allow_download_textures->integer) {
             for (i = 0; i < cl.bsp->numtexinfo; i++) {
-                if (cl.bsp->texinfo[i].c.flags & SURF_NODRAW)
+                if (cl.bsp->texinfo[i].c.flags & SURF_NODRAW && cl.bsp->has_bspx)
                     continue;
                 if (r_override_textures->integer == 2 || (r_texture_overrides->integer & 16)) {
                     len = Q_concat(fn, sizeof(fn), "textures/", cl.bsp->texinfo[i].name, ".jpg");

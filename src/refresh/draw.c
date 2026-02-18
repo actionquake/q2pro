@@ -361,23 +361,26 @@ static inline void draw_char(int x, int y, int flags, int c, const image_t *imag
     s = (c & 15) * 0.0625f;
     t = (c >> 4) * 0.0625f;
 
-    if (gl_fontshadow->integer > 0 && c != 0x83) {
+    if (flags & UI_DROPSHADOW && c != 0x83) {
         uint32_t black = draw.colors[0].u32 & U32_ALPHA;
 
-        GL_StretchPic(x + 1, y + 1, CHAR_WIDTH, CHAR_HEIGHT, s, t,
+        GL_StretchPic(x + 1, y + 1, CONCHAR_WIDTH, CONCHAR_HEIGHT, s, t,
                       s + 0.0625f, t + 0.0625f, black, image);
 
         if (gl_fontshadow->integer > 1)
-            GL_StretchPic(x + 2, y + 2, CHAR_WIDTH, CHAR_HEIGHT, s, t,
+            GL_StretchPic(x + 2, y + 2, CONCHAR_WIDTH, CONCHAR_HEIGHT, s, t,
                           s + 0.0625f, t + 0.0625f, black, image);
     }
 
-    GL_StretchPic(x, y, CHAR_WIDTH, CHAR_HEIGHT, s, t,
+    GL_StretchPic(x, y, CONCHAR_WIDTH, CONCHAR_HEIGHT, s, t,
                   s + 0.0625f, t + 0.0625f, draw.colors[c >> 7].u32, image);
 }
 
 void R_DrawChar(int x, int y, int flags, int c, qhandle_t font)
 {
+    if (gl_fontshadow->integer > 0)
+        flags |= UI_DROPSHADOW;
+
     draw_char(x, y, flags, c & 255, IMG_ForHandle(font));
 }
 
@@ -385,10 +388,13 @@ int R_DrawString(int x, int y, int flags, size_t maxlen, const char *s, qhandle_
 {
     const image_t *image = IMG_ForHandle(font);
 
+    if (gl_fontshadow->integer > 0)
+        flags |= UI_DROPSHADOW;
+
     while (maxlen-- && *s) {
         byte c = *s++;
         draw_char(x, y, flags, c, image);
-        x += CHAR_WIDTH;
+        x += CONCHAR_WIDTH;
     }
 
     return x;
@@ -415,7 +421,7 @@ void Draw_Stats(void)
     int x = 10, y = 10;
 
     R_SetScale(1.0f / get_auto_scale());
-    R_DrawFill8(8, 8, 25*8, 23*10+2, 4);
+    R_DrawFill8(8, 8, 25*8, 24*10+2, 4);
 
     Draw_Stringf(x, y, "Nodes visible  : %i", glr.nodes_visible); y += 10;
     Draw_Stringf(x, y, "Nodes culled   : %i", c.nodesCulled); y += 10;
@@ -426,6 +432,7 @@ void Draw_Stats(void)
     Draw_Stringf(x, y, "Boxes culled   : %i", c.boxesCulled); y += 10;
     Draw_Stringf(x, y, "Spheres culled : %i", c.spheresCulled); y += 10;
     Draw_Stringf(x, y, "RtBoxes culled : %i", c.rotatedBoxesCulled); y += 10;
+    Draw_Stringf(x, y, "Shadows culled : %i", c.shadowsCulled); y += 10;
     Draw_Stringf(x, y, "Tris drawn     : %i", c.trisDrawn); y += 10;
     Draw_Stringf(x, y, "Tex switches   : %i", c.texSwitches); y += 10;
     Draw_Stringf(x, y, "Tex uploads    : %i", c.texUploads); y += 10;
