@@ -21,6 +21,7 @@ with this program; if not, write to the Free Software Foundation, Inc.,
 //
 
 #include "client.h"
+#include "common/mdfour.h"
 #include "format/md2.h"
 #include "format/sp2.h"
 
@@ -34,6 +35,9 @@ typedef enum {
 static precache_t precache_check;
 static int precache_sexed_sounds[MAX_SOUNDS];
 static int precache_sexed_total;
+
+// Track if we've already attempted a CRC-based map re-download
+static bool map_crc_retry_attempted = false;
 
 cvar_t   *r_override_textures;
 cvar_t   *r_texture_overrides;
@@ -154,6 +158,8 @@ void CL_CleanupDownloads(void)
 
     List_Init(&cls.download.queue);
     cls.download.pending = 0;
+
+    map_crc_retry_attempted = false;  // Reset retry flag on disconnect
 
     cls.download.current = NULL;
     cls.download.percent = 0;
@@ -485,9 +491,57 @@ static int check_file_len(const char *path, size_t len, dltype_t type)
     if (*ext != '.' || !CL_CheckDownloadExtension(ext + 1))
         return Q_ERR_INVALID_PATH;
 
-    if (FS_FileExists(buffer))
-        // it exists, no need to download
-        return Q_ERR(EEXIST);
+    if (FS_FileExists(buffer)) {
+        // For map files, validate CRC before skipping download
+        if (type == DL_MAP && !map_crc_retry_attempted) {
+            // Parse server checksum as signed int (server stores with "%d"), then
+            // treat as unsigned so both sides compare as the same 32-bit bit pattern.
+            unsigned server_checksum = (unsigned)Q_atoi(cl.configstrings[cl.csr.mapchecksum]);
+
+            if (server_checksum != 0) {  // Server sent a valid checksum
+                // Compute local CRC directly from raw file bytes.
+                // Do NOT use BSP_Load here: it caches in memory and may return a
+                // stale entry if this map was previously loaded (e.g. listen server).
+                byte *raw;
+                int filelen = FS_LoadFile(buffer, (void **)&raw);
+                if (raw) {
+                    unsigned local_checksum = Com_BlockChecksum(raw, filelen);
+                    FS_FreeFile(raw);
+
+                    if (local_checksum != server_checksum) {
+                        char fullpath[MAX_OSPATH];
+
+                        Com_Printf("Map CRC mismatch: local=%u, server=%u — re-downloading %s\n",
+                                   local_checksum, server_checksum, buffer);
+
+                        // Delete mismatched file using absolute filesystem path
+                        Q_concat(fullpath, sizeof(fullpath), fs_gamedir, "/", buffer);
+                        remove(fullpath);
+
+                        // Mark that we've attempted retry (only once per connection)
+                        map_crc_retry_attempted = true;
+
+                        // Fall through to download logic below
+                    } else {
+                        return Q_ERR(EEXIST);  // CRC matches, skip download
+                    }
+                } else {
+                    // Could not read the file — re-download it
+                    char fullpath[MAX_OSPATH];
+                    Com_Printf("Could not read local map for CRC check, re-downloading: %s\n", buffer);
+                    Q_concat(fullpath, sizeof(fullpath), fs_gamedir, "/", buffer);
+                    remove(fullpath);
+                    map_crc_retry_attempted = true;
+                }
+            } else {
+                // No server checksum available, skip download
+                return Q_ERR(EEXIST);
+            }
+        } else {
+            // Non-map files OR already retried: keep existing behavior
+            return Q_ERR(EEXIST);
+        }
+    }
 
     if (valid == PATH_MIXED_CASE)
         // convert to lower case to make download server happy
@@ -859,6 +913,12 @@ void CL_RequestNextDownload(void)
 void CL_ResetPrecacheCheck(void)
 {
     precache_check = PRECACHE_MODELS;
+    map_crc_retry_attempted = false;  // Reset retry flag for new connection
+}
+
+bool CL_MapRetryAttempted(void)
+{
+    return map_crc_retry_attempted;
 }
 
 /*

@@ -200,6 +200,7 @@ typedef struct {
 
     server_frame_t  frames[UPDATE_BACKUP];
     unsigned        frameflags;
+    int             suppress_count;
 
     server_frame_t  frame;                // received from server
     server_frame_t  oldframe;
@@ -270,6 +271,7 @@ typedef struct {
     char        gamedir[MAX_QPATH];
     int         clientNum;            // never changed during gameplay, set by serverdata packet
     int         maxclients;
+    int         max_stats;
     pmoveParams_t pmp;
 
 #if USE_FPS
@@ -324,6 +326,8 @@ typedef struct {
 
     unsigned hit_marker_time;
     int hit_marker_count;
+
+    player_fog_t custom_fog;
 } client_state_t;
 
 extern client_state_t   cl;
@@ -557,10 +561,10 @@ extern cvar_t   *cl_enhanced_footsteps;
 
 #if USE_DEBUG
 #define SHOWNET(level, ...) \
-    do { if (cl_shownet->integer > level) \
+    do { if (cl_shownet->integer >= level) \
         Com_LPrintf(PRINT_DEVELOPER, __VA_ARGS__); } while (0)
 #define SHOWCLAMP(level, ...) \
-    do { if (cl_showclamp->integer > level) \
+    do { if (cl_showclamp->integer >= level) \
         Com_LPrintf(PRINT_DEVELOPER, __VA_ARGS__); } while (0)
 #define SHOWMISS(...) \
     do { if (cl_showmiss->integer) \
@@ -698,6 +702,7 @@ bool CL_CheckDownloadExtension(const char *ext);
 void CL_StartNextDownload(void);
 void CL_RequestNextDownload(void);
 void CL_ResetPrecacheCheck(void);
+bool CL_MapRetryAttempted(void);
 void CL_InitDownloads(void);
 
 
@@ -775,6 +780,9 @@ bool CL_SeekDemoMessage(void);
                          EF_FLIES | EF_BFG | EF_TRAP | EF_FLAG1 | EF_FLAG2 | EF_TAGTRAIL | \
                          EF_TRACKERTRAIL | EF_TRACKER | EF_GREENGIB | EF_IONRIPPER | \
                          EF_BLUEHYPERBLASTER | EF_PLASMA)
+
+#define IS_TRACKER(effects) \
+    (((effects) & (EF_TRACKERTRAIL | EF_TRACKER)) == EF_TRACKERTRAIL)
 
 void CL_DeltaFrame(void);
 void CL_AddEntities(void);
@@ -877,6 +885,7 @@ typedef struct cparticle_s {
     vec3_t  vel;
     vec3_t  accel;
     int     color;      // -1 => use rgba
+    float   scale;
     float   alpha;
     float   alphavel;
     color_t rgba;
@@ -1035,6 +1044,7 @@ void    SCR_LagSample(void);
 void    SCR_LagClear(void);
 void    init_lag_graph_dimensions(void);
 void    SCR_SetCrosshairColor(void);
+void    SCR_AddNetgraph(void);
 
 float   SCR_FadeAlpha(unsigned startTime, unsigned visTime, unsigned fadeTime);
 int     SCR_DrawStringEx(int x, int y, int flags, size_t maxlen, const char *s, qhandle_t font);
