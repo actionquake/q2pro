@@ -702,6 +702,7 @@ bool CL_CheckDownloadExtension(const char *ext);
 void CL_StartNextDownload(void);
 void CL_RequestNextDownload(void);
 void CL_ResetPrecacheCheck(void);
+bool CL_MapRetryAttempted(void);
 void CL_InitDownloads(void);
 
 

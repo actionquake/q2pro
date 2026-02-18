@@ -238,8 +238,31 @@ void CL_RegisterBspModels(void)
             Com_WPrintf("Local map version differs from demo: %i != %s\n",
                 cl.bsp->checksum, cl.configstrings[CS_MAPCHECKSUM]);
         } else {
-            Com_Error(ERR_DROP, "Local map version differs from server: %i != %s\nRecommend removing %s locally and reconnecting\n",
-                cl.bsp->checksum, cl.configstrings[CS_MAPCHECKSUM], cl.bsp->name);
+            if (CL_MapRetryAttempted()) {
+                // We already tried to re-download, still wrong - server issue
+                Com_Error(ERR_DROP,
+                    "==== MAP VERSION MISMATCH ====\n"
+                    "Local:  %i\n"
+                    "Server: %s\n"
+                    "Map: %s\n\n"
+                    "Client attempted re-download but checksum still mismatched.\n"
+                    "Server is running a different map version than available for download.\n"
+                    "Contact server admin to update map files.\n",
+                    cl.bsp->checksum,
+                    cl.configstrings[CS_MAPCHECKSUM],
+                    cl.bsp->name);
+            } else {
+                // First attempt, suggest manual fix
+                Com_Error(ERR_DROP,
+                    "==== MAP VERSION MISMATCH ====\n"
+                    "Local:  %i\n"
+                    "Server: %s\n"
+                    "Map: %s\n\n"
+                    "To fix: Delete local map and reconnect to re-download.\n",
+                    cl.bsp->checksum,
+                    cl.configstrings[CS_MAPCHECKSUM],
+                    cl.bsp->name);
+            }
         }
     }
 
