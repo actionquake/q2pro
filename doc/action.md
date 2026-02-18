@@ -794,10 +794,10 @@ TNG updates the way the bandolier behaves when dropping it. It will prevent peop
 `use_buggy_bandolier [0/1]` - if you wish to revert back to the old bandolier behavior, set this to 1
 
 ### Dead Body Hitbox
-By default, dead player bodies no longer block projectiles or cause the corpse-kick bug (where kicking a body could teleport players). If you want to restore the classic behavior where dead bodies have solid bounding boxes, use `use_buggy_ent_hitbox`.
+A fix is available for the bug where dead player bodies block projectiles and cause the corpse-kick bug (where kicking a body could teleport players). The classic behavior is preserved by default for compatibility; set `use_buggy_ent_hitbox 0` to enable the fix.
 
 **Commands:**
-`use_buggy_ent_hitbox [0/1]` - default 1. When 1 (classic), dead bodies use SOLID_BBOX and can block projectiles. When 0 (fixed), dead bodies use SOLID_NOT and do not block projectiles.
+`use_buggy_ent_hitbox [0/1]` - default 1 (classic behavior). When 1, dead bodies that were transparent (SOLID_TRIGGER) revert to SOLID_BBOX and can block projectiles. When 0 (fixed), dead bodies are set to SOLID_NOT and do not block projectiles.
 
 ### Training Mode
 Training mode is a server-side solo practice mode designed for players to warm up against bots without affecting normal game flow. When enabled, the server automatically populates the game with bots and adjusts settings to keep the experience clean and focused.
@@ -880,7 +880,14 @@ Although Quake 2 typically runs the server at a fixed 10 frames per second, some
 ### Q2pro MVD server demo support
 When AQ2TNG is running under a q2pro Quake2 executable that is properly configured (built with CONFIG_MVD_SERVER set to 1 at compile time it can record every single match into a dedicated file.  For this to work the cvar sv_mvd_enable must also be set to 1.  The demos go into the action/demos folder on the server and contain all players points of view for the entire match.   To activate this simply set use_mvd2 1 in your server config.
 
-When `use_mvd2` is enabled, demos are automatically started and stopped by the server for **all game modes**, including deathmatch — no Lua scripting required. Demo filenames follow the format `date_time-gamemode-map.mvd2`, or for matchmode: `date_time-team1_vs_team2-map.mvd2`. Recording stops automatically when the server becomes empty.
+The `use_mvd2` cvar controls server-side MVD recording behavior:
+
+- `use_mvd2 1` — Classic behavior. Recording starts when a match countdown begins (matchmode/teamplay only). This is equivalent to what the `mvd.lua` q2admin plugin provided, but built in natively.
+- `use_mvd2 2` — Extended behavior. Recording starts when the **first active player joins** the server, covering **all game modes** — deathmatch, public teamplay, CTF, domination, and matchmode — without requiring `mvd.lua`. For deathmatch servers, recording is skipped if neither `timelimit` nor `fraglimit` is set (to prevent unbounded recordings).
+
+In both modes, recording stops at map change, producing one demo file per map. Demo filenames follow the format `date_time-gamemode-map.mvd2`, or for matchmode: `date_time-team1_vs_team2-map.mvd2`.
+
+The `mvd.lua` q2admin plugin triggered exclusively on matchmode chat messages ("The round will begin in X seconds!"), so it could never record deathmatch or non-match public servers. Setting `use_mvd2 2` replaces that plugin entirely.
 
 ### Latency Compensation
 Antilag allows server operator to enable lag-compensation for aiming with hitscan weapons, useful for making high ping games more fair. Optionally, the server operator can enable interpolation along with antilag for aiming directly at player models to hit them. This has the side effect of being 'shot around corners', so the best use for this setting tends to be for matches where all players pings are very low.
