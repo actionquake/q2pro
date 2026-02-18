@@ -859,11 +859,32 @@ and ‘gl_doublelight_entities’. Yet another cvar affecting entity lighting is
 ****************
 
 gl_dynamic::
-    Controls dynamic lightmap updates. Default value is 1.
+    Controls dynamic lightmap updates. Default value is 1. Acts as the master
+    toggle for dynamic lighting. The 'gl_dynamic_lightstyles' and
+    'gl_dynamic_muzzleflash' cvars can override individual aspects when set to
+    a value other than -1.
      - 0 — all dynamic lighting is disabled
      - 1 — all dynamic lighting is enabled
      - 2 — most dynamic lights are disabled, but lightmap updates are still
      allowed for switchable lights to work
+
+gl_dynamic_lightstyles::
+    Overrides 'gl_dynamic' for lightstyle updates (flickering torches, pulsing
+    lights, switchable lights). When set to -1, follows the value of
+    'gl_dynamic'. Default value is -1.
+     - -1 — follow 'gl_dynamic'
+     - 0 — disable lightstyle updates (all styles rendered fullbright)
+     - 1 — enable all lightstyle updates
+     - 2 — enable only switchable lights (styles 1-31 rendered fullbright)
+
+gl_dynamic_muzzleflash::
+    Overrides 'gl_dynamic' for muzzleflash and explosion dynamic lights
+    (dlights). When set to -1, follows 'gl_dynamic' (enabled only when
+    'gl_dynamic' is 1). This allows enabling muzzleflash effects without the
+    performance cost of animated lightstyles. Default value is -1.
+     - -1 — follow 'gl_dynamic' (enabled when 'gl_dynamic' is 1)
+     - 0 — disable muzzleflash/explosion dlights
+     - 1 — enable muzzleflash/explosion dlights
 
 gl_dlight_falloff::
     Makes dynamic lights look a bit smoother, opposed to original jagged Quake

@@ -278,11 +278,13 @@ void GL_PushLights(mface_t *surf)
     }
 
     // check for light style updates
-    for (i = 0; i < surf->numstyles; i++) {
-        style = LIGHT_STYLE(surf->styles[i]);
-        if (style->white != surf->stylecache[i]) {
-            update_dynamic_lightmap(surf);
-            return;
+    if (GL_EffectiveLightstyles()) {
+        for (i = 0; i < surf->numstyles; i++) {
+            style = LIGHT_STYLE(surf->styles[i]);
+            if (style->white != surf->stylecache[i]) {
+                update_dynamic_lightmap(surf);
+                return;
+            }
         }
     }
 }
@@ -372,6 +374,27 @@ static void LM_UploadBlock(void)
     lm.dirty = false;
 }
 
+int GL_EffectiveLightstyles(void)
+{
+    if (!gl_dynamic_lightstyles || !gl_dynamic)
+        return 1;
+    return gl_dynamic_lightstyles->integer >= 0
+        ? gl_dynamic_lightstyles->integer : gl_dynamic->integer;
+}
+
+bool GL_EffectiveMuzzleflash(void)
+{
+    if (!gl_dynamic_muzzleflash || !gl_dynamic)
+        return true;
+    return gl_dynamic_muzzleflash->integer >= 0
+        ? gl_dynamic_muzzleflash->integer : (gl_dynamic->integer == 1);
+}
+
+bool GL_AnyDynamic(void)
+{
+    return GL_EffectiveLightstyles() || GL_EffectiveMuzzleflash();
+}
+
 static void build_style_map(int dynamic)
 {
     int i;
@@ -447,7 +470,7 @@ static void LM_EndBuilding(void)
     LM_UploadBlock();
 
     // now build the real lightstyle map
-    build_style_map(gl_dynamic->integer);
+    build_style_map(GL_EffectiveLightstyles());
 
     Com_DPrintf("%s: %d lightmaps built\n", __func__, lm.nummaps);
 }
@@ -505,7 +528,7 @@ static void LM_RebuildSurfaces(void)
     lightmap_t *m;
     int i;
 
-    build_style_map(gl_dynamic->integer);
+    build_style_map(GL_EffectiveLightstyles());
 
     if (!lm.nummaps)
         return;

@@ -54,6 +54,8 @@ cvar_t *gl_coloredlightmaps;
 cvar_t *gl_lightmap_bits;
 cvar_t *gl_brightness;
 cvar_t *gl_dynamic;
+cvar_t *gl_dynamic_lightstyles;
+cvar_t *gl_dynamic_muzzleflash;
 cvar_t *gl_dlight_falloff;
 cvar_t *gl_modulate_entities;
 cvar_t *gl_doublelight_entities;
@@ -1788,7 +1790,7 @@ void R_RenderFrame(const refdef_t *fd)
     glr.num_beams = glr.num_flares   = 0;
     glr.fog_bits  = glr.fog_bits_sky = 0;
 
-    if (gl_dynamic->integer != 1 || gl_vertexlight->integer)
+    if (!GL_EffectiveMuzzleflash() || gl_vertexlight->integer)
         glr.fd.num_dlights = 0;
 
     if (gl_static.use_shaders && gl_fog->integer > 0) {
@@ -2049,6 +2051,9 @@ static void GL_Register(void)
     gl_brightness->changed = gl_lightmap_changed;
     gl_dynamic = Cvar_Get("gl_dynamic", "1", 0);
     gl_dynamic->changed = gl_lightmap_changed;
+    gl_dynamic_lightstyles = Cvar_Get("gl_dynamic_lightstyles", "-1", 0);
+    gl_dynamic_lightstyles->changed = gl_lightmap_changed;
+    gl_dynamic_muzzleflash = Cvar_Get("gl_dynamic_muzzleflash", "-1", 0);
     gl_dlight_falloff = Cvar_Get("gl_dlight_falloff", "1", 0);
     gl_modulate_entities = Cvar_Get("gl_modulate_entities", "1", 0);
     gl_modulate_entities->changed = gl_modulate_entities_changed;

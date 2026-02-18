@@ -11,3 +11,4 @@ clang-build.sh
 /bots
 /dev
 .DS_Store
+ericw-tools/

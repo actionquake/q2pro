@@ -131,6 +131,8 @@ end
 begin effects
     title "Effects Setup"
     values "dynamic lighting" gl_dynamic "no" "yes" "only switchable"
+    values "  lightstyles" gl_dynamic_lightstyles "off" "all" "only switchable"
+    values "  muzzleflash" gl_dynamic_muzzleflash "off" "on"
     values "entity cel-shading" gl_celshading no 1x 2x 3x
     toggle "entity glowing" cl_noglow ~
     values "ground shadows" gl_shadows no yes fade

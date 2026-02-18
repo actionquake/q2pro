@@ -239,6 +239,8 @@ extern cvar_t *gl_coloredlightmaps;
 extern cvar_t *gl_lightmap_bits;
 extern cvar_t *gl_brightness;
 extern cvar_t *gl_dynamic;
+extern cvar_t *gl_dynamic_lightstyles;
+extern cvar_t *gl_dynamic_muzzleflash;
 extern cvar_t *gl_dlight_falloff;
 extern cvar_t *gl_modulate_entities;
 extern cvar_t *gl_doublelight_entities;
@@ -497,6 +499,9 @@ typedef struct {
 extern lightmap_builder_t lm;
 
 void GL_AdjustColor(vec3_t color);
+int GL_EffectiveLightstyles(void);
+bool GL_EffectiveMuzzleflash(void);
+bool GL_AnyDynamic(void);
 void GL_PushLights(mface_t *surf);
 void GL_UploadLightmaps(void);
 
