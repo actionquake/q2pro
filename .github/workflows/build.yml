@@ -208,14 +208,15 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Install dependencies
-        run: |
-          sudo dnf install -y meson ninja-build gcc \
-          SDL2-devel openal-soft-devel \
-          libpng-devel libjpeg-turbo-devel zlib-devel mesa-libGL-devel \
-          libcurl-devel libX11-devel libXi-devel \
-          wayland-devel wayland-protocols-devel libdecor-devel \
-          libuuid-devel patchelf jansson-devel
+      # Already installed, run this manually to update/patch versions
+      # - name: Install dependencies
+      #   run: |
+      #     sudo dnf install -y meson ninja-build gcc \
+      #     SDL2-devel openal-soft-devel \
+      #     libpng-devel libjpeg-turbo-devel zlib-devel mesa-libGL-devel \
+      #     libcurl-devel libX11-devel libXi-devel \
+      #     wayland-devel wayland-protocols-devel libdecor-devel \
+      #     libuuid-devel patchelf jansson-devel
 
       - name: Build
         run: |
