@@ -203,6 +203,38 @@ jobs:
             builddir/q2proded
             builddir/gamearm64.so
 
+  fedora:
+    runs-on: [self-hosted, linux, fedora]
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install dependencies
+        run: |
+          sudo dnf install -y meson ninja-build gcc \
+          SDL2-devel openal-soft-devel \
+          libpng-devel libjpeg-turbo-devel zlib-devel mesa-libGL-devel \
+          libcurl-devel libX11-devel libXi-devel \
+          wayland-devel wayland-protocols-devel libdecor-devel \
+          libuuid-devel patchelf jansson-devel
+
+      - name: Build
+        run: |
+          meson setup ${{ env.MESON_ARGS }} ${{ env.MESON_ARGS_LINUX }} builddir
+          meson compile -C builddir
+
+      - name: Set binaries as executable
+        run: |
+          chmod +x builddir/q2pro*
+
+      - name: Generate Linux Fedora archives
+        uses: actions/upload-artifact@v4
+        with:
+          name: q2pro-fedora-x86_64
+          path: |
+            builddir/q2pro
+            builddir/q2proded
+            builddir/gamex86_64.so
+
   darwin:
     runs-on: macos-15-intel
     steps:
