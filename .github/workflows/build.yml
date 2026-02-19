@@ -218,6 +218,7 @@ jobs:
       #     wayland-devel wayland-protocols-devel libdecor-devel \
       #     libuuid-devel patchelf jansson-devel
 
+      # jansson needed built from source, uuid needed dnf install mingw64-crt-13.0.0-2.fc43.noarch and ln -s the libuuid.a to /usr/lib64
       - name: Build
         run: |
           meson setup --wipe --force-fallback-for=jansson,uuid ${{ env.MESON_ARGS }} ${{ env.MESON_ARGS_LINUX }} builddir
