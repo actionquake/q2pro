@@ -220,7 +220,7 @@ jobs:
 
       - name: Build
         run: |
-          meson setup ${{ env.MESON_ARGS }} ${{ env.MESON_ARGS_LINUX }} builddir
+          meson setup --wipe --force-fallback-for=jansson,uuid ${{ env.MESON_ARGS }} ${{ env.MESON_ARGS_LINUX }} builddir
           meson compile -C builddir
 
       - name: Set binaries as executable
