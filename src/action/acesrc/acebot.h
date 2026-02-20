@@ -362,7 +362,7 @@ void     ACEND_ShowPath(edict_t *self, int goal_node);
 //void	BOTLIB_GenerateNodeVis(edict_t* self);
 int		BOTLIB_TraceNodeBoxLine(vec3_t start, vec3_t end, vec3_t mins, vec3_t maxs);
 int		BOTLIB_TraceBoxNode(int from, int to);
-int		BOTLIB_NodeTouchNodes(vec_t *origin, vec3_t normal, float size, vec3_t mins, vec3_t maxs, int* nodelist, const int maxnodes, int ignore_node);
+int		BOTLIB_NodeTouchNodes(vec_t *origin, const vec3_t normal, float size, vec3_t mins, vec3_t maxs, int* nodelist, const int maxnodes, int ignore_node);
 int		BOTLIB_TestForNodeDist(vec_t* origin, float distance, vec3_t mins, vec3_t maxs);
 //int      ACEND_AddNode(edict_t *self, int type);
 //void     ACEND_UpdateNodeEdge(edict_t *self, int from, int to);

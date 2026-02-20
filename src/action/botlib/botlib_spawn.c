@@ -326,7 +326,6 @@ qboolean BOTLIB_AddBotsFromPreviousMap(float percent)
 	qboolean print_dbg = false;		// Print debug info
 	int		line_num = 0;			// Keep track of lines
 
-	int		prev_bots_skipped = 0;	// How many bots we skipped adding from previous map
 	int		prev_bot_count = 0;		// How many bots from the previous map
 	int		bots_added = 0;			// How many bots we added from previous map
 	char	gamemode[MAX_QPATH];	// Gamemode string buffer
@@ -1725,7 +1724,6 @@ void BOTLIB_RemoveBot(char* name)
 // Conditions: Bot must be dead or joined a team during an ongoing round
 void BOTLIB_RemoveTeamplayBot(int team)
 {
-	int i;
 	edict_t* bot;
 
 	// Try the filtered approach first, if no bot returns, then do an unfiltered search

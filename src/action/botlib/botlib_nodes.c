@@ -880,7 +880,7 @@ int BOTLIB_TraceBoxNode(int from, int to)
 // numnodes is the total nodes touched
 // maxnodes is the maximum nodes that can be stored in nodelist
 // ignore_node is optional: ignores testing this node when testing. If ignore_node is INVALID, all nodes are tested
-int BOTLIB_NodeTouchNodes(vec_t *origin, vec3_t normal, float size, vec3_t mins, vec3_t maxs, int *nodelist, const int maxnodes, int ignore_node)
+int BOTLIB_NodeTouchNodes(vec_t *origin, const vec3_t normal, float size, vec3_t mins, vec3_t maxs, int *nodelist, const int maxnodes, int ignore_node)
 {
 	int nodelist_count = 0;
 

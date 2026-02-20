@@ -15,17 +15,8 @@ int BOTLIB_ESPGetTargetNode(edict_t *ent, edict_t* leader)
 	if (ent == NULL)
 		return INVALID;
 
-	edict_t *target = NULL;
-
 	// Reset escortcap value
 	//espsettings.escortcap = false;
-
-	// If leader is null, it means we're looking for an ETV target
-	if(leader == NULL) {
-		target = etvTarget;
-	} else { // Target is leader
-		target = leader;
-	}
 
 	int cloest_node_num = INVALID;
 	float cloest_node_dist = 99999999;

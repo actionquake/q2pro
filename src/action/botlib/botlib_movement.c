@@ -137,7 +137,6 @@ qboolean NodeTypeToString(edict_t* self, int type, char *string, const int max_s
 ///////////////////////////////////////////////////////////////////////
 void PrintAllLinkNodeTypes(edict_t *self, qboolean onlyPrintProblemTypes)
 {
-	qboolean foundProblem = false;
 	int curr_node_position = 0; // The position of the current node in the node_list array
 
 	if (self->bot.node_list_count <= 0) // No nodes found
