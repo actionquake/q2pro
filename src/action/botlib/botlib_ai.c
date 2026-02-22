@@ -252,7 +252,7 @@ void BOTLIB_BotInputToUserCommand(edict_t* ent, bot_input_t* bi, usercmd_t* ucmd
 			u *= bi->speed / m;
 		}
 
-		if (ent->client->leg_damage == 0) // No jumping if legs are broken
+		if (ent->client->leg_damage != 0) // No jumping if legs are broken
 			u = 0;
 
 		ucmd->forwardmove = f;
@@ -1063,9 +1063,9 @@ void BOTLIB_PlayerNoise(edict_t* who, vec3_t where, int type)
 					botlib_noises.weapon_origin[i][1] -= 512;
 
 				if (rand() % 2 == 0)
-					botlib_noises.self_origin[i][2] += 64;
+					botlib_noises.weapon_origin[i][2] += 64;
 				else
-					botlib_noises.self_origin[i][2] -= 32;
+					botlib_noises.weapon_origin[i][2] -= 32;
 			}
 			else if (type == PNOISE_IMPACT) // Knife impact, or grenade explosion
 			{
@@ -1085,9 +1085,9 @@ void BOTLIB_PlayerNoise(edict_t* who, vec3_t where, int type)
 					botlib_noises.impact_origin[i][1] -= 512;
 
 				if (rand() % 2 == 0)
-					botlib_noises.self_origin[i][2] += 64;
+					botlib_noises.impact_origin[i][2] += 64;
 				else
-					botlib_noises.self_origin[i][2] -= 32;
+					botlib_noises.impact_origin[i][2] -= 32;
 			}
 		}
 	}

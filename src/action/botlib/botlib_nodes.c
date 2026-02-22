@@ -92,12 +92,7 @@ int BOTLIB_AddNode(vec3_t origin, vec3_t normal, byte type)
 		if (nodes == NULL)
 		{
 			Com_Printf("%s failed to malloc nodes. Out of memory!\n", __func__);
-			if (prev)
-			{
-				free(prev); // Free using the copy, because nodes is null
-				nodes = NULL;
-				prev = NULL;
-			}
+			nodes = prev; // Restore original pointer — realloc leaves it valid on failure
 			return INVALID;
 		}
 
@@ -177,12 +172,7 @@ qboolean DAIC_Add_Node(vec3_t origin, vec3_t normal, byte type)
 	if (nodes == NULL)
 	{
 		Com_Printf("%s failed to malloc nodes. Out of memory!\n", __func__);
-		if (prev)
-		{
-			free(prev); // Free using the copy, because nodes is null
-			nodes = NULL;
-			prev = NULL;
-		}
+		nodes = prev; // Restore original pointer — realloc leaves it valid on failure
 		return false;
 	}
 
@@ -197,12 +187,7 @@ qboolean DAIC_Add_Node(vec3_t origin, vec3_t normal, byte type)
 	if (unsorted_nodes == NULL)
 	{
 		Com_Printf("%s failed to malloc unsorted_nodes. Out of memory!\n", __func__);
-		if (prev)
-		{
-			free(prev); // Free using the copy, because unsorted_nodes is null
-			unsorted_nodes = NULL;
-			prev = NULL;
-		}
+		unsorted_nodes = prev; // Restore original pointer — realloc leaves it valid on failure
 		return false;
 	}
 
@@ -352,7 +337,7 @@ void ACEND_RemoveNode(edict_t* self, int nodenum)
 ///////////////////////////////////////////////////////////////////////
 // Add/Update (one way) node link
 ///////////////////////////////////////////////////////////////////////
-qboolean BOTLIB_AddNodeLink(int from, int to, byte type, qboolean do_cost)
+qboolean BOTLIB_AddNodeLink(int from, int to, int type, qboolean do_cost)
 {
 	int i;
 	vec3_t	v;
@@ -880,7 +865,7 @@ int BOTLIB_TraceBoxNode(int from, int to)
 // numnodes is the total nodes touched
 // maxnodes is the maximum nodes that can be stored in nodelist
 // ignore_node is optional: ignores testing this node when testing. If ignore_node is INVALID, all nodes are tested
-int BOTLIB_NodeTouchNodes(vec_t *origin, vec3_t normal, float size, vec3_t mins, vec3_t maxs, int *nodelist, const int maxnodes, int ignore_node)
+int BOTLIB_NodeTouchNodes(vec_t *origin, const vec3_t normal, float size, vec3_t mins, vec3_t maxs, int *nodelist, const int maxnodes, int ignore_node)
 {
 	int nodelist_count = 0;
 
@@ -999,7 +984,7 @@ int BOTLIB_UTIL_NearbyNodeAtHeightDist(vec_t* origin, float distance)
 			{
 				if (origin[1] == nodes[n].origin[1]) // Match Y axis
 				{
-					dist = abs(nodes[n].origin[2] - origin[2]); // Get Z height distance
+					dist = fabsf(nodes[n].origin[2] - origin[2]); // Get Z height distance
 
 					if (dist <= distance) // Z axis within distance
 						return n; // Offending node that is too close
@@ -1269,7 +1254,7 @@ void LaunchP(edict_t* ent, vec3_t origin, vec3_t target)
 		z_height += sqrtf(distance) + NODE_Z_HEIGHT;
 		velocity[2] += z_height;
 	}
-	else if (abs(target[2] - ent->s.origin[2]) <= 4)
+	else if (fabsf(target[2] - ent->s.origin[2]) <= 4.0f)
 	{
 		// Do nothing here
 	}
@@ -1637,8 +1622,7 @@ int DC_Reachability(int from, int to, vec3_t origin, vec3_t target, vec3_t norma
 	// Top ladder node -> non-ladder node, test if within z height range +/-
 	if (nodes[from].type == NODE_LADDER_UP && nodes[to].type != NODE_LADDER_DOWN)
 	{
-		//if (abs(origin[2] - target[2]) > STEPSIZE || xyz_distance > 128 || xyz_distance < 48)
-		if (fabsf(origin[2] < target[2]) > 8 || xyz_distance > 128 || xyz_distance < 48)
+		if (fabsf(origin[2] - target[2]) > STEPSIZE || xyz_distance > 128 || xyz_distance < 48)
 			return INVALID;
 		else
 			return NODE_MOVE;
@@ -1713,13 +1697,15 @@ int DC_Reachability(int from, int to, vec3_t origin, vec3_t target, vec3_t norma
 	// Water nodes
 	if (nodes[from].type == NODE_WATER)
 	{
-		if (target[2] > origin[2] && xy_distance < 64 && nodes[to].type == NODE_LADDER_UP) // Allow water -> ladder
+		if (target[2] > origin[2] && xy_distance < 64 && nodes[to].type == NODE_LADDER_UP) // Allow water -> ladder up
 			return NODE_LADDER_UP;
-		//if (nodes[to].type == NODE_LADDER_UP) // Allow water -> ladder
-		//	return NODE_LADDER_DOWN;
-		//else if (nodes[to].type == NODE_MOVE) // Allow water -> move
-		//	return NODE_MOVE;
 		else if (nodes[to].type == NODE_WATER) // Allow water -> water
+			return NODE_MOVE;
+		else if (nodes[to].type == NODE_MOVE   // Allow water -> ground exit
+			  || nodes[to].type == NODE_STEP
+			  || nodes[to].type == NODE_LADDER
+			  || nodes[to].type == NODE_BOXJUMP
+			  || nodes[to].type == NODE_JUMPPAD)
 			return NODE_MOVE;
 		else
 			return INVALID; // Deny water to anything else
@@ -1798,21 +1784,13 @@ int DC_Reachability(int from, int to, vec3_t origin, vec3_t target, vec3_t norma
 		//max_speed *= z_height_max;
 	}
 
-	qboolean target_is_above = false, target_is_below = false, target_is_equal = false;
-	float higher = 0;
+	qboolean target_is_below = false;
 	float lower = 0;
 	if (origin[2] > target[2]) // We're above the target
 	{
 		target_is_below = true;
 		lower = (origin[2] - target[2]);
 	}
-	else if (origin[2] < target[2]) // We're below the target
-	{
-		target_is_above = true;
-		higher = (target[2] - origin[2]);
-	}
-	else
-		target_is_equal = true;
 
 
 
@@ -3001,10 +2979,8 @@ void BOTLIB_LoadNavCompressed(void)
 {
 	FILE* fIn;
 	char filename[128];
-	int fileSize = 0;
-	int n, l; // File, nodes, links
+	int n, l; // nodes, links
 	int version = 0; // Bot nav version
-	unsigned bsp_checksum = 0; // Map checksum
 	cvar_t* game_dir = gi.cvar("game", "action", 0);
 	cvar_t* botdir = gi.cvar("botdir", "bots", 0);		// Directory of the bot files in the gamelib
 	const vec3_t mins = { -16, -16, -24 };
@@ -3041,7 +3017,7 @@ void BOTLIB_LoadNavCompressed(void)
 	}
 	else
 	{
-		fileSize += sizeof(byte) * fread(&version, sizeof(byte), 1, fIn); // Bot nav version
+		fread(&version, sizeof(byte), 1, fIn); // Bot nav version
 		if (version < BOT_NAV_VERSION_1 || version > BOT_NAV_VERSION)
 		{
 			Com_Printf("%s ERROR: NAV file version mismatch. Got %d, expected value between %d and %d\n", __func__, version, BOT_NAV_VERSION_1, BOT_NAV_VERSION);
@@ -3070,16 +3046,16 @@ void BOTLIB_LoadNavCompressed(void)
 
 		// Read Compressed and uncompressed buffer sizes
 		long uncompressed_buff_len = 0;
-		fileSize += sizeof(int) * fread(&uncompressed_buff_len, sizeof(int), 1, fIn); // Uncompressed buffer size
+		fread(&uncompressed_buff_len, sizeof(int), 1, fIn); // Uncompressed buffer size
 		long compressed_buff_len = 0;
-		fileSize += sizeof(int) * fread(&compressed_buff_len, sizeof(int), 1, fIn); // Compressed buffer size
+		fread(&compressed_buff_len, sizeof(int), 1, fIn); // Compressed buffer size
 
 		// Read compressed buffer
 		char* uncompressed_buff = (char*)malloc(uncompressed_buff_len);
 		char* compressed_buff = (char*)malloc(compressed_buff_len);
 		if (compressed_buff != NULL && uncompressed_buff != NULL)
 		{
-			fileSize += compressed_buff_len * fread(compressed_buff, compressed_buff_len, 1, fIn); // Compressed buffer
+			fread(compressed_buff, compressed_buff_len, 1, fIn); // Compressed buffer
 
 			BOTLIB_DecompressBuffer(compressed_buff, compressed_buff_len, uncompressed_buff, &uncompressed_buff_len);
 			//Com_Printf("%s compressed_buff_len:%i uncompressed_buff_len:%i\n", __func__, compressed_buff_len, uncompressed_buff_len);
@@ -3274,13 +3250,13 @@ void BOTLIB_SaveNav(void)
 	FILE* fOut;
 	char filename[128];
 	int fileSize = 0;
-	int f, n, l, p; // File, nodes, links, paths
+	int n, l, p; // nodes, links, paths
 	int version = BOT_NAV_VERSION;
 	cvar_t* game_dir = gi.cvar("game", "action", 0);
 	cvar_t* botdir = gi.cvar("botdir", "bots", 0);		// Directory of the bot files in the gamelib
 
 #ifdef _WIN32
-	f = sprintf(filename, ".\\");
+	int f = sprintf(filename, ".\\");
 	f += sprintf(filename + f, game_dir->string);
 	f += sprintf(filename + f, "\\");
 	f += sprintf(filename + f, botdir->string);
@@ -3559,16 +3535,15 @@ void BOTLIB_LoadNav(void)
 	FILE* fIn;
 	char filename[128];
 	int fileSize = 0;
-	int f, n, l, p; // File, nodes, links, paths
+	int n, l, p; // nodes, links, paths
 	int version = 0; // Bot nav version
-	unsigned bsp_checksum = 0; // Map checksum
 	cvar_t* game_dir = gi.cvar("game", "action", 0);
 	cvar_t* botdir = gi.cvar("botdir", "bots", 0);		// Directory of the bot files in the gamelib
 	const vec3_t mins = { -16, -16, -24 };
 	const vec3_t maxs = { 16, 16, 32 };
 
 #ifdef _WIN32
-	f = sprintf(filename, ".\\");
+	int f = sprintf(filename, ".\\");
 	f += sprintf(filename + f, game_dir->string);
 	f += sprintf(filename + f, "\\");
 	f += sprintf(filename + f, botdir->string);
@@ -4139,12 +4114,11 @@ void BOTLIB_NODE_REACHABILITY(edict_t* ent)
 	node_t* from_node;	// From node
 	node_t* to_node;	// To node
 	int s, result;
-	vec3_t zero = { 0 };
 	//qboolean found_ladder;
 	for (s = 0; s < numnodes; s++)
 	{
 		if (nodes[s].inuse == false) continue; // Ignore nodes not in use
-		
+
 		//if (nodes[s].nodenum != INVALID) continue;
 
 		// Get the next 'from' node
@@ -4577,7 +4551,6 @@ void BOTLIB_AddItemNodes(void)
 // Find the reachability for each node
 void BOTLIB_ProcesssReachabilities(void)
 {
-	vec3_t zero = { 0 };
 	node_t* from_node;	// From node
 	node_t* to_node;	// To node
 	int s, result;
@@ -4756,9 +4729,6 @@ void BOTLIB_Process_NMesh(edict_t* ent)
 		normal_1 = nmesh.face[f].normal[1];
 		normal_2 = nmesh.face[f].normal[2];
 
-		int num_tris = 0;
-		int vert_count = 0;
-		int total_verts = nmesh.face[f].num_verts;
 		memset(pt0, 0, sizeof(vec3_t));
 		memset(pt1, 0, sizeof(vec3_t));
 		memset(pt2, 0, sizeof(vec3_t));
@@ -5410,8 +5380,6 @@ void ACEND_BSP(edict_t* ent)
 
 	if (1)
 	{
-		nav_t* nav = CS_NAV();
-
 		//ent->nav = gi.Nav(); // Grant access to navigation data
 		if (ent->nav)
 		{

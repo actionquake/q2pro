@@ -1473,6 +1473,10 @@ void Cmd_Say_f (edict_t * ent, qboolean team, qboolean arg0, qboolean partner_ms
 
 	if (FloodCheck(ent))
 		return;
+
+	// Let bots parse teammate chat for CTF tactical keywords (defend/attack/rush/escort).
+	if (team && ctf->value)
+		BOTLIB_CTF_ParseHumanChat(ent, args);
 	
 	if (dedicated->value) {
 		gi.cprintf (NULL, PRINT_CHAT, "%s", text);

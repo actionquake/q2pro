@@ -69,9 +69,6 @@ qboolean BOTLIB_SkillChance(float skill_level)
 // Set increase_with_skill to false if you want the multiplier to decrease with skill level (ex: reaction time)
 float BOTLIB_SkillMultiplier(float skill_level, bool increase_with_skill)
 {
-    // Seed the random number generator
-    seed_random_number_generator();
-
     // Normalize the skill level to be between 0.0 and 1.0
     if (skill_level < -1.0)
         skill_level = -1.0;

@@ -814,6 +814,10 @@ qboolean CTFPickup_Flag(edict_t * ent, edict_t * other)
 
 				LOG_CAPTURE(other);  // other is the player who capped the flag
 
+				// Bot announcements for flag capture
+				if (other->is_bot)
+					BOTLIB_CTF_AnnounceCapture(other);
+
 				if(ctf_rewards->value) // extra ctf awards!
 					CTFCapReward(other);
 
@@ -993,6 +997,10 @@ void CTFDeadDropFlag(edict_t * self)
 		dropped->nextthink = level.framenum + CTF_AUTO_FLAG_RETURN_TIMEOUT * HZ;
 		dropped->touch = CTFDropFlagTouch;
 		self->client->ctf_hasflag = false;
+
+		// Bot announcement when dying while carrying
+		if (self->is_bot)
+			BOTLIB_CTF_AnnounceDropped(self);
 	}
 }
 

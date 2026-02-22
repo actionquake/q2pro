@@ -137,7 +137,6 @@ qboolean NodeTypeToString(edict_t* self, int type, char *string, const int max_s
 ///////////////////////////////////////////////////////////////////////
 void PrintAllLinkNodeTypes(edict_t *self, qboolean onlyPrintProblemTypes)
 {
-	qboolean foundProblem = false;
 	int curr_node_position = 0; // The position of the current node in the node_list array
 
 	if (self->bot.node_list_count <= 0) // No nodes found
@@ -217,8 +216,7 @@ void PrintAllLinkNodeTypes(edict_t *self, qboolean onlyPrintProblemTypes)
 
 					// Add the node type
 					tmp_type = nodes[curr_node].links[l].targetNodeType;
-					if (NodeTypeToString(self, tmp_type, tmp_string, sizeof(tmp_string)) == false)
-						foundProblem = true;
+					NodeTypeToString(self, tmp_type, tmp_string, sizeof(tmp_string));
 					strcat(all_node_types, tmp_string);
 					if (i + 2 < self->bot.node_list_count)
 						strcat(all_node_types, " ");
@@ -834,6 +832,25 @@ qboolean BOTLIB_CanMoveDir(edict_t* self, vec3_t direction)
 		|| (tr.ent && (tr.ent->touch == hurt_touch)))			  // avoid MOD_TRIGGER_HURT
 	{
 		return false; // can't move
+	}
+
+	// When invincible, the fraction==1.0 guard above is bypassed for any-height drops.
+	// Some maps place trigger_hurt (NO_PROTECTION) at the bottom of deep pits — these
+	// bypass invincibility and kill the bot.  Only relevant when no floor was found in the
+	// normal safety range (fraction==1.0); a floor within range means no deep pit here.
+	// The result is cached in level.pit_danger so only the first such drop costs a trace.
+	if ((lights_camera_action || self->client->uvTime) && tr.fraction == 1.0)
+	{
+		if (level.pit_danger == PIT_UNKNOWN)
+		{
+			vec3_t pit_end;
+			VectorCopy(tr.endpos, pit_end); // start from the last-known position (end of short trace)
+			pit_end[2] -= 8192;
+			trace_t pit_tr = gi.trace(tr.endpos, NULL, NULL, pit_end, self, MASK_PLAYERSOLID);
+			level.pit_danger = (pit_tr.ent && pit_tr.ent->touch == hurt_touch) ? PIT_DEADLY : PIT_SAFE;
+		}
+		if (level.pit_danger == PIT_DEADLY)
+			return false;
 	}
 
 	return true; // yup, can move
@@ -4748,15 +4765,10 @@ void BOTLIB_PredictEnemyOrigin(edict_t *self, vec3_t out, float multiplier)
 		// The Z component is for jumping and falling
 		// Throwing knife affected by gravity over time
 		//knife->velocity[2] -= sv_gravity->value * FRAMETIME; // velocity is a vec3_t[3] which is a float array
-		// My origin
-		self->s.origin;	// origin is a vec3_t[3] which is a float array
-		// Enemy origin
-		self->enemy->s.origin; // origin is a vec3_t[3] which is a float array
 		// My pitch aim (looking directly forward is a pitch of 0)
 		// #define PITCH 0
 		// #define YAW 1
 		// #define ROLL 2
-		self->s.angles[PITCH];
 
 		// I want to find the aiming pitch requires to reach a target location with a throwing knife that drops with gravity.
 		// Quake2 uses x,y,z coordinates stored in a vec3_t[3] which is a float array [0] [1] [2]
@@ -4894,15 +4906,10 @@ void BOTLIB_Look(edict_t* self, usercmd_t* ucmd)
 	// Look at enemy
 	else if (self->enemy) // Track target
 	{
-		qboolean not_infront = false; // If target is in front
-
-		// Update bot to look at an enemy it can see. If the enemy is obstructed behind a wall, 
+		// Update bot to look at an enemy it can see. If the enemy is obstructed behind a wall,
 		// the bot will keep looking in that general direction, but not directly at the enemy's pos
 		if (self->bot.see_enemies) // || BOTLIB_Infront(self, self->enemy, 0.3) == false)
 		{
-			if (BOTLIB_Infront(self, self->enemy, 0.3) == false)
-				not_infront = true;
-
 			if (1) // Predicted enemy pos
 			{
 				// Predict enemy position based on their velocity and distance
@@ -5046,7 +5053,6 @@ void BOTLIB_Look(edict_t* self, usercmd_t* ucmd)
 		int type = 0;
 		int player_num = INVALID;
 		float nearest = 9999999;
-		qboolean found_target = false;
 		for (int i = 0; i < num_players; i++)
 		{
 			if (players[i] != self && OnSameTeam(self, players[i]) == false)
@@ -5237,8 +5243,6 @@ void BOTLIB_CrouchFire(edict_t* self)
 	if (self == NULL || self->client == NULL || self->client->weapon == NULL) {
         return; // Early exit if self, client, or weapon is NULL
     }
-	gitem_t* clweapon = self->client->weapon;
-
 	// More skillful bots will crouch when firing
 	if (self->bot.skill.aim >= 0) {
 		if ((self->bot.bi.actionflags & ACTION_MOVELEFT) == 0 && 
@@ -5694,7 +5698,6 @@ void BOTLIB_Wander(edict_t* self, usercmd_t* ucmd)
 		int type = 0;
 		int player_num = INVALID;
 		float nearest = 9999999;
-		qboolean found_target = false;
 		for (int i = 0; i < num_players; i++)
 		{
 			if (players[i] != self && OnSameTeam(self, players[i]) == false)
@@ -6473,8 +6476,11 @@ void BOTLIB_Wander(edict_t* self, usercmd_t* ucmd)
 		// Water!
 		/// Borrowed from P_WorldEffects
 		int waterlevel = self->waterlevel;
-		int old_waterlevel = self->client->old_waterlevel;
 		self->client->old_waterlevel = waterlevel;
+
+		// Reset the water-exit failure counter when the bot is dry
+		if (waterlevel == 0 && current_node_type != NODE_WATER)
+			self->bot.water_exit_fail_time = 0;
 
 		if (current_node_type == NODE_WATER || waterlevel == 3){
 			//gi.dprintf("I'm in the water %s and my air is %d\n", self->client->pers.netname, self->air_finished_framenum - level.framenum);
@@ -6534,6 +6540,30 @@ void BOTLIB_Wander(edict_t* self, usercmd_t* ucmd)
 				//Com_Printf("%s %s [%d] water: move down\n", __func__, self->client->pers.netname, level.framenum);
 			}
 			
+		}
+		else if (current_node_type == NODE_WATER || waterlevel > 0)
+		{
+			// Water exit: replicate real waterjump physics.
+			// Real waterjump (PM_CheckSpecialMovement) sets velocity[2] = 350.
+			// Do NOT use ACTION_MOVEUP here: it sets ucmd->upmove which causes
+			// PM_CheckJump to fire and override velocity[2] with only 100 (for
+			// CONTENTS_WATER), and it damps horizontal velocity *0.25 (designed
+			// for ladders).  Instead, set velocity[2] directly so PM_CheckJump
+			// is skipped (upmove stays 0), and let bi.dir + bi.speed drive the
+			// forward movement toward the exit node.
+			self->bot.bi.actionflags &= ~ACTION_MOVEDOWN;
+			self->bot.bi.actionflags &= ~ACTION_CROUCH;
+			if (self->velocity[2] < 350)
+				self->velocity[2] = 350;
+
+			// Give up and reroute after several seconds of failed exit attempts.
+			// node_travel_time cannot be used here: the drowning urgency code above
+			// resets it to 0, preventing the normal stuck detection from triggering.
+			if (++self->bot.water_exit_fail_time >= 3 * HZ)
+			{
+				self->bot.water_exit_fail_time = 0;
+				self->bot.stuck_wander_time = 1; // Trigger reroute
+			}
 		}
 
 		// Pull bot in when close to the next node, help guide it in

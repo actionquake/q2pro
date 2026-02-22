@@ -151,6 +151,19 @@ void UpdateMapPref(json_t* root, char* map_name, temp_bot_mapping_t* newBot)
 // Function to load a bot personality from a JSON file using libjansson
 temp_bot_mapping_t* BOTLIB_LoadPersonalities(const char* filename)
 {
+    // Free any previously loaded personality strings
+    for (int i = 0; i < loaded_bot_personalities && i < MAX_BOTS; i++) {
+        if (bot_mappings[i].name) {
+            free(bot_mappings[i].name);
+            bot_mappings[i].name = NULL;
+        }
+        if (bot_mappings[i].personality.skin_pref) {
+            free(bot_mappings[i].personality.skin_pref);
+            bot_mappings[i].personality.skin_pref = NULL;
+        }
+    }
+    bot_personality_index = 0;
+
     FILE* file = fopen(filename, "r");
     if (!file) {
         perror("Failed to open file");
@@ -225,14 +238,21 @@ temp_bot_mapping_t* BOTLIB_LoadPersonalities(const char* filename)
             } else {
                 if (bot_debug->value)
                     gi.dprintf("%s: warning: skin object missing from %s\n", __func__, botName);
-                newBot->personality.skin_pref = "male/grunt";
+                newBot->personality.skin_pref = strdup("male/grunt");
             }
         } else {
             if (bot_debug->value)
                 gi.dprintf("%s: warning: skin object missing from %s\n", __func__, botName);
-            newBot->personality.skin_pref = "male/grunt";
+            newBot->personality.skin_pref = strdup("male/grunt");
         }
 
+        if (botIndex >= MAX_BOTS) {
+            gi.dprintf("%s: warning: too many bot personalities (max %d), skipping remaining\n", __func__, MAX_BOTS);
+            free(newBot->name);
+            if (newBot->personality.skin_pref) free(newBot->personality.skin_pref);
+            free(newBot);
+            break;
+        }
         bot_mappings[botIndex++] = *newBot;
 
         if (bot_debug->value) {
@@ -367,7 +387,6 @@ qboolean BOTLIB_SetPersonality(edict_t* self, int team, int force_gender)
     }
     
     int randomIndex = rand() % bot_personality_index;
-    int attempts = 0;
     temp_bot_mapping_t* selectedBot = &bot_mappings[randomIndex];
     selectedBot = &bot_mappings[randomIndex];
 
@@ -394,8 +413,6 @@ qboolean BOTLIB_SetPersonality(edict_t* self, int team, int force_gender)
     self->bot.personality.pId = randomIndex;
     
     int gender = INVALID;
-	char name[MAX_QPATH]; // Full bot name ( [prefix/clan/rng]  and/or  [name]  and/or  [postfix] )
-	char skin[MAX_INFO_STRING];
 	char userinfo[MAX_INFO_STRING];
 	memset(userinfo, 0, sizeof(userinfo)); // Init userinfo
 
@@ -445,7 +462,7 @@ qboolean BOTLIB_SetPersonality(edict_t* self, int team, int force_gender)
         // Set the skin
         char* selectedSkin = selectedBot->personality.skin_pref;
         // Assuming selectedBot is correctly initialized and contains the desired data
-        if (selectedSkin != NULL || selectedSkin == "") {
+        if (selectedSkin != NULL && selectedSkin[0] != '\0') {
             // Directly use the skin_pref from selectedBot
             Info_SetValueForKey(userinfo, "skin", selectedSkin);
         } else {
@@ -536,9 +553,6 @@ void BOTLIB_BotPersonalityChooseWeapon(edict_t* bot) {
 
     memcpy(weapon_prefs, bot->bot.personality.weapon_prefs, sizeof(weapon_prefs));
 
-    int chosen_weapon_index = 0; // Initialize with the first index
-    float highest_pref = weapon_prefs[0]; // Initialize with the first weapon's preference
-
     int top3_indices[3] = {0, 0, 0};
     float top3_prefs[3] = {-1.0f, -1.0f, -1.0f}; // Initialize with low values
 
@@ -611,7 +625,6 @@ void BOTLIB_BotPersonalityChooseItem(edict_t* bot)
     memcpy(item_prefs, bot->bot.personality.item_prefs, sizeof(item_prefs));
 
     int chosen_item_index = 0; // Initialize with the first index
-    float highest_pref = item_prefs[0]; // Initialize with the first item's preference
 
     int top3_indices[3] = {0, 0, 0}; // Initialize with the first index
     float top3_prefs[3] = {-1.0f, -1.0f, -1.0f}; // Initialize with low values

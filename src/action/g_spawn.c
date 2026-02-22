@@ -1659,6 +1659,7 @@ void SpawnEntities (const char *mapname, const char *entities, const char *spawn
 	{
 		bot_ctf_status.flag1_home_node = INVALID;
 		bot_ctf_status.flag2_home_node = INVALID;
+		BOTLIB_CTF_ResetChatCooldowns();
 	}
 
 	if (!(gameSettings & GS_WEAPONCHOOSE) && !jump->value)

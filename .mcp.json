@@ -1,0 +1,22 @@
+{
+  "mcpServers": {
+    "chroma-q2pro": {
+      "type": "stdio",
+      "command": "/Users/dino/Documents/git/q2pro/dev/.venv/bin/chroma-mcp",
+      "args": [
+        "--client-type",
+        "http",
+        "--host",
+        "localhost",
+        "--port",
+        "8999",
+        "--ssl",
+        "false"
+      ],
+      "env": {
+        "ANONYMIZED_TELEMETRY": "False",
+        "CHROMA_TELEMETRY_DISABLED": "true"
+      }
+    }
+  }
+}

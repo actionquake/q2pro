@@ -867,7 +867,7 @@ typedef struct
   
   // Bot personalities loaded
   #ifndef NO_BOTS
-  char* bot_file_path[MAX_QPATH];
+  char bot_file_path[MAX_QPATH];
   int used_bot_personalities;
   #endif
 
@@ -892,6 +892,15 @@ typedef struct map_features_s
 	float slime_amt;
 
 } map_features_t;
+
+// Per-map cache: whether a trigger_hurt exists at the bottom of a deep pit.
+// Determined once by the first bot that attempts an invincible drop, then shared.
+// Zeroed automatically by the memset(&level,0,...) in G_SpawnEntities.
+typedef enum {
+	PIT_UNKNOWN = 0, // Not yet checked
+	PIT_SAFE,        // Deep trace found no hurt_brush — long drops OK when invincible
+	PIT_DEADLY,      // Deep trace found hurt_brush — long drops dangerous regardless
+} pit_danger_t;
 
 //
 // this structure is cleared as each map is entered
@@ -992,6 +1001,9 @@ typedef struct
 
   // LRCON state
   lrcon_state_t lrcon;
+
+  // Bot pit danger cache (see pit_danger_t above)
+  pit_danger_t pit_danger;
 }
 level_locals_t;
 
@@ -2483,6 +2495,7 @@ typedef struct bot_s
 	int stuck_node; // The node the bot trying to head to if stuck
 	vec3_t stuck_pos; // Current pos we're stuck at
 	vec3_t stuck_old_pos; // Previous pos we were stuck at
+	int water_exit_fail_time; // Consecutive frames spent failing to exit water; triggers reroute
 
 	// Nodes
 	int node_list[MAX_NODELIST]; // A copy of the pathList each time it's created - useful to see any nodes the list contained
@@ -2514,6 +2527,8 @@ typedef struct bot_s
 	// CTF
 	bot_ctf_state_t bot_ctf_state; // Get flag, retrieve flag, intercept flag carrier, etc.
 	float ctf_support_time; // Time between ally support checks
+	bot_ctf_role_t bot_ctf_role; // Assigned role: attacker, defender, escort
+	int ctf_last_say_time; // Last frame this bot sent a CTF team-chat message
 
 	// Espionage
 	bot_esp_state_t bot_esp_state;

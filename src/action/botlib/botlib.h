@@ -152,6 +152,12 @@ int BOTLIB_CTF_Get_Flag_Node(edict_t* ent);
 int BOTLIB_NearestFlag(edict_t* self);
 float BOTLIB_DistanceToFlag(edict_t* self, int flagType);
 void BOTLIB_CTF_Goals(edict_t* self);
+void BOTLIB_CTF_UpdatePlan(void);
+void BOTLIB_CTF_AssignRoles(void);
+void BOTLIB_CTF_ResetChatCooldowns(void);
+void BOTLIB_CTF_ParseHumanChat(edict_t *sender, const char *text);
+void BOTLIB_CTF_AnnounceCapture(edict_t *bot);
+void BOTLIB_CTF_AnnounceDropped(edict_t *bot);
 
 // ===========================================================================
 // botlib_esp.c
@@ -161,6 +167,24 @@ float BOTLIB_DistanceToLeader(edict_t* self, edict_t* leader);
 int BOTLIB_FindMyLeaderNode(edict_t* self);
 int BOTLIB_FindEnemyLeaderNode(edict_t* self, int teamNum);
 void BOTLIB_ESP_Goals(edict_t* self);
+
+// CTF team-level strategy plan, evaluated once per second
+typedef enum
+{
+	CTF_PLAN_BALANCED,      // Default: normal attacker/defender/escort split
+	CTF_PLAN_DEFEND,        // Team is ahead — favour more defenders
+	CTF_PLAN_FULL_ATTACK,   // Behind + low time — all in, 1 defender max
+	CTF_PLAN_RUSH,          // Enemy flag just dropped — everyone converge
+	CTF_PLAN_STALL,         // Team holds flag while winning — carrier stalls
+} ctf_plan_t;
+
+// Per-bot CTF role, assigned by the team coordinator each second
+typedef enum
+{
+	CTF_ROLE_ATTACKER,  // Go get / capture the enemy flag
+	CTF_ROLE_DEFENDER,  // Guard the home flag area
+	CTF_ROLE_ESCORT,    // Shadow the friendly flag carrier
+} bot_ctf_role_t;
 
 typedef struct ctf_status_s
 {
@@ -180,6 +204,12 @@ typedef struct ctf_status_s
 	edict_t* player_has_flag2; // If any ent has the blue flag
 	float team1_carrier_dist_to_home; // How close the red team carrier is to the home red flag node
 	float team2_carrier_dist_to_home; // How close the blue team carrier is to the home blue flag node
+	// Previous flag-home states, used to detect transitions for chat triggers
+	qboolean prev_flag1_is_home;
+	qboolean prev_flag2_is_home;
+	// Active strategy plan per team
+	ctf_plan_t ctf_plan_team1;
+	ctf_plan_t ctf_plan_team2;
 } ctf_status_t;
 extern ctf_status_t bot_ctf_status;
 
@@ -527,7 +557,7 @@ int BOTLIB_GetEquipment(edict_t* self);
 //rekkie -- collecting weapons, items, ammo -- e
 
 // ===========================================================================
-// botlib_utils.c and botlib_win.c
+// botlib_utils.c
 // ===========================================================================
 void seed_random_number_generator(void);
 void BOTLIB_SKILL_Init(edict_t* bot);

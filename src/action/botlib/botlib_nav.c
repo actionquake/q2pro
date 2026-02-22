@@ -2647,7 +2647,6 @@ qboolean BOTLIB_DrawPath(edict_t* self)
 
 		if (players[0]->client->pers.draw->draw_arrow_num + 1 > MAX_DRAW_ARROWS)
 			players[0]->client->pers.draw->draw_arrow_num = 0;
-		players[0]->client->pers.draw->draw_arrow_num;
 
 		// Draw current link as thicker line
 		if (self->bot.current_node == curr_node)

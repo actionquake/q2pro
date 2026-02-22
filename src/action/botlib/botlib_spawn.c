@@ -326,7 +326,6 @@ qboolean BOTLIB_AddBotsFromPreviousMap(float percent)
 	qboolean print_dbg = false;		// Print debug info
 	int		line_num = 0;			// Keep track of lines
 
-	int		prev_bots_skipped = 0;	// How many bots we skipped adding from previous map
 	int		prev_bot_count = 0;		// How many bots from the previous map
 	int		bots_added = 0;			// How many bots we added from previous map
 	char	gamemode[MAX_QPATH];	// Gamemode string buffer
@@ -365,12 +364,6 @@ qboolean BOTLIB_AddBotsFromPreviousMap(float percent)
 	if (strlen(filename) <= 0) return false;
 
 	// Open and check for success
-	if ((f = fopen(filename, "r")) == NULL) // Read text file
-	{
-		return false; // Ignore if file doesn't exist
-	}
-
-	// Open and check for success
 	if ((f = fopen(filename, "r")) != NULL) // Read text file
 	{
 		// Ignore first line
@@ -383,6 +376,7 @@ qboolean BOTLIB_AddBotsFromPreviousMap(float percent)
 		if (print_dbg) Com_Printf("%s line[%d] version[%d]\n", __func__, ++line_num, version);
 		if (version != BOTS_FILE_PREV_MAP_VERSION)
 		{
+			fclose(f);
 			return false;
 		}
 
@@ -393,6 +387,7 @@ qboolean BOTLIB_AddBotsFromPreviousMap(float percent)
 		if (prev_bot_count <= 0)
 		{
 			//gi.dprintf("%s failed to process bot count from file: %s\n", __func__, filename);
+			fclose(f);
 			return false;
 		}
 
@@ -405,6 +400,7 @@ qboolean BOTLIB_AddBotsFromPreviousMap(float percent)
 		{
 			gi.cvar_set("bot_maxteam", va("%d", 0)); // Override if manually added
 			gi.dprintf("%s failed to process bot_maxteam from file: %s\n", __func__, filename);
+			fclose(f);
 			return false;
 		}
 
@@ -437,6 +433,7 @@ qboolean BOTLIB_AddBotsFromPreviousMap(float percent)
 			if (prev_gender < GENDER_MALE || prev_gender > GENDER_NEUTRAL)
 			{
 				Com_Printf("%s failed to process bot gender from file: %s\n", __func__, filename);
+				fclose(f);
 				return false;
 			}
 
@@ -446,6 +443,7 @@ qboolean BOTLIB_AddBotsFromPreviousMap(float percent)
 			if (prev_team < NOTEAM || prev_team > TEAM3)
 			{
 				Com_Printf("%s failed to process bot team from file: %s\n", __func__, filename);
+				fclose(f);
 				return false;
 			}
 
@@ -466,10 +464,7 @@ qboolean BOTLIB_AddBotsFromPreviousMap(float percent)
 			if (print_dbg) Com_Printf("%s %s curr_line[%d]. GM[%s] Gender[%d] Team[%d] Name[%s] Skin[%s]\n", __func__, filename, ++line_num, gamemode, prev_gender, prev_team, prev_name, prev_skin);
 
 			if (random() > (percent / 100)) // Percent chance to skip adding bot from previous map
-			{
-				prev_bots_skipped++; // Bots that were not added from previous map
 				continue;
-			}
 
 			//if (bot_maxteam->value && bots_added >= (int)bot_maxteam->value) // Limit bots to bot_maxteam, if its set
 			//	break;
@@ -1628,7 +1623,7 @@ void BOTLIB_RemoveBot(char* name)
 					//rekkie -- Fake Bot Client -- e
 
 					bot->health = 0;
-					player_die(bot, bot, bot, 100000, vec3_origin);
+					player_die(bot, bot, bot, 100000, (vec3_t){0,0,0});
 					// don't even bother waiting for death frames
 					//bot->deadflag = DEAD_DEAD;
 					//bot->inuse = false;
@@ -1700,7 +1695,7 @@ void BOTLIB_RemoveBot(char* name)
 				//gi.SV_BotDisconnect(bot->client->pers.netname); // So the server can remove the fake client
 
 				bot->health = 0;
-				player_die(bot, bot, bot, 100000, vec3_origin);
+				player_die(bot, bot, bot, 100000, (vec3_t){0,0,0});
 				ClientDisconnect(bot);
 				game.bot_count--;
 
@@ -1725,7 +1720,6 @@ void BOTLIB_RemoveBot(char* name)
 // Conditions: Bot must be dead or joined a team during an ongoing round
 void BOTLIB_RemoveTeamplayBot(int team)
 {
-	int i;
 	edict_t* bot;
 
 	// Try the filtered approach first, if no bot returns, then do an unfiltered search
@@ -1749,7 +1743,7 @@ void BOTLIB_RemoveTeamplayBot(int team)
 	game.bot_count--;
 
 	if (bot->health)
-		player_die(bot, bot, bot, 100000, vec3_origin);
+		player_die(bot, bot, bot, 100000, (vec3_t){0,0,0});
 	ClientDisconnect(bot);
 }
 
@@ -1786,7 +1780,7 @@ void BOTLIB_RemoveTeamplayBot(int team)
 // 						game.bot_count--;
 
 // 						if (bot->health)
-// 							player_die(bot, bot, bot, 100000, vec3_origin);
+// 							player_die(bot, bot, bot, 100000, (vec3_t){0,0,0});
 // 						ClientDisconnect(bot);
 // 						break;
 // 					}
@@ -2260,6 +2254,13 @@ void BOTLIB_CheckBotRules(void)
 	}
 
 	BOTLIB_GetTotalPlayers(&bot_connections);
+
+	// Update CTF strategic plan and role assignments once per second
+	if (ctf->value && teamplay->value)
+	{
+		BOTLIB_CTF_UpdatePlan();
+		BOTLIB_CTF_AssignRoles();
+	}
 
 	// All bots are counted as being on team 1 if in DM mode
 
