@@ -867,25 +867,31 @@ static void HUD_UpdateSpectatorTimer(edict_t *clent)
 		Ghud_SetColor(clent, hud[h_spectator_timer_border], 20, 20, 20, 120);
 	}
 
-	// Score bug update
+	// Score bug update — only show in team-based modes
+	if (ctf->value || esp->value || matchmode->value || teamplay->value || dom->value) {
+		// team 1 (red team)
+		Ghud_SetFlags(clent, hud[h_team_l], 0);
+		Ghud_SetFlags(clent, hud[h_team_l_num], 0);
+		if (ctf->value)
+			Ghud_SetInt(clent, hud[h_team_l_num], ctfgame.team1);
+		else
+			//Ghud_SetInt(clent, hud[h_team_l_num], 13);  // Testing double digits
+			Ghud_SetInt(clent, hud[h_team_l_num], teams[TEAM1].score);
 
-	// team 1 (red team)
-	Ghud_SetFlags(clent, hud[h_team_l], 0);
-	Ghud_SetFlags(clent, hud[h_team_l_num], 0);
-	if (ctf->value)
-		Ghud_SetInt(clent, hud[h_team_l_num], ctfgame.team1);
-	else
-		//Ghud_SetInt(clent, hud[h_team_l_num], 13);  // Testing double digits
-		Ghud_SetInt(clent, hud[h_team_l_num], teams[TEAM1].score);
-
-	// team 2 (blue team)
-	Ghud_SetFlags(clent, hud[h_team_r], 0);
-	Ghud_SetFlags(clent, hud[h_team_r_num], 0);
-	if (ctf->value)
-		Ghud_SetInt(clent, hud[h_team_r_num], ctfgame.team2);
-	else
-		//Ghud_SetInt(clent, hud[h_team_r_num], 25);  // Testing double digits
-		Ghud_SetInt(clent, hud[h_team_r_num], teams[TEAM2].score);
+		// team 2 (blue team)
+		Ghud_SetFlags(clent, hud[h_team_r], 0);
+		Ghud_SetFlags(clent, hud[h_team_r_num], 0);
+		if (ctf->value)
+			Ghud_SetInt(clent, hud[h_team_r_num], ctfgame.team2);
+		else
+			//Ghud_SetInt(clent, hud[h_team_r_num], 25);  // Testing double digits
+			Ghud_SetInt(clent, hud[h_team_r_num], teams[TEAM2].score);
+	} else {
+		Ghud_SetFlags(clent, hud[h_team_l], GHF_HIDE);
+		Ghud_SetFlags(clent, hud[h_team_l_num], GHF_HIDE);
+		Ghud_SetFlags(clent, hud[h_team_r], GHF_HIDE);
+		Ghud_SetFlags(clent, hud[h_team_r_num], GHF_HIDE);
+	}
 }
 
 void HUD_SpectatorTimerSetup(edict_t *clent)
@@ -1002,6 +1008,14 @@ void HUD_SpectatorTimerSetup(edict_t *clent)
 			Ghud_SetPosition(clent, hud[h_team_r_num], (t2_x + 20), 60);
 		else
 			Ghud_SetPosition(clent, hud[h_team_r_num], t2_x, 60);
+	}
+
+	// Hide team scores in non-team modes (deathmatch)
+	if (!ctf->value && !esp->value && !matchmode->value && !teamplay->value && !dom->value) {
+		Ghud_SetFlags(clent, hud[h_team_l], GHF_HIDE);
+		Ghud_SetFlags(clent, hud[h_team_l_num], GHF_HIDE);
+		Ghud_SetFlags(clent, hud[h_team_r], GHF_HIDE);
+		Ghud_SetFlags(clent, hud[h_team_r_num], GHF_HIDE);
 	}
 }
 

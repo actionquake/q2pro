@@ -1806,20 +1806,15 @@ xl < value > xr < value > yb < value > yt < value > xv < value > yv < value >
 		"xr -24 " \
 		"pic 28 " \
 	"endif " \
-/* spec viewing */ \
-	"if 21 " \
-		"xv 0 " \
-		"yb -58 " \
-		"string \"Viewing\" " \
-		"xv 64 " \
-		"stat_string 21 " \
-	"endif " \
 /* sniper graphic/icon */ \
 	"if 18 " \
 		"xv 0 " \
 		"yv 0 " \
 		"pic 18 " \
-	"endif "
+	"endif " \
+
+// Removed spectator 'Viewing' in favor of GHUD
+
 
 void G_SetupStatusbar( void )
 {
