@@ -2529,6 +2529,7 @@ typedef struct bot_s
 	float ctf_support_time; // Time between ally support checks
 	bot_ctf_role_t bot_ctf_role; // Assigned role: attacker, defender, escort
 	int ctf_last_say_time; // Last frame this bot sent a CTF team-chat message
+	int ctf_carrier_hold_until; // Frame until flag carrier should resume running (danger avoidance pause)
 
 	// Espionage
 	bot_esp_state_t bot_esp_state;

@@ -324,12 +324,12 @@ int BOTLIB_NearestFlag(edict_t *self)
 	float flag1_dist = 999999999;
 	float flag2_dist = 999999999;
 
-	if (bot_ctf_status.flag1_is_dropped)
+	if (bot_ctf_status.flag1_is_dropped && bot_ctf_status.flag1_curr_node != INVALID)
 		flag1_dist = VectorDistance(nodes[bot_ctf_status.flag1_curr_node].origin, self->s.origin);
 	else
 		flag1_dist = VectorDistance(nodes[bot_ctf_status.flag1_home_node].origin, self->s.origin);
 
-	if (bot_ctf_status.flag2_is_dropped)
+	if (bot_ctf_status.flag2_is_dropped && bot_ctf_status.flag2_curr_node != INVALID)
 		flag2_dist = VectorDistance(nodes[bot_ctf_status.flag2_curr_node].origin, self->s.origin);
 	else
 		flag2_dist = VectorDistance(nodes[bot_ctf_status.flag2_home_node].origin, self->s.origin);
@@ -892,6 +892,47 @@ void BOTLIB_CTF_AnnounceDropped(edict_t *bot)
 	                   ctf_msgs_flag_dropped[rand() % CTF_MSGS_FLAG_DROPPED]);
 }
 
+// Returns true when a flag carrier should pause rather than run through a dangerous cluster.
+// Considers nearby enemy count and escort support; always false on RUSH / FULL_ATTACK plans.
+static qboolean BOTLIB_CTF_CarrierShouldWait(edict_t *self)
+{
+	// On RUSH or FULL_ATTACK the team commits to running — keep going regardless.
+	ctf_plan_t plan = (self->client->resp.team == TEAM1)
+		? bot_ctf_status.ctf_plan_team1 : bot_ctf_status.ctf_plan_team2;
+	if (plan == CTF_PLAN_RUSH || plan == CTF_PLAN_FULL_ATTACK)
+		return false;
+
+	int close_enemies  = 0; // Enemies within 256 units — immediate danger
+	int nearby_enemies = 0; // Enemies within 512 units — approaching danger
+	qboolean has_escort = false; // Friendly within 350 units
+
+	for (int pi = 0; pi < num_players; pi++) {
+		edict_t *p = players[pi];
+		if (!p || !p->inuse || !IS_ALIVE(p) || p == self)
+			continue;
+		float dist = VectorDistance(p->s.origin, self->s.origin);
+		if (OnSameTeam(self, p)) {
+			if (dist < 350)
+				has_escort = true;
+		} else {
+			if (dist < 256)
+				close_enemies++;
+			else if (dist < 512)
+				nearby_enemies++;
+		}
+	}
+
+	// Any enemy within 256 units and no escort — too hot to run.
+	if (close_enemies > 0 && !has_escort)
+		return true;
+
+	// Multiple enemies converging nearby with no backup — wait for a safer moment.
+	if (nearby_enemies >= 2 && !has_escort)
+		return true;
+
+	return false;
+}
+
 void BOTLIB_CTF_Goals(edict_t* self)
 {
 	if (team_round_going == false || lights_camera_action) return; // Only allow during a real match (after LCA and before win/loss announcement)
@@ -902,6 +943,18 @@ void BOTLIB_CTF_Goals(edict_t* self)
 		BOTLIB_CTF_SayTeam(self, CTF_CHAT_TEAM_FLAG_TAKEN, ctf_msgs_team_flag_taken[rand() % CTF_MSGS_TEAM_FLAG_TAKEN]);
 	if (self->client->resp.team == TEAM2 && bot_ctf_status.prev_flag2_is_home && !bot_ctf_status.flag2_is_home)
 		BOTLIB_CTF_SayTeam(self, CTF_CHAT_TEAM_FLAG_TAKEN, ctf_msgs_team_flag_taken[rand() % CTF_MSGS_TEAM_FLAG_TAKEN]);
+
+	// Mid-flight carrier danger reassessment — if already heading home, check whether
+	// it is safer to pause and wait for the area to clear before continuing.
+	if (self->bot.bot_ctf_state == BOT_CTF_STATE_CAPTURE_ENEMY_FLAG && BOTLIB_Carrying_Flag(self)) {
+		if (self->bot.ctf_carrier_hold_until > level.framenum)
+			return; // Still waiting for danger to clear
+		if (BOTLIB_CTF_CarrierShouldWait(self)) {
+			self->bot.ctf_carrier_hold_until = level.framenum + (int)(3.0f * HZ);
+			self->bot.bot_ctf_state = BOT_CTF_STATE_NONE;
+			return;
+		}
+	}
 
 	// -------------------------------------------------------
 	// Role-based overrides (evaluated before the generic state
@@ -959,7 +1012,11 @@ void BOTLIB_CTF_Goals(edict_t* self)
 			float dist = VectorDistance(self->s.origin, carrier->s.origin);
 			if (dist > 128 && dist < 5000)
 			{
-				int n = carrier->bot.current_node;
+				// For bot carriers use their tracked nav node; for human carriers find
+				// the nearest nav node to their world position (current_node is not
+				// maintained for humans and is zero-initialised, not INVALID).
+				int n = carrier->is_bot ? carrier->bot.current_node
+				                        : ACEND_FindClosestReachableNode(carrier, 256, NODE_ALL);
 				if (n != INVALID && BOTLIB_CanGotoNode(self, n, false))
 				{
 					// Ask for escort support when first beginning to follow
@@ -1017,6 +1074,10 @@ void BOTLIB_CTF_Goals(edict_t* self)
 			self->bot.bot_ctf_state != BOT_CTF_STATE_FORCE_MOVE_TO_FLAG)
 		{
 			int n = INVALID;
+			// Guard: home nodes may still be INVALID early in a map before the flag scan resolves them.
+			if (bot_ctf_status.flag1_home_node == INVALID || bot_ctf_status.flag2_home_node == INVALID)
+				return;
+
 			if (self->client->resp.team == TEAM1 && VectorDistance(nodes[bot_ctf_status.flag1_home_node].origin, self->s.origin) > 128)
 				n = bot_ctf_status.flag1_home_node;
 			else if (self->client->resp.team == TEAM2 && VectorDistance(nodes[bot_ctf_status.flag2_home_node].origin, self->s.origin) > 128)
@@ -1050,7 +1111,18 @@ void BOTLIB_CTF_Goals(edict_t* self)
 			//Com_Printf("%s %s goal_node[%d]  flag1_home_node[%i]  state[%d]\n", __func__, self->client->pers.netname, self->bot.goal_node, bot_ctf_status.flag1_home_node, self->state);
 			//if (n != INVALID) Com_Printf("%s %s self->bot.goal_node %i  flag node %i\n", __func__, self->client->pers.netname, self->bot.goal_node, n);
 
-			if (BOTLIB_CanGotoNode(self, n, false))
+			// Pause if the carrier-danger hold timer is still active.
+			if (self->bot.ctf_carrier_hold_until > level.framenum)
+				return;
+
+			// Don't start a run through a dangerous cluster — wait for an opening.
+			if (BOTLIB_CTF_CarrierShouldWait(self)) {
+				self->bot.ctf_carrier_hold_until = level.framenum + (int)(3.0f * HZ);
+				return;
+			}
+
+			// Use path randomization so the carrier is less predictable.
+			if (BOTLIB_CanGotoNode(self, n, true))
 			{
 				if (self->client->resp.team == TEAM1)
 				{
@@ -1154,7 +1226,7 @@ void BOTLIB_CTF_Goals(edict_t* self)
 
 			// Support flag carrier if they're around
 			float dist = VectorDistance(self->s.origin, bot_ctf_status.player_has_flag1->s.origin);
-			if (dist > 256 && dist < 4024 && bot_ctf_status.team1_carrier_dist_to_home > 512)
+			if (dist > 256 && dist < 4024 && bot_ctf_status.team2_carrier_dist_to_home > 512)
 			{
 				int n = bot_ctf_status.player_has_flag1->bot.current_node;
 				if (BOTLIB_CanGotoNode(self, n, false))

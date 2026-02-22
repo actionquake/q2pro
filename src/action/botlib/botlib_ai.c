@@ -814,7 +814,8 @@ void BOTLIB_Think(edict_t* self)
 
 	// This doesn't mean that the bot sees itself as an enemy
 	// self->enemy is which bot the current self->bot is targeting
-	if (self->enemy)
+	// Flag carriers skip the chase block — their job is to run home, not pursue enemies.
+	if (self->enemy && !(BOTLIB_Carrying_Flag(self) && self->bot.bot_ctf_state == BOT_CTF_STATE_CAPTURE_ENEMY_FLAG))
 	{
 		// Chase after the new enemy
 		if (self->bot.enemy_chase_time < level.framenum && self->enemy->bot.current_node != self->bot.goal_node)
