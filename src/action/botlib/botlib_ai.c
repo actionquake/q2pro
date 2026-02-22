@@ -717,7 +717,7 @@ static void BOTLIB_Think_Gamemode(edict_t* self)
 
 	// Non-teamplay stuck suicide and no training mode
 	if (!teamplay->value) {
-		if (self->bot.node_travel_time > 120) {
+		if (self->bot.node_travel_time > 120 && level.framenum > self->suicide_timeout) {
 			if (!training->value) {
 				killPlayer(self, true);
 			}

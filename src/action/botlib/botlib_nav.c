@@ -2808,7 +2808,7 @@ int BOTLIB_SLL_Query_All_Nodes(edict_t *ent, botlib_sll_t* list, int* node_list,
 		return ent->bot.node_list_count;
 
 	// Check if there's a next item
-	if (list && list->head && list->head != list->tail && list->head->next != NULL)
+	if (list && list->head)
 	{
 		//node_list[ent->bot.node_list_count++] = ent->bot.current_node; // Save current node
 		node_list[ent->bot.node_list_count++] = list->head->node; // Save head node

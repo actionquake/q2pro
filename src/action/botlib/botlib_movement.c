@@ -6304,8 +6304,7 @@ void BOTLIB_Wander(edict_t* self, usercmd_t* ucmd)
 	}
 
 	
-	if (1 & self->bot.node_list_count)
-	//if (self->bot.node_list_count > 0)
+	if (self->bot.node_list_count > 1)
 	{
 		for (int i = 1; i < self->bot.node_list_count; i++)
 		{
