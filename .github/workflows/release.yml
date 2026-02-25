@@ -94,12 +94,19 @@ jobs:
           name: q2pro-darwin-arm64
           skip_unpack: true
 
+      - name: Download Fedora x86_64 build artifacts
+        uses: dawidd6/action-download-artifact@v2
+        with:
+          workflow: build.yml
+          name: q2pro-fedora-x86_64
+          skip_unpack: true
+
       - name: Upload dist tarball to release
         uses: softprops/action-gh-release@v1
         env:
           GITHUB_TOKEN: ${{ github.token }}
         with:
-          body_path: 
+          body_path:
           tag_name: ${{ steps.version.outputs.version }}
           files: |
             q2pro-mingw-x86_64.zip
@@ -109,3 +116,4 @@ jobs:
             q2pro-lin-clang-x86_64.zip
             q2pro-darwin-x86_64.zip
             q2pro-darwin-arm64.zip
+            q2pro-fedora-x86_64.zip
