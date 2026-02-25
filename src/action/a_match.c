@@ -401,7 +401,7 @@ void Cmd_Teamskin_f(edict_t * ent)
 	team_t *team;
 	edict_t *e;
 
-	if (!esp->value) {
+	if (esp->value) {
 		gi.cprintf(ent, PRINT_HIGH, "Espionage skins are set in the .esp file\n");
 		return;
 	}
