@@ -846,6 +846,37 @@ static int GetRemainingTimeDigits(hud_time_digits timeval)
     }
 }
 
+static void HUD_UpdateTeamScores(edict_t *clent)
+{
+	int *hud = clent->client->resp.hud_items;
+	int t2_score;
+
+	// team 1 (red team)
+	Ghud_SetFlags(clent, hud[h_team_l], 0);
+	Ghud_SetFlags(clent, hud[h_team_l_num], 0);
+	if (ctf->value)
+		Ghud_SetInt(clent, hud[h_team_l_num], ctfgame.team1);
+	else
+		Ghud_SetInt(clent, hud[h_team_l_num], teams[TEAM1].score);
+
+	// team 2 (blue team)
+	Ghud_SetFlags(clent, hud[h_team_r], 0);
+	Ghud_SetFlags(clent, hud[h_team_r_num], 0);
+	if (ctf->value)
+		t2_score = ctfgame.team2;
+	else
+		t2_score = teams[TEAM2].score;
+	Ghud_SetInt(clent, hud[h_team_r_num], t2_score);
+
+	// Reposition right-team score number if score crossed the double-digit threshold
+	if (matchmode->value) {
+		int t2_x = 0;
+		Ghud_SetPosition(clent, hud[h_team_r_num], t2_score >= 10 ? (t2_x + 20) : t2_x, 60);
+	} else {
+		Ghud_SetPosition(clent, hud[h_team_r_num], t2_score >= 10 ? 35 : 20, 60);
+	}
+}
+
 static void HUD_UpdateSpectatorTimer(edict_t *clent)
 {
 	int *hud = clent->client->resp.hud_items;
@@ -866,26 +897,6 @@ static void HUD_UpdateSpectatorTimer(edict_t *clent)
 		// Change bar color to gray
 		Ghud_SetColor(clent, hud[h_spectator_timer_border], 20, 20, 20, 120);
 	}
-
-	// Score bug update
-
-	// team 1 (red team)
-	Ghud_SetFlags(clent, hud[h_team_l], 0);
-	Ghud_SetFlags(clent, hud[h_team_l_num], 0);
-	if (ctf->value)
-		Ghud_SetInt(clent, hud[h_team_l_num], ctfgame.team1);
-	else
-		//Ghud_SetInt(clent, hud[h_team_l_num], 13);  // Testing double digits
-		Ghud_SetInt(clent, hud[h_team_l_num], teams[TEAM1].score);
-
-	// team 2 (blue team)
-	Ghud_SetFlags(clent, hud[h_team_r], 0);
-	Ghud_SetFlags(clent, hud[h_team_r_num], 0);
-	if (ctf->value)
-		Ghud_SetInt(clent, hud[h_team_r_num], ctfgame.team2);
-	else
-		//Ghud_SetInt(clent, hud[h_team_r_num], 25);  // Testing double digits
-		Ghud_SetInt(clent, hud[h_team_r_num], teams[TEAM2].score);
 }
 
 void HUD_SpectatorTimerSetup(edict_t *clent)
@@ -965,11 +976,11 @@ void HUD_SpectatorTimerSetup(edict_t *clent)
 	} else // Teamplay/Domination
 		hud[h_team_l] = Ghud_AddIcon(clent, -30, 60, level.pic_teamskin[TEAM1], 24, 24);
 	Ghud_SetAnchor(clent, hud[h_team_l], 0.5, 0);
-	hud[h_team_l_num] = Ghud_AddNumber(clent, -70, 60, 0);
+	hud[h_team_l_num] = Ghud_AddNumber(clent, -70, 60, ctf->value ? ctfgame.team1 : teams[TEAM1].score);
 	Ghud_SetSize(clent, hud[h_team_l_num], 2, 0);
 	Ghud_SetAnchor(clent, hud[h_team_l_num], 0.5, 0);
 	Ghud_SetFlags(clent, hud[h_team_l_num], UI_RIGHT);
-	
+
 	// Team 2
 	if (ctf->value) // CTF
 		hud[h_team_r] = Ghud_AddIcon(clent, -26, 28, level.pic_ctf_flagbase[TEAM2], 24, 24);
@@ -985,10 +996,10 @@ void HUD_SpectatorTimerSetup(edict_t *clent)
 		hud[h_team_r] = Ghud_AddIcon(clent, 10, 60, level.pic_teamskin[TEAM2], 24, 24);
 	Ghud_SetAnchor(clent, hud[h_team_r], 0.5, 0);
 
-	if (teams[TEAM2].score >= 10) // gotta readjust size for justifying purposes
-		hud[h_team_r_num] = Ghud_AddNumber(clent, 35, 60, 0);
-	else
-		hud[h_team_r_num] = Ghud_AddNumber(clent, 20, 60, 0);
+	{
+		int t2_score = ctf->value ? ctfgame.team2 : teams[TEAM2].score;
+		hud[h_team_r_num] = Ghud_AddNumber(clent, t2_score >= 10 ? 35 : 20, 60, t2_score);
+	}
 
 	Ghud_SetSize(clent, hud[h_team_r_num], 2, 0);
 	Ghud_SetAnchor(clent, hud[h_team_r_num], 0.5, 0);
@@ -996,12 +1007,9 @@ void HUD_SpectatorTimerSetup(edict_t *clent)
 
 	if (matchmode->value) { // Move the scores closer together slightly
 		int t2_x = 0;
+		int t2_score = ctf->value ? ctfgame.team2 : teams[TEAM2].score;
 		Ghud_SetPosition(clent, hud[h_team_l_num], -55, 60);
-
-		if (teams[TEAM2].score >= 10)
-			Ghud_SetPosition(clent, hud[h_team_r_num], (t2_x + 20), 60);
-		else
-			Ghud_SetPosition(clent, hud[h_team_r_num], t2_x, 60);
+		Ghud_SetPosition(clent, hud[h_team_r_num], t2_score >= 10 ? (t2_x + 20) : t2_x, 60);
 	}
 }
 
@@ -1521,6 +1529,10 @@ void HUD_SpectatorUpdate(edict_t *clent)
 			Ghud_SetFlags(clent, hud[h_spectator_stats_bar], GHF_HIDE);
 			Ghud_SetFlags(clent, hud[h_spectator_stats_bar + 1], GHF_HIDE);
 		}
+
+		// Update team scores unconditionally every frame
+		if (teamplay->value)
+			HUD_UpdateTeamScores(clent);
 
 		// Update the timer display if set and we're not in intermission
 		if (timelimit->value && !level.intermission_framenum) {
