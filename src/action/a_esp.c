@@ -607,7 +607,7 @@ void EspEnforceDefaultSettings(char *defaulttype)
 		Q_strncpyz(teams[TEAM1].skin, ESP_RED_SKIN, sizeof(teams[TEAM1].skin));
 		Q_strncpyz(teams[TEAM1].leader_name, ESP_RED_LEADER_NAME, sizeof(teams[TEAM1].leader_name));
 		Q_strncpyz(teams[TEAM1].leader_skin, ESP_RED_LEADER_SKIN, sizeof(teams[TEAM1].leader_skin));
-		Q_strncpyz(teams[TEAM1].skin_index, "../pics/ctf_r_i", sizeof(teams[TEAM1].skin_index));
+		Q_snprintf(teams[TEAM1].skin_index, sizeof(teams[TEAM1].skin_index), "../players/%s_i", teams[TEAM1].skin);
 		Q_snprintf(teams[TEAM1].leader_skin_index, sizeof(teams[TEAM1].leader_skin_index), "../players/%s_i", teams[TEAM1].leader_skin);
 
 		/// Default skin/team/names - blue team
@@ -615,7 +615,7 @@ void EspEnforceDefaultSettings(char *defaulttype)
 		Q_strncpyz(teams[TEAM2].skin, ESP_BLUE_SKIN, sizeof(teams[TEAM2].skin));
 		Q_strncpyz(teams[TEAM2].leader_name, ESP_BLUE_LEADER_NAME, sizeof(teams[TEAM2].leader_name));
 		Q_strncpyz(teams[TEAM2].leader_skin, ESP_BLUE_LEADER_SKIN, sizeof(teams[TEAM2].leader_skin));
-		Q_strncpyz(teams[TEAM2].skin_index, "../pics/ctf_b_i", sizeof(teams[TEAM2].skin_index));
+		Q_snprintf(teams[TEAM2].skin_index, sizeof(teams[TEAM2].skin_index), "../players/%s_i", teams[TEAM2].skin);
 		Q_snprintf(teams[TEAM2].leader_skin_index, sizeof(teams[TEAM2].leader_skin_index), "../players/%s_i", teams[TEAM2].leader_skin);
 		if(teamCount == 3) {
 			/// Default skin/team/names - green team
@@ -623,7 +623,7 @@ void EspEnforceDefaultSettings(char *defaulttype)
 			Q_strncpyz(teams[TEAM3].skin, ESP_GREEN_SKIN, sizeof(teams[TEAM3].skin));
 			Q_strncpyz(teams[TEAM3].leader_name, ESP_GREEN_LEADER_NAME, sizeof(teams[TEAM3].leader_name));
 			Q_strncpyz(teams[TEAM3].leader_skin, ESP_GREEN_LEADER_SKIN, sizeof(teams[TEAM3].leader_skin));
-			Q_strncpyz(teams[TEAM3].skin_index, "../pics/ctf_g_i", sizeof(teams[TEAM3].skin_index));
+			Q_snprintf(teams[TEAM3].skin_index, sizeof(teams[TEAM3].skin_index), "../players/%s_i", teams[TEAM3].skin);
 			Q_snprintf(teams[TEAM3].leader_skin_index, sizeof(teams[TEAM3].leader_skin_index), "../players/%s_i", teams[TEAM3].leader_skin);
 		}
 		gi.dprintf("  Red Team: %s -- Skin: %s\n", ESP_RED_TEAM, ESP_RED_SKIN);

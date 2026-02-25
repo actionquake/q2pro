@@ -1319,8 +1319,8 @@ void SpawnEntities (const char *mapname, const char *entities, const char *spawn
 		Q_strncpyz(teams[TEAM2].name, "BLUE", sizeof(teams[TEAM2].name));
 		Q_strncpyz(teams[TEAM1].skin, "male/ctf_r", sizeof(teams[TEAM1].skin));
 		Q_strncpyz(teams[TEAM2].skin, "male/ctf_b", sizeof(teams[TEAM2].skin));
-		Q_strncpyz(teams[TEAM1].skin_index, "ctf_r", sizeof(teams[TEAM1].skin_index));
-		Q_strncpyz(teams[TEAM2].skin_index, "ctf_b", sizeof(teams[TEAM2].skin_index));
+		Q_snprintf(teams[TEAM1].skin_index, sizeof(teams[TEAM1].skin_index), "../players/%s_i", teams[TEAM1].skin);
+		Q_snprintf(teams[TEAM2].skin_index, sizeof(teams[TEAM2].skin_index), "../players/%s_i", teams[TEAM2].skin);
 	}
 	else if (esp->value)
 	{
@@ -1399,9 +1399,9 @@ void SpawnEntities (const char *mapname, const char *entities, const char *spawn
 		Q_strncpyz(teams[TEAM1].skin, "male/ctf_r", sizeof(teams[TEAM1].skin));
 		Q_strncpyz(teams[TEAM2].skin, "male/ctf_b", sizeof(teams[TEAM2].skin));
 		Q_strncpyz(teams[TEAM3].skin, "male/ctf_g", sizeof(teams[TEAM3].skin));
-		Q_strncpyz(teams[TEAM1].skin_index, "ctf_r_i", sizeof(teams[TEAM1].skin_index));
-		Q_strncpyz(teams[TEAM2].skin_index, "ctf_b_i", sizeof(teams[TEAM2].skin_index));
-		Q_strncpyz(teams[TEAM3].skin_index, "ctf_g_i", sizeof(teams[TEAM3].skin_index));
+		Q_snprintf(teams[TEAM1].skin_index, sizeof(teams[TEAM1].skin_index), "../players/%s_i", teams[TEAM1].skin);
+		Q_snprintf(teams[TEAM2].skin_index, sizeof(teams[TEAM2].skin_index), "../players/%s_i", teams[TEAM2].skin);
+		Q_snprintf(teams[TEAM3].skin_index, sizeof(teams[TEAM3].skin_index), "../players/%s_i", teams[TEAM3].skin);
 	}
 	else if(teamdm->value)
 	{
@@ -2076,20 +2076,15 @@ void SP_worldspawn (edict_t * ent)
 		if (!esp->value && !ctf->value) {
 			for(i = TEAM1; i <= teamCount; i++)
 			{
-				if (teams[i].skin_index[0] == 0) {
-					// If the action.ini file isn't found, set default skins rather than kill the server
-					// Espionage has its own defaults
-					gi.dprintf("WARNING: No skin was specified for team %i in config file, server either could not find it or is does not exist.\n", i);
-					gi.dprintf("Setting default team names, skins and skin indexes.\n");
-					Q_strncpyz(teams[TEAM1].name, "RED", sizeof(teams[TEAM1].name));
-					Q_strncpyz(teams[TEAM2].name, "BLUE", sizeof(teams[TEAM2].name));
-					Q_strncpyz(teams[TEAM3].name, "GREEN", sizeof(teams[TEAM3].name));
-					Q_strncpyz(teams[TEAM1].skin, "male/ctf_r", sizeof(teams[TEAM1].skin));
-					Q_strncpyz(teams[TEAM2].skin, "male/ctf_b", sizeof(teams[TEAM2].skin));
-					Q_strncpyz(teams[TEAM3].skin, "male/ctf_g", sizeof(teams[TEAM3].skin));
-					Q_strncpyz(teams[TEAM1].skin_index, "ctf_r", sizeof(teams[TEAM1].skin_index));
-					Q_strncpyz(teams[TEAM2].skin_index, "ctf_b", sizeof(teams[TEAM2].skin_index));
-					Q_strncpyz(teams[TEAM3].skin_index, "ctf_g", sizeof(teams[TEAM3].skin_index));
+				if (teams[i].skin[0] == 0) {
+					// If action.ini is missing or has no skin for this team, apply a per-team default.
+					// Espionage has its own defaults; this path is teamplay only.
+					static const char *default_names[] = { "", "RED", "BLUE", "GREEN" };
+					static const char *default_skins[] = { "", "male/ctf_r", "male/ctf_b", "male/ctf_g" };
+					gi.dprintf("WARNING: No skin specified for team %i in config file, applying default.\n", i);
+					Q_strncpyz(teams[i].name, default_names[i], sizeof(teams[i].name));
+					Q_strncpyz(teams[i].skin, default_skins[i], sizeof(teams[i].skin));
+					Q_snprintf(teams[i].skin_index, sizeof(teams[i].skin_index), "../players/%s_i", teams[i].skin);
 				}
 				level.pic_teamskin[i] = gi.imageindex(teams[i].skin_index);
 			}
