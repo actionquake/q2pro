@@ -846,35 +846,46 @@ static int GetRemainingTimeDigits(hud_time_digits timeval)
     }
 }
 
+// Returns the number of decimal digits needed to display val (minimum 1).
+// Mirrors the client renderer's auto-numsize: floor(log10(val))+1.
+static int ScoreDigitCount(int val)
+{
+	if (val < 10)   return 1;
+	if (val < 100)  return 2;
+	if (val < 1000) return 3;
+	return 4;
+}
+
+// Returns the pos_x for the team-2 score element (anchor 1,0) so that the
+// ones digit always ends 4 px left of the icon at x=-28, regardless of how
+// many digits are in the score.  Each additional high-order digit shifts the
+// number 16 px further left (one DIGIT_WIDTH step).
+static int T2ScorePosX(int digits)
+{
+	return -50 - 16 * (digits - 1);
+}
+
 static void HUD_UpdateTeamScores(edict_t *clent)
 {
 	int *hud = clent->client->resp.hud_items;
-	int t2_score;
+	int score2, n;
 
-	// team 1 (red team)
+	// Team 1 (left edge anchor, anchor 0,0) — left-aligned, grows right.
+	// size[0]=0 (auto-numsize) keeps the left edge of the number fixed at
+	// pos_x+2=32; the ones digit shifts one slot right for each new digit place.
 	Ghud_SetFlags(clent, hud[h_team_l], 0);
 	Ghud_SetFlags(clent, hud[h_team_l_num], 0);
-	if (ctf->value)
-		Ghud_SetInt(clent, hud[h_team_l_num], ctfgame.team1);
-	else
-		Ghud_SetInt(clent, hud[h_team_l_num], teams[TEAM1].score);
+	Ghud_SetInt(clent, hud[h_team_l_num], ctf->value ? ctfgame.team1 : teams[TEAM1].score);
 
-	// team 2 (blue team)
+	// Team 2 (right edge anchor, anchor 1,0) — ones digit fixed, grows left.
+	// Shift pos_x one DIGIT_WIDTH step left for each additional digit so the
+	// ones digit always ends at the same screen position next to the icon.
 	Ghud_SetFlags(clent, hud[h_team_r], 0);
 	Ghud_SetFlags(clent, hud[h_team_r_num], 0);
-	if (ctf->value)
-		t2_score = ctfgame.team2;
-	else
-		t2_score = teams[TEAM2].score;
-	Ghud_SetInt(clent, hud[h_team_r_num], t2_score);
-
-	// Reposition right-team score number if score crossed the double-digit threshold
-	if (matchmode->value) {
-		int t2_x = 0;
-		Ghud_SetPosition(clent, hud[h_team_r_num], t2_score >= 10 ? (t2_x + 20) : t2_x, 60);
-	} else {
-		Ghud_SetPosition(clent, hud[h_team_r_num], t2_score >= 10 ? 35 : 20, 60);
-	}
+	score2 = ctf->value ? ctfgame.team2 : teams[TEAM2].score;
+	n = ScoreDigitCount(score2);
+	Ghud_SetPosition(clent, hud[h_team_r_num], T2ScorePosX(n), 28);
+	Ghud_SetInt(clent, hud[h_team_r_num], score2);
 }
 
 static void HUD_UpdateSpectatorTimer(edict_t *clent)
@@ -916,21 +927,22 @@ void HUD_SpectatorTimerSetup(edict_t *clent)
 		Ghud_SetFlags(clent, hud[h_spectator_time_ts], 0);
 		Ghud_SetFlags(clent, hud[h_spectator_time_ss], 0);
         
-        // GHUD bottom center stat display
+        // Timer box sized to fit digits only (scores moved to edge columns).
+        // Digits span center±48px wide, 24px tall at y=30..54. 6px padding all sides.
         int x, y;
         x = 0;
         y = 30;
 
 		hud[h_spectator_timer_border] = Ghud_NewElement(clent, GHT_FILL);
         Ghud_SetAnchor(clent, hud[h_spectator_timer_border], 0.5, 0);
-		Ghud_SetPosition(clent, hud[h_spectator_timer_border], x - 66, y - 1);
-        Ghud_SetSize(clent, hud[h_spectator_timer_border], 130, 56);
+		Ghud_SetPosition(clent, hud[h_spectator_timer_border], x - 55, y - 7);
+        Ghud_SetSize(clent, hud[h_spectator_timer_border], 110, 38);
         Ghud_SetColor(clent, hud[h_spectator_timer_border], 50, 150, 50, 120);
 
 		hud[h_spectator_timer] = Ghud_NewElement(clent, GHT_FILL);
         Ghud_SetAnchor(clent, hud[h_spectator_timer], 0.5, 0);
-		Ghud_SetPosition(clent, hud[h_spectator_timer], x - 65, y);
-        Ghud_SetSize(clent, hud[h_spectator_timer], 128, 54);
+		Ghud_SetPosition(clent, hud[h_spectator_timer], x - 54, y - 6);
+        Ghud_SetSize(clent, hud[h_spectator_timer], 108, 36);
         Ghud_SetColor(clent, hud[h_spectator_timer], 50, 50, 50, 120);
 
         // Add number elements for minutes
@@ -959,58 +971,50 @@ void HUD_SpectatorTimerSetup(edict_t *clent)
 			Ghud_SetFlags(clent, hud[h_spectator_time_ss], GHF_HIDE);
 		}
 
-	// GHUD team icons and scores
+	// GHUD team icons and scores — anchored above their respective health bar columns.
+	// Left column: anchor(0,0), x=0..144. Right column: anchor(1,0), x=-144..0.
+	// Score numbers sit at y=28 (24px tall digits), 4px above the first nameplate at y=56.
+	// Icon (24x24) sits at x=4 (left) / x=-28 (right), score at x=30 / x=-66.
 
-	// Team 1
+	// Team 1 — left edge anchor
 	if (ctf->value) // CTF
-		hud[h_team_l] = Ghud_AddIcon(clent, 2, 28, level.pic_ctf_flagbase[TEAM1], 24, 24);
+		hud[h_team_l] = Ghud_AddIcon(clent, 4, 28, level.pic_ctf_flagbase[TEAM1], 24, 24);
 	else if (esp->value) // Espionage
-		hud[h_team_l] = Ghud_AddIcon(clent, 2, 28, level.pic_esp_teamicon[TEAM1], 24, 24);
-	else if (matchmode->value) { // Matchmode
+		hud[h_team_l] = Ghud_AddIcon(clent, 4, 28, level.pic_esp_teamicon[TEAM1], 24, 24);
+	else if (matchmode->value) { // Matchmode: thin color bar across the full column
 		hud[h_team_l] = Ghud_NewElement(clent, GHT_FILL);
-		Ghud_SetAnchor(clent, hud[h_team_l], 0.5, 0);
-		Ghud_SetPosition(clent, hud[h_team_l], -65, 54);
-        Ghud_SetSize(clent, hud[h_team_l], 60, 5);
-        Ghud_SetColor(clent, hud[h_team_l], red_team_red, red_team_green, red_team_blue, 255);
-		//hud[h_team_l] = Ghud_AddIcon(clent, -70, 28, level.pic_teamskin[TEAM1], 24, 24);
+		Ghud_SetPosition(clent, hud[h_team_l], 0, 24);
+		Ghud_SetSize(clent, hud[h_team_l], 144, 4);
+		Ghud_SetColor(clent, hud[h_team_l], red_team_red, red_team_green, red_team_blue, 255);
 	} else // Teamplay/Domination
-		hud[h_team_l] = Ghud_AddIcon(clent, -30, 60, level.pic_teamskin[TEAM1], 24, 24);
-	Ghud_SetAnchor(clent, hud[h_team_l], 0.5, 0);
-	hud[h_team_l_num] = Ghud_AddNumber(clent, -70, 60, ctf->value ? ctfgame.team1 : teams[TEAM1].score);
-	Ghud_SetSize(clent, hud[h_team_l_num], 2, 0);
-	Ghud_SetAnchor(clent, hud[h_team_l_num], 0.5, 0);
-	Ghud_SetFlags(clent, hud[h_team_l_num], UI_RIGHT);
+		hud[h_team_l] = Ghud_AddIcon(clent, 4, 28, level.pic_teamskin[TEAM1], 24, 24);
+	Ghud_SetAnchor(clent, hud[h_team_l], 0, 0);
 
-	// Team 2
+	// size[0] left at 0 (auto-numsize) so the renderer left-aligns from x=30.
+	hud[h_team_l_num] = Ghud_AddNumber(clent, 30, 28, ctf->value ? ctfgame.team1 : teams[TEAM1].score);
+	Ghud_SetAnchor(clent, hud[h_team_l_num], 0, 0);
+
+	// Team 2 — right edge anchor
 	if (ctf->value) // CTF
-		hud[h_team_r] = Ghud_AddIcon(clent, -26, 28, level.pic_ctf_flagbase[TEAM2], 24, 24);
+		hud[h_team_r] = Ghud_AddIcon(clent, -28, 28, level.pic_ctf_flagbase[TEAM2], 24, 24);
 	else if (esp->value) // Espionage
-		hud[h_team_r] = Ghud_AddIcon(clent, -26, 28, level.pic_esp_teamicon[TEAM2], 24, 24);
-	else if (matchmode->value) { // Matchmode
+		hud[h_team_r] = Ghud_AddIcon(clent, -28, 28, level.pic_esp_teamicon[TEAM2], 24, 24);
+	else if (matchmode->value) { // Matchmode: thin color bar across the full column
 		hud[h_team_r] = Ghud_NewElement(clent, GHT_FILL);
-		Ghud_SetAnchor(clent, hud[h_team_r], 0.5, 0);
-		Ghud_SetPosition(clent, hud[h_team_r], 2, 54);
-        Ghud_SetSize(clent, hud[h_team_r], 60, 5);
-        Ghud_SetColor(clent, hud[h_team_r], blue_team_red, blue_team_green, blue_team_blue, 255);
+		Ghud_SetPosition(clent, hud[h_team_r], -144, 24);
+		Ghud_SetSize(clent, hud[h_team_r], 144, 4);
+		Ghud_SetColor(clent, hud[h_team_r], blue_team_red, blue_team_green, blue_team_blue, 255);
 	} else // Teamplay/Domination
-		hud[h_team_r] = Ghud_AddIcon(clent, 10, 60, level.pic_teamskin[TEAM2], 24, 24);
-	Ghud_SetAnchor(clent, hud[h_team_r], 0.5, 0);
+		hud[h_team_r] = Ghud_AddIcon(clent, -28, 28, level.pic_teamskin[TEAM2], 24, 24);
+	Ghud_SetAnchor(clent, hud[h_team_r], 1, 0);
 
 	{
-		int t2_score = ctf->value ? ctfgame.team2 : teams[TEAM2].score;
-		hud[h_team_r_num] = Ghud_AddNumber(clent, t2_score >= 10 ? 35 : 20, 60, t2_score);
+		// Compute initial pos_x so ones digit is already correctly placed.
+		int s2 = ctf->value ? ctfgame.team2 : teams[TEAM2].score;
+		// size[0] left at 0 (auto-numsize) so the renderer right-aligns to pos_x.
+		hud[h_team_r_num] = Ghud_AddNumber(clent, T2ScorePosX(ScoreDigitCount(s2)), 28, s2);
 	}
-
-	Ghud_SetSize(clent, hud[h_team_r_num], 2, 0);
-	Ghud_SetAnchor(clent, hud[h_team_r_num], 0.5, 0);
-	Ghud_SetFlags(clent, hud[h_team_r_num], UI_LEFT);
-
-	if (matchmode->value) { // Move the scores closer together slightly
-		int t2_x = 0;
-		int t2_score = ctf->value ? ctfgame.team2 : teams[TEAM2].score;
-		Ghud_SetPosition(clent, hud[h_team_l_num], -55, 60);
-		Ghud_SetPosition(clent, hud[h_team_r_num], t2_score >= 10 ? (t2_x + 20) : t2_x, 60);
-	}
+	Ghud_SetAnchor(clent, hud[h_team_r_num], 1, 0);
 }
 
 void HUD_SpectatorStatsSetup(edict_t *clent)
