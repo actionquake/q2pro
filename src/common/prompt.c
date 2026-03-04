@@ -30,7 +30,7 @@ with this program; if not, write to the Free Software Foundation, Inc.,
 static cvar_t   *com_completion_mode;
 static cvar_t   *com_completion_treshold;
 
-static void Prompt_ShowMatches(commandPrompt_t *prompt, char **matches, int count)
+static void Prompt_ShowMatches(const commandPrompt_t *prompt, char **matches, int count)
 {
     int numCols = 7, numLines;
     int i, j, k;
@@ -71,12 +71,8 @@ static void Prompt_ShowMatches(commandPrompt_t *prompt, char **matches, int coun
     }
 }
 
-static void Prompt_ShowIndividualMatches(
-    commandPrompt_t *prompt,
-    char            **matches,
-    int             numCommands,
-    int             numAliases,
-    int             numCvars)
+static void Prompt_ShowIndividualMatches(const commandPrompt_t *prompt, char **matches,
+                                         int numCommands, int numAliases, int numCvars)
 {
     if (numCommands) {
         qsort(matches, numCommands, sizeof(matches[0]), SortStrcmp);
@@ -130,6 +126,8 @@ void Prompt_AddMatch(genctx_t *ctx, const char *s)
 {
     int r;
 
+    if (!*s)
+        return;
     if (ctx->count >= ctx->size)
         return;
 
@@ -144,7 +142,7 @@ void Prompt_AddMatch(genctx_t *ctx, const char *s)
     if (ctx->ignoredups && find_dup(ctx, s))
         return;
 
-    ctx->matches = Z_Realloc(ctx->matches, ALIGN(ctx->count + 1, MIN_MATCHES) * sizeof(char *));
+    ctx->matches = Z_Realloc(ctx->matches, Q_ALIGN(ctx->count + 1, MIN_MATCHES) * sizeof(char *));
     ctx->matches[ctx->count++] = Z_CopyString(s);
 }
 
@@ -348,8 +346,8 @@ finish:
 
 void Prompt_CompleteHistory(commandPrompt_t *prompt, bool forward)
 {
-    char *s, *m = NULL;
-    int i, j;
+    const char *s, *m = NULL;
+    unsigned i, j;
 
     if (!prompt->search) {
         s = prompt->inputLine.text;
@@ -363,7 +361,11 @@ void Prompt_CompleteHistory(commandPrompt_t *prompt, bool forward)
     }
 
     if (forward) {
-        for (i = prompt->historyLineNum + 1; i < prompt->inputLineNum; i++) {
+        j = prompt->inputLineNum;
+        if (prompt->historyLineNum == j) {
+            return;
+        }
+        for (i = prompt->historyLineNum + 1; i != j; i++) {
             s = prompt->history[i & HISTORY_MASK];
             if (s && strstr(s, prompt->search)) {
                 if (strcmp(s, prompt->inputLine.text)) {
@@ -374,10 +376,10 @@ void Prompt_CompleteHistory(commandPrompt_t *prompt, bool forward)
         }
     } else {
         j = prompt->inputLineNum - HISTORY_SIZE;
-        if (j < 0) {
-            j = 0;
+        if (prompt->historyLineNum == j) {
+            return;
         }
-        for (i = prompt->historyLineNum - 1; i >= j; i--) {
+        for (i = prompt->historyLineNum - 1; i != j; i--) {
             s = prompt->history[i & HISTORY_MASK];
             if (s && strstr(s, prompt->search)) {
                 if (strcmp(s, prompt->inputLine.text)) {
@@ -393,7 +395,7 @@ void Prompt_CompleteHistory(commandPrompt_t *prompt, bool forward)
     }
 
     prompt->historyLineNum = i;
-    IF_Replace(&prompt->inputLine, prompt->history[i & HISTORY_MASK]);
+    IF_Replace(&prompt->inputLine, m);
 }
 
 void Prompt_ClearState(commandPrompt_t *prompt)
@@ -411,7 +413,7 @@ User just pressed enter
 */
 char *Prompt_Action(commandPrompt_t *prompt)
 {
-    char *s = prompt->inputLine.text;
+    const char *s = prompt->inputLine.text;
     int i, j;
 
     Prompt_ClearState(prompt);
@@ -458,7 +460,7 @@ void Prompt_HistoryUp(commandPrompt_t *prompt)
     }
 
     if (prompt->inputLineNum - prompt->historyLineNum < HISTORY_SIZE &&
-        prompt->historyLineNum > 0) {
+        prompt->history[(prompt->historyLineNum - 1) & HISTORY_MASK]) {
         prompt->historyLineNum--;
     }
 
@@ -508,11 +510,15 @@ void Prompt_Clear(commandPrompt_t *prompt)
     IF_Clear(&prompt->inputLine);
 }
 
-void Prompt_SaveHistory(commandPrompt_t *prompt, const char *filename, int lines)
+void Prompt_SaveHistory(const commandPrompt_t *prompt, const char *filename, int lines)
 {
     qhandle_t f;
-    char *s;
-    int i;
+    const char *s;
+    unsigned i;
+
+    if (lines < 1) {
+        return;
+    }
 
     FS_OpenFile(filename, &f, FS_MODE_WRITE | FS_PATH_BASE);
     if (!f) {
@@ -523,11 +529,7 @@ void Prompt_SaveHistory(commandPrompt_t *prompt, const char *filename, int lines
         lines = HISTORY_SIZE;
     }
 
-    i = prompt->inputLineNum - lines;
-    if (i < 0) {
-        i = 0;
-    }
-    for (; i < prompt->inputLineNum; i++) {
+    for (i = prompt->inputLineNum - lines; i != prompt->inputLineNum; i++) {
         s = prompt->history[i & HISTORY_MASK];
         if (s && *s) {
             FS_FPrintf(f, "%s\n", s);
@@ -541,28 +543,28 @@ void Prompt_LoadHistory(commandPrompt_t *prompt, const char *filename)
 {
     char buffer[MAX_FIELD_TEXT];
     qhandle_t f;
-    int i;
+    unsigned i;
 
-    FS_OpenFile(filename, &f, FS_MODE_READ | FS_TYPE_REAL | FS_PATH_BASE);
+    FS_OpenFile(filename, &f, FS_MODE_READ | FS_TYPE_REAL | FS_PATH_BASE | FS_DIR_HOME);
     if (!f) {
         return;
     }
 
-    for (i = 0; i < HISTORY_SIZE; i++) {
-        while (1) {
-            int len = FS_ReadLine(f, buffer, sizeof(buffer));
-            if (len <= 0)
-                goto out;
-            if (buffer[len - 1] == '\n')
-                buffer[len - 1] = 0;
-            if (buffer[0])
-                break;
-        }
-        Z_Free(prompt->history[i]);
-        prompt->history[i] = Z_CopyString(buffer);
+    i = 0;
+    while (1) {
+        int len = FS_ReadLine(f, buffer, sizeof(buffer));
+        if (len <= 0)
+            break;
+        while (len > 0 && (buffer[len - 1] == '\n' || buffer[len - 1] == '\r'))
+            len--;
+        if (!len)
+            continue;
+        buffer[len] = 0;
+        Z_Free(prompt->history[i & HISTORY_MASK]);
+        prompt->history[i & HISTORY_MASK] = Z_CopyString(buffer);
+        i++;
     }
 
-out:
     FS_CloseFile(f);
 
     prompt->historyLineNum = i;

@@ -75,12 +75,12 @@ typedef enum {
     QMS_BEEP
 } menuSound_t;
 
-#define RCOLUMN_OFFSET  (CHAR_WIDTH * 2)
+#define RCOLUMN_OFFSET  (CONCHAR_WIDTH * 2)
 #define LCOLUMN_OFFSET -RCOLUMN_OFFSET
 
 #define GENERIC_SPACING(x)   ((x) + (x) / 4)
 
-#define MENU_SPACING    GENERIC_SPACING(CHAR_HEIGHT)
+#define MENU_SPACING    GENERIC_SPACING(CONCHAR_HEIGHT)
 
 #define DOUBLE_CLICK_DELAY    300
 
@@ -147,7 +147,7 @@ typedef struct menuCommon_s {
     menuSound_t (*focus)(struct menuCommon_s *, bool gain);
 } menuCommon_t;
 
-typedef struct menuField_s {
+typedef struct {
     menuCommon_t generic;
     inputField_t field;
     cvar_t *cvar;
@@ -156,7 +156,7 @@ typedef struct menuField_s {
 
 #define SLIDER_RANGE 10
 
-typedef struct menuSlider_s {
+typedef struct {
     menuCommon_t generic;
     cvar_t *cvar;
     bool modified;
@@ -169,9 +169,9 @@ typedef struct menuSlider_s {
 
 #define MAX_COLUMNS     8
 
-#define MLIST_SPACING           GENERIC_SPACING(CHAR_HEIGHT)
+#define MLIST_SPACING           GENERIC_SPACING(CONCHAR_HEIGHT)
 #define MLIST_BORDER_WIDTH      1
-#define MLIST_SCROLLBAR_WIDTH   GENERIC_SPACING(CHAR_WIDTH)
+#define MLIST_SCROLLBAR_WIDTH   GENERIC_SPACING(CONCHAR_WIDTH)
 #define MLIST_PRESTEP           3
 #define MLIST_PADDING           (MLIST_PRESTEP*2)
 
@@ -179,7 +179,7 @@ typedef struct menuSlider_s {
 #define MLF_SCROLLBAR   BIT(1)
 #define MLF_COLOR       BIT(2)
 
-typedef struct menuListColumn_s {
+typedef struct {
     const char *name;
     int width;
     int uiFlags;
@@ -213,7 +213,7 @@ typedef struct menuList_s {
     menuSound_t (*sort)(struct menuList_s *);
 } menuList_t;
 
-typedef struct menuSpinControl_s {
+typedef struct {
     menuCommon_t generic;
     cvar_t *cvar;
 
@@ -226,27 +226,27 @@ typedef struct menuSpinControl_s {
     bool        negate;
 } menuSpinControl_t;
 
-typedef struct menuAction_s {
+typedef struct {
     menuCommon_t generic;
     char *cmd;
 } menuAction_t;
 
-typedef struct menuSeparator_s {
+typedef struct {
     menuCommon_t generic;
 } menuSeparator_t;
 
-typedef struct menuStatic_s {
+typedef struct {
     menuCommon_t    generic;
     int             maxChars;
 } menuStatic_t;
 
-typedef struct menuBitmap_s {
+typedef struct {
     menuCommon_t generic;
     qhandle_t pics[2];
     char *cmd;
 } menuBitmap_t;
 
-typedef struct menuKeybind_s {
+typedef struct {
     menuCommon_t    generic;
     char            binding[32];
     char            altbinding[32];
@@ -256,7 +256,7 @@ typedef struct menuKeybind_s {
 
 #define MAX_PLAYERMODELS 1024
 
-typedef struct playerModelInfo_s {
+typedef struct {
     int nskins;
     char **skindisplaynames;
     char *directory;
@@ -273,7 +273,7 @@ void PlayerModel_Free(void);
 
 #define NUM_CURSOR_FRAMES 15
 
-typedef struct uiStatic_s {
+typedef struct {
     bool initialized;
     unsigned realtime;
     int width, height; // scaled
@@ -317,7 +317,7 @@ void        UI_ForceMenuOff(void);
 void        UI_PopMenu(void);
 void        UI_StartSound(menuSound_t sound);
 bool        UI_DoHitTest(void);
-bool        UI_CursorInRect(vrect_t *rect);
+bool        UI_CursorInRect(const vrect_t *rect);
 void        *UI_FormatColumns(int extrasize, ...) q_sentinel;
 char        *UI_GetColumn(char *s, int n);
 void        UI_DrawString(int x, int y, int flags, const char *string);

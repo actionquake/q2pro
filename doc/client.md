@@ -92,6 +92,7 @@
     - [ch\_alpha](#ch_alpha)
     - [ch\_scale](#ch_scale)
     - [ch\_x; ch\_y](#ch_x-ch_y)
+    - [ch\_hide\_while\_zoomed](#ch_hide_while_zoomed)
     - [xhair\_enabled](#xhair_enabled)
     - [xhair\_firing\_error](#xhair_firing_error)
     - [xhair\_movement\_error](#xhair_movement_error)
@@ -144,6 +145,8 @@
     - [gl\_modulate\_entities](#gl_modulate_entities)
     - [gl\_doublelight\_entities](#gl_doublelight_entities)
     - [gl\_dynamic](#gl_dynamic)
+    - [gl\_dynamic\_lightstyles](#gl_dynamic_lightstyles)
+    - [gl\_dynamic\_muzzleflash](#gl_dynamic_muzzleflash)
     - [gl\_dlight\_falloff](#gl_dlight_falloff)
     - [gl\_shaders](#gl_shaders)
     - [gl\_colorbits](#gl_colorbits)
@@ -892,6 +895,10 @@ These variables specify the crosshair image offset, counted in pixels
 from the default position in center of the game screen. Default values
 are 0 (draw in center).
 
+### ch\_hide\_while\_zoomed
+AQtion-specific client cvar, enabling this will pervent the default crosshair
+from being drawn under the sniper zoom crosshair
+
 ### xhair_enabled
 Enables new xhair system which replaces the classic crosshair.
 
@@ -1168,8 +1175,11 @@ Yet another cvar affecting entity lighting is ‘gl\_dotshading’, which
 typically makes entities look a bit brighter. See also ‘cl\_noglow’ cvar
 which removes the pulsing effect (glowing) on bonus entities.
 
-### gl\_dynamic  
-Controls dynamic lightmap updates. Default value is 1.
+### gl\_dynamic
+Controls dynamic lightmap updates. Default value is 1. Acts as the
+master toggle for dynamic lighting. The 'gl\_dynamic\_lightstyles' and
+'gl\_dynamic\_muzzleflash' cvars can override individual aspects when set
+to a value other than -1.
 
 -   0 — all dynamic lighting is disabled
 
@@ -1177,6 +1187,31 @@ Controls dynamic lightmap updates. Default value is 1.
 
 -   2 — most dynamic lights are disabled, but lightmap updates are still
     allowed for switchable lights to work
+
+### gl\_dynamic\_lightstyles
+Overrides 'gl\_dynamic' for lightstyle updates (flickering torches,
+pulsing lights, switchable lights). When set to -1, follows the value of
+'gl\_dynamic'. Default value is -1.
+
+-   -1 — follow 'gl\_dynamic'
+
+-   0 — disable lightstyle updates (all styles rendered fullbright)
+
+-   1 — enable all lightstyle updates
+
+-   2 — enable only switchable lights (styles 1-31 rendered fullbright)
+
+### gl\_dynamic\_muzzleflash
+Overrides 'gl\_dynamic' for muzzleflash and explosion dynamic lights
+(dlights). When set to -1, follows 'gl\_dynamic' (enabled only when
+'gl\_dynamic' is 1). This allows enabling muzzleflash effects without
+the performance cost of animated lightstyles. Default value is -1.
+
+-   -1 — follow 'gl\_dynamic' (enabled when 'gl\_dynamic' is 1)
+
+-   0 — disable muzzleflash/explosion dlights
+
+-   1 — enable muzzleflash/explosion dlights
 
 ### gl\_dlight\_falloff  
 Makes dynamic lights look a bit smoother, opposed to original jagged
@@ -1321,10 +1356,17 @@ Default value is 1.
 ### allow\_download\_textures  
 Enables automatic downloading of map textures. Default value is 1.
 
-It is possible to specify a list of paths in ‘download-ignores.txt’ file
+If the client has a local copy of a map but its checksum does not match
+the server's version, the client will automatically attempt to re-download
+the map once. If the checksum still mismatches after re-downloading, an
+error is displayed indicating that the server is running a different map
+version than what is available for download. In that case, deleting the
+local map file and reconnecting will resolve the issue.
+
+It is possible to specify a list of paths in 'download-ignores.txt' file
 that are known to be non-existent and should never be downloaded from
 server. This file accepts wildcard patterns one per line. Empty lines
-and lines starting with ‘#’ or ‘/’ characters are ignored.
+and lines starting with '#' or '/' characters are ignored.
 
 ## HTTP Downloads
 

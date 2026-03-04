@@ -1,0 +1,16 @@
+[ctf]
+type=balanced
+author=matic
+grapple=no
+
+[respawn]
+red=5
+blue=5
+
+[flags]
+red=<1433 -1306 670>
+blue=<-156 453 878>
+
+[spawns]
+red=<752 -1184 366 90>,<1312 -1104 670 -90>,<1084 -552 670 0>
+blue=<432 244 750 90>,<-416 416 878 0>,<-64 280 686 -90>

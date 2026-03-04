@@ -133,25 +133,31 @@ void SpecThink(edict_t * spec)
 	G_FreeEdict(spec);
 }
 
+// This function determines how long the special item will last until despawned
+// The weapon version of this is SpecialWeaponRespawnTimer
 static void MakeTouchSpecThink(edict_t * ent)
 {
-
 	ent->touch = Touch_Item;
 
 	if (allitem->value) {
-		ent->nextthink = level.framenum + 1 * HZ;
+		ent->nextthink = eztimer(1);
 		ent->think = G_FreeEdict;
 		return;
 	}
 
 	if (gameSettings & GS_ROUNDBASED) {
-		ent->nextthink = level.framenum + 60 * HZ; //FIXME: should this be roundtime left
+		ent->nextthink = eztimer(60); //FIXME: should this be roundtime left
 		ent->think = G_FreeEdict;
 		return;
 	}
 
 	if (gameSettings & GS_WEAPONCHOOSE) {
-		ent->nextthink = level.framenum + 6 * HZ;
+		if (bot_enable->value && bot_connections.total_bots > 0) {
+			// Reduce time that items stick around if bots are loaded
+			ent->nextthink = eztimer(2);
+		} else {
+			ent->nextthink = eztimer(6);
+		}
 		ent->think = G_FreeEdict;
 		return;
 	}

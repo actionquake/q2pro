@@ -1,0 +1,28 @@
+[esp]
+type=etv
+author=darksaint
+name=Reach the Big Christmas tree!
+
+[respawn]
+red=5
+blue=5
+
+[spawns]
+red=<1399 -922 -146 160>,<462 -1551 -408 138>,<-460 -750 -408 -35>
+blue=<-637 -324 56 51>,<-446 -1241 56 28>,<424 -980 -200 -164>
+
+[target]
+escort=<-1023 -307 -82>
+name=The Christmas Spirit
+
+[red_team]
+name=Santa Force
+leader_name=Santa
+skin=male/ctf_r
+leader_skin=male/santa
+
+[blue_team]
+name=Elf Patrol
+leader_name=Legolas
+skin=male/ctf_g
+leader_skin=male/ctf_vip_g

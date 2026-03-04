@@ -1,0 +1,35 @@
+{
+    "name": "Argo",
+    "clan_id": null,
+    "skin": "terror/fbiterr",
+    "weaponPreferences": {
+        "mk23": 1.0,
+        "dual_mk23": 0.7,
+        "mp5": 0.6,
+        "m4": 0.1,
+        "m3": 0.6,
+        "hc": 0.5,
+        "sniper": 0.2,
+        "knives": 0.1,
+        "grenades": 0.4
+    },
+    "itemPreferences": {
+        "vest": 0.4,
+        "helm": 0.4,
+        "laser": 1.0,
+        "silencer": 0.6,
+        "slippers": 0.5,
+        "bandolier": 0.7
+    },
+    "coreTraits": {
+        "aggressiveness": 0.2,
+        "teamwork": 1.0,
+        "curiosity": 0.4,
+        "aimingSkill": 0.8,
+        "reactionTime": 0.5,
+        "communicationFreq": 0.5,
+        "communicationTone": 0.4,
+        "movementStyle": 0.4,
+        "objectiveFocus": 0.8
+    }
+}

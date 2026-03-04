@@ -33,11 +33,12 @@ static struct {
 static cvar_t   *gl_allow_software;
 
 enum {
-    QWGL_ARB_create_context     = BIT(0),
-    QWGL_ARB_multisample        = BIT(1),
-    QWGL_ARB_pixel_format       = BIT(2),
-    QWGL_EXT_swap_control       = BIT(3),
-    QWGL_EXT_swap_control_tear  = BIT(4),
+    QWGL_ARB_create_context             = BIT(0),
+    QWGL_ARB_multisample                = BIT(1),
+    QWGL_ARB_pixel_format               = BIT(2),
+    QWGL_EXT_create_context_es_profile  = BIT(3),
+    QWGL_EXT_swap_control               = BIT(4),
+    QWGL_EXT_swap_control_tear          = BIT(5),
 };
 
 static unsigned wgl_parse_extension_string(const char *s)
@@ -46,6 +47,7 @@ static unsigned wgl_parse_extension_string(const char *s)
         "WGL_ARB_create_context",
         "WGL_ARB_multisample",
         "WGL_ARB_pixel_format",
+        "WGL_EXT_create_context_es_profile",
         "WGL_EXT_swap_control",
         "WGL_EXT_swap_control_tear",
         NULL
@@ -77,7 +79,7 @@ static void print_error(const char *what)
 #define FAIL_SOFT   -1
 #define FAIL_HARD   -2
 
-static int wgl_setup_gl(r_opengl_config_t *cfg)
+static int wgl_setup_gl(r_opengl_config_t cfg)
 {
     PIXELFORMATDESCRIPTOR pfd;
     int pixelformat;
@@ -86,17 +88,17 @@ static int wgl_setup_gl(r_opengl_config_t *cfg)
     Win_Init();
 
     // choose pixel format
-    if (wgl.ChoosePixelFormatARB && cfg->multisamples) {
+    if (wgl.ChoosePixelFormatARB && cfg.multisamples) {
         int attr[] = {
             WGL_DRAW_TO_WINDOW_ARB, TRUE,
             WGL_SUPPORT_OPENGL_ARB, TRUE,
             WGL_DOUBLE_BUFFER_ARB, TRUE,
             WGL_PIXEL_TYPE_ARB, WGL_TYPE_RGBA_ARB,
-            WGL_COLOR_BITS_ARB, cfg->colorbits,
-            WGL_DEPTH_BITS_ARB, cfg->depthbits,
-            WGL_STENCIL_BITS_ARB, cfg->stencilbits,
+            WGL_COLOR_BITS_ARB, cfg.colorbits,
+            WGL_DEPTH_BITS_ARB, cfg.depthbits,
+            WGL_STENCIL_BITS_ARB, cfg.stencilbits,
             WGL_SAMPLE_BUFFERS_ARB, 1,
-            WGL_SAMPLES_ARB, cfg->multisamples,
+            WGL_SAMPLES_ARB, cfg.multisamples,
             0
         };
         UINT num_formats;
@@ -106,7 +108,7 @@ static int wgl_setup_gl(r_opengl_config_t *cfg)
             goto soft;
         }
         if (num_formats == 0) {
-            Com_EPrintf("No suitable OpenGL pixelformat found for %d multisamples\n", cfg->multisamples);
+            Com_EPrintf("No suitable OpenGL pixelformat found for %d multisamples\n", cfg.multisamples);
             goto soft;
         }
     } else {
@@ -115,9 +117,9 @@ static int wgl_setup_gl(r_opengl_config_t *cfg)
             .nVersion = 1,
             .dwFlags = PFD_DRAW_TO_WINDOW | PFD_SUPPORT_OPENGL | PFD_DOUBLEBUFFER,
             .iPixelType = PFD_TYPE_RGBA,
-            .cColorBits = cfg->colorbits,
-            .cDepthBits = cfg->depthbits,
-            .cStencilBits = cfg->stencilbits,
+            .cColorBits = cfg.colorbits,
+            .cDepthBits = cfg.depthbits,
+            .cStencilBits = cfg.stencilbits,
             .iLayerType = PFD_MAIN_PLANE,
         };
 
@@ -152,11 +154,26 @@ static int wgl_setup_gl(r_opengl_config_t *cfg)
     }
 
     // startup the OpenGL subsystem by creating a context and making it current
-    if (wgl.CreateContextAttribsARB && cfg->debug) {
-        int attr[] = {
-            WGL_CONTEXT_FLAGS_ARB, WGL_CONTEXT_DEBUG_BIT_ARB,
-            0
-        };
+    if (wgl.CreateContextAttribsARB && (cfg.debug || cfg.profile)) {
+        int attr[9];
+        int i = 0;
+
+        if (cfg.profile) {
+            attr[i++] = WGL_CONTEXT_MAJOR_VERSION_ARB;
+            attr[i++] = cfg.major_ver;
+            attr[i++] = WGL_CONTEXT_MINOR_VERSION_ARB;
+            attr[i++] = cfg.minor_ver;
+        }
+        if (cfg.profile == QGL_PROFILE_ES) {
+            attr[i++] = WGL_CONTEXT_PROFILE_MASK_ARB;
+            attr[i++] = WGL_CONTEXT_ES_PROFILE_BIT_EXT;
+        }
+        if (cfg.debug) {
+            attr[i++] = WGL_CONTEXT_FLAGS_ARB;
+            attr[i++] = WGL_CONTEXT_DEBUG_BIT_ARB;
+        }
+        attr[i] = 0;
+
         if (!(wgl.context = wgl.CreateContextAttribsARB(win.dc, NULL, attr))) {
             print_error("wglCreateContextAttribsARB");
             goto soft;
@@ -268,6 +285,7 @@ static bool wgl_init(void)
 {
     const char *extensions = NULL;
     unsigned fake_extensions = 0;
+    r_opengl_config_t cfg;
     int ret;
 
     gl_allow_software = Cvar_Get("gl_allow_software", "0", 0);
@@ -278,27 +296,33 @@ static bool wgl_init(void)
         return false;
     }
 
-    r_opengl_config_t *cfg = R_GetGLConfig();
+    cfg = R_GetGLConfig();
 
     // check for extensions by creating a fake window
-    if (cfg->multisamples || cfg->debug)
+    if (cfg.multisamples || cfg.debug || cfg.profile)
         fake_extensions = get_fake_window_extensions();
 
-    if (cfg->multisamples) {
+    if (cfg.multisamples) {
         if (fake_extensions & QWGL_ARB_multisample) {
             if (!wgl.ChoosePixelFormatARB) {
                 Com_WPrintf("Ignoring WGL_ARB_multisample, WGL_ARB_pixel_format not found\n");
-                cfg->multisamples = 0;
+                cfg.multisamples = 0;
             }
         } else {
-            Com_WPrintf("WGL_ARB_multisample not found for %d multisamples\n", cfg->multisamples);
-            cfg->multisamples = 0;
+            Com_WPrintf("WGL_ARB_multisample not found for %d multisamples\n", cfg.multisamples);
+            cfg.multisamples = 0;
         }
     }
 
-    if (cfg->debug && !wgl.CreateContextAttribsARB) {
+    if ((cfg.debug || cfg.profile) && !wgl.CreateContextAttribsARB) {
         Com_WPrintf("WGL_ARB_create_context not found\n");
-        cfg->debug = false;
+        cfg.debug = false;
+        cfg.profile = QGL_PROFILE_NONE;
+    }
+
+    if (cfg.profile == QGL_PROFILE_ES && !(fake_extensions & QWGL_EXT_create_context_es_profile)) {
+        Com_WPrintf("WGL_EXT_create_context_es_profile not found\n");
+        cfg.profile = QGL_PROFILE_NONE;
     }
 
     // create window, choose PFD, setup OpenGL context
@@ -311,7 +335,7 @@ static bool wgl_init(void)
             .colorbits = 24,
             .depthbits = 24,
         };
-        ret = wgl_setup_gl(&failsafe);
+        ret = wgl_setup_gl(failsafe);
     }
 
     if (ret) {

@@ -47,9 +47,9 @@ qboolean DomCheckRules( void )
 	{
 		dom_last_score = level.time;
 
-		teams[ TEAM1 ].score += dom_team_flags[ TEAM1 ];
-		teams[ TEAM2 ].score += dom_team_flags[ TEAM2 ];
-		teams[ TEAM3 ].score += dom_team_flags[ TEAM3 ];
+		UpdateTeamScore( TEAM1, teams[ TEAM1 ].score + dom_team_flags[ TEAM1 ] );
+		UpdateTeamScore( TEAM2, teams[ TEAM2 ].score + dom_team_flags[ TEAM2 ] );
+		UpdateTeamScore( TEAM3, teams[ TEAM3 ].score + dom_team_flags[ TEAM3 ] );
 	}
 
 	dom_winner = NOTEAM;
@@ -76,7 +76,7 @@ qboolean DomCheckRules( void )
 	if( winning_teams == 1 )
 	{
 		// Winner: just show that they hit the score limit, not how far beyond they went.
-		teams[ dom_winner ].score = max_score;
+		UpdateTeamScore( dom_winner, max_score );
 	}
 	else if( winning_teams > 1 )
 	{
@@ -155,6 +155,13 @@ void DomFlagThink( edict_t *flag )
 				(dom_flag_count == 1) ? "the" : "a",
 				location,
 				teams[ flag->owner->client->resp.team ].name );
+
+			// Stats!
+			flag->owner->client->resp.dom_caps++;
+			flag->owner->client->resp.dom_capstreak++;
+			if (flag->owner->client->resp.dom_capstreak > flag->owner->client->resp.dom_capstreakbest)
+				flag->owner->client->resp.dom_capstreakbest = flag->owner->client->resp.dom_capstreak;
+			LOG_CAPTURE(flag->owner);
 
 			if( (dom_team_flags[ flag->owner->client->resp.team ] == dom_flag_count) && (dom_flag_count > 1) )
 				gi.bprintf( PRINT_HIGH, "%s TEAM IS DOMINATING!\n",

@@ -20,17 +20,20 @@ with this program; if not, write to the Free Software Foundation, Inc.,
 // for pure dedicated servers
 
 #include "shared/shared.h"
-#include "common/cvar.h"
 #include "client/client.h"
-#include "client/keys.h"
 
-static void Key_Bind_Null_f(void)
+static const char *const nullcmds[] = {
+    "bind", "unbind", "unbindall",
+    "ignoretext", "unignoretext",
+    "ignorenick", "unignorenick"
+};
+
+void CL_PreInit(void)
 {
+    for (int i = 0; i < q_countof(nullcmds); i++)
+        Cmd_AddCommand(nullcmds[i], NULL);
 }
 
-void Key_Init(void)
+void SCR_DebugGraph(float value, int color)
 {
-    Cmd_AddCommand("bind", Key_Bind_Null_f);
-    Cmd_AddCommand("unbind", Key_Bind_Null_f);
-    Cmd_AddCommand("unbindall", Key_Bind_Null_f);
 }

@@ -1,0 +1,35 @@
+{
+    "name": "Kaolin",
+    "clan_id": 27,
+    "skin": "sas/sasjungle",
+    "weaponPreferences": {
+        "mk23": 0.7,
+        "dual_mk23": 0.5,
+        "mp5": 0.2,
+        "m4": 0.3,
+        "m3": 0.5,
+        "hc": 0.4,
+        "sniper": 0.5,
+        "knives": 0.5,
+        "grenades": 0.4
+    },
+    "itemPreferences": {
+        "vest": 0.6,
+        "helm": 0.4,
+        "laser": 0.3,
+        "silencer": 0.5,
+        "slippers": 0.4,
+        "bandolier": -0.1
+    },
+    "coreTraits": {
+        "aggressiveness": 0.8,
+        "teamwork": 0.4,
+        "curiosity": 0.4,
+        "aimingSkill": 0.6,
+        "reactionTime": 0.4,
+        "communicationFreq": 0.6,
+        "communicationTone": 0.4,
+        "movementStyle": 0.9,
+        "objectiveFocus": 0.5
+    }
+}

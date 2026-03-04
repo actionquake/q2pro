@@ -446,7 +446,7 @@ void LookAtKiller(edict_t *self, edict_t *inflictor, edict_t *attacker)
     }
 
     if (dir[0])
-        self->client->killer_yaw = RAD2DEG(atan2(dir[1], dir[0]));
+        self->client->killer_yaw = RAD2DEG(atan2f(dir[1], dir[0]));
     else {
         self->client->killer_yaw = 0;
         if (dir[1] > 0)
@@ -938,7 +938,7 @@ void respawn(edict_t *self)
 
         // hold in place briefly
         self->client->ps.pmove.pm_flags = PMF_TIME_TELEPORT;
-        self->client->ps.pmove.pm_time = 14;
+        self->client->ps.pmove.pm_time = 112 >> PM_TIME_SHIFT;
 
         self->client->respawn_framenum = level.framenum;
 
@@ -1018,7 +1018,7 @@ void spectator_respawn(edict_t *ent)
 
         // hold in place briefly
         ent->client->ps.pmove.pm_flags = PMF_TIME_TELEPORT;
-        ent->client->ps.pmove.pm_time = 14;
+        ent->client->ps.pmove.pm_time = 112 >> PM_TIME_SHIFT;
     }
 
     ent->client->respawn_framenum = level.framenum;
@@ -1227,7 +1227,7 @@ void ClientBeginDeathmatch(edict_t *ent)
 
     if (level.intermission_framenum) {
         MoveClientToIntermission(ent);
-    } else {
+    } else if (!ent->client->pers.spectator) {
         // send effect
         gi.WriteByte(svc_muzzleflash);
         gi.WriteShort(ent - g_edicts);
@@ -1236,7 +1236,7 @@ void ClientBeginDeathmatch(edict_t *ent)
 
         // hold in place briefly
         ent->client->ps.pmove.pm_flags = PMF_TIME_TELEPORT;
-        ent->client->ps.pmove.pm_time = 200 >> 3;
+        ent->client->ps.pmove.pm_time = 200 >> PM_TIME_SHIFT;
     }
 
     gi.bprintf(PRINT_HIGH, "%s entered the game\n", ent->client->pers.netname);
@@ -1284,7 +1284,7 @@ void ClientBegin(edict_t *ent)
 
         // hold in place briefly
         ent->client->ps.pmove.pm_flags = PMF_TIME_TELEPORT;
-        ent->client->ps.pmove.pm_time = 200 >> 3;
+        ent->client->ps.pmove.pm_time = 200 >> PM_TIME_SHIFT;
     }
 
     if (level.intermission_framenum) {
@@ -1488,15 +1488,20 @@ void ClientDisconnect(edict_t *ent)
 //==============================================================
 
 edict_t *pm_passent;
+int pm_clipmask;
 
 // pmove doesn't need to know about passent and contentmask
+#if USE_NEW_GAME_API
+trace_t q_gameabi PM_trace(const vec3_t start, const vec3_t mins, const vec3_t maxs, const vec3_t end, int contentmask)
+{
+    return gi.trace(start, mins, maxs, end, pm_passent, (game.csr.extended && contentmask) ? contentmask : pm_clipmask);
+}
+#else
 trace_t q_gameabi PM_trace(const vec3_t start, const vec3_t mins, const vec3_t maxs, const vec3_t end)
 {
-    if (pm_passent->health > 0)
-        return gi.trace(start, mins, maxs, end, pm_passent, MASK_PLAYERSOLID);
-    else
-        return gi.trace(start, mins, maxs, end, pm_passent, MASK_DEADSOLID);
+    return gi.trace(start, mins, maxs, end, pm_passent, pm_clipmask);
 }
+#endif
 
 /*
 ==============
@@ -1525,8 +1530,6 @@ void ClientThink(edict_t *ent, usercmd_t *ucmd)
         return;
     }
 
-    pm_passent = ent;
-
     if (ent->client->chase_target) {
 
         client->resp.cmd_angles[0] = SHORT2ANGLE(ucmd->angles[0]);
@@ -1546,6 +1549,12 @@ void ClientThink(edict_t *ent, usercmd_t *ucmd)
             client->ps.pmove.pm_type = PM_DEAD;
         else
             client->ps.pmove.pm_type = PM_NORMAL;
+
+        pm_passent = ent;
+        if (ent->health > 0)
+            pm_clipmask = MASK_PLAYERSOLID;
+        else
+            pm_clipmask = MASK_DEADSOLID;
 
         client->ps.pmove.gravity = sv_gravity->value;
         pm.s = client->ps.pmove;

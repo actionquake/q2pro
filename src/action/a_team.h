@@ -45,6 +45,12 @@
 #define WINNER_NONE     NOTEAM
 #define WINNER_TIE      TEAM_TOP
 
+/*QUAKED info_player_team2 (0 0 1) (-16 -16 -24) (16 16 32)
+potential team3 spawning position for 3team games
+*/
+//Prototype
+void SP_info_player_team3(edict_t * self);
+
 // Pre- and post-trace code for our teamplay anti-stick stuff.  If there are
 // still "transparent" (SOLID_TRIGGER) players, they need to be set to
 // SOLID_BBOX before a trace is performed, then changed back again
@@ -69,6 +75,7 @@ void UpdateJoinMenu( void );
 void OpenJoinMenu (edict_t *);
 void OpenWeaponMenu (edict_t *);
 void OpenItemMenu (edict_t * ent);
+void OpenItemKitMenu (edict_t * ent);
 void JoinTeam (edict_t * ent, int desired_team, int skip_menuclose);
 edict_t *FindOverlap (edict_t * ent, edict_t * last_overlap);
 int CheckTeamRules (void);
@@ -89,12 +96,28 @@ void RemoveFromTransparentList (edict_t *);
 qboolean OnTransparentList( const edict_t *ent );
 void PrintTransparentList (void);
 void CenterPrintAll (const char *msg);
+void CenterPrintTeam (int teamNum, const char *msg);
+void CenterPrintLevelTeam (int teamNum, int printlvl, const char *msg);
 int TeamHasPlayers( int team );
+char* PrintMatchRules(void);
 
 //TNG:Freud - new spawning system
 void NS_GetSpawnPoints (void);
 qboolean NS_SelectFarTeamplaySpawnPoint (int team, qboolean teams_assigned[]);
 void NS_SetupTeamSpawnPoints (void);
+int OtherTeam(int teamNum);
+
+//PaTMaN - Menu support
+void OpenPMItemMenu (edict_t * ent);
+
+//Expose auto-join functionality
+void JoinTeamAutobalance (edict_t * ent);
+
+//Utility functions
+int TotalPlayersOnTeam(int teamNum);
+int TotalPlayersAliveOnTeam(int teamNum);
+void PrintAdNotification(edict_t* ent);
+int G_PlayerCmp( const void *p1, const void *p2 );
 
 typedef struct spawn_distances_s
 {
@@ -113,6 +136,7 @@ transparent_list_t;
 
 extern qboolean team_game_going;
 extern qboolean team_round_going;
+extern qboolean timeout_requested;
 extern int lights_camera_action;
 extern int holding_on_tie_check;
 extern int team_round_countdown;
@@ -125,6 +149,7 @@ extern int day_cycle_at;
 extern int teamCount;
 extern int in_warmup;
 extern qboolean teams_changed;
+extern int teamplay_spawn_node[MAX_TEAMS];
 
 typedef struct menu_list_weapon
 {

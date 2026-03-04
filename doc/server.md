@@ -96,6 +96,7 @@
     - [map\_visibility\_patch](#map_visibility_patch)
     - [com\_fatal\_error](#com_fatal_error)
     - [com\_debug\_break](#com_debug_break)
+    - [g\_protocol\_extensions](#g_protocol_extensions)
 - [Commands](#commands)
   - [Generic](#generic-1)
     - [status \[mode\]](#status-mode)
@@ -253,6 +254,25 @@ seconds).
 Default burst value is 5. Custom *burst* can be specified after an
 asterisk. Burst specifies initial number of extra packets that are
 permitted even if they arrive at rate higher than allowed.
+
+### sv\_status\_ext
+
+Enables extended query protocols for detailed server information. The
+standard Quake 2 status and rules commands provide basic server info.
+These extended protocols deliver the same information with support for
+larger responses via automatic chunking, allowing game mods to expose
+additional configuration variables to server browsers and admin tools.
+Default value is 0.
+
+-   0 — extended protocols disabled (default)
+
+-   1 — extended protocols enabled (statusx and rulesext)
+
+When enabled, clients can query statusx for enhanced player rosters and
+rulesext for extended game rules. Both protocols cache responses for 5
+seconds and share rate limiting with `sv_status_limit`. Game mods can
+expose custom configuration by marking cvars with the CVAR_SERVERINFO_EXT
+flag, allowing server browsers to query mod-specific settings.
 
 ### sv\_auth\_limit  
 Limits the rate of client connection attempts with invalid password.
@@ -828,6 +848,9 @@ also create an alias for the map. How to create such files is out of
 scope of this manual (search the internet for ‘r1q2 map override file
 generator’).
 
+This is togglable with `sv_load_ent` -- default enabled (`1`), a setting of
+`0` will disable loading overrides of either type
+
 ### map\_visibility\_patch  
 Attempt to patch miscalculated visibility data for some well-known maps
 (q2dm1, q2dm3 and q2dm8 are patched so far), fixing disappearing walls
@@ -840,6 +863,12 @@ exit. Default value is 0 (disabled).
 ### com\_debug\_break  
 Development variable that turns all errors into debug breakpoints.
 Default value is 0 (disabled).
+
+### g\_protocol\_extensions
+Server operators can enable protocol extensions, which is not compatible with
+clients that do not have protocol extensions.  The benefit is that
+the limits around items such as sounds, images, map sizes and such are
+significantly heightened.
 
 # Commands
 

@@ -1,0 +1,35 @@
+{
+    "name": "Morgriff",
+    "clan_id": null,
+    "skin": "messiah/cptahab",
+    "weaponPreferences": {
+        "mk23": 0.5,
+        "dual_mk23": 0.5,
+        "mp5": 0.9,
+        "m4": 0.7,
+        "m3": 0.2,
+        "hc": 0.9,
+        "sniper": 0.5,
+        "knives": 0.4,
+        "grenades": 0.4
+    },
+    "itemPreferences": {
+        "vest": 0.3,
+        "helm": 0.6,
+        "laser": 0.6,
+        "silencer": 0.6,
+        "slippers": 0.3,
+        "bandolier": 0.7
+    },
+    "coreTraits": {
+        "aggressiveness": 0.5,
+        "teamwork": 0.6,
+        "curiosity": 0.9,
+        "aimingSkill": 0.5,
+        "reactionTime": 0.7,
+        "communicationFreq": 0.6,
+        "communicationTone": 0.4,
+        "movementStyle": 0.2,
+        "objectiveFocus": 0.4
+    }
+}

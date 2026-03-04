@@ -1,0 +1,35 @@
+{
+    "name": "Riftwraith",
+    "clan_id": null,
+    "skin": "messiah/ctf_r",
+    "weaponPreferences": {
+        "mk23": 0.7,
+        "dual_mk23": 0.6,
+        "mp5": 0.3,
+        "m4": 0.4,
+        "m3": 0.6,
+        "hc": 0.6,
+        "sniper": 0.8,
+        "knives": 0.5,
+        "grenades": 0.5
+    },
+    "itemPreferences": {
+        "vest": 0.3,
+        "helm": 0.6,
+        "laser": 0.3,
+        "silencer": 0.4,
+        "slippers": 0.7,
+        "bandolier": 0.4
+    },
+    "coreTraits": {
+        "aggressiveness": 0.8,
+        "teamwork": 0.6,
+        "curiosity": 0.6,
+        "aimingSkill": 0.3,
+        "reactionTime": 0.3,
+        "communicationFreq": 0.8,
+        "communicationTone": 0.7,
+        "movementStyle": 0.2,
+        "objectiveFocus": 0.7
+    }
+}

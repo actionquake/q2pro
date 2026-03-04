@@ -38,8 +38,23 @@ float antilag_findseek(edict_t *ent, float time_stamp)
 	{
 		if (state->hist_timestamp[(state->seek - offs) & ANTILAG_MASK] && state->hist_timestamp[(state->seek - offs) & ANTILAG_MASK] <= time_stamp)
 		{
-			if ((offs - 1) < 0) // never return a timestamp from the future aka erroneous crap
-				return -1;
+			if (offs == 0) {
+				float corrected_leveltime = level.time - FRAMETIME;
+				//need to do this because level.time gets updated after antilag_update during sv frame
+				//Com_Printf("###SHOT REWIND###\n");
+				//Com_Printf("hitbox curr_timestamp %f\n", state->curr_timestamp);
+				//Com_Printf("antilag curr_timestamp %f\n", time_stamp);
+				//Com_Printf("level time %f\n", corrected_leveltime);
+				float advanced_since_svframe = state->curr_timestamp - corrected_leveltime;
+				//Com_Printf("advanced_since_svframe %f ms\n", advanced_since_svframe*1000);
+				if (advanced_since_svframe <= 0) return 0;
+
+				float timestamp_since_svframe = time_stamp - corrected_leveltime;
+				//Com_Printf("antilag_timestamp_since_svframe %f ms\n", timestamp_since_svframe*1000);
+				if (timestamp_since_svframe <= 0) return state->seek;
+				if (timestamp_since_svframe >= advanced_since_svframe) return state->seek;
+				return - ((float)(state->seek) + (timestamp_since_svframe / advanced_since_svframe));
+			}
 
 			float frac = 1;
 			float stamp_last = state->hist_timestamp[(state->seek - offs) & ANTILAG_MASK];
@@ -74,7 +89,8 @@ void antilag_rewind_all(edict_t *ent)
 
 	edict_t *who;
 	antilag_t *state;
-	for (int i = 1; i < game.maxclients; i++)
+	int i;
+	for (i = 1; i < game.maxclients; i++)
 	{
 		who = g_edicts + i;
 		if (!who->inuse)
@@ -89,9 +105,9 @@ void antilag_rewind_all(edict_t *ent)
 		if (who->deadflag != DEAD_NO)
 			continue;
 
-		float rewind_seek = antilag_findseek(who, time_to_seek);
+		float rewind_seek = antilag_findseek(who, time_to_seek);      
 		//Com_Printf("rewind seek %f\n", rewind_seek);
-		if (rewind_seek < 0)
+		if (rewind_seek == 0)
 			continue;
 
 		state->rewound = true;
@@ -100,8 +116,26 @@ void antilag_rewind_all(edict_t *ent)
 		VectorCopy(who->maxs, state->hold_maxs);
 
 		//Com_Printf("seek diff %f\n", (float)state->seek - rewind_seek);
-		LerpVector(state->hist_origin[((int)rewind_seek) & ANTILAG_MASK], state->hist_origin[((int)(rewind_seek+1)) & ANTILAG_MASK], rewind_seek - ((float)(int)rewind_seek), who->s.origin);
-
+		//LerpVector(state->hist_origin[((int)rewind_seek) & ANTILAG_MASK], state->hist_origin[((int)(rewind_seek+1)) & ANTILAG_MASK], rewind_seek - ((float)(int)rewind_seek), who->s.origin);
+		
+        int lerp_latest = 0;
+		if (rewind_seek < 0) {
+			lerp_latest = 1;
+			rewind_seek = -rewind_seek;
+		}
+		float lerpfrac = rewind_seek - (int)rewind_seek;
+		//Com_Printf("lerpfrac %f\n", lerpfrac);
+		vec3_t prev, next;
+		VectorCopy(state->hist_origin[(int)rewind_seek & ANTILAG_MASK], prev);
+		if (lerp_latest) {
+			VectorCopy(who->s.origin, next);
+			//Com_Printf("Using current origin as next\n");
+		} else {
+			VectorCopy(state->hist_origin[((int)(rewind_seek+1)) & ANTILAG_MASK], next);
+			//Com_Printf("Using hist_origin as next\n");
+		}
+		LerpVector(prev, next, lerpfrac, who->s.origin);
+    
 		VectorCopy(state->hist_mins[(int)rewind_seek & ANTILAG_MASK], who->mins);
 		VectorCopy(state->hist_maxs[(int)rewind_seek & ANTILAG_MASK], who->maxs);
 
@@ -117,7 +151,8 @@ void antilag_unmove_all(void)
 
 	edict_t *who;
 	antilag_t *state;
-	for (int i = 1; i < game.maxclients; i++)
+	int i;
+	for (i = 1; i < game.maxclients; i++)
 	{
 		who = g_edicts + i;
 		if (!who->inuse)

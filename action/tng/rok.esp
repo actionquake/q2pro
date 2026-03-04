@@ -1,0 +1,35 @@
+[esp]
+type=etv
+author=darksaint
+name=Finger Lickin' Good
+
+[respawn]
+red=7
+blue=7
+green=7
+
+[spawns]
+red=<-1722 86 76 38>,<208 124 66 149>,<767 924 122 -137>
+blue=<748 2202 346 -127>,<322 2214 650 -136>,<-1432 2166 480 -51>
+
+[target]
+escort=<-764 905 290>
+name=Bucket of Chicken Wings
+
+[red_team]
+name=KFC
+leader_name=The Colonel
+skin=male/ctf_r
+leader_skin=male/ctf_vip_r
+
+[blue_team]
+name=Popeyes
+leader_name=Popeye
+skin=male/ctf_b
+leader_skin=male/ctf_vip_b
+
+[green_team]
+name=Raisin' Canes
+leader_name=Cane the Dog
+skin=male/ctf_g
+leader_skin=male/ctf_vip_g

@@ -48,18 +48,23 @@ with this program; if not, write to the Free Software Foundation, Inc.,
 // FIXME: rename these
 #define COM_HISTORYFILE_NAME    ".conhistory"
 #define COM_DEMOCACHE_NAME      ".democache"
+#define SYS_HISTORYFILE_NAME    ".syshistory"
+
+#if USE_AQTION
+#define DOWNLOADSERVER "http://gameassets.aqtiongame.com/"
+#endif
 
 #define MAXPRINTMSG     4096
 #define MAXERRORMSG     1024
 
-#define CONST_STR_LEN(x) x, x ? sizeof(x) - 1 : 0
+#define CONST_STR_LEN(x) x, sizeof("" x) - 1
 
 #define STRINGIFY2(x)   #x
 #define STRINGIFY(x)    STRINGIFY2(x)
 
 typedef struct {
     const char *name;
-    void (* const func)(void);
+    void (*func)(void);
 } ucmd_t;
 
 static inline const ucmd_t *Com_Find(const ucmd_t *u, const char *c)
@@ -77,17 +82,21 @@ typedef struct string_entry_s {
     char string[1];
 } string_entry_t;
 
-typedef void (*rdflush_t)(int target, char *buffer, size_t len);
+typedef void (*rdflush_t)(int target, const char *buffer, size_t len);
 
 void        Com_BeginRedirect(int target, char *buffer, size_t buffersize, rdflush_t flush);
 void        Com_EndRedirect(void);
 
 void        Com_AbortFunc(void (*func)(void *), void *arg);
 
+q_cold
 void        Com_SetLastError(const char *msg);
+
+q_cold
 const char  *Com_GetLastError(void);
 
-void        Com_Quit(const char *reason, error_type_t type) q_noreturn;
+q_noreturn
+void        Com_Quit(const char *reason, error_type_t type);
 
 void        Com_SetColor(color_index_t color);
 
@@ -107,6 +116,12 @@ void        Com_FlushLogs(void);
 
 void        Com_AddConfigFile(const char *name, unsigned flags);
 
+#if USE_SYSCON
+void        Sys_Printf(const char *fmt, ...) q_printf(1, 2);
+#else
+#define     Sys_Printf(...) (void)0
+#endif
+
 #if USE_CLIENT
 #define COM_DEDICATED   (dedicated->integer != 0)
 #else
@@ -118,23 +133,29 @@ void G_InitializeExtensions(void);
 #endif
 
 #if USE_DEBUG
+#define COM_DEVELOPER   (developer->integer)
 #define Com_DPrintf(...) \
-    do { if (developer && developer->integer > 0) \
+    do { if (developer && developer->integer >= 1) \
         Com_LPrintf(PRINT_DEVELOPER, __VA_ARGS__); } while (0)
 #define Com_DDPrintf(...) \
-    do { if (developer && developer->integer > 1) \
+    do { if (developer && developer->integer >= 2) \
         Com_LPrintf(PRINT_DEVELOPER, __VA_ARGS__); } while (0)
 #define Com_DDDPrintf(...) \
-    do { if (developer && developer->integer > 2) \
+    do { if (developer && developer->integer >= 3) \
         Com_LPrintf(PRINT_DEVELOPER, __VA_ARGS__); } while (0)
 #define Com_DDDDPrintf(...) \
-    do { if (developer && developer->integer > 3) \
+    do { if (developer && developer->integer >= 4) \
         Com_LPrintf(PRINT_DEVELOPER, __VA_ARGS__); } while (0)
+#define Com_DWPrintf(...) \
+    do { if (developer && developer->integer >= 1) \
+        Com_LPrintf(PRINT_WARNING, __VA_ARGS__); } while (0)
 #else
+#define COM_DEVELOPER   0
 #define Com_DPrintf(...) ((void)0)
 #define Com_DDPrintf(...) ((void)0)
 #define Com_DDDPrintf(...) ((void)0)
 #define Com_DDDDPrintf(...) ((void)0)
+#define Com_DWPrintf(...) ((void)0)
 #endif
 
 #if USE_TESTS
@@ -175,6 +196,16 @@ extern cvar_t   *allow_download_others;
 
 extern cvar_t   *rcon_password;
 
+extern cvar_t   *sys_forcegamelib;
+
+#if USE_SAVEGAMES
+extern cvar_t   *sys_allow_unsafe_savegames;
+#endif
+
+#if USE_SYSCON
+extern cvar_t   *sys_history;
+#endif
+
 #if USE_CLIENT
 // host_speeds times
 extern unsigned     time_before_game;
@@ -188,6 +219,7 @@ extern const char   com_version_string[];
 extern unsigned     com_framenum;
 extern unsigned     com_eventTime; // system time of the last event
 extern unsigned     com_localTime; // milliseconds since Q2 startup
+extern unsigned     com_localTime2; // milliseconds since Q2 startup, but doesn't run if paused
 extern bool         com_initialized;
 extern time_t       com_startTime;
 

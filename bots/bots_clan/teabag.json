@@ -1,0 +1,35 @@
+{
+    "name": "Teabag",
+    "clan_id": 87,
+    "skin": "male/kw_yellow",
+    "weaponPreferences": {
+        "mk23": 0.6,
+        "dual_mk23": 0.5,
+        "mp5": 0.5,
+        "m4": 0.4,
+        "m3": 0.5,
+        "hc": 0.6,
+        "sniper": 0.5,
+        "knives": 0.7,
+        "grenades": 0.8
+    },
+    "itemPreferences": {
+        "vest": 0.7,
+        "helm": 0.4,
+        "laser": 0.7,
+        "silencer": 0.4,
+        "slippers": 0.3,
+        "bandolier": 0.5
+    },
+    "coreTraits": {
+        "aggressiveness": 0.7,
+        "teamwork": 0.5,
+        "curiosity": 0.8,
+        "aimingSkill": 0.2,
+        "reactionTime": 0.5,
+        "communicationFreq": 0.5,
+        "communicationTone": 0.7,
+        "movementStyle": 0.7,
+        "objectiveFocus": 0.5
+    }
+}

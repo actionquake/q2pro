@@ -85,13 +85,10 @@ void SendScores(void)
 	}
 	gi.bprintf(PRINT_HIGH, "Match is over, waiting for next map, please vote a new one..\n");
 
-	#if USE_AQTION
 	// Needed to add this here because Matchmode does not call BeginIntermission, but other teamplay modes do call it
-		if (stat_logs->value) {
-			LogMatch();  // Generates end of match logs
-			LogEndMatchStats();  // Generates end of match stats
-		}
-	#endif
+	LOG_MATCH(); // Generates end of game stats
+	LOG_END_MATCH_STATS(); // Generates end of match stats
+	CALL_DISCORD_WEBHOOK(MM_MATCH_END_MSG, MATCH_END_MSG, AWARD_NONE);
 	// Stats: Reset roundNum
 	game.roundNum = 0;
 	// Stats end
@@ -140,6 +137,9 @@ void MM_SetCaptain( int teamNum, edict_t *ent )
 		ent = NULL;
 
 	teams[teamNum].captain = ent;
+	if (esp->value) {
+		EspSetLeader(teamNum, ent);
+	}
 	if (!ent) {
 		if (!team_round_going || (gameSettings & GS_ROUNDBASED)) {
 			if (teams[teamNum].ready) {
@@ -157,6 +157,8 @@ void MM_SetCaptain( int teamNum, edict_t *ent )
 	}
 
 	if (ent != oldCaptain) {
+		if (mm_captain_teamname->value)
+			Cmd_Teamname_f(ent);
 		gi.bprintf( PRINT_HIGH, "%s is now %s's captain\n", ent->client->pers.netname, teams[teamNum].name );
 		gi.cprintf( ent, PRINT_CHAT, "You are the captain of '%s'\n", teams[teamNum].name );
 		gi.sound( &g_edicts[0], CHAN_VOICE | CHAN_NO_PHS_ADD, gi.soundindex( "misc/comp_up.wav" ), 1.0, ATTN_NONE, 0.0 );
@@ -166,6 +168,8 @@ void MM_SetCaptain( int teamNum, edict_t *ent )
 				gi.cprintf( ent, PRINT_HIGH, "Team %i wants to reset scores, type 'resetscores' to accept\n", i );
 		}
 	}
+	// Change the name of the team if enabled
+
 }
 
 void MM_LeftTeam( edict_t *ent )
@@ -189,14 +193,68 @@ qboolean TeamsReady( void )
 		else if( TeamHasPlayers(i) )
 			return false;
 	}
-
 	return (ready >= 2);
+}
+
+void MM_CaptainLeader(edict_t * ent)
+{
+	int teamNum;
+	edict_t *oldLeader;
+
+	// Ignore if not Espionage mode
+	if (!esp->value) {
+		gi.cprintf(ent, PRINT_HIGH, "This command needs Espionage to be enabled\n");
+		return;
+	}
+
+	// Ignore entity if not on a team
+	teamNum = ent->client->resp.team;
+	if (teamNum == NOTEAM) {
+		gi.cprintf(ent, PRINT_HIGH, "You need to be on a team for that...\n");
+		return;
+	}
+
+	// Ignore entity if they are a sub
+	if (ent->client->resp.subteam == teamNum) {
+		gi.cprintf(ent, PRINT_HIGH, "Subs cannot be leaders...\n");
+		return;
+	}
+
+	// If the current leader is issuing this command again, remove them as leader
+	oldLeader = teams[teamNum].leader;
+	if (oldLeader == ent) {
+		if (team_round_going || lights_camera_action > 0) {
+			gi.cprintf(ent, PRINT_HIGH, "You cannot resign as leader while a round is in progress\n");
+			return;
+		}
+		EspSetLeader( teamNum, NULL );
+		// This is the last time we know this entity was the leader, so do some cleanup first
+		oldLeader->client->resp.is_volunteer = false;
+		oldLeader->client->resp.esp_leadertime = level.realFramenum;
+		return;
+	}
+
+	// If the team already has a leader, send this message to the ent volunteering
+	if (oldLeader) {
+		gi.cprintf( ent, PRINT_HIGH, "Your team already has a leader (%s)\nYou are now volunteering for duty should he fall\n",
+			teams[teamNum].leader->client->pers.netname );
+		ent->client->resp.is_volunteer = true;
+		return;
+	}
+
+	EspSetLeader( teamNum, ent );
 }
 
 void Cmd_Captain_f(edict_t * ent)
 {
 	int teamNum;
 	edict_t *oldCaptain;
+
+	// Aliases `captain` command to `volunteer` if Espionage is enabled
+	if (esp->value && !matchmode->value) {
+		MM_CaptainLeader(ent);
+		return;
+	}
 
 	if (!matchmode->value) {
 		gi.cprintf(ent, PRINT_HIGH, "This command needs matchmode to be enabled\n");
@@ -212,6 +270,9 @@ void Cmd_Captain_f(edict_t * ent)
 	oldCaptain = teams[teamNum].captain;
 	if (oldCaptain == ent) {
 		MM_SetCaptain( teamNum, NULL );
+		if (esp->value) {
+			EspSetLeader(teamNum, NULL);
+		}
 		return;
 	}
 
@@ -221,6 +282,9 @@ void Cmd_Captain_f(edict_t * ent)
 	}
 
 	MM_SetCaptain( teamNum, ent );
+	if (esp->value) {
+		EspSetLeader( teamNum, ent );
+	}
 }
 
 //extern int started; // AQ2:M - Matchmode - Used for ready command
@@ -272,7 +336,12 @@ void Cmd_Teamname_f(edict_t * ent)
 	}
 
 	if(ctf->value) {
-		gi.cprintf(ent, PRINT_HIGH, "You can't change teamnames in ctf mode\n");
+		gi.cprintf(ent, PRINT_HIGH, "You can't change teamnames in CTF mode\n");
+		return;
+	}
+
+	if(esp->value) {
+		gi.cprintf(ent, PRINT_HIGH, "You can't change teamnames in Espionage mode\n");
 		return;
 	}
 
@@ -298,18 +367,22 @@ void Cmd_Teamname_f(edict_t * ent)
 		return;
 	}
 
-	argc = gi.argc();
-	if (argc < 2) {
-		gi.cprintf( ent, PRINT_HIGH, "Your team name is %s\n", team->name );
-		return;
+	if (mm_captain_teamname->value){
+		snprintf(temp, sizeof(temp), "Team %s", ent->client->pers.netname);
+		temp[23] = '\0';  // Ensure that the team name is not too long
+	} else {
+		argc = gi.argc();
+		if (argc < 2) {
+			gi.cprintf( ent, PRINT_HIGH, "Your team name is %s\n", team->name );
+			return;
+		}
+		Q_strncpyz(temp, gi.argv(1), sizeof(temp));
+		for (i = 2; i < argc; i++) {
+			Q_strncatz(temp, " ", sizeof(temp));
+			Q_strncatz(temp, gi.argv(i), sizeof(temp));
+		}
+		temp[18] = 0;
 	}
-
-	Q_strncpyz(temp, gi.argv(1), sizeof(temp));
-	for (i = 2; i < argc; i++) {
-		Q_strncatz(temp, " ", sizeof(temp));
-		Q_strncatz(temp, gi.argv(i), sizeof(temp));
-	}
-	temp[18] = 0;
 
 	if (!temp[0])
 		strcpy( temp, "noname" );
@@ -327,6 +400,11 @@ void Cmd_Teamskin_f(edict_t * ent)
 	int i, teamNum;
 	team_t *team;
 	edict_t *e;
+
+	if (esp->value) {
+		gi.cprintf(ent, PRINT_HIGH, "Espionage skins are set in the .esp file\n");
+		return;
+	}
 
 	if (!matchmode->value) {
 		gi.cprintf(ent, PRINT_HIGH, "This command needs matchmode to be enabled\n");
@@ -385,6 +463,84 @@ void Cmd_Teamskin_f(edict_t * ent)
 			AssignSkin(e, team->skin, false);
 	}
 	gi.cprintf(ent, PRINT_HIGH, "New team skin: %s\n", team->skin);
+}
+
+void Cmd_Teamnone_f(edict_t *ent)
+{
+	int i;
+	edict_t *other, *target;
+
+	if (!matchmode->value) {
+		gi.cprintf(ent, PRINT_HIGH, "This command needs matchmode to be enabled\n");
+		return;
+	}
+
+	if (ent->client->resp.team == NOTEAM) {
+		gi.cprintf(ent, PRINT_HIGH, "You need to be on a team for that...\n");
+		return;
+	}
+
+	if (!IS_CAPTAIN(ent)) {
+		gi.cprintf(ent, PRINT_HIGH, "You are not the captain of your team\n");
+		return;
+	}
+
+	if (gi.argc() < 1) {
+		gi.cprintf(ent, PRINT_HIGH, "You need to provide a playernum for this command\nUse 'playerlist' to get a list of playernums\n");
+		return;
+	}
+
+	if (gi.argc() > 2) {
+		gi.cprintf(ent, PRINT_HIGH, "You can only specify one playernum for this command\n");
+		return;
+	}
+
+	int playernum = atoi(gi.argv(1));
+
+	// Get entity of the playernum
+	target = NULL;
+	for (i = 0, other = &g_edicts[1]; i < game.maxclients; i++, other++) {
+		if (!other->inuse || !other->client || other->is_bot) // Do not count bots
+			continue;
+		if (other->client->clientNum == playernum) {
+			target = other;
+			break;
+		}
+	}
+
+	if (target != NULL) {
+		if (target == ent || target->client->clientNum == ent->client->clientNum) {
+			gi.cprintf(ent, PRINT_HIGH, "If you want to leave so badly, just do it the old fashioned way!\n");
+			return;
+		}
+
+		if (target->client->resp.team == NOTEAM) {
+			gi.cprintf(ent, PRINT_HIGH, "Player %i (%s) is not on a team\n", playernum, target->client->pers.netname);
+			return;
+		}
+
+		if (target->client->resp.team != ent->client->resp.team) {
+			gi.cprintf(ent, PRINT_HIGH, "You cannot remove a player from the other team\n");
+			return;
+		}
+		
+		if (target->is_bot) {
+			gi.cprintf(ent, PRINT_HIGH, "You cannot remove bots in this way, use the sv bot commands\n");
+			return;
+		}
+		// This should never happen but just in case...
+		if (esp->value && IS_LEADER(target)){
+			gi.cprintf(ent, PRINT_HIGH, "You cannot remove the leader of your team\n");
+			return;
+		}
+
+		// Finally, after all the checks, remove the player from your team
+		gi.bprintf(PRINT_HIGH, "%s removed %s (clientNum %i) from team %i\n", ent->client->pers.netname, target->client->pers.netname, playernum, target->client->resp.team);
+		JoinTeam(target, NOTEAM, 1);
+	} else {
+		gi.cprintf(ent, PRINT_HIGH, "Player %i not found, check `playerlist`\n", playernum);
+		return;
+	}
 }
 
 void Cmd_TeamLock_f(edict_t *ent, int a_switch)
@@ -552,6 +708,64 @@ void Cmd_ResetScores_f(edict_t * ent)
 
 }
 
+void Cmd_CallTimeout_f(edict_t * ent)
+{
+	int teamNum = ent->client->resp.team;
+
+	if (!matchmode->value) {
+		gi.cprintf(ent, PRINT_HIGH, "This command needs matchmode to be enabled\n");
+		return;
+	}
+
+	if (mm_timeouttime->value < 1) {
+		gi.cprintf(ent, PRINT_HIGH, "Timeouts are disabled on this server\n");
+		return;
+	}
+
+	if (level.intermission_framenum) {
+		gi.cprintf(ent, PRINT_HIGH, "You cannot call a timeout between maps\n" );
+		return;
+	}
+
+	if (level.pauseFrames) {
+		gi.cprintf(ent, PRINT_HIGH, "You cannot call a timeout while the game is paused\n" );
+		return;
+	}
+
+	if (level.timeoutFrames) {
+		gi.cprintf(ent, PRINT_HIGH, "You cannot call a timeout while currently in timeout\n" );
+		return;
+	}
+
+	if (level.matchTime >= timelimit->value * 60) {
+		gi.cprintf(ent, PRINT_HIGH, "You cannot call for a timeout on the last round of the match\n");
+		return;
+	}
+
+	if (teamNum == NOTEAM) {
+		gi.cprintf(ent, PRINT_HIGH, "You need to be on a team for that...\n");
+		return;
+	}
+
+	if (!IS_CAPTAIN(ent)){
+		gi.cprintf(ent, PRINT_HIGH, "You must be a Captain to call a timeout\n");
+		return;
+	}
+
+	if (teams[teamNum].timeout_count < 1){
+		gi.cprintf(ent, PRINT_HIGH, "Your team is out of timeouts!\n");
+		return;
+	}
+
+	// If after all the checks pass, the timeout request is granted...
+	teams[teamNum].timeout_count--;
+	timeout_requested = true;
+	gi.bprintf(PRINT_HIGH, "%s (%s) has called for a %i second timeout\nat the end of this round\n", 
+		TeamName(teamNum),
+		ent->client->pers.netname,
+		(int)(mm_timeouttime->value));
+}
+
 void Cmd_TogglePause_f(edict_t * ent, qboolean pause)
 {
 	static int lastPaused = 0;
@@ -632,3 +846,32 @@ void Cmd_TogglePause_f(edict_t * ent, qboolean pause)
 	}
 }
 
+/*
+Sets default values for Espionage Matchmode
+*/
+void MM_EspDefaultSettings(void)
+{
+	if (!matchmode->value || !esp->value)
+		return;
+
+	/*
+
+	Enforced settings for official matches
+
+	* Normal Slippers
+	* No team punishment
+	* Leader gets 1 weapon and all items
+	* Leader is enhanced and receives a maximum of 1 healthkit
+
+	*/
+
+	gi.cvar_forceset("esp_enhancedslippers", "0");
+	gi.cvar_forceset("esp_punish", "0");
+	gi.cvar_forceset("esp_leaderequip", "1");
+	gi.cvar_forceset("esp_leaderenhance", "1");
+	gi.cvar_forceset("medkit_max", "1");
+	gi.cvar_forceset("medkit_value", "25");
+	gi.cvar_forceset("esp_respawn_uvtime", "10");
+	gi.cvar_forceset("timelimit", "20");
+	gi.dprintf("** Espionage default matchmode settings enforced **\n");
+}

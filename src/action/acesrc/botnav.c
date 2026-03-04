@@ -18,7 +18,7 @@
  * $History:$
  * 
  */
-
+/*
 #include "../g_local.h"
 
 #include "botnav.h"
@@ -27,12 +27,19 @@
 int	antSearch;
 
 // The nodes array
-extern	node_t		nodes[MAX_NODES];
-extern short	path_table[MAX_NODES][MAX_NODES]; // Quick pathsearch array [from][to]
+//rekkie -- DEV_1 -- s
+#include "acebot.h"
+//extern node_t *nodes;
+//extern node_t nodes[MAX_PNODES];
+extern short int **path_table;
+//short int path_table[MAX_PNODES][MAX_PNODES];
+//rekkie -- DEV_1 -- e
+//extern	node_t		nodes[MAX_NODES];
+//extern short	path_table[MAX_NODES][MAX_NODES]; // Quick pathsearch array [from][to]
 
-qboolean		nodeused[MAX_NODES]; // This is used for a FAST check if the node has been used
-short int	nodefrom[MAX_NODES]; // Stores how we got here once the node is closed
-
+qboolean	nodeused[MAX_PNODES]; // This is used for a FAST check if the node has been used
+short int	nodefrom[MAX_PNODES]; // Stores how we got here once the node is closed
+*/
 /* =========================================================
 The basic system works by using a single linked list and accessing information from the node array
 
@@ -47,7 +54,7 @@ by Richard Wesson. It is easy to optimise this code to make it even more efficie
 
 ============================================================= */
 
-
+/*
 //=========================
 // Init the search path variables
 //=========================
@@ -60,6 +67,8 @@ void	AntInitSearch(edict_t *ent)
 	{
 		SLLpop_front(&ent->pathList);
 	}
+
+	//Botlib_FreeNextNodes(ent); //rekkie -- free next node memory
 }
 
 //=========================
@@ -117,6 +126,7 @@ qboolean	AntQuickPath(edict_t *ent, int from, int to)
 {
 	int	newNode = from;
 	int	oldNode = 0;
+	int loopProtection = 0; //rekkie -- DEV_1
 
 	// Clean out the arrays, etc.
 	AntInitSearch(ent);
@@ -155,7 +165,16 @@ qboolean	AntQuickPath(edict_t *ent, int from, int to)
 		SLLpush_front(&ent->pathList, to );
 		while( newNode != from)
 		{
-			// Push the 
+			//rekkie -- s
+			if (newNode >= numnodes || newNode < 0)
+			{
+				if (debug_mode)
+					gi.dprintf("%s newNode out of bounds!\n", __func__);
+				return false;
+			}
+			//rekkie -- e
+
+			// Push the
 			SLLpush_front(&ent->pathList, nodefrom[newNode]);
 			newNode = nodefrom[newNode];
 		}
@@ -168,6 +187,17 @@ qboolean	AntQuickPath(edict_t *ent, int from, int to)
 		while( newNode != from)
 		{
 			path_table[ nodefrom[newNode] ][ to ] = INVALID;
+
+			//rekkie -- DEV_1 -- s
+			if (loopProtection < numnodes)
+				loopProtection++;
+			else
+			{
+				if (debug_mode)
+					debug_printf("%s ------------------- Bad while loop. Forcing exit.\n", __func__);
+				break;
+			}
+			//rekkie -- DEV_1 -- e
 		}
 		path_table[ from ][ to ] = INVALID;
 	}
@@ -185,8 +215,9 @@ qboolean	AntFindPath( edict_t *ent, int from, int to)
 {
 	int counter = 0;
 	int	newNode = INVALID; // Stores the node being tested
-	node_t	*tempNode = NULL; // Pointer to a real NODE
-	int workingNode,atNode; // Structures for search
+	//node_t	*tempNode = NULL; // Pointer to a real NODE
+	//int workingNode,atNode; // Structures for search
+	int atNode; // Structures for search
 
 	// Locally declared OPEN list
 	ltklist_t	openList;
@@ -201,6 +232,8 @@ qboolean	AntFindPath( edict_t *ent, int from, int to)
 	nodefrom[atNode] = INVALID;
 	SLLpush_back(&openList, from );
 	nodeused[from] = true;
+
+	////Com_Printf("%s NEW PATH [%d to %d]\n", __func__, from, to);
 	
 	// While there are nodes on the OPEN list AND we are not at destNode
 	while( !SLLempty(&openList) && newNode != to )
@@ -210,28 +243,34 @@ qboolean	AntFindPath( edict_t *ent, int from, int to)
 		// Where we are
 		atNode = SLLfront(&openList);
 
+		////Com_Printf("%s atNode [%d]\n", __func__, atNode);
+
 		// Safety check
 		if( atNode <= INVALID )
 			return false;
 
 		// Get a pointer to all the node information
-		tempNode = &nodes[atNode];
+		//tempNode = &nodes[atNode];
 		// Using an array for FAST access to the path ratrher than a CLOSED list
-		newNode = tempNode->links[counter].targetNode;
+		//newNode = tempNode->links[counter].targetNode;
+		newNode = nodes[atNode].links[counter].targetNode;
 
 		// Process this node putting linked nodes on the OPEN list
 		while( newNode != INVALID)
 		{
+			////Com_Printf("%s newNode [%d]\n", __func__, newNode);
+
 			// If newNode NOT on open or closed list
 			if( !nodeused[newNode])
 			{
 				// Mark node as used
 				nodeused[newNode] = true;
 				// Set up working node for storage on OPEN list
-				workingNode = newNode;
+				//workingNode = newNode;
 				nodefrom[newNode] = atNode;
 				// Store it
-				SLLpush_back(&openList, workingNode );
+				//SLLpush_back(&openList, workingNode );
+				SLLpush_back(&openList, newNode);
 			}
 			// If node being linked is destNode then quit
 			if( newNode == to)
@@ -242,7 +281,8 @@ qboolean	AntFindPath( edict_t *ent, int from, int to)
 			if( ++counter >= MAXLINKS )
 				break;
 			else
-				newNode = tempNode->links[counter].targetNode;
+				//newNode = tempNode->links[counter].targetNode;
+				newNode = nodes[atNode].links[counter].targetNode;
 		}
 
 		// ... and remove atNode from the OPEN List
@@ -252,25 +292,45 @@ qboolean	AntFindPath( edict_t *ent, int from, int to)
 	// Free up the memory we allocated
 	SLLdelete (&openList);
 
+	////Com_Printf("%s PATH newNode [%d] to [%d]\n", __func__, newNode, to);
+
 	// Optimise stored path with this new information
 	if( newNode == to)
 	{
 		// Make the path using the fromnode array pushing node numbers on in reverse order
 		// so we can SLLpop_front them back later
 		SLLpush_front(&ent->pathList, newNode );
+
+		//rekkie -- DEV_1 -- s
+		// This happens when a bot dies and respawns, nodefrom[to] spits out INVALID
+		// Check if INVALID to avoid accessing [-1] array
+		if (nodefrom[to] != INVALID)
+		//rekkie -- DEV_1 -- e
 		// Set the to path in node array because this is shortest path
 		path_table[ nodefrom[to] ][ to ] = to;
+
+		////Com_Printf("%s path_table[ nodefrom[%d] ][ %d ] = %d\n\n", __func__, to, to, to);
+		////int prev_newNode = newNode;
+
 		// We earlier set our start node to INVALID to set up the termination
 		while( 
 			(newNode=nodefrom[newNode])!=INVALID // there is a path and
 			&& (newNode != from)	// it's not the node we're standing on (safety check)
 			)
 		{
+			////Com_Printf("%s %d = nodefrom[%d]\n", __func__, newNode, prev_newNode);
+			////prev_newNode = newNode;
+
 			// Push it onto the pathlist
 			SLLpush_front(&ent->pathList, newNode );
 			// Set the path in the node array to match this shortest path
 			path_table[ nodefrom[newNode] ][ to ] = newNode;
+
+			////Com_Printf("%s path_table[ nodefrom[%d] ][ %d ] = %d\n", __func__, newNode, to, newNode);
 		}
+
+		////Com_Printf("%s EXIT PATH\n\n", __func__);
+
 		return true;
 	}
 	// else
@@ -287,14 +347,15 @@ qboolean	AntLinkExists( int from, int to)
 {
 	int counter =0;
 	int	testnode;
-	node_t	*tempNode = &nodes[from];
+	//node_t	*tempNode = &nodes[from];
 
 	if( from==INVALID || to==INVALID )
 		return false;
 	// Check if the link exists
 	while( counter < MAXLINKS)
 	{
-		testnode = tempNode->links[counter].targetNode;
+		//testnode = tempNode->links[counter].targetNode;
+		testnode = nodes[from].links[counter].targetNode;
 		if( testnode == to)
 		{
 			// A path exists from,to 
@@ -310,12 +371,13 @@ qboolean	AntLinkExists( int from, int to)
 	// Didn't find it!
 	return false;
 }
+*/
 
 // ****************************************************** //
 //=======================================================
 // SLL functions used by search code
 //=======================================================	
-
+/*
 //==============================
 // SLLpush_front
 //==============================
@@ -330,7 +392,7 @@ void		SLLpush_front( ltklist_t *thelist, int nodedata )
 	// allocate memory for the new data (LEVEL tagged)
 	thelist->head = gi.TagMalloc( sizeof(slint_t), TAG_LEVEL);
 	// Set up the data and pointer
-	thelist->head->nodedata = nodedata;
+	thelist->head->node = nodedata;
 	thelist->head->next = temp;
 	// Check if there;'s a next item
 	if( !thelist->head->next)
@@ -382,7 +444,7 @@ void		SLLpop_front( ltklist_t *thelist )
 int			SLLfront( ltklist_t *thelist )		
 {
 	if( thelist && !SLLempty( thelist) )
-		return( thelist->head->nodedata);
+		return( thelist->head->node);
 	else
 		return INVALID;
 }
@@ -399,7 +461,7 @@ void		SLLpush_back( ltklist_t *thelist, int nodedata )
 	// Allocate memory for the new item (LEVEL tagged)
 	temp = (slint_t *)gi.TagMalloc( sizeof(slint_t), TAG_LEVEL);
 	// Store the data
-	temp->nodedata = nodedata;
+	temp->node = nodedata;
 	temp->next = NULL;		// End of the list
 	// Store the new item in the list
 	// Is the list empty?
@@ -448,5 +510,4 @@ void	SLLdelete( ltklist_t *thelist )
 		gi.TagFree( temp );
 	}
 }
-
-
+*/

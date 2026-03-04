@@ -67,7 +67,6 @@
 //-----------------------------------------------------------------------------
 
 #include "g_local.h"
-#include "shared/shared.h"
 
 
 qboolean Pickup_Weapon (edict_t * ent, edict_t * other);
@@ -195,6 +194,20 @@ void DoRespawn (edict_t * ent)
 
 void SetRespawn (edict_t * ent, float delay)
 {
+	// Safety check to prevent crashes with invalid entities
+    // if (!ent || !ent->inuse) {
+    //     gi.dprintf("WARNING: SetRespawn called with invalid entity\n");
+    //     return;
+    // }
+    
+    // Additional safety check for linked list pointers
+    // if (ent->area.prev == NULL || ent->area.next == NULL) {
+    //     gi.dprintf("WARNING: SetRespawn called with unlinked entity (classname: %s, item: %s)\n", 
+    //               ent->classname ? ent->classname : "NULL",
+    //               ent->item ? ent->item->classname : "NULL");
+    //     return;
+    // }
+
 	ent->flags |= FL_RESPAWN;
 	ent->svflags |= SVF_NOCLIENT;
 	ent->solid = SOLID_NOT;
@@ -326,8 +339,9 @@ qboolean Pickup_Special (edict_t * ent, edict_t * other)
 
 	AddItem(other, ent->item);
 
-	if(!(ent->spawnflags & (DROPPED_ITEM | DROPPED_PLAYER_ITEM)) && item_respawnmode->value)
+	if (!(ent->spawnflags & (DROPPED_ITEM | DROPPED_PLAYER_ITEM)) && item_respawnmode->value) {
 		SetRespawn (ent, item_respawn->value);
+	}
 
 	return true;
 }
@@ -415,14 +429,14 @@ void Drop_Special (edict_t * ent, gitem_t * item)
 void DropSpecialItem (edict_t * ent)
 {
 	// this is the order I'd probably want to drop them in...       
-	if (INV_AMMO(ent, LASER_NUM))
-		Drop_Special (ent, GET_ITEM(LASER_NUM));
-	else if (INV_AMMO(ent, SLIP_NUM))
-		Drop_Special (ent, GET_ITEM(SLIP_NUM));
-	else if (INV_AMMO(ent, SIL_NUM))
+	if (INV_AMMO(ent, SIL_NUM))
 		Drop_Special (ent, GET_ITEM(SIL_NUM));
 	else if (INV_AMMO(ent, BAND_NUM))
 		Drop_Special (ent, GET_ITEM(BAND_NUM));
+	else if (INV_AMMO(ent, LASER_NUM))
+		Drop_Special (ent, GET_ITEM(LASER_NUM));
+	else if (INV_AMMO(ent, SLIP_NUM))
+		Drop_Special (ent, GET_ITEM(SLIP_NUM));
 	else if (INV_AMMO(ent, HELM_NUM))
 		Drop_Special (ent, GET_ITEM(HELM_NUM));
 	else if (INV_AMMO(ent, KEV_NUM))
@@ -862,7 +876,7 @@ void Touch_Item (edict_t * ent, edict_t * other, cplane_t * plane,
 		else
 			other->client->ps.stats[STAT_PICKUP_ICON] = gi.imageindex(ent->item->icon);
 
-		other->client->ps.stats[STAT_PICKUP_STRING] = CS_ITEMS + ITEM_INDEX (ent->item);
+		other->client->ps.stats[STAT_PICKUP_STRING] = game.csr.items + ITEM_INDEX (ent->item);
 		other->client->pickup_msg_framenum = level.realFramenum + 3 * HZ;
 
 		// change selected item
@@ -914,6 +928,11 @@ static void drop_make_touchable (edict_t * ent)
 	else if( ctf->value )
 	{
 		ent->nextthink = level.framenum + 6 * HZ;
+		ent->think = G_FreeEdict;
+	}
+	else if( training->value ) // All items disappear after 2 seconds in training mode
+	{
+		ent->nextthink = eztimer(2);
 		ent->think = G_FreeEdict;
 	}
 	else
@@ -1388,7 +1407,7 @@ world_model_flags int               copied to 'ent->s.effects' (see s.effects fo
    IT_WEAPON,
    NULL,
    0,
-   "weapons/m4a1fire.wav weapons/m4a1in.wav weapons/m4a1out.wav weapons/m4a1slide.wav weapons/rocklf1a.wav weapons/rocklr1b.wav",
+   "weapons/m4a1fire.wav weapons/m4a1in.wav weapons/m4a1out.wav weapons/m4a1slide.wav weapons/rocklf1a.wav",
   M4_NUM}
   ,
   {
@@ -1410,7 +1429,7 @@ world_model_flags int               copied to 'ent->s.effects' (see s.effects fo
    IT_WEAPON,
    NULL,
    0,
-   "weapons/m3in.wav weapons/shotgr1b.wav weapons/shotgf1b.wav",
+   "weapons/m3in.wav weapons/shotgf1b.wav",
   M3_NUM}
   ,
   {
@@ -1507,7 +1526,7 @@ world_model_flags int               copied to 'ent->s.effects' (see s.effects fo
    Drop_Weapon,
    Weapon_Gas,
    NULL,
-   "models/items/ammo/grenades/medium/tris.md2",
+   "models/objects/grenade2/tris.md2",
    0,
    "models/weapons/v_handgr/tris.md2",
    "a_m61frag",
@@ -1704,7 +1723,7 @@ always owned, never in the world^M
    Drop_Special,
    NULL,
    "misc/veston.wav",		// sound
-   "models/items/slippers/slippers.md2",
+   "models/items/slippers/tris.md2",
    0,
    NULL,
 /* icon */ "slippers",
@@ -1851,7 +1870,7 @@ always owned, never in the world^M
    NULL,
    0,
    /* precache */ "tng/flagcap.wav tng/flagret.wav",
-	FLAG_T1_NUM
+  FLAG_T1_NUM
    }
   ,
 
@@ -1877,6 +1896,51 @@ always owned, never in the world^M
    /* precache */ "tng/flagcap.wav tng/flagret.wav",
    FLAG_T2_NUM
    }
+  ,
+
+  /*QUAKED item_bcase_team1 (1 0.2 0) (-16 -16 -24) (16 16 32)
+   */
+  {
+   "item_bcase_team1",          // classname
+   CTFPickup_Flag,             // pickup function
+   NULL,                       // use function
+   CTFDrop_Flag,              // drop function
+   NULL,                       // weaponthink function
+   "tng/flagtk.wav",          // pickup sound
+   "models/items/bcase/g_bc1.md2", EF_FLAG1|EF_ROTATE,  // world model and effects
+   "w_bc1",                   // weapon model (vwep)
+   "i_bc1",                   // icon name
+   "Black Briefcase",           // pickup name
+   2,                         // width
+   0,                         // quantity
+   NULL,                      // ammo
+   IT_FLAG,                   // item type
+   NULL,                      // info
+   0,                         // tag
+   "tng/flagcap.wav tng/flagret.wav",  // precache
+   FLAG_T1_NUM                // index
+  }
+  ,
+  {
+   "item_bcase_team2",          // classname
+   CTFPickup_Flag,             // pickup function
+   NULL,                       // use function
+   CTFDrop_Flag,              // drop function
+   NULL,                       // weaponthink function
+   "tng/flagtk.wav",          // pickup sound
+   "models/items/bcase/g_bc2.md2", EF_FLAG2|EF_ROTATE,  // world model and effects
+   "w_bc2",                   // weapon model (vwep)
+   "i_bc2",                   // icon name
+   "Silver Briefcase",           // pickup name
+   2,                         // width
+   0,                         // quantity
+   NULL,                      // ammo
+   IT_FLAG,                   // item type
+   NULL,                      // info
+   0,                         // tag
+   "tng/flagcap.wav tng/flagret.wav",  // precache
+   FLAG_T1_NUM                // index
+  }
   ,
 
   // end of list marker
@@ -1999,7 +2063,6 @@ void SetItemNames (void)
 	for (i = 0; i < game.num_items; i++)
 	{
 		it = &itemlist[i];
-		gi.configstring (CS_ITEMS + i, it->pickup_name);
+		gi.configstring (game.csr.items + i, it->pickup_name);
 	}
-
 }

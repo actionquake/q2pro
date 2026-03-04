@@ -235,7 +235,7 @@ qboolean	BOTCOL_CanMoveSafely(edict_t	*self, vec3_t angles)
 {
 	vec3_t	dir, angle, dest1, dest2;
 	trace_t	trace;
-	//float	this_dist;
+	float	this_dist;
 
 	VectorClear(angle);
 	angle[1] = angles[1];
@@ -268,9 +268,15 @@ qboolean	BOTCOL_CanMoveSafely(edict_t	*self, vec3_t angles)
 		//BOTUT_TempLaser (trace.endpos, dest2);
 		trace = gi.trace(trace.endpos, VEC_ORIGIN, VEC_ORIGIN, dest2, self, MASK_PLAYERSOLID | MASK_DEADLY);
 
+		// Calculate the distance between the bot's current position and the destination position
+        this_dist = sqrt(pow(dest2[0] - self->s.origin[0], 2) + pow(dest2[1] - self->s.origin[1], 2) + pow(dest2[2] - self->s.origin[2], 2));
+
+		if (bot_debug->value)
+			gi.dprintf("Distance to destination: %f\n", this_dist);
 		if( (trace.fraction == 1.0) // long drop!
-			|| (trace.contents & MASK_DEADLY) )	// avoid SLIME or LAVA
-		{
+            || (trace.contents & MASK_DEADLY) // avoid SLIME or LAVA
+            || (this_dist > (NODE_MAX_FALL_HEIGHT * 3)) ) // avoid falling too far
+        {
 			return (false);
 		}
 		else

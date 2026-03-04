@@ -45,10 +45,9 @@ typedef struct {
     char    text[CON_LINEWIDTH];
 } consoleLine_t;
 
-typedef struct console_s {
-    bool    initialized;
-
+typedef struct {
     consoleLine_t   text[CON_TOTALLINES];
+
     int     current;        // line where next message will be printed
     int     x;              // offset in current line for next print
     int     display;        // bottom of console displays this line
@@ -63,6 +62,7 @@ typedef struct console_s {
     unsigned    times[CON_TIMES];   // cls.realtime time the line was generated
                                     // for transparent notify lines
     bool    skipNotify;
+    bool    initialized;
 
     qhandle_t   backImage;
     qhandle_t   charsetImage;
@@ -209,7 +209,8 @@ Con_Clear_f
 static void Con_Clear_f(void)
 {
     memset(con.text, 0, sizeof(con.text));
-    con.display = con.current;
+    con.display = con.current = 0;
+    con.newline = '\r';
 }
 
 static void Con_Dump_c(genctx_t *ctx, int argnum)
@@ -253,7 +254,7 @@ static void Con_Dump_f(void)
     // write the remaining lines
     for (; l <= con.current; l++) {
         char buffer[CON_LINEWIDTH + 1];
-        char *p = con.text[l & CON_TOTALLINES_MASK].text;
+        const char *p = con.text[l & CON_TOTALLINES_MASK].text;
         int i;
 
         for (i = 0; i < CON_LINEWIDTH && p[i]; i++)
@@ -371,7 +372,7 @@ void Con_CheckResize(void)
     con.vidWidth = Q_rint(r_config.width * con.scale);
     con.vidHeight = Q_rint(r_config.height * con.scale);
 
-    con.linewidth = Q_clip(con.vidWidth / CHAR_WIDTH - 2, 0, CON_LINEWIDTH);
+    con.linewidth = Q_clip(con.vidWidth / CONCHAR_WIDTH - 2, 0, CON_LINEWIDTH);
     con.prompt.inputLine.visibleChars = con.linewidth;
     con.prompt.widthInChars = con.linewidth;
     con.chatPrompt.inputLine.visibleChars = con.linewidth;
@@ -465,7 +466,7 @@ void Con_Init(void)
     con_background = Cvar_Get("con_background", "conback", 0);
     con_background->changed = con_media_changed;
     con_scroll = Cvar_Get("con_scroll", "0", 0);
-    con_history = Cvar_Get("con_history", "0", 0);
+    con_history = Cvar_Get("con_history", STRINGIFY(HISTORY_SIZE), 0);
     con_timestamps = Cvar_Get("con_timestamps", "0", 0);
     con_timestamps->changed = con_width_changed;
     con_timestampsformat = Cvar_Get("con_timestampsformat", "%H:%M:%S ", 0);
@@ -486,7 +487,7 @@ void Con_Init(void)
     con.linewidth = -1;
     con.scale = 1;
     con.color = COLOR_NONE;
-    con.text[0].color = COLOR_NONE;
+    con.newline = '\r';
 
     Con_CheckResize();
 
@@ -547,6 +548,12 @@ static void Con_Linefeed(void)
     } else {
         Con_CheckTop();
     }
+
+    // wrap to avoid integer overflow
+    if (con.current >= CON_TOTALLINES * 2) {
+        con.current -= CON_TOTALLINES;
+        con.display -= CON_TOTALLINES;
+    }
 }
 
 void Con_SetColor(color_index_t color)
@@ -563,8 +570,8 @@ void CL_LoadState(load_state_t state)
 {
     con.loadstate = state;
     SCR_UpdateScreen();
-    if (vid.pump_events)
-        vid.pump_events();
+    if (vid)
+        vid->pump_events();
 }
 
 /*
@@ -620,6 +627,10 @@ void Con_Print(const char *txt)
 
         txt++;
     }
+
+    // update time for transparent overlay
+    if (!con.skipNotify)
+        con.times[con.current & CON_TIMES_MASK] = cls.realtime;
 }
 
 /*
@@ -677,15 +688,17 @@ DRAWING
 ==============================================================================
 */
 
-static int Con_DrawLine(int v, int row, float alpha)
+static int Con_DrawLine(int v, int row, float alpha, bool notify)
 {
-    consoleLine_t *line = &con.text[row & CON_TOTALLINES_MASK];
-    char *s = line->text;
+    const consoleLine_t *line = &con.text[row & CON_TOTALLINES_MASK];
+    const char *s = line->text;
     int flags = 0;
-    int x = CHAR_WIDTH;
+    int x = CONCHAR_WIDTH;
     int w = con.linewidth;
 
-    if (line->ts_len) {
+    if (notify) {
+        s += line->ts_len;
+    } else if (line->ts_len) {
         R_SetColor(con.ts_color.u32);
         R_SetAlpha(alpha);
         x = R_DrawString(x, v, 0, line->ts_len, s, con.charsetImage);
@@ -711,7 +724,7 @@ static int Con_DrawLine(int v, int row, float alpha)
     return R_DrawString(x, v, flags, w, s, con.charsetImage);
 }
 
-#define CON_PRESTEP     (CHAR_HEIGHT * 3 + CHAR_HEIGHT / 4)
+#define CON_PRESTEP     (CONCHAR_HEIGHT * 3 + CONCHAR_HEIGHT / 4)
 
 /*
 ================
@@ -760,9 +773,9 @@ static void Con_DrawNotify(void)
             alpha = 1;  // don't fade
         }
 
-        Con_DrawLine(v, i, alpha);
+        Con_DrawLine(v, i, alpha, true);
 
-        v += CHAR_HEIGHT;
+        v += CONCHAR_HEIGHT;
     }
 
     R_ClearColor();
@@ -776,10 +789,10 @@ static void Con_DrawNotify(void)
             skip = 5;
         }
 
-        R_DrawString(CHAR_WIDTH, v, 0, MAX_STRING_CHARS, text,
+        R_DrawString(CONCHAR_WIDTH, v, 0, MAX_STRING_CHARS, text,
                      con.charsetImage);
         con.chatPrompt.inputLine.visibleChars = con.linewidth - skip + 1;
-        IF_Draw(&con.chatPrompt.inputLine, skip * CHAR_WIDTH, v,
+        IF_Draw(&con.chatPrompt.inputLine, skip * CONCHAR_WIDTH, v,
                 UI_DRAWCURSOR, con.charsetImage);
     }
 }
@@ -823,16 +836,16 @@ static void Con_DrawSolidConsole(void)
 
 // draw the text
     y = vislines - CON_PRESTEP;
-    rows = y / CHAR_HEIGHT + 1;     // rows of text to draw
+    rows = y / CONCHAR_HEIGHT + 1;  // rows of text to draw
 
 // draw arrows to show the buffer is backscrolled
     if (con.display != con.current) {
         R_SetColor(U32_RED);
         for (i = 1; i < con.linewidth / 2; i += 4) {
-            R_DrawChar(i * CHAR_WIDTH, y, 0, '^', con.charsetImage);
+            R_DrawChar(i * CONCHAR_WIDTH, y, 0, '^', con.charsetImage);
         }
 
-        y -= CHAR_HEIGHT;
+        y -= CONCHAR_HEIGHT;
         rows--;
     }
 
@@ -846,12 +859,12 @@ static void Con_DrawSolidConsole(void)
         if (con.current - row > CON_TOTALLINES - 1)
             break;      // past scrollback wrap point
 
-        x = Con_DrawLine(y, row, 1);
+        x = Con_DrawLine(y, row, 1, false);
         if (i < 2) {
             widths[i] = x;
         }
 
-        y -= CHAR_HEIGHT;
+        y -= CONCHAR_HEIGHT;
         row--;
     }
 
@@ -900,8 +913,8 @@ static void Con_DrawSolidConsole(void)
         Q_strlcat(buffer, suf, sizeof(buffer));
 
         // draw it
-        y = vislines - CON_PRESTEP + CHAR_HEIGHT * 2;
-        R_DrawString(CHAR_WIDTH, y, 0, con.linewidth, buffer, con.charsetImage);
+        y = vislines - CON_PRESTEP + CONCHAR_HEIGHT * 2;
+        R_DrawString(CONCHAR_WIDTH, y, 0, con.linewidth, buffer, con.charsetImage);
     } else if (cls.state == ca_loading) {
         // draw loading state
         switch (con.loadstate) {
@@ -929,35 +942,35 @@ static void Con_DrawSolidConsole(void)
             Q_snprintf(buffer, sizeof(buffer), "Loading %s...", text);
 
             // draw it
-            y = vislines - CON_PRESTEP + CHAR_HEIGHT * 2;
-            R_DrawString(CHAR_WIDTH, y, 0, con.linewidth, buffer, con.charsetImage);
+            y = vislines - CON_PRESTEP + CONCHAR_HEIGHT * 2;
+            R_DrawString(CONCHAR_WIDTH, y, 0, con.linewidth, buffer, con.charsetImage);
         }
     }
 
 // draw the input prompt, user text, and cursor if desired
     x = 0;
     if (cls.key_dest & KEY_CONSOLE) {
-        y = vislines - CON_PRESTEP + CHAR_HEIGHT;
+        y = vislines - CON_PRESTEP + CONCHAR_HEIGHT;
 
         // draw command prompt
         i = con.mode == CON_REMOTE ? '#' : 17;
         R_SetColor(U32_YELLOW);
-        R_DrawChar(CHAR_WIDTH, y, 0, i, con.charsetImage);
+        R_DrawChar(CONCHAR_WIDTH, y, 0, i, con.charsetImage);
         R_ClearColor();
 
         // draw input line
-        x = IF_Draw(&con.prompt.inputLine, 2 * CHAR_WIDTH, y,
+        x = IF_Draw(&con.prompt.inputLine, 2 * CONCHAR_WIDTH, y,
                     UI_DRAWCURSOR, con.charsetImage);
     }
 
 #define APP_VERSION APPLICATION " " VERSION
-#define VER_WIDTH ((int)(sizeof(APP_VERSION) + 1) * CHAR_WIDTH)
+#define VER_WIDTH ((int)(sizeof(APP_VERSION) + 1) * CONCHAR_WIDTH)
 
-    y = vislines - CON_PRESTEP + CHAR_HEIGHT;
+    y = vislines - CON_PRESTEP + CONCHAR_HEIGHT;
     row = 0;
     // shift version upwards to prevent overdraw
     if (x > con.vidWidth - VER_WIDTH) {
-        y -= CHAR_HEIGHT;
+        y -= CONCHAR_HEIGHT;
         row++;
     }
 
@@ -965,17 +978,17 @@ static void Con_DrawSolidConsole(void)
 
 // draw clock
     if (con_clock->integer) {
-        x = Com_Time_m(buffer, sizeof(buffer)) * CHAR_WIDTH;
-        if (widths[row] + x + CHAR_WIDTH <= con.vidWidth) {
-            R_DrawString(con.vidWidth - CHAR_WIDTH - x, y - CHAR_HEIGHT,
+        x = Com_Time_m(buffer, sizeof(buffer)) * CONCHAR_WIDTH;
+        if (widths[row] + x + CONCHAR_WIDTH <= con.vidWidth) {
+            R_DrawString(con.vidWidth - CONCHAR_WIDTH - x, y - CONCHAR_HEIGHT,
                          UI_RIGHT, MAX_STRING_CHARS, buffer, con.charsetImage);
         }
     }
 
 // draw version
     if (!row || widths[0] + VER_WIDTH <= con.vidWidth) {
-        SCR_DrawStringEx(con.vidWidth - CHAR_WIDTH, y, UI_RIGHT,
-                         MAX_STRING_CHARS, VERSION, con.charsetImage);
+        SCR_DrawStringEx(con.vidWidth - CONCHAR_WIDTH, y, UI_RIGHT,
+                         MAX_STRING_CHARS, APP_VERSION, con.charsetImage);
     }
 
     // restore rendering parameters
@@ -1048,7 +1061,7 @@ void Con_DrawConsole(void)
 ==============================================================================
 */
 
-static void Con_Say(char *msg)
+static void Con_Say(const char *msg)
 {
     CL_ClientCommand(va("say%s \"%s\"", con.chat == CHAT_TEAM ? "_team" : "", msg));
 }
@@ -1063,7 +1076,7 @@ static void Con_InteractiveMode(void)
 
 static void Con_Action(void)
 {
-    char *cmd = Prompt_Action(&con.prompt);
+    const char *cmd = Prompt_Action(&con.prompt);
 
     Con_InteractiveMode();
 
@@ -1138,8 +1151,8 @@ static void Con_Paste(char *(*func)(void))
 // console lines are not necessarily NUL-terminated
 static void Con_ClearLine(char *buf, int row)
 {
-    consoleLine_t *line = &con.text[row & CON_TOTALLINES_MASK];
-    char *s = line->text + line->ts_len;
+    const consoleLine_t *line = &con.text[row & CON_TOTALLINES_MASK];
+    const char *s = line->text + line->ts_len;
     int w = con.linewidth - line->ts_len;
 
     while (w-- > 0 && *s)
@@ -1150,7 +1163,7 @@ static void Con_ClearLine(char *buf, int row)
 static void Con_SearchUp(void)
 {
     char buf[CON_LINEWIDTH + 1];
-    char *s = con.prompt.inputLine.text;
+    const char *s = con.prompt.inputLine.text;
     int top = con.current - CON_TOTALLINES + 1;
 
     if (top < 0)
@@ -1171,7 +1184,7 @@ static void Con_SearchUp(void)
 static void Con_SearchDown(void)
 {
     char buf[CON_LINEWIDTH + 1];
-    char *s = con.prompt.inputLine.text;
+    const char *s = con.prompt.inputLine.text;
 
     if (!*s)
         return;
@@ -1210,12 +1223,14 @@ void Key_Console(int key)
     }
 
     if (key == 'v' && Key_IsDown(K_CTRL)) {
-        Con_Paste(vid.get_clipboard_data);
+        if (vid)
+            Con_Paste(vid->get_clipboard_data);
         goto scroll;
     }
 
     if ((key == K_INS && Key_IsDown(K_SHIFT)) || key == K_MOUSE3) {
-        Con_Paste(vid.get_selection_data);
+        if (vid)
+            Con_Paste(vid->get_selection_data);
         goto scroll;
     }
 
@@ -1320,7 +1335,7 @@ void Key_Message(int key)
     }
 
     if (key == K_ENTER || key == K_KP_ENTER) {
-        char *cmd = Prompt_Action(&con.chatPrompt);
+        const char *cmd = Prompt_Action(&con.chatPrompt);
 
         if (cmd) {
             Con_Say(cmd);

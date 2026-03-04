@@ -18,6 +18,7 @@ with this program; if not, write to the Free Software Foundation, Inc.,
 // cl.input.c  -- builds an intended movement command to send to the server
 
 #include "client.h"
+#include "common/crc.h"
 
 static cvar_t    *cl_nodelta;
 static cvar_t    *cl_maxpackets;
@@ -109,8 +110,8 @@ IN_Activate
 */
 void IN_Activate(void)
 {
-    if (vid.grab_mouse) {
-        vid.grab_mouse(IN_GetCurrentGrab());
+    if (vid && vid->grab_mouse) {
+        vid->grab_mouse(IN_GetCurrentGrab());
     }
 }
 
@@ -144,8 +145,8 @@ IN_WarpMouse
 */
 void IN_WarpMouse(int x, int y)
 {
-    if (vid.warp_mouse) {
-        vid.warp_mouse(x, y);
+    if (vid && vid->warp_mouse) {
+        vid->warp_mouse(x, y);
     }
 }
 
@@ -160,8 +161,8 @@ void IN_Shutdown(void)
         in_grab->changed = NULL;
     }
 
-    if (vid.shutdown_mouse) {
-        vid.shutdown_mouse();
+    if (vid && vid->shutdown_mouse) {
+        vid->shutdown_mouse();
     }
 
     memset(&input, 0, sizeof(input));
@@ -191,7 +192,7 @@ void IN_Init(void)
         return;
     }
 
-    if (!vid.init_mouse()) {
+    if (!vid || !vid->init_mouse || !vid->init_mouse()) {
         Cvar_Set("in_enable", "0");
         return;
     }
@@ -229,7 +230,7 @@ Key_Event (int key, bool down, unsigned time);
 ===============================================================================
 */
 
-typedef struct kbutton_s {
+typedef struct {
     int         down[2];        // key nums holding it down
     unsigned    downtime;        // msec timestamp
     unsigned    msec;            // msec down this frame
@@ -415,7 +416,7 @@ CL_KeyState
 Returns the fraction of the frame that the key was down
 ===============
 */
-static float CL_KeyState(kbutton_t *key)
+static float CL_KeyState(const kbutton_t *key)
 {
     unsigned msec = key->msec;
 
@@ -450,13 +451,13 @@ static void CL_MouseMove(void)
     float mx, my;
     float speed;
 
-    if (!vid.get_mouse_motion) {
+    if (!vid || !vid->get_mouse_motion) {
         return;
     }
     if (cls.key_dest & (KEY_MENU | KEY_CONSOLE)) {
         return;
     }
-    if (!vid.get_mouse_motion(&dx, &dy)) {
+    if (!vid->get_mouse_motion(&dx, &dy)) {
         return;
     }
 
@@ -958,10 +959,8 @@ CL_SendBatchedCmd
 */
 static void CL_SendBatchedCmd(void)
 {
-    int i, j, seq, bits q_unused;
-    int numCmds, numDups;
-    int totalCmds, totalMsec;
-    int cursize q_unused;
+    int i, j, seq, numCmds, numDups;
+    q_unused int totalCmds, totalMsec, cursize, bits;
     usercmd_t *cmd, *oldcmd;
     client_history_t *history, *oldest;
     byte *patch;
@@ -1016,7 +1015,7 @@ static void CL_SendBatchedCmd(void)
         numCmds = history->cmdNumber - oldest->cmdNumber;
         if (numCmds >= MAX_PACKET_USERCMDS) {
             Com_WPrintf("%s: MAX_PACKET_USERCMDS exceeded\n", __func__);
-            SZ_Clear(&msg_write);
+            MSG_BeginWriting();
             break;
         }
         totalCmds += numCmds;
@@ -1113,6 +1112,10 @@ static void CL_SendUserinfo(void)
 
 static void CL_SendReliable(void)
 {
+    if (Netchan_SeqTooBig(&cls.netchan)) {
+        Com_Error(ERR_DROP, "Outgoing sequence too big");
+    }
+
     if (cls.userinfo_modified) {
         CL_SendUserinfo();
         cls.userinfo_modified = 0;
