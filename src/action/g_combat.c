@@ -994,14 +994,11 @@ void T_RadiusDamage (edict_t * inflictor, edict_t * attacker, float damage,
 		//points = points * 0.5; 
 		if (points > 0)
 		{
-#ifdef _DEBUG
 			if (0 == Q_stricmp (ent->classname, "func_explosive"))
 			{
 				CGF_SFX_ShootBreakableGlass (ent, inflictor, 0, mod);
 			}
-			else
-#endif
-			if (CanDamage (ent, inflictor))
+			else if (CanDamage (ent, inflictor))
 			{
 				VectorSubtract (ent->s.origin, inflictor->s.origin, dir);
 				// zucc scaled up knockback(kick) of grenades

@@ -218,9 +218,8 @@ CGF_SFX_InstallBreakableGlass (edict_t * aGlassPane)
   // reset some pane attributes
   aGlassPane->takedamage = DAMAGE_YES;
   aGlassPane->solid = SOLID_BSP;
-  aGlassPane->movetype = MOVETYPE_FLYMISSILE;
-  aGlassPane->flags |= FL_NO_KNOCKBACK;  // This prevents grenades from moving glass
-  // for other movetypes, cannot move pane to hidden location and back
+  aGlassPane->movetype = MOVETYPE_PUSH;
+  aGlassPane->flags |= FL_NO_KNOCKBACK;
 
   // try to establish size
   VectorCopy (aGlassPane->maxs, maxs);
@@ -245,6 +244,11 @@ CGF_SFX_InstallBreakableGlass (edict_t * aGlassPane)
   trigger->movetype = MOVETYPE_NONE;
   trigger->touch = CGF_SFX_TouchGlass;
   gi.linkentity (trigger);
+
+  // Sync the glass pane's physics position explicitly.
+  // With MOVETYPE_PUSH and zero velocity the physics loop never calls
+  // gi.linkentity on its own, so we must do it here whenever s.origin changes.
+  gi.linkentity (aGlassPane);
 }
 
 
@@ -404,8 +408,7 @@ CGF_SFX_TouchGlass (edict_t * self, edict_t * other, cplane_t * plane,
   //            wrong        ok 
   //
   glass = self->owner;
-  // hack - set glass' movetype to MOVETYPE_PUSH as it is not
-  // moving as long as the trigger is active
+  // glass panes use MOVETYPE_PUSH; ensure it is set in case something changed it
   glass->movetype = MOVETYPE_PUSH;
 
   VectorAdd (glass->absmax, glass->absmin, origin);
@@ -647,9 +650,10 @@ CGF_SFX_HideBreakableGlass (edict_t * aGlassPane)
 
   // after being broken, the pane cannot be freed as it is needed in
   // subsequent missions/games, so hide it at about z = -1000 lower
-  aGlassPane->movetype = MOVETYPE_FLYMISSILE;
+  aGlassPane->movetype = MOVETYPE_PUSH;
   VectorCopy (aGlassPane->s.origin, aGlassPane->pos1);
   aGlassPane->s.origin[2] -= 1000.0;
+  gi.linkentity (aGlassPane);  // explicitly reposition; MOVETYPE_PUSH won't do it automatically
 }
 
 
