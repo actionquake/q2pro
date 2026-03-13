@@ -896,6 +896,17 @@ Antilag allows server operator to enable lag-compensation for aiming with hitsca
 - `sv_antilag [0/1]` (default: "1") - Setting to "1" enables lag compensation functionality when firing hitscan weapons.
 - `sv_antilag_interp [0/1]` (default: "0") - Setting to "1" enables interpolation for hitscan weapons. Requires sv_antilag "1".
 
+### Extrapolation (XERP)
+Extrapolation predicts where other players and physics entities will be on the next frame, reducing the visual effect of network latency. When enabled, other players appear to move more smoothly and responsively. The server controls whether clients are allowed to use extrapolation, and can optionally force a specific extrapolation mode on all clients.
+
+**Commands:**
+- `use_xerp [0/1]` (default: "1") - Server cvar, allows clients to use `cl_xerp`. Set to "0" to disallow extrapolation entirely.
+- `force_cl_xerp [0/1/2]` (default: "0") - Server cvar, forces all clients to use a specific extrapolation mode, overriding their `cl_xerp` setting. Set to "0" to let clients choose their own setting.
+- `cl_xerp [0/1/2]` (default: "0") - Client cvar (synced via cvarsync), controls extrapolation mode:
+  - `0` — disabled (classic behavior)
+  - `1` — full extrapolation
+  - `2` — conservative extrapolation (lower extrapolation cap)
+
 ### General quality of life improvements
 `sv_limp_highping [#]` - server cvar, players above this ping threshold will have movement prediction disabled with leg damage to make things less jittery. Value is set in ping ms, players with a ping value equal or higher to this value will have less jittery movement. Default value is '70'
 
