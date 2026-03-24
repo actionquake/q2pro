@@ -1324,6 +1324,14 @@ void LogMatch(void)
 	int t3 = teams[TEAM3].score;
 	eventtime = (int)time(NULL);
 
+	// Subtract carried-over scores so stats reflect only this map's results
+	if (game.carryover_active)
+	{
+		t1 -= game.carryover_scores[TEAM1];
+		t2 -= game.carryover_scores[TEAM2];
+		t3 -= game.carryover_scores[TEAM3];
+	}
+
 	// Check if there's an AI bot in the game, if so, do nothing
 	if (game.ai_ent_found) {
 		return;

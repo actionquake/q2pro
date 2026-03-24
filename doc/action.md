@@ -255,6 +255,15 @@ Clients will have a few more things to do during matchmode: they have to have a 
   - `unlock` - allows a captain to unlock his team
   - `timeout` - Request a timeout for your team. Must be a captain. The timeout will be granted at the end of the current round. Each team gets a limited number of timeouts per match.
 
+#### Score Carryover
+
+In multi-map matches (e.g., best-of-two), team scores are normally reset when the map changes. Enabling `mm_carryover` preserves team scores from the first map into the second map, so the final scoreboard reflects the cumulative result across both maps.
+
+- Server settings:
+  - `mm_carryover [0/1]` - Carry over team scores from map 1 to map 2 (default: 0). Requires matchmode to be enabled. Supports `use_3teams`.
+
+After the second map concludes, the carryover is automatically cleared. Stat logging subtracts the carried-over scores so that per-map statistics remain accurate.
+
 #### Timeout Settings
 
 Timeouts allow teams to pause the match for a strategic break. The following cvars control timeout behavior:

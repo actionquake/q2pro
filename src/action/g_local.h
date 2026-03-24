@@ -879,6 +879,10 @@ typedef struct
 
   // LRCON configuration
   lrcon_config_t lrcon_config;
+
+  // Matchmode carryover scores (persist across map changes)
+  int carryover_scores[TEAM_TOP];
+  qboolean carryover_active; // true if we're on map 2 with carried-over scores
 }
 game_locals_t;
 
@@ -1448,6 +1452,7 @@ extern cvar_t *bots; // If bots are enabled and in the server
 
 // 2026
 extern cvar_t *use_buggy_ent_hitbox;
+extern cvar_t *mm_carryover; // Carry over team scores across maps in matchmode
 
 #ifdef AQTION_EXTENSION
 extern int (*engine_Client_GetVersion)(edict_t *ent);
