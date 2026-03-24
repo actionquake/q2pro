@@ -828,24 +828,37 @@ void ClientEndServerFrames (void)
 	int i, updateLayout = 0, spectators = 0;
 	edict_t *ent;
 
+	// Stagger intermission scoreboard sends across frames
 	if (level.intermission_framenum) {
 		for (i = 0, ent = g_edicts + 1; i < game.maxclients; i++, ent++) {
 			if (!ent->inuse || !ent->client)
 				continue;
 
 			ClientEndServerFrame(ent);
+
+			if (ent->client->needs_intermission_scoreboard) {
+				int frames_since = level.realFramenum - level.intermission_framenum;
+				int my_slot = i % 4;
+				if (frames_since >= my_slot) {
+					DeathmatchScoreboardMessage(ent, NULL);
+#ifndef NO_BOTS
+					if (!ent->is_bot)
+#endif
+					gi.unicast(ent, true);
+					ent->client->needs_intermission_scoreboard = false;
+				}
+			}
 		}
 		return;
 	}
 
+	// teams_changed forces immediate update for all clients
 	if( teams_changed && FRAMESYNC )
 	{
 		updateLayout = 1;
 		teams_changed = false;
 		UpdateJoinMenu();
 	}
-	else if( !(level.realFramenum % (3 * HZ)) )
-		updateLayout = 1;
 
 	// calc the player views now that all pushing
 	// and damage has been added
@@ -856,7 +869,12 @@ void ClientEndServerFrames (void)
 
 		ClientEndServerFrame(ent);
 
-		if (updateLayout && ent->client->layout) {
+		// Stagger periodic layout updates: each client on a different frame
+		// within the 3-second cycle, unless forced by teams_changed
+		int clientUpdate = updateLayout ||
+			((level.realFramenum % (3 * HZ)) == (i % (3 * HZ)));
+
+		if (clientUpdate && ent->client->layout) {
 			if (ent->client->layout == LAYOUT_MENU)
 				PMenu_Update(ent);
 			else
@@ -871,7 +889,8 @@ void ClientEndServerFrames (void)
 			spectators++;
 	}
 
-	if (updateLayout && spectators && spectator_hud->value >= 0) {
+	int updateSpectators = updateLayout || !(level.realFramenum % (3 * HZ));
+	if (updateSpectators && spectators && spectator_hud->value >= 0) {
 		G_UpdateSpectatorStatusbar();
 		if (level.spec_statusbar_lastupdate >= level.realFramenum - 3 * HZ)
 		{

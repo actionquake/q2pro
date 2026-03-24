@@ -132,9 +132,8 @@ void MoveClientToIntermission(edict_t *ent)
 	if( ent->is_bot )
 		return;
 #endif
-	// add the layout
-	DeathmatchScoreboardMessage(ent, NULL);
-	gi.unicast(ent, true);
+	// Defer the layout send to ClientEndServerFrames for staggered delivery
+	ent->client->needs_intermission_scoreboard = true;
 }
 
 void BeginIntermission(edict_t *targ)
@@ -415,7 +414,7 @@ void DeathmatchScoreboard(edict_t *ent)
 		return;
 #endif
 	DeathmatchScoreboardMessage(ent, ent->enemy);
-	gi.unicast(ent, true);
+	gi.unicast(ent, false);  // unreliable; periodic refresh catches drops
 }
 
 

@@ -59,6 +59,8 @@ Additions and enhancements by darksaint, Reki, Rektek and the AQ2World team
     - [Grenade Strength](#grenade-strength)
       - [Commands](#commands-21)
     - [Total Kills](#total-kills)
+    - [Scoreboard Delivery](#scoreboard-delivery)
+    - [Configurable Scoreboard](#configurable-scoreboard)
     - [Random Rotation](#random-rotation)
       - [Commands](#commands-22)
     - [Vote Rotation](#vote-rotation)
@@ -603,6 +605,46 @@ Grenades are a little bit more powerful, so they're not as useless as they were 
 
 ### Total Kills
 The scoreboard of TNG will now show the total kills for each player. Kills is the total number of kills without the negatives (suicides, cratering, teamkills) subtracted.
+
+### Scoreboard Delivery
+
+Scoreboard layout messages are staggered across multiple server frames to prevent packet buffer overflows on servers with many players. Previously, all connected clients received their scoreboard update in a single frame, which could overwhelm the server's outbound message buffers — particularly for legacy clients with small reliable message limits (~1400 bytes). With 32 players this could cause client disconnects or server crashes.
+
+**Periodic updates**: Each player's scoreboard refreshes every 3 seconds, but individual clients are spread across different frames within that window. A 32-player server sends ~1 scoreboard per frame instead of 32 at once. Team roster changes (`teams_changed`) still trigger an immediate update to all clients.
+
+**Intermission (end-of-map) scoreboards**: When intermission begins, scoreboard sends are spread across 4 frames (~0.4 seconds) instead of sending all at once. This is imperceptible to players since intermission lasts several seconds.
+
+**On-demand (TAB key)**: Scoreboard requests from pressing the score key are sent as unreliable messages. If the packet is lost, the periodic 3-second refresh fills it in. This eliminates the risk of dropping a client whose reliable buffer was already full.
+
+The maximum scoreboard buffer has been increased from 1024 to 1400 bytes, and the maximum players shown per team raised from 8 to 10, taking advantage of the reduced burst pressure from staggering.
+
+### Configurable Scoreboard
+
+The `scoreboard` cvar accepts a string of field codes that define which columns appear on the in-game scoreboard (accessed via TAB). Each character maps to a column:
+
+| Code | Column | Width |
+|------|--------|-------|
+| `F` | Frags | 5 chars |
+| `N` | Player name | 15 chars |
+| `M` | Time (minutes) | 4 chars |
+| `P` | Ping | 4 chars |
+| `S` | Score | 5 chars |
+| `K` | Kills | 5 chars |
+| `D` | Deaths | 6 chars |
+| `I` | Damage (raw) | 6 chars |
+| `A` | Accuracy (%) | 3 chars |
+| `T` | Team | 4 chars |
+| `C` | CTF Caps | 4 chars |
+
+Default layouts (when `scoreboard` is empty):
+- Standard teamplay: `FNMPIT`
+- Team deathmatch: `FNMPDT`
+- CTF: `SNMPCT`
+- No-score mode: `NMP`
+
+Example: `set scoreboard "FNMPKIT"` replaces frags with kills and adds both raw damage and team columns.
+
+The layout string sent to clients is constrained to 1400 bytes. Each additional column adds approximately 7-8 bytes per player row. Server operators should be mindful of the total column count when many players are connected — if the string exceeds the limit it will be truncated, which may cut off players at the bottom of the list.
 
 ### Random Rotation
 Random Map Rotation will make the server pick a random map from the maplist when the current map ends. This will make the rotations less static.
