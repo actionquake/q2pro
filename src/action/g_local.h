@@ -2022,6 +2022,12 @@ typedef struct
   int deaths;			// deaths
 
   int damage_dealt;		// keep track of damage dealt by player to other players
+  int true_damage_dealt;	// damage dealt capped at victim's remaining HP
+
+  // Last life's true damage breakdown (for truedmg command, persists across respawn)
+  int last_truedmg_player;	// HP lost from other players' instant hits
+  int last_truedmg_bleed;	// HP lost from bleeding ticks
+  int last_truedmg_env;		// HP lost from environment/self damage
 
   int team;			// team the player is on
   int subteam;
@@ -2177,6 +2183,11 @@ struct gclient_s
 	int			damage_knockback;	// impact damage
 	vec3_t		damage_from;		// origin for vector calculation
 	int			damage_dealt;		// total damage dealt to other players (used for hit markers)
+
+	// True damage breakdown (victim-side, per-life, sums to 100 on death)
+	int			truedmg_player;		// HP lost from other players' instant hits
+	int			truedmg_bleed;		// HP lost from bleeding ticks
+	int			truedmg_env;		// HP lost from environment/self damage
 
 	float		killer_yaw;			// when dead, look at killer
 
@@ -2870,6 +2881,7 @@ typedef struct
 	int kills;
 	int deaths;
 	int damage_dealt;
+	int true_damage_dealt;
 	int ctf_caps;
 	int shotsTotal;
 	int hitsTotal;

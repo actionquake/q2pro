@@ -322,6 +322,21 @@ void Cmd_Stats_f (edict_t *targetent, char *arg)
 	gi.cprintf (targetent, PRINT_HIGH, "Average Accuracy:                         %.2f\n", perc_hit); // Average
 	gi.cprintf (targetent, PRINT_HIGH, "\n\x9D\x9E\x9E\x9E\x9E\x9E\x9E\x9E\x9E\x9E\x9E\x9E\x9E\x9E\x9E\x9E\x9E\x9E\x9E\x9E\x9E\x9E\x9E\x9E\x9E\x9E\x9E\x9E\x9E\x9E\x9E\x9E\x9E\x9E\x9E\x9E\x9E\x9E\x9E\x9E\x9E\x9E\x9E\x9E\x9E\x9E\x9E\x9E\x9E\x9E\x9E\x9E\x9E\x9E\x9F\n\n");
 	gi.cprintf(targetent, PRINT_HIGH, "Highest streaks:  kills: %d headshots: %d\n", ent->client->resp.streakKillsHighest, ent->client->resp.streakHSHighest);
+	gi.cprintf(targetent, PRINT_HIGH, "True Damage Dealt: %d  (Raw: %d)\n",
+		ent->client->resp.true_damage_dealt, ent->client->resp.damage_dealt);
+}
+
+void Cmd_TrueDmg_f(edict_t *ent)
+{
+	int p = ent->client->resp.last_truedmg_player;
+	int b = ent->client->resp.last_truedmg_bleed;
+	int e = ent->client->resp.last_truedmg_env;
+	if (p + b + e == 0) {
+		gi.cprintf(ent, PRINT_HIGH, "No true damage data yet.\n");
+		return;
+	}
+	gi.cprintf(ent, PRINT_HIGH, "Last life HP breakdown: %d player, %d bleeding, %d environment (total: %d)\n",
+		p, b, e, p + b + e);
 }
 
 void A_ScoreboardEndLevel (edict_t * ent, edict_t * killer)
@@ -1592,6 +1607,7 @@ void LogEndMatchStats(void)
 			ghlient->resp.kills = ghost->kills;
 			ghlient->resp.deaths = ghost->deaths;
 			ghlient->resp.damage_dealt = ghost->damage_dealt;
+			ghlient->resp.true_damage_dealt = ghost->true_damage_dealt;
 			ghlient->resp.ctf_caps = ghost->ctf_caps;
 			ghlient->resp.ctf_capstreak = ghost->ctf_capstreak;
 			ghlient->resp.team_kills = ghost->team_kills;
