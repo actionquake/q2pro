@@ -695,6 +695,7 @@ void InitGame( void )
 
 	// 2026
 	use_buggy_ent_hitbox = gi.cvar("use_buggy_ent_hitbox", "1", 0);
+	mm_carryover = gi.cvar("mm_carryover", "0", CVAR_LATCH);
 
 	// new AQtion Extension cvars
 #ifdef AQTION_EXTENSION

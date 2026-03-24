@@ -268,6 +268,15 @@ The forfeit system provides two ways to end a match early: captain-initiated for
 
 **Abandonment Forfeit**: When enabled, if all teams have zero players during a match in progress (at least one round played or any team has a score), the abandon timer begins counting down. If a player reconnects and joins a team before the timer expires, it resets. Warnings are printed at 30 seconds, 10 seconds, and a final 5-second countdown. If the timer expires, the match ends with no score awarded.
 
+#### Score Carryover
+
+In multi-map matches (e.g., best-of-two), team scores are normally reset when the map changes. Enabling `mm_carryover` preserves team scores from the first map into the second map, so the final scoreboard reflects the cumulative result across both maps.
+
+- Server settings:
+  - `mm_carryover [0/1]` - Carry over team scores from map 1 to map 2 (default: 0). Requires matchmode to be enabled. Supports `use_3teams`.
+
+After the second map concludes, the carryover is automatically cleared. Stat logging subtracts the carried-over scores so that per-map statistics remain accurate.
+
 #### Timeout Settings
 
 Timeouts allow teams to pause the match for a strategic break. The following cvars control timeout behavior:
