@@ -1984,6 +1984,7 @@ static cmdList_t commandList[] =
 	{ "sub", Cmd_Sub_f, 0 },
 	{ "captain", Cmd_Captain_f, 0 },
 	{ "ready", Cmd_Ready_f, 0 },
+	{ "forfeit", Cmd_Forfeit_f, 0 },
 	{ "teamname", Cmd_Teamname_f, 0 },
 	{ "teamskin", Cmd_Teamskin_f, 0 },
 	{ "teamnone", Cmd_Teamnone_f, 0 },

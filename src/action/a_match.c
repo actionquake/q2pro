@@ -153,6 +153,7 @@ void MM_SetCaptain( int teamNum, edict_t *ent )
 			gi.bprintf( PRINT_HIGH, "%s is no longer %s's captain\n", oldCaptain->client->pers.netname, teams[teamNum].name );
 		}
 		teams[teamNum].locked = 0;
+		teams[teamNum].forfeit = 0;
 		return;
 	}
 
@@ -322,6 +323,165 @@ void Cmd_Ready_f(edict_t * ent)
 	team->ready = !team->ready;
 	Q_snprintf( temp, sizeof( temp ), "%s %s ready to play!", team->name, (team->ready) ? "is" : "is no longer" );
 	CenterPrintAll( temp );
+}
+
+/*
+==============
+Cmd_Forfeit_f
+==============
+Captain issues forfeit. First use sets pending state, second use confirms.
+Match ends when a captain confirms forfeit.
+*/
+void Cmd_Forfeit_f(edict_t * ent)
+{
+	char temp[128];
+	int teamNum;
+	team_t *team;
+
+	if (!matchmode->value) {
+		gi.cprintf(ent, PRINT_HIGH, "This command needs matchmode to be enabled\n");
+		return;
+	}
+
+	if (!use_forfeit->value) {
+		gi.cprintf(ent, PRINT_HIGH, "Forfeit is not enabled on this server\n");
+		return;
+	}
+
+	teamNum = ent->client->resp.team;
+	if (teamNum == NOTEAM) {
+		gi.cprintf(ent, PRINT_HIGH, "You need to be on a team for that...\n");
+		return;
+	}
+
+	team = &teams[teamNum];
+	if (team->captain != ent) {
+		gi.cprintf(ent, PRINT_HIGH, "You need to be a captain for that\n");
+		return;
+	}
+
+	if (!team_game_going) {
+		gi.cprintf(ent, PRINT_HIGH, "There is no match in progress\n");
+		return;
+	}
+
+	if (team->forfeit == 0) {
+		// First use: set pending
+		team->forfeit = 1;
+		Q_snprintf(temp, sizeof(temp), "%s captain wants to forfeit! Type forfeit again to confirm.", team->name);
+		gi.bprintf(PRINT_HIGH, "%s\n", temp);
+		CenterPrintAll(temp);
+	} else if (team->forfeit == 1) {
+		// Second use: confirm and end match
+		int i;
+
+		team->forfeit = 2;
+		Q_snprintf(temp, sizeof(temp), "%s has forfeited. Match is over!", team->name);
+		gi.bprintf(PRINT_HIGH, "%s\n", temp);
+		CenterPrintAll(temp);
+		IRC_printf(IRC_T_GAME, "%n has forfeited. Match is over!", team->name);
+
+		SendScores();
+
+		for (i = TEAM1; i < TEAM_TOP; i++) {
+			teams[i].ready = 0;
+			teams[i].forfeit = 0;
+		}
+
+		team_round_going = team_round_countdown = team_game_going = 0;
+		MakeAllLivePlayersObservers();
+	}
+}
+
+/*
+==============
+CheckAbandon
+==============
+Called every frame during matchmode. If all teams have zero players
+and a match was in progress, count down the abandon timer.
+Returns true if match was ended by abandonment.
+*/
+qboolean CheckAbandon(void)
+{
+	int i;
+	qboolean match_in_progress;
+	qboolean all_teams_empty;
+
+	if (!matchmode->value || !use_forfeit->value)
+		return false;
+
+	if (!team_game_going)
+		return false;
+
+	// Check if a match is considered in progress
+	match_in_progress = false;
+	for (i = TEAM1; i <= teamCount; i++) {
+		if (teams[i].score > 0) {
+			match_in_progress = true;
+			break;
+		}
+	}
+	if (!match_in_progress && game.roundNum > 0)
+		match_in_progress = true;
+
+	if (!match_in_progress)
+		return false;
+
+	// Check if all teams are empty
+	all_teams_empty = true;
+	for (i = TEAM1; i <= teamCount; i++) {
+		if (TeamHasPlayers(i)) {
+			all_teams_empty = false;
+			break;
+		}
+	}
+
+	if (!all_teams_empty) {
+		// Reset timer if someone is on a team
+		if (level.abandonFrames)
+			level.abandonFrames = 0;
+		return false;
+	}
+
+	// All teams empty, start or continue countdown
+	if (!level.abandonFrames) {
+		level.abandonFrames = (int)(forfeit_abandon_time->value * HZ);
+		gi.bprintf(PRINT_HIGH, "All teams abandoned! Match will end in %i seconds if no one rejoins.\n",
+			(int)forfeit_abandon_time->value);
+	}
+
+	if (level.abandonFrames > 0) {
+		// Print warnings at key intervals
+		if (level.abandonFrames <= 5 * HZ) {
+			if (level.abandonFrames % HZ == 0)
+				gi.bprintf(PRINT_HIGH, "Abandon forfeit in %i seconds...\n", level.abandonFrames / HZ);
+		} else if (level.abandonFrames == 10 * HZ) {
+			gi.bprintf(PRINT_HIGH, "Abandon forfeit in 10 seconds!\n");
+		} else if (level.abandonFrames == 30 * HZ) {
+			gi.bprintf(PRINT_HIGH, "Abandon forfeit in 30 seconds...\n");
+		}
+
+		level.abandonFrames--;
+
+		if (level.abandonFrames <= 0) {
+			gi.bprintf(PRINT_HIGH, "Match forfeited due to abandonment!\n");
+			IRC_printf(IRC_T_GAME, "Match forfeited due to abandonment!");
+
+			SendScores();
+
+			for (i = TEAM1; i < TEAM_TOP; i++) {
+				teams[i].ready = 0;
+				teams[i].forfeit = 0;
+			}
+
+			team_round_going = team_round_countdown = team_game_going = 0;
+			MakeAllLivePlayersObservers();
+			level.abandonFrames = 0;
+			return true;
+		}
+	}
+
+	return false;
 }
 
 void Cmd_Teamname_f(edict_t * ent)

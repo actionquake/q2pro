@@ -254,6 +254,19 @@ Clients will have a few more things to do during matchmode: they have to have a 
   - `lock` - allows a captain to lock his team. When a team is locked, no one can join it. Locks are removed on a new map
   - `unlock` - allows a captain to unlock his team
   - `timeout` - Request a timeout for your team. Must be a captain. The timeout will be granted at the end of the current round. Each team gets a limited number of timeouts per match.
+  - `forfeit` - Captain-only command to forfeit the match. Must be typed twice to confirm — the first use signals intent, the second confirms. The match ends immediately on confirmation. Requires `use_forfeit 1`.
+
+#### Forfeit Settings
+
+The forfeit system provides two ways to end a match early: captain-initiated forfeit and automatic abandonment detection.
+
+- Server settings:
+  - `use_forfeit [0/1]` - Enables the forfeit command and abandonment detection (default: 0)
+  - `forfeit_abandon_time [#]` - Seconds to wait before ending an abandoned match (default: 60)
+
+**Captain Forfeit**: When enabled, a team captain can type `forfeit` to signal intent. The server broadcasts a warning to all players. The captain must type `forfeit` a second time to confirm. Once confirmed, the match ends with no score awarded to either team. The pending state persists until confirmed or until the captain resigns/disconnects.
+
+**Abandonment Forfeit**: When enabled, if all teams have zero players during a match in progress (at least one round played or any team has a score), the abandon timer begins counting down. If a player reconnects and joins a team before the timer expires, it resets. Warnings are printed at 30 seconds, 10 seconds, and a final 5-second countdown. If the timer expires, the match ends with no score awarded.
 
 #### Timeout Settings
 
