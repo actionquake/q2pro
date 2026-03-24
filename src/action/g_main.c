@@ -603,6 +603,7 @@ cvar_t *bots; 		// If bots are enabled and in the server
 
 // 2026
 cvar_t *use_buggy_ent_hitbox;  // Enables classic dead entity hitbox
+cvar_t *mm_carryover; // Carry over team scores across maps in matchmode
 
 #ifdef AQTION_EXTENSION
 cvar_t *use_newirvision;
@@ -1251,6 +1252,17 @@ void ExitLevel (void)
 	// clear some things before going to next level
 	if (teamplay->value)
 	{
+		// Save scores for carryover if enabled in matchmode
+		if (mm_carryover->value && matchmode->value && !game.carryover_active)
+		{
+			for(i=TEAM1; i<TEAM_TOP; i++)
+				game.carryover_scores[i] = teams[i].score;
+			gi.dprintf("Matchmode carryover: saved scores t1=%d t2=%d t3=%d\n",
+				game.carryover_scores[TEAM1],
+				game.carryover_scores[TEAM2],
+				game.carryover_scores[TEAM3]);
+		}
+
 		for(i=TEAM1; i<TEAM_TOP; i++)
 		{
 			teams[i].score = 0;

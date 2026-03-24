@@ -1217,6 +1217,26 @@ void SpawnEntities (const char *mapname, const char *entities, const char *spawn
 			gi.cvar_forceset(teams[i].teamscore->name, "0");
 	}
 
+	// Restore carried-over scores from previous map in matchmode
+	if (mm_carryover->value && matchmode->value &&
+		(game.carryover_scores[TEAM1] || game.carryover_scores[TEAM2] || game.carryover_scores[TEAM3]))
+	{
+		for(i = TEAM1; i < TEAM_TOP; i++)
+		{
+			teams[i].score = game.carryover_scores[i];
+			if (teams[i].teamscore) {
+				char val[16];
+				Q_snprintf(val, sizeof(val), "%d", game.carryover_scores[i]);
+				gi.cvar_forceset(teams[i].teamscore->name, val);
+			}
+		}
+		game.carryover_active = true;
+		gi.dprintf("Matchmode carryover: restored scores t1=%d t2=%d t3=%d\n",
+			game.carryover_scores[TEAM1],
+			game.carryover_scores[TEAM2],
+			game.carryover_scores[TEAM3]);
+	}
+
 	day_cycle_at = 0;
 	team_round_going = team_game_going = team_round_countdown = 0;
 	lights_camera_action = holding_on_tie_check = 0;

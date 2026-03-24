@@ -92,6 +92,16 @@ void SendScores(void)
 	// Stats: Reset roundNum
 	game.roundNum = 0;
 	// Stats end
+
+	// Clear carryover after map 2 is done
+	if (game.carryover_active)
+	{
+		int i;
+		for(i = TEAM1; i < TEAM_TOP; i++)
+			game.carryover_scores[i] = 0;
+		game.carryover_active = false;
+		gi.dprintf("Matchmode carryover: cleared after map 2\n");
+	}
 }
 
 void Cmd_Sub_f(edict_t * ent)
