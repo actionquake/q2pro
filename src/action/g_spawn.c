@@ -1236,6 +1236,10 @@ void SpawnEntities (const char *mapname, const char *entities, const char *spawn
 			game.carryover_scores[TEAM2],
 			game.carryover_scores[TEAM3]);
 	}
+	else
+	{
+		game.carryover_active = false;
+	}
 
 	day_cycle_at = 0;
 	team_round_going = team_game_going = team_round_countdown = 0;
