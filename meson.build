@@ -364,7 +364,7 @@ fallback_opt = ['default_library=static']
 
 zlib = dependency('zlib',
   required:        get_option('zlib'),
-  default_options: fallback_opt + [ 'tests=disabled' ],
+  default_options: fallback_opt + [ 'tests=disabled', 'zlib-compat=true' ],
 )
 
 if not zlib.found()
