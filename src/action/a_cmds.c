@@ -1314,6 +1314,7 @@ void Cmd_Ghost_f(edict_t * ent)
 	ent->client->resp.team_kills = ghost->team_kills;
 	ent->client->resp.streakKillsHighest = ghost->streakKillsHighest;
 	ent->client->resp.streakHSHighest = ghost->streakHSHighest;
+	ent->client->resp.active_frames = ghost->active_frames;
 
 	if (teamplay->value && ghost->team && ghost->team != ent->client->resp.team)
 			JoinTeam( ent, ghost->team, 1 );

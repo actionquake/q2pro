@@ -767,6 +767,8 @@ For this, TNG has two new commands.
 ### Statistics
 To see how well players are doing, we have implemented statistics into TNG. This feature will track various statistics of each player, for example accuracy or frags per minute. Tracked stats include shots fired and hits for all weapons, including punch attacks and grenade throws.
 
+In matchmode, FPM is calculated using active match play time rather than total connected time. Only frames where the player is on a team and not a substitute count toward the FPM denominator. This means connecting early during warmup, spectating, or being a sub does not inflate your play time. In non-matchmode games, FPM uses total connected time as before.
+
 **Commands:**
 - `stats_endmap [0/1]` - when set to 1, this will display the stats scoreboard at the end of the map instead of the normal screen.
 - `stats_afterround [0/1]` - when on (1), this will also record stats for events that happen when a round ends, for example when ff_afterround or FF is on.

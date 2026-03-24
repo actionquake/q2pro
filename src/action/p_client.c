@@ -4047,6 +4047,7 @@ void CreateGhost(edict_t * ent)
 	ghost->team_kills = ent->client->resp.team_kills;
 	ghost->streakKillsHighest = ent->client->resp.streakKillsHighest;
 	ghost->streakHSHighest = ent->client->resp.streakHSHighest;
+	ghost->active_frames = ent->client->resp.active_frames;
 
 	// Teamplay variables
 	if (teamplay->value) {
