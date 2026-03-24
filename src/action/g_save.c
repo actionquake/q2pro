@@ -702,6 +702,7 @@ void InitGame( void )
 	use_newirvision = gi.cvar("use_newirvision", "1", CVAR_SERVERINFO_EXT);
 	use_indicators = gi.cvar("use_indicators", "1", CVAR_SERVERINFO_EXT);
 	use_xerp = gi.cvar("use_xerp", "1", CVAR_SERVERINFO_EXT);
+	force_cl_xerp = gi.cvar("force_cl_xerp", "0", CVAR_SERVERINFO_EXT);
 #endif
 
 	// Discord SDK integration with Q2Pro
