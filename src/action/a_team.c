@@ -1944,6 +1944,7 @@ void ResetScores (qboolean playerScores)
 	timewarning = fragwarning = 0;
 	level.pauseFrames = 0;
 	level.timeoutFrames = 0;
+	level.abandonFrames = 0;
 	level.matchTime = 0;
 	num_ghost_players = 0;
 
@@ -1954,6 +1955,7 @@ void ResetScores (qboolean playerScores)
 		teams[i].score = teams[i].total = 0;
 		teams[i].ready = teams[i].locked = 0;
 		teams[i].pauses_used = teams[i].wantReset = 0;
+		teams[i].forfeit = 0;
 		teams[i].timeout_count = (int)mm_timeoutcount->value;
 		if (teams[i].teamscore)
 			gi.cvar_forceset(teams[i].teamscore->name, "0");
@@ -2821,7 +2823,10 @@ int WonGame (int winner)
 	
 	if (CheckRoundLimit())
 		return 1;
-	
+
+	if (CheckAbandon())
+		return 1;
+
 	if (vCheckVote()) {
 		EndDMLevel ();
 		team_round_going = team_round_countdown = team_game_going = 0;

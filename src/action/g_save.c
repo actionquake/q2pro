@@ -492,6 +492,8 @@ void InitGame( void )
 	mm_pausetime = gi.cvar( "mm_pausetime", "2", CVAR_LATCH );
 	mm_timeoutcount = gi.cvar( "mm_timeoutcount", "1", CVAR_LATCH ); // 1 timeout
 	mm_timeouttime = gi.cvar( "mm_timeouttime", "60", CVAR_LATCH ); // 60 seconds
+	use_forfeit = gi.cvar( "use_forfeit", "0", 0 ); // Enable forfeit command
+	forfeit_abandon_time = gi.cvar( "forfeit_abandon_time", "60", 0 ); // Abandon timer in seconds
 
 	teams[TEAM1].teamscore = gi.cvar("t1", "0", CVAR_SERVERINFO | CVAR_SERVERINFO_EXT | CVAR_NOSET);
 	teams[TEAM2].teamscore = gi.cvar("t2", "0", CVAR_SERVERINFO | CVAR_SERVERINFO_EXT | CVAR_NOSET);

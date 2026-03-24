@@ -428,6 +428,8 @@ cvar_t *mm_pausecount;
 cvar_t *mm_pausetime;
 cvar_t *mm_timeoutcount;
 cvar_t *mm_timeouttime;
+cvar_t *use_forfeit;
+cvar_t *forfeit_abandon_time;
 
 cvar_t *teamdm;
 cvar_t *teamdm_respawn;

@@ -972,6 +972,7 @@ typedef struct
   int timeoutFrames;
   float matchTime;
   float emptyTime;
+  int abandonFrames;  // Countdown for abandon forfeit
   int weapon_sound_framenum;
   int pic_teamplay_timer_icon;
 
@@ -1277,6 +1278,8 @@ extern cvar_t *mm_pausecount;
 extern cvar_t *mm_pausetime;
 extern cvar_t *mm_timeoutcount;
 extern cvar_t *mm_timeouttime;
+extern cvar_t *use_forfeit;
+extern cvar_t *forfeit_abandon_time;
 
 extern cvar_t *teamdm;
 extern cvar_t *teamdm_respawn;
@@ -3010,6 +3013,8 @@ typedef struct team_s
 #endif
   	// Timeout feature
   	int timeout_count;
+	// Forfeit
+	int forfeit;  // 0 = none, 1 = pending, 2 = confirmed
 }team_t;
 
 extern team_t teams[TEAM_TOP];
