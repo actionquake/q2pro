@@ -400,6 +400,57 @@ int R_DrawString(int x, int y, int flags, size_t maxlen, const char *s, qhandle_
     return x;
 }
 
+// Scaled character drawing for GHUD
+static inline void draw_char_scaled(int x, int y, int flags, int c, const image_t *image, int char_w, int char_h)
+{
+    float s, t;
+
+    if ((c & 127) == 32)
+        return;
+
+    if (flags & UI_ALTCOLOR)
+        c |= 0x80;
+
+    if (flags & UI_XORCOLOR)
+        c ^= 0x80;
+
+    s = (c & 15) * 0.0625f;
+    t = (c >> 4) * 0.0625f;
+
+    if (flags & UI_DROPSHADOW && c != 0x83) {
+        uint32_t black = draw.colors[0].u32 & U32_ALPHA;
+        int shd = max(char_w / CONCHAR_WIDTH, 1);
+
+        GL_StretchPic(x + shd, y + shd, char_w, char_h, s, t,
+                      s + 0.0625f, t + 0.0625f, black, image);
+
+        if (gl_fontshadow->integer > 1)
+            GL_StretchPic(x + shd * 2, y + shd * 2, char_w, char_h, s, t,
+                          s + 0.0625f, t + 0.0625f, black, image);
+    }
+
+    GL_StretchPic(x, y, char_w, char_h, s, t,
+                  s + 0.0625f, t + 0.0625f, draw.colors[c >> 7].u32, image);
+}
+
+int R_DrawStringScaled(int x, int y, int flags, size_t maxlen, const char *s, qhandle_t font, int scale)
+{
+    const image_t *image = IMG_ForHandle(font);
+    int char_w = CONCHAR_WIDTH * scale;
+    int char_h = CONCHAR_HEIGHT * scale;
+
+    if (gl_fontshadow->integer > 0)
+        flags |= UI_DROPSHADOW;
+
+    while (maxlen-- && *s) {
+        byte c = *s++;
+        draw_char_scaled(x, y, flags, c, image, char_w, char_h);
+        x += char_w;
+    }
+
+    return x;
+}
+
 #if USE_DEBUG
 
 qhandle_t r_charset;

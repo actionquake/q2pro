@@ -6420,6 +6420,10 @@ void ClientBeginServerFrame(edict_t * ent)
 	{
 		HUD_ClientUpdate(ent);
 	}
+
+	// Update GHUD scoreboard if visible
+	if (client->resp.sb_active)
+		HUD_ScoreboardUpdate(ent);
 #endif
 
 	if (client->resp.penalty > 0 && level.realFramenum % HZ == 0)

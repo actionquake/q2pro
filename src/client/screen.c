@@ -2548,19 +2548,26 @@ static void SCR_DrawGhudElement(ghud_element_t *element, float alpha_base, color
     case GHT_TEXT:;
         int length = strlen(element->text);
         int uiflags = element->size[0] | (element->size[1] << 16);
+        int scale = (element->flags & GHF_SCALE2X) ? 2 : 1;
+        int cw = CONCHAR_WIDTH * scale;
+        int ch = CONCHAR_HEIGHT * scale;
+
         if ((uiflags & UI_CENTER) == UI_CENTER)
-            x -= (length * CONCHAR_WIDTH * 0.5);
+            x -= (length * cw / 2);
         else if (uiflags & UI_RIGHT)
-            x -= (length * CONCHAR_WIDTH);
+            x -= (length * cw);
 
         if ((uiflags & UI_MIDDLE) == UI_MIDDLE)
-            y -= (length * CONCHAR_HEIGHT * 0.5);
+            y -= (ch / 2);
         else if (uiflags & UI_BOTTOM)
-            y -= (length * CONCHAR_HEIGHT);
+            y -= ch;
 
         uiflags &= ~(UI_LEFT | UI_RIGHT | UI_TOP | UI_BOTTOM);
 
-        R_DrawString(x, y, uiflags, MAX_STRING_CHARS, element->text, scr.font_pic);
+        if (scale > 1)
+            R_DrawStringScaled(x, y, uiflags, MAX_STRING_CHARS, element->text, scr.font_pic, scale);
+        else
+            R_DrawString(x, y, uiflags, MAX_STRING_CHARS, element->text, scr.font_pic);
         break;
     case GHT_IMG:
         if (!element->val)

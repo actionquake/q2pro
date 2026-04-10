@@ -2096,6 +2096,8 @@ typedef struct
 #ifdef AQTION_EXTENSION
   int	hud_items[128];
   int	hud_type;
+  int	sb_items[140];		// GHUD scoreboard element IDs
+  qboolean sb_active;		// GHUD scoreboard currently visible
 #endif
 
   int esp_state;
@@ -3070,6 +3072,38 @@ void HUD_ClientSetup(edict_t *clent);
 void HUD_ClientUpdate(edict_t *clent);
 void HUD_SpectatorSetup(edict_t *clent);
 void HUD_SpectatorUpdate(edict_t *clent);
+
+// GHUD Scoreboard
+#define SB_MAX_ROWS		10	// max players per team
+#define SB_COLS			4	// elements per player row: bg, name, stats, ping
+
+// Per-row elements: bg, health bar, name, stats, weapon icon, item icon
+#define SB_COLS			6
+
+// Scoreboard element indices in sb_items[]
+typedef enum {
+	sb_bg = 0,				// full background panel
+	sb_header_t1,			// team 1 header bg
+	sb_header_t1_icon,		// team 1 skin icon
+	sb_header_t1_name,		// team 1 name text
+	sb_header_t1_score,		// team 1 score number
+	sb_header_t2,			// team 2 header bg
+	sb_header_t2_icon,		// team 2 skin icon
+	sb_header_t2_name,		// team 2 name text
+	sb_header_t2_score,		// team 2 score number
+	sb_col_header_t1,		// team 1 column header text
+	sb_col_header_t2,		// team 2 column header text
+	sb_footer_bg,			// footer background
+	sb_footer_text,			// footer info text
+	sb_rows_t1 = 14,		// team 1 rows start (SB_MAX_ROWS * SB_COLS = 60 elements)
+	sb_rows_t2 = 74,		// team 2 rows start (60 more)
+	sb_rows_end = 134,		// must fit in sb_items[128]... let me recalculate
+} sbitem_t;
+
+void HUD_ScoreboardSetup(edict_t *clent);
+void HUD_ScoreboardUpdate(edict_t *clent);
+void HUD_ScoreboardShow(edict_t *clent);
+void HUD_ScoreboardHide(edict_t *clent);
 
 // cvar sync
 typedef enum {
