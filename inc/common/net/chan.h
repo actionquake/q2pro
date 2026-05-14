@@ -22,64 +22,50 @@ with this program; if not, write to the Free Software Foundation, Inc.,
 #include "common/net/net.h"
 #include "common/sizebuf.h"
 
-typedef enum netchan_type_e {
+typedef enum {
     NETCHAN_OLD,
     NETCHAN_NEW
 } netchan_type_t;
 
-typedef struct netchan_s {
+typedef struct {
     netchan_type_t  type;
     int         protocol;
-    size_t      maxpacketlen;
-
-    bool        fatal_error;
+    unsigned    maxpacketlen;
 
     netsrc_t    sock;
 
-    int         dropped;            // between last packet and previous
+    unsigned    dropped;            // between last packet and previous
     unsigned    total_dropped;      // for statistics
     unsigned    total_received;
 
     unsigned    last_received;      // for timeouts
     unsigned    last_sent;          // for retransmits
 
-    netadr_t    remote_address;
     int         qport;              // qport value to write when transmitting
+    netadr_t    remote_address;
 
     sizebuf_t   message;            // writing buffer for reliable data
-
-    size_t      reliable_length;
 
     bool        reliable_ack_pending;   // set to true each time reliable is received
     bool        fragment_pending;
 
     // sequencing variables
-    int         incoming_sequence;
-    int         incoming_acknowledged;
-    int         outgoing_sequence;
+    unsigned    incoming_sequence;
+    unsigned    incoming_acknowledged;
+    unsigned    outgoing_sequence;
 
     bool        incoming_reliable_acknowledged; // single bit
     bool        incoming_reliable_sequence;     // single bit, maintained local
     bool        reliable_sequence;          // single bit
-    int         last_reliable_sequence;     // sequence number of last send
-    int         fragment_sequence;
-
-    byte        *message_buf;       // leave space for header
+    unsigned    last_reliable_sequence;     // sequence number of last send
+    unsigned    fragment_sequence;
 
     // message is copied to this buffer when it is first transfered
+    unsigned    reliable_length;
     byte        *reliable_buf;      // unacked reliable message
 
     sizebuf_t   fragment_in;
-    byte        *fragment_in_buf;
-
     sizebuf_t   fragment_out;
-    byte        *fragment_out_buf;
-
-    // common methods
-    size_t      (*Transmit)(struct netchan_s *, size_t, const void *, int);
-    size_t      (*TransmitNextFragment)(struct netchan_s *);
-    bool        (*Process)(struct netchan_s *);
-    bool        (*ShouldUpdate)(struct netchan_s *);
 } netchan_t;
 
 extern cvar_t       *net_qport;
@@ -89,9 +75,18 @@ extern cvar_t       *net_chantype;
 void Netchan_Init(void);
 void Netchan_OutOfBand(netsrc_t sock, const netadr_t *adr,
                        const char *format, ...) q_printf(3, 4);
-void Netchan_Setup(netchan_t *netchan, netsrc_t sock, netchan_type_t type,
+void Netchan_Setup(netchan_t *chan, netsrc_t sock, netchan_type_t type,
                    const netadr_t *adr, int qport, size_t maxpacketlen, int protocol);
-void Netchan_Close(netchan_t *netchan);
+int Netchan_Transmit(netchan_t *chan, size_t length, const void *data, int numpackets);
+int Netchan_TransmitNextFragment(netchan_t *chan);
+bool Netchan_Process(netchan_t *chan);
+bool Netchan_ShouldUpdate(const netchan_t *chan);
+void Netchan_Close(netchan_t *chan);
+
+static inline bool Netchan_SeqTooBig(const netchan_t *chan)
+{
+    return chan->outgoing_sequence >= BIT(31 - chan->type) - 256;
+}
 
 #define OOB_PRINT(sock, addr, data) \
     NET_SendPacket(sock, CONST_STR_LEN("\xff\xff\xff\xff" data), addr)

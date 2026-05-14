@@ -51,7 +51,7 @@ static const cmd_option_t o_common[] = {
 static void add_string(menuSpinControl_t *s, const char *tok)
 {
     if (s->numItems < MAX_MENU_ITEMS) {
-        s->itemnames = Z_Realloc(s->itemnames, ALIGN(s->numItems + 2, MIN_MENU_ITEMS) * sizeof(char *));
+        s->itemnames = Z_Realloc(s->itemnames, Q_ALIGN(s->numItems + 2, MIN_MENU_ITEMS) * sizeof(char *));
         s->itemnames[s->numItems++] = UI_CopyString(tok);
     }
 }
@@ -220,10 +220,10 @@ static void Parse_Range(menuFrameWork_t *menu)
     s->generic.name = UI_CopyString(Cmd_Argv(cmd_optind));
     s->generic.status = UI_CopyString(status);
     s->cvar = Cvar_WeakGet(Cmd_Argv(cmd_optind + 1));
-    s->minvalue = atof(Cmd_Argv(cmd_optind + 2));
-    s->maxvalue = atof(Cmd_Argv(cmd_optind + 3));
+    s->minvalue = Q_atof(Cmd_Argv(cmd_optind + 2));
+    s->maxvalue = Q_atof(Cmd_Argv(cmd_optind + 3));
     if (Cmd_Argc() - cmd_optind > 4) {
-        s->step = atof(Cmd_Argv(cmd_optind + 4));
+        s->step = Q_atof(Cmd_Argv(cmd_optind + 4));
     } else {
         s->step = (s->maxvalue - s->minvalue) / SLIDER_RANGE;
     }
@@ -393,7 +393,7 @@ static void Parse_Savegame(menuFrameWork_t *menu, menuType_t type)
 
 static void Parse_Toggle(menuFrameWork_t *menu)
 {
-    static const char *yes_no_names[] = { "no", "yes", NULL };
+    static const char *const yes_no_names[] = { "no", "yes", NULL };
     menuSpinControl_t *s;
     bool negate = false;
     menuType_t type = MTYPE_TOGGLE;
@@ -421,7 +421,7 @@ static void Parse_Toggle(menuFrameWork_t *menu)
         b++;
     }
     if (*b) {
-        bit = atoi(b);
+        bit = Q_atoi(b);
         if (bit < 0 || bit >= 32) {
             Com_Printf("Invalid bit number: %d\n", bit);
             return;
@@ -472,7 +472,7 @@ static void Parse_Field(menuFrameWork_t *menu)
             status = cmd_optarg;
             break;
         case 'w':
-            width = atoi(cmd_optarg);
+            width = Q_atoi(cmd_optarg);
             if (width < 1 || width > 32) {
                 Com_Printf("Invalid width\n");
                 return;

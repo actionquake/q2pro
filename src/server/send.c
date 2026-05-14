@@ -29,11 +29,12 @@ MISC
 
 char sv_outputbuf[SV_OUTPUTBUF_LENGTH];
 
-void SV_FlushRedirect(int redirected, char *outputbuf, size_t len)
+void SV_FlushRedirect(int redirected, const char *outputbuf, size_t len)
 {
     byte    buffer[MAX_PACKETLEN_DEFAULT];
 
     if (redirected == RD_PACKET) {
+        Q_assert(len <= sizeof(buffer) - 10);
         memcpy(buffer, "\xff\xff\xff\xffprint\n", 10);
         memcpy(buffer + 10, outputbuf, len);
         NET_SendPacket(NS_SERVER, buffer, len + 10, &net_from);
@@ -70,11 +71,11 @@ static bool SV_RateDrop(client_t *client)
     }
 
 #if USE_FPS
-    total = total * sv.framediv / client->framediv;
+    total = total * sv.frametime.div / client->framediv;
 #endif
 
     if (total > client->rate) {
-        SV_DPrintf(0, "Frame %d suppressed for %s (total = %zu)\n",
+        SV_DPrintf(1, "Frame %d suppressed for %s (total = %zu)\n",
                    client->framenum, client->name, total);
         client->frameflags |= FF_SUPPRESSED;
         client->suppress_count++;
@@ -85,7 +86,7 @@ static bool SV_RateDrop(client_t *client)
     return false;
 }
 
-static void SV_CalcSendTime(client_t *client, size_t size)
+static void SV_CalcSendTime(client_t *client, unsigned size)
 {
     // never drop over the loopback
     if (!client->rate) {
@@ -254,40 +255,33 @@ MULTICAST_PHS    send to clients potentially hearable from org
 */
 void SV_Multicast(const vec3_t origin, multicast_t to)
 {
-    client_t    *client;
-    byte        mask[VIS_MAX_BYTES];
-    mleaf_t     *leaf1 = NULL, *leaf2;
-    int         leafnum q_unused = 0;
-    int         flags = 0;
+    client_t        *client;
+    byte            mask[VIS_MAX_BYTES];
+    const mleaf_t   *leaf1 = NULL;
+    int             flags = 0;
 
-    if (!sv.cm.cache) {
-        Com_Error(ERR_DROP, "%s: no map loaded", __func__);
+    if (to < MULTICAST_ALL || to > MULTICAST_PVS_R)
+        Com_Error(ERR_DROP, "%s: bad to: %d", __func__, to);
+
+    if (to >= MULTICAST_ALL_R) {
+        flags |= MSG_RELIABLE;
+        to -= MULTICAST_ALL_R;
     }
 
-    switch (to) {
-    case MULTICAST_ALL_R:
-        flags |= MSG_RELIABLE;
-        // intentional fallthrough
-    case MULTICAST_ALL:
-        break;
-    case MULTICAST_PHS_R:
-        flags |= MSG_RELIABLE;
-        // intentional fallthrough
-    case MULTICAST_PHS:
+    if (to && !origin)
+        Com_Error(ERR_DROP, "%s: NULL origin", __func__);
+
+    if (msg_write.overflowed)
+        Com_Error(ERR_DROP, "%s: message buffer overflowed", __func__);
+
+    if (!msg_write.cursize) {
+        Com_DPrintf("%s with empty data\n", __func__);
+        return;
+    }
+
+    if (to) {
         leaf1 = CM_PointLeaf(&sv.cm, origin);
-        leafnum = leaf1 - sv.cm.cache->leafs;
-        BSP_ClusterVis(sv.cm.cache, mask, leaf1->cluster, DVIS_PHS);
-        break;
-    case MULTICAST_PVS_R:
-        flags |= MSG_RELIABLE;
-        // intentional fallthrough
-    case MULTICAST_PVS:
-        leaf1 = CM_PointLeaf(&sv.cm, origin);
-        leafnum = leaf1 - sv.cm.cache->leafs;
-        BSP_ClusterVis(sv.cm.cache, mask, leaf1->cluster, DVIS_PVS);
-        break;
-    default:
-        Com_Error(ERR_DROP, "SV_Multicast: bad to: %i", to);
+        BSP_ClusterVis(sv.cm.cache, mask, leaf1->cluster, MULTICAST_PVS - to);
     }
 
     // send the data to all relevent clients
@@ -300,8 +294,8 @@ void SV_Multicast(const vec3_t origin, multicast_t to)
             continue;
         }
 
-        if (leaf1) {
-            leaf2 = CM_PointLeaf(&sv.cm, client->edict->s.origin);
+        if (to) {
+            const mleaf_t *leaf2 = CM_PointLeaf(&sv.cm, client->edict->s.origin);
             if (!CM_AreasConnected(&sv.cm, leaf1->area, leaf2->area))
                 continue;
             if (leaf2->cluster == -1)
@@ -314,14 +308,14 @@ void SV_Multicast(const vec3_t origin, multicast_t to)
     }
 
     // add to MVD datagram
-    SV_MvdMulticast(leafnum, to);
+    SV_MvdMulticast(leaf1, to, flags & MSG_RELIABLE);
 
     // clear the buffer
     SZ_Clear(&msg_write);
 }
 
 #if USE_ZLIB
-static bool can_auto_compress(client_t *client)
+static bool can_auto_compress(const client_t *client)
 {
     if (!client->has_zlib)
         return false;
@@ -341,7 +335,7 @@ static bool can_auto_compress(client_t *client)
     return true;
 }
 
-static int compress_message(client_t *client)
+static int compress_message(const client_t *client)
 {
     int     ret, len;
     byte    *hdr;
@@ -361,7 +355,7 @@ static int compress_message(client_t *client)
     deflateReset(&svs.z);
 
     if (ret != Z_STREAM_END) {
-        Com_WPrintf("Error %d compressing %zu bytes message for %s\n",
+        Com_WPrintf("Error %d compressing %u bytes message for %s\n",
                     ret, msg_write.cursize, client->name);
         return 0;
     }
@@ -398,6 +392,8 @@ void SV_ClientAddMessage(client_t *client, int flags)
 {
     int len;
 
+    Q_assert(!msg_write.overflowed);
+
     if (!msg_write.cursize) {
         return;
     }
@@ -408,11 +404,11 @@ void SV_ClientAddMessage(client_t *client, int flags)
 
     if ((flags & MSG_COMPRESS) && (len = compress_message(client)) && len < msg_write.cursize) {
         client->AddMessage(client, get_compressed_data(), len, flags & MSG_RELIABLE);
-        SV_DPrintf(0, "Compressed %sreliable message to %s: %zu into %d\n",
+        SV_DPrintf(1, "Compressed %sreliable message to %s: %u into %d\n",
                    (flags & MSG_RELIABLE) ? "" : "un", client->name, msg_write.cursize, len);
     } else {
         client->AddMessage(client, msg_write.data, msg_write.cursize, flags & MSG_RELIABLE);
-        SV_DPrintf(1, "Added %sreliable message to %s: %zu bytes\n",
+        SV_DPrintf(2, "Added %sreliable message to %s: %u bytes\n",
                    (flags & MSG_RELIABLE) ? "" : "un", client->name, msg_write.cursize);
     }
 
@@ -461,10 +457,8 @@ static void free_all_messages(client_t *client)
     client->msg_dynamic_bytes = 0;
 }
 
-static void add_msg_packet(client_t     *client,
-                           byte         *data,
-                           size_t       len,
-                           bool         reliable)
+static void add_msg_packet(client_t *client, const byte *data,
+                           size_t len, bool reliable)
 {
     message_packet_t    *msg;
 
@@ -512,42 +506,51 @@ overflowed:
 }
 
 // check if this entity is present in current client frame
-static bool check_entity(client_t *client, int entnum)
+static bool check_entity(const client_t *client, int entnum)
 {
-    client_frame_t *frame;
-    int i, j;
+    const client_frame_t *frame;
+    int left, right;
 
     frame = &client->frames[client->framenum & UPDATE_MASK];
 
-    for (i = 0; i < frame->num_entities; i++) {
-        j = (frame->first_entity + i) % svs.num_entities;
-        if (svs.entities[j].number == entnum) {
+    left = 0;
+    right = frame->num_entities - 1;
+    while (left <= right) {
+        int i, j;
+
+        i = (left + right) / 2;
+        j = (frame->first_entity + i) & (client->num_entities - 1);
+        j = client->entities[j].number;
+        if (j < entnum)
+            left = i + 1;
+        else if (j > entnum)
+            right = i - 1;
+        else
             return true;
-        }
     }
 
     return false;
 }
 
-// sounds reliative to entities are handled specially
-static void emit_snd(client_t *client, message_packet_t *msg)
+// sounds relative to entities are handled specially
+static void emit_snd(const client_t *client, const message_packet_t *msg)
 {
-    int flags, entnum;
-    int i;
-
-    entnum = msg->sendchan >> 3;
-    flags = msg->flags;
+    int entnum = msg->sendchan >> 3;
+    int flags = msg->flags;
 
     // check if position needs to be explicitly sent
     if (!(flags & SND_POS) && !check_entity(client, entnum)) {
-        SV_DPrintf(1, "Forcing position on entity %d for %s\n",
+        SV_DPrintf(2, "Forcing position on entity %d for %s\n",
                    entnum, client->name);
         flags |= SND_POS;   // entity is not present in frame
     }
 
     MSG_WriteByte(svc_sound);
     MSG_WriteByte(flags);
-    MSG_WriteByte(msg->index);
+    if (client->csr->extended && flags & SND_INDEX16)
+        MSG_WriteShort(msg->index);
+    else
+        MSG_WriteByte(msg->index);
 
     if (flags & SND_VOLUME)
         MSG_WriteByte(msg->volume);
@@ -558,14 +561,11 @@ static void emit_snd(client_t *client, message_packet_t *msg)
 
     MSG_WriteShort(msg->sendchan);
 
-    if (flags & SND_POS) {
-        for (i = 0; i < 3; i++) {
-            MSG_WriteShort(msg->pos[i]);
-        }
-    }
+    if (flags & SND_POS)
+        MSG_WriteIntPos(msg->pos, client->esFlags & MSG_ES_EXTENSIONS_2);
 }
 
-static inline void write_snd(client_t *client, message_packet_t *msg, size_t maxsize)
+static inline void write_snd(client_t *client, message_packet_t *msg, unsigned maxsize)
 {
     // if this msg fits, write it
     if (msg_write.cursize + MAX_SOUND_PACKET <= maxsize) {
@@ -575,7 +575,7 @@ static inline void write_snd(client_t *client, message_packet_t *msg, size_t max
     List_Insert(&client->msg_free_list, &msg->entry);
 }
 
-static inline void write_msg(client_t *client, message_packet_t *msg, size_t maxsize)
+static inline void write_msg(client_t *client, message_packet_t *msg, unsigned maxsize)
 {
     // if this msg fits, write it
     if (msg_write.cursize + msg->cursize <= maxsize) {
@@ -584,15 +584,15 @@ static inline void write_msg(client_t *client, message_packet_t *msg, size_t max
     free_msg_packet(client, msg);
 }
 
-static inline void write_unreliables(client_t *client, size_t maxsize)
+static inline void write_unreliables(client_t *client, unsigned maxsize)
 {
     message_packet_t    *msg, *next;
 
     FOR_EACH_MSG_SAFE(&client->msg_unreliable_list) {
-        if (msg->cursize) {
-            write_msg(client, msg, maxsize);
-        } else {
+        if (msg->cursize == SOUND_PACKET) {
             write_snd(client, msg, maxsize);
+        } else {
+            write_msg(client, msg, maxsize);
         }
     }
 }
@@ -605,7 +605,7 @@ FRAME UPDATES - OLD NETCHAN
 ===============================================================================
 */
 
-static void add_message_old(client_t *client, byte *data,
+static void add_message_old(client_t *client, const byte *data,
                             size_t len, bool reliable)
 {
     if (len > client->netchan.maxpacketlen) {
@@ -621,13 +621,13 @@ static void add_message_old(client_t *client, byte *data,
 }
 
 // this should be the only place data is ever written to netchan message for old clients
-static void write_reliables_old(client_t *client, size_t maxsize)
+static void write_reliables_old(client_t *client, unsigned maxsize)
 {
     message_packet_t *msg, *next;
     int count;
 
     if (client->netchan.reliable_length) {
-        SV_DPrintf(1, "%s to %s: unacked\n", __func__, client->name);
+        SV_DPrintf(2, "%s to %s: unacked\n", __func__, client->name);
         return;    // there is still outgoing reliable message pending
     }
 
@@ -644,7 +644,7 @@ static void write_reliables_old(client_t *client, size_t maxsize)
             break;
         }
 
-        SV_DPrintf(1, "%s to %s: writing msg %d: %d bytes\n",
+        SV_DPrintf(2, "%s to %s: writing msg %d: %d bytes\n",
                    __func__, client->name, count, msg->cursize);
 
         SZ_Write(&client->netchan.message, msg->data, msg->cursize);
@@ -654,7 +654,7 @@ static void write_reliables_old(client_t *client, size_t maxsize)
 }
 
 // unreliable portion doesn't fit, then throw out low priority effects
-static void repack_unreliables(client_t *client, size_t maxsize)
+static void repack_unreliables(client_t *client, unsigned maxsize)
 {
     message_packet_t *msg, *next;
 
@@ -664,10 +664,10 @@ static void repack_unreliables(client_t *client, size_t maxsize)
 
     // temp entities first
     FOR_EACH_MSG_SAFE(&client->msg_unreliable_list) {
-        if (!msg->cursize || msg->data[0] != svc_temp_entity) {
+        if (msg->cursize == SOUND_PACKET || msg->data[0] != svc_temp_entity) {
             continue;
         }
-        // ignore some low-priority effects, these checks come from r1q2
+        // ignore some low-priority effects, these checks come from R1Q2
         if (msg->data[1] == TE_BLOOD || msg->data[1] == TE_SPLASH ||
             msg->data[1] == TE_GUNSHOT || msg->data[1] == TE_BULLET_SPARKS ||
             msg->data[1] == TE_SHOTGUN) {
@@ -682,7 +682,7 @@ static void repack_unreliables(client_t *client, size_t maxsize)
 
     // then entity sounds
     FOR_EACH_MSG_SAFE(&client->msg_unreliable_list) {
-        if (!msg->cursize) {
+        if (msg->cursize == SOUND_PACKET) {
             write_snd(client, msg, maxsize);
         }
     }
@@ -693,7 +693,7 @@ static void repack_unreliables(client_t *client, size_t maxsize)
 
     // then positioned sounds
     FOR_EACH_MSG_SAFE(&client->msg_unreliable_list) {
-        if (msg->cursize && msg->data[0] == svc_sound) {
+        if (msg->cursize != SOUND_PACKET && msg->data[0] == svc_sound) {
             write_msg(client, msg, maxsize);
         }
     }
@@ -704,7 +704,7 @@ static void repack_unreliables(client_t *client, size_t maxsize)
 
     // then everything else left
     FOR_EACH_MSG_SAFE(&client->msg_unreliable_list) {
-        if (msg->cursize) {
+        if (msg->cursize != SOUND_PACKET) {
             write_msg(client, msg, maxsize);
         }
     }
@@ -713,7 +713,7 @@ static void repack_unreliables(client_t *client, size_t maxsize)
 static void write_datagram_old(client_t *client)
 {
     message_packet_t *msg;
-    size_t maxsize, cursize;
+    unsigned maxsize, cursize;
 
     // determine how much space is left for unreliable data
     maxsize = client->netchan.maxpacketlen;
@@ -728,29 +728,13 @@ static void write_datagram_old(client_t *client)
             maxsize -= msg->cursize;
         }
     }
+    Q_assert(maxsize <= client->netchan.maxpacketlen);
 
     // send over all the relevant entity_state_t
     // and the player_state_t
-    client->WriteFrame(client);
-    if (msg_write.cursize > maxsize) {
-        size_t size = msg_write.cursize;
-        int len = 0;
-
-        // try to compress if it has a chance to fit
-        // assume it can be compressed by at least 20%
-        if (size - size / 5 < maxsize)
-            len = compress_message(client);
-
+    if (!client->WriteFrame(client, maxsize)) {
+        SV_DPrintf(1, "Frame %d overflowed for %s\n", client->framenum, client->name);
         SZ_Clear(&msg_write);
-
-        if (len > 0 && len <= maxsize) {
-            SV_DPrintf(0, "Frame %d compressed for %s: %zu into %d\n",
-                       client->framenum, client->name, size, len);
-            SZ_Write(&msg_write, get_compressed_data(), len);
-        } else {
-            SV_DPrintf(0, "Frame %d overflowed for %s: %zu > %zu (comp %d)\n",
-                       client->framenum, client->name, size, maxsize, len);
-        }
     }
 
     // now write unreliable messages
@@ -769,18 +753,20 @@ static void write_datagram_old(client_t *client)
 
 #if USE_DEBUG
     if (sv_pad_packets->integer > 0) {
-        size_t pad = min(MAX_PACKETLEN - 8, sv_pad_packets->integer);
+        int pad = min(MAX_PACKETLEN - 8, sv_pad_packets->integer);
 
         while (msg_write.cursize < pad)
             MSG_WriteByte(svc_nop);
     }
 #endif
 
+    Q_assert(!msg_write.overflowed);
+
     // send the datagram
-    cursize = client->netchan.Transmit(&client->netchan,
-                                       msg_write.cursize,
-                                       msg_write.data,
-                                       client->numpackets);
+    cursize = Netchan_Transmit(&client->netchan,
+                               msg_write.cursize,
+                               msg_write.data,
+                               client->numpackets);
 
     // record the size for rate estimation
     SV_CalcSendTime(client, cursize);
@@ -797,7 +783,7 @@ FRAME UPDATES - NEW NETCHAN
 ===============================================================================
 */
 
-static void add_message_new(client_t *client, byte *data,
+static void add_message_new(client_t *client, const byte *data,
                             size_t len, bool reliable)
 {
     if (reliable) {
@@ -811,13 +797,11 @@ static void add_message_new(client_t *client, byte *data,
 
 static void write_datagram_new(client_t *client)
 {
-    size_t cursize;
+    int cursize;
 
     // send over all the relevant entity_state_t
     // and the player_state_t
-    client->WriteFrame(client);
-
-    if (msg_write.overflowed) {
+    if (!client->WriteFrame(client, msg_write.maxsize)) {
         // should never really happen
         Com_WPrintf("Frame overflowed for %s\n", client->name);
         SZ_Clear(&msg_write);
@@ -835,18 +819,20 @@ static void write_datagram_new(client_t *client)
 
 #if USE_DEBUG
     if (sv_pad_packets->integer > 0) {
-        size_t pad = min(msg_write.maxsize, sv_pad_packets->integer);
+        int pad = min(msg_write.maxsize, sv_pad_packets->integer);
 
         while (msg_write.cursize < pad)
             MSG_WriteByte(svc_nop);
     }
 #endif
 
+    Q_assert(!msg_write.overflowed);
+
     // send the datagram
-    cursize = client->netchan.Transmit(&client->netchan,
-                                       msg_write.cursize,
-                                       msg_write.data,
-                                       client->numpackets);
+    cursize = Netchan_Transmit(&client->netchan,
+                               msg_write.cursize,
+                               msg_write.data,
+                               client->numpackets);
 
     // record the size for rate estimation
     SV_CalcSendTime(client, cursize);
@@ -875,10 +861,10 @@ static void finish_frame(client_t *client)
 }
 
 #if USE_DEBUG && USE_FPS
-static void check_key_sync(client_t *client)
+static void check_key_sync(const client_t *client)
 {
-    int div = sv.framediv / client->framediv;
-    int key1 = !(sv.framenum % sv.framediv);
+    int div = sv.frametime.div / client->framediv;
+    int key1 = !(sv.framenum % sv.frametime.div);
     int key2 = !(client->framenum % div);
 
     if (key1 != key2) {
@@ -900,7 +886,7 @@ Clients in earlier connection state are handled in SV_SendAsyncPackets.
 void SV_SendClientMessages(void)
 {
     client_t    *client;
-    size_t      cursize;
+    int         cursize;
 
     // send a message to each connected client
     FOR_EACH_CLIENT(client) {
@@ -930,7 +916,7 @@ void SV_SendClientMessages(void)
         // don't write any frame data until all fragments are sent
         if (client->netchan.fragment_pending) {
             client->frameflags |= FF_SUPPRESSED;
-            cursize = client->netchan.TransmitNextFragment(&client->netchan);
+            cursize = Netchan_TransmitNextFragment(&client->netchan);
             SV_CalcSendTime(client, cursize);
             goto advance;
         }
@@ -1000,7 +986,7 @@ void SV_SendAsyncPackets(void)
     bool        retransmit;
     client_t    *client;
     netchan_t   *netchan;
-    size_t      cursize;
+    int         cursize;
 
     FOR_EACH_CLIENT(client) {
         // don't overrun bandwidth
@@ -1012,8 +998,8 @@ void SV_SendAsyncPackets(void)
 
         // make sure all fragments are transmitted first
         if (netchan->fragment_pending) {
-            cursize = netchan->TransmitNextFragment(netchan);
-            SV_DPrintf(1, "%s: frag: %zu\n", client->name, cursize);
+            cursize = Netchan_TransmitNextFragment(netchan);
+            SV_DPrintf(2, "%s: frag: %d\n", client->name, cursize);
             goto calctime;
         }
 
@@ -1040,8 +1026,8 @@ void SV_SendAsyncPackets(void)
 
         if (netchan->message.cursize || netchan->reliable_ack_pending ||
             netchan->reliable_length || retransmit) {
-            cursize = netchan->Transmit(netchan, 0, "", 1);
-            SV_DPrintf(1, "%s: send: %zu\n", client->name, cursize);
+            cursize = Netchan_Transmit(netchan, 0, NULL, 1);
+            SV_DPrintf(2, "%s: send: %d\n", client->name, cursize);
 calctime:
             SV_CalcSendTime(client, cursize);
         }
@@ -1050,14 +1036,12 @@ calctime:
 
 void SV_InitClientSend(client_t *newcl)
 {
-    int i;
-
     List_Init(&newcl->msg_free_list);
     List_Init(&newcl->msg_unreliable_list);
     List_Init(&newcl->msg_reliable_list);
 
     newcl->msg_pool = SV_Malloc(sizeof(newcl->msg_pool[0]) * MSG_POOLSIZE);
-    for (i = 0; i < MSG_POOLSIZE; i++) {
+    for (int i = 0; i < MSG_POOLSIZE; i++) {
         List_Append(&newcl->msg_free_list, &newcl->msg_pool[i].entry);
     }
 

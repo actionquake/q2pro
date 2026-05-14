@@ -79,6 +79,9 @@ void Cbuf_Execute(cmdbuf_t *buf);
 void Cbuf_Frame(cmdbuf_t *buf);
 // Called once per frame. Decrements waitCount, resets aliasCount.
 
+void Cbuf_Clear(cmdbuf_t *buf);
+// Clears entire buffer text.
+
 //===========================================================================
 
 /*
@@ -111,7 +114,7 @@ typedef struct {
     const char *sh, *lo, *help;
 } cmd_option_t;
 
-typedef struct cmdreg_s {
+typedef struct {
     const char      *name;
     xcommand_t      function;
     xcompleter_t    completer;
@@ -193,6 +196,7 @@ void Cmd_WriteAliases(qhandle_t f);
     do { \
         if ((var)->string[0]) { \
             Cbuf_AddText(&cmd_buffer, (var)->string); \
+            Cbuf_AddText(&cmd_buffer, "\n"); \
         } \
     } while(0)
 

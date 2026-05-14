@@ -1,0 +1,28 @@
+[esp]
+type=etv
+author=darksaint
+name=Escape!
+
+[respawn]
+red=7
+blue=7
+
+[spawns]
+red=<1779 1382 1608 23>,<3293 1102 1832 94>,<2611 2342 1480 -64>
+blue=<1862 3392 1992 -60>,<3491 2391 1864 -9>,<1878 2475 2120 52>
+
+[target]
+escort=<2795 2455 1838>
+name=Travel documents
+
+[red_team]
+name=Convicts
+leader_name=Mastermind
+skin=male/ctf_r
+leader_skin=male/ctf_vip_r
+
+[blue_team]
+name=The Company
+leader_name=Supervisor
+skin=male/ctf_b
+leader_skin=male/ctf_vip_b

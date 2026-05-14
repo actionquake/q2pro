@@ -31,13 +31,6 @@ typedef struct {
 } hnode_t;
 
 typedef struct {
-    const char  *name;
-    uint32_t    size;
-    uint16_t    start;
-    uint16_t    crop;
-} crop_t;
-
-typedef struct {
     int         width;
     int         height;
     int         crop;
@@ -63,14 +56,15 @@ typedef struct {
 
 static cinematic_t  cin;
 
-static const crop_t cin_crop[] = {
-    { "ntro.cin",   82836235, 727, 30 },
-    { "end.cin",    19311290,   0, 30 },
-    { "rintro.cin", 38434032,   0, 24 },
-    { "rend.cin",   22580919,   0, 24 },
-    { "xin.cin",    13226649,   0, 32 },
-    { "xout.cin",   11194445,   0, 32 },
-};
+/*
+==================
+SCR_InitCinematics
+==================
+*/
+void SCR_InitCinematics(void)
+{
+    // nothing to do here
+}
 
 /*
 ==================
@@ -79,6 +73,9 @@ SCR_StopCinematic
 */
 void SCR_StopCinematic(void)
 {
+    if (cin.pic)
+        R_UpdateRawPic(0, 0, NULL);
+
     Z_Free(cin.pic);
     FS_CloseFile(cin.file);
     memset(&cin, 0, sizeof(cin));
@@ -225,28 +222,6 @@ static bool Huff1Decompress(const byte *data, int size)
 
 /*
 ==================
-GetVerticalCrop
-==================
-*/
-static int GetVerticalCrop(void)
-{
-    const crop_t *c;
-    int i;
-
-    for (i = 0, c = cin_crop; i < q_countof(cin_crop); i++, c++) {
-        if (!Q_stricmp(cl.mapname, c->name) && FS_Length(cin.file) == c->size) {
-            if (cin.frame >= c->start)
-                return c->crop * 2;
-            break;
-        }
-    }
-
-    return 0;
-}
-
-
-/*
-==================
 SCR_ReadNextFrame
 ==================
 */
@@ -309,7 +284,7 @@ static bool SCR_ReadNextFrame(void)
         S_RawSamples(end - start, cin.s_rate, cin.s_width, cin.s_channels, samples);
     }
 
-    cin.crop = GetVerticalCrop();
+    cin.crop = SCR_GetCinematicCrop(cin.frame, FS_Length(cin.file));
 
     R_UpdateRawPic(cin.width, cin.height, cin.pic);
     cin.frame++;
@@ -444,7 +419,7 @@ void SCR_ReloadCinematic(void)
     if (cin.pic) {
         R_UpdateRawPic(cin.width, cin.height, cin.pic);
     } else if (cl.mapname[0]) {
-        cin.static_pic = R_RegisterPic2(cl.mapname);
+        cin.static_pic = R_RegisterTempPic(cl.mapname);
         R_GetPicSize(&cin.width, &cin.height, cin.static_pic);
     }
 }
@@ -460,7 +435,7 @@ void SCR_PlayCinematic(const char *name)
     OGG_Stop();
 
     if (!COM_CompareExtension(name, ".pcx")) {
-        cin.static_pic = R_RegisterPic2(name);
+        cin.static_pic = R_RegisterTempPic(name);
         if (!cin.static_pic)
             goto finish;
         R_GetPicSize(&cin.width, &cin.height, cin.static_pic);
@@ -482,4 +457,32 @@ void SCR_PlayCinematic(const char *name)
 
 finish:
     SCR_FinishCinematic();
+}
+
+/*
+==================
+SCR_CheckForCinematic
+
+Called by the server to check for cinematic existence.
+Name should be in format "video/<something>.cin".
+==================
+*/
+int SCR_CheckForCinematic(const char *name)
+{
+    int ret = FS_LoadFile(name, NULL);
+
+    if (ret == Q_ERR(EFBIG))
+        ret = Q_ERR_SUCCESS;
+
+    return ret;
+}
+
+/*
+==================
+SCR_Cinematic_g
+==================
+*/
+void SCR_Cinematic_g(genctx_t *ctx)
+{
+    FS_File_g("video", ".cin", FS_SEARCH_RECURSIVE | FS_TYPE_REAL, ctx);
 }

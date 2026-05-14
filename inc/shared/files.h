@@ -39,13 +39,13 @@ typedef struct {
 #define FS_BUF_NONE             0x0000000c  // unbuffered
 #define FS_BUF_MASK             0x0000000c
 
-// where to open file from
+// where to open file from (packfile vs disk)
 #define FS_TYPE_ANY             0x00000000  // open from anywhere
 #define FS_TYPE_REAL            0x00000010  // open from disk only
 #define FS_TYPE_PAK             0x00000020  // open from pack only
 #define FS_TYPE_MASK            0x00000030
 
-// where to look for a file
+// where to look for a file (baseq2 vs gamedir)
 #define FS_PATH_ANY             0x00000000  // look in any search paths
 #define FS_PATH_BASE            0x00000040  // look in base search paths
 #define FS_PATH_GAME            0x00000080  // look in game search paths
@@ -53,7 +53,7 @@ typedef struct {
 
 // search mode for ListFiles()
 #define FS_SEARCH_BYFILTER      0x00000100  // wildcard search instead of extension search
-#define FS_SEARCH_SAVEPATH      0x00000200  // preserve file path
+#define FS_SEARCH_SAVEPATH      0x00000200  // preserve full file path
 #define FS_SEARCH_EXTRAINFO     0x00000400  // return file_info_t *, not char *
 #define FS_SEARCH_STRIPEXT      0x00000800  // strip file extension
 #define FS_SEARCH_DIRSONLY      0x00001000  // search only directories (can't be mixed with other flags)
@@ -67,3 +67,9 @@ typedef struct {
 #define FS_FLAG_DEFLATE         0x00000800  // if compressed, read raw deflate data, fail otherwise
 #define FS_FLAG_LOADFILE        0x00001000  // open non-unique handle, must be closed very quickly
 #define FS_FLAG_MASK            0x0000ff00
+
+// where to look for a file (basedir vs homedir)
+#define FS_DIR_ANY              0x00000000  // look anywhere
+#define FS_DIR_BASE             0x00010000  // look in basedir
+#define FS_DIR_HOME             0x00020000  // look in homedir
+#define FS_DIR_MASK             0x00030000

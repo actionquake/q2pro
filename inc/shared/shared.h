@@ -22,8 +22,40 @@ with this program; if not, write to the Free Software Foundation, Inc.,
 // shared.h -- included first by ALL program modules
 //
 
+//rekkie -- CMAKE -- s
+#if _MSC_VER >= 1920 && !__INTEL_COMPILER
+    //#define NDEBUG 1
+//#define VERSION "ReKTeK"
+//#define BUILDSTRING "1"
+//#define CPUSTRING "1"
+//#define BASEGAME "baseq2"
+//#define DEFGAME "baseq2"
+#define PLATFORM "Win64"
+//#define USE_MVD_SERVER 1
+//#define USE_SERVER 1
+//#define USE_CLIENT 1
+//#define USE_DBGHELP 1
+#pragma warning(disable:4305) // warning C4305: 'initializing': truncation from 'double' to 'const vec_t'
+#pragma warning(disable:4244) // warning C4244: '=': conversion from 'int64_t' to 'unsigned int', possible loss of data
+#pragma warning(disable:4267) // warning C4267: 'return': conversion from 'size_t' to 'int', possible loss of data
+#pragma warning(disable:4018) // warning C4018: '>': signed/unsigned mismatch
+#pragma warning(disable:4013) // warning C4013: 'MSG_ShowSVC' undefined; assuming extern returning int
+#pragma warning(disable:4047) // warning C4047: 'function': 'HDC' differs in levels of indirection from 'int'
+#pragma warning(disable:4133) // warning C4133: 'function': incompatible types - from 'HGLRC' to 'HDC'
+#pragma warning(disable:4146) // warning C4146: unary minus operator applied to unsigned type, result still unsigned
+#endif
+//rekkie -- CMAKE -- e
+
 #if HAVE_CONFIG_H
 #include "config.h"
+#endif
+
+#ifndef USE_PROTOCOL_EXTENSIONS
+#define USE_PROTOCOL_EXTENSIONS (USE_CLIENT || USE_SERVER)
+#endif
+
+#ifndef USE_NEW_GAME_API
+#define USE_NEW_GAME_API (USE_CLIENT || USE_SERVER)
 #endif
 
 #include <math.h>
@@ -37,6 +69,9 @@ with this program; if not, write to the Free Software Foundation, Inc.,
 #include <inttypes.h>
 #include <limits.h>
 #include <time.h>
+//FIREBLADE
+#include <stddef.h>
+//FIREBLADE
 
 #include "shared/platform.h"
 
@@ -45,10 +80,6 @@ with this program; if not, write to the Free Software Foundation, Inc.,
 typedef unsigned char byte;
 typedef enum { qfalse, qtrue } qboolean;    // ABI compat only, don't use
 typedef int qhandle_t;
-
-#ifndef NULL
-#define NULL ((void *)0)
-#endif
 
 // angle indexes
 #define PITCH               0       // up / down
@@ -67,13 +98,27 @@ typedef int qhandle_t;
 // per-level limits
 //
 #define MAX_CLIENTS         256     // absolute limit
-#define MAX_EDICTS          1024    // must change protocol to increase more
+#define MAX_EDICTS_OLD      1024    // must change protocol to increase more
+#define MAX_MODELS_OLD      256     // these are sent over the net as bytes
+#define MAX_SOUNDS_OLD      256     // so they cannot be blindly increased
+#define MAX_IMAGES_OLD      256
 #define MAX_LIGHTSTYLES     256
-#define MAX_MODELS          256     // these are sent over the net as bytes
-#define MAX_SOUNDS          256     // so they cannot be blindly increased
-#define MAX_IMAGES          256
 #define MAX_ITEMS           256
 #define MAX_GENERAL         (MAX_CLIENTS * 2) // general config strings
+
+#if USE_PROTOCOL_EXTENSIONS
+#define MAX_EDICTS          8192    // sent as ENTITYNUM_BITS, can't be increased
+#define MAX_MODELS          8192    // half is reserved for inline BSP models
+#define MAX_SOUNDS          2048
+#define MAX_IMAGES          2048
+#else
+#define MAX_EDICTS          MAX_EDICTS_OLD
+#define MAX_MODELS          MAX_MODELS_OLD
+#define MAX_SOUNDS          MAX_SOUNDS_OLD
+#define MAX_IMAGES          MAX_IMAGES_OLD
+#endif
+
+#define MODELINDEX_PLAYER   (MAX_MODELS_OLD - 1)
 
 #define MAX_CLIENT_NAME     16
 
@@ -97,24 +142,147 @@ typedef enum {
 #include "shared/ghud.h"
 #endif
 
-void    Com_LPrintf(print_type_t type, const char *fmt, ...)
-q_printf(2, 3);
-void    Com_Error(error_type_t code, const char *fmt, ...)
-q_noreturn q_printf(2, 3);
+// action functionality
+// legacy ABI support for Windows
+#if defined(__GNUC__) && defined(WIN32) && ! defined(WIN64)
+#define		q_gameabi           __attribute__((callee_pop_aggregate_return(0)))
+#else
+#define		q_gameabi
+#endif
+
+//==============================================
+#ifdef _WIN32
+#ifdef _MSC_VER
+// unknown pragmas are SUPPOSED to be ignored, but....
+#pragma warning(disable : 4244)	// MIPS
+#pragma warning(disable : 4136)	// X86
+#pragma warning(disable : 4051)	// ALPHA
+#pragma warning(disable : 4018)	// signed/unsigned mismatch
+#pragma warning(disable : 4305)	// truncation from const double to float
+#pragma warning(disable : 4996)	// deprecated functions
+#pragma warning(disable : 4100)	// unreferenced formal parameter
+#endif
+
+# define HAVE___INLINE
+# define HAVE__SNPRINTF
+# define HAVE__VSNPRINTF
+# define HAVE__STRICMP
+# define HAVE___FASTCALL
+# define HAVE__CDECL
+
+#endif
+//==============================================
+#if defined(__linux__) || defined(__FreeBSD__) || defined(__GNUC__)
+
+# define HAVE_INLINE
+# define HAVE_STRCASECMP
+# define HAVE_SNPRINTF
+# define HAVE_VSNPRINTF
+
+#endif
+//==============================================
+
+#if ! defined(HAVE__CDECL) && ! defined(__cdecl)
+# define __cdecl
+#endif
+
+#if ! defined(HAVE___FASTCALL) && ! defined(__fastcall)
+# define __fastcall
+#endif
+
+#if ! defined(HAVE_INLINE) && ! defined(inline)
+# ifdef HAVE___INLINE
+#  define inline __inline
+# else
+#  define inline
+# endif
+#endif
+
+#if defined(HAVE__SNPRINTF) && ! defined(snprintf)
+# define snprintf _snprintf
+#endif
+
+#if defined(HAVE__VSNPRINTF) && ! defined(vsnprintf)
+# define vsnprintf(dest, size, src, list) _vsnprintf((dest), (size), (src), (list)), (dest)[(size)-1] = 0
+#endif
+
+#ifdef HAVE__STRICMP
+# ifndef Q_stricmp
+#  define Q_stricmp _stricmp
+# endif
+# ifndef Q_strnicmp
+#  define Q_strnicmp _strnicmp
+# endif
+# ifndef strcasecmp
+#  define strcasecmp _stricmp
+# endif
+# ifndef strncasecmp
+#  define strncasecmp _strnicmp
+# endif
+#elif defined(HAVE_STRCASECMP)
+# ifndef Q_stricmp
+#  define Q_stricmp strcasecmp
+# endif
+# ifndef Q_strnicmp
+#  define Q_strnicmp strncasecmp
+# endif
+#endif
+
+// zucc some I got from quake devels
+#define EF_BLUE          0x00400000	//a blue light
+#define EF_ROTATEREDSPOT 0x00800000	//fast rotate with a red spot of light at the front
+#define EF_TRANSLIGHT    0x01000000	//transparant with some lighting
+#define EF_PFOUNT        0x02000000	// particle foundtain
+#define EF_DYNDARK       0x04000000	//DYNAMIC darkness the one i was looking for!
+#define EF_YELLOWSHELL   0x08000000	//a yellow shell similar to those found with EF_COLOR_SHELL IIRC
+#define EF_TRANS         0x10000000	//translucency
+#define EF_YELLOWDOT     0x20000000	//yellow lighting with yellow dots under the model
+#define EF_WHITESHELL    0x40000000	//a yellow shell around  the model (like EF_YELLOWSHELL)
+#define EF_FLIES2        0x80000000	//Flies go a buzzin' and the sky grows dim
+#define EF_EDARK         0x84000000	// Extreme Darkness, you won't believe!
+#define EF_BLUE_CRUST    0x08208000	// An odd blue "crust" around the model
+#define EF_QBF           0x90408000	// The best of three worlds, blue shell like a quad, dark, and covered with flies
+#define EF_REDC          0x30050001	// This one is nice, a red light eminating of a red Quad crust
+#define EF_GREENRC       0x35152841	// It's Christmas time!  Red shell and geen light!
+#define EF_REDG          0x22010107	// RedCrust with gib effect trail
+#define EF_PUP           0x86080100	// 'ere's an odd one, a straight, upwards line of particles sprays above the modle
+#define EF_FLYG          0x60507800	// A few flies with a light, greenish yello crust
+#define EF_YELLOW_CRUST  0x10300070	// Yellow crust with a of smoke & yellow particles
+#define EF_BACKRED       0x90900900	// The Usual is black fly maham, but with a red light peeking through.
+
+#define EF_GREEN_LIGHT   0x04000040
+
+void Q_strncpyz (char *dest, const char *src, size_t size );
+void Q_strncatz (char *dest, const char *src, size_t size );
+
+// end action functionality
+
+q_printf(2, 3)
+void    Com_LPrintf(print_type_t type, const char *fmt, ...);
+
+q_cold q_noreturn q_printf(2, 3)
+void    Com_Error(error_type_t code, const char *fmt, ...);
 
 #define Com_Printf(...) Com_LPrintf(PRINT_ALL, __VA_ARGS__)
 #define Com_WPrintf(...) Com_LPrintf(PRINT_WARNING, __VA_ARGS__)
 #define Com_EPrintf(...) Com_LPrintf(PRINT_ERROR, __VA_ARGS__)
 #define Com_NPrintf(...) Com_LPrintf(PRINT_NOTICE, __VA_ARGS__)
 
+// an assertion that's ALWAYS enabled. `expr' may have side effects.
 #define Q_assert(expr) \
     do { if (!(expr)) Com_Error(ERR_FATAL, "%s: assertion `%s' failed", __func__, #expr); } while (0)
 
 // game print flags
-#define PRINT_LOW           0       // pickup messages
-#define PRINT_MEDIUM        1       // death messages
-#define PRINT_HIGH          2       // critical messages
-#define PRINT_CHAT          3       // chat messages    
+enum {
+    PRINT_LOW,          // pickup messages
+    PRINT_MEDIUM,       // death messages
+    PRINT_HIGH,         // critical messages
+    PRINT_CHAT,         // chat messages
+// KEX
+    PRINT_TYPEWRITER,
+    PRINT_CENTER,
+// KEX
+};
 
 // destination class for gi.multicast()
 typedef enum {
@@ -125,6 +293,8 @@ typedef enum {
     MULTICAST_PHS_R,
     MULTICAST_PVS_R
 } multicast_t;
+
+typedef char configstring_t[MAX_QPATH];
 
 /*
 ==============================================================
@@ -147,26 +317,28 @@ typedef union {
     uint8_t u8[4];
 } color_t;
 
-typedef int fixed4_t;
-typedef int fixed8_t;
-typedef int fixed16_t;
-
-#ifndef M_PI
-#define M_PI        3.14159265358979323846  // matches value in gcc v2 math.h
-#endif
-
-struct cplane_s;
-
 extern const vec3_t vec3_origin;
 
-typedef struct vrect_s {
-    int             x, y, width, height;
+typedef struct {
+    int x, y, width, height;
 } vrect_t;
 
-#define DEG2RAD(a)      ((a) * (M_PI / 180))
-#define RAD2DEG(a)      ((a) * (180 / M_PI))
+#ifndef M_PIf
+#define M_PIf       3.14159265358979323846f
+#define M_SQRT2f    1.41421356237309504880f
+#define M_SQRT1_2f  0.70710678118654752440f
+#endif
 
-#define ALIGN(x, a)     (((x) + (a) - 1) & ~((a) - 1))
+#define DEG2RAD(a)      ((a) * (M_PIf / 180))
+#define RAD2DEG(a)      ((a) * (180 / M_PIf))
+
+#define Q_ALIGN(x, a)   (((x) + (a) - 1) & ~((a) - 1))
+
+#define BIT(n)          (1U << (n))
+#define BIT_ULL(n)      (1ULL << (n))
+
+#define MASK(n)         (BIT(n) - 1U)
+#define MASK_ULL(n)     (BIT_ULL(n) - 1ULL)
 
 #define SWAP(type, a, b) \
     do { type SWAP_tmp = a; a = b; b = SWAP_tmp; } while (0)
@@ -205,6 +377,11 @@ typedef struct vrect_s {
         ((d)[0]=(a)[0]+(b)[0]*(c)[0], \
          (d)[1]=(a)[1]+(b)[1]*(c)[1], \
          (d)[2]=(a)[2]+(b)[2]*(c)[2])
+#define VectorRotate(in,axis,out) \
+        ((out)[0]=DotProduct(in,(axis)[0]), \
+         (out)[1]=DotProduct(in,(axis)[1]), \
+         (out)[2]=DotProduct(in,(axis)[2]))
+
 #define VectorEmpty(v) ((v)[0]==0&&(v)[1]==0&&(v)[2]==0)
 #define VectorCompare(v1,v2)    ((v1)[0]==(v2)[0]&&(v1)[1]==(v2)[1]&&(v1)[2]==(v2)[2])
 #define VectorLength(v)     (sqrtf(DotProduct((v),(v))))
@@ -236,13 +413,19 @@ typedef struct vrect_s {
      (e)[2]=(a)[2]*(c)+(b)[2]*(d))
 #define PlaneDiff(v,p)   (DotProduct(v,(p)->normal)-(p)->dist)
 
-#define Vector4Subtract(a,b,c)  ((c)[0]=(a)[0]-(b)[0],(c)[1]=(a)[1]-(b)[1],(c)[2]=(a)[2]-(b)[2],(c)[3]=(a)[3]-(b)[3])
-#define Vector4Add(a,b,c)       ((c)[0]=(a)[0]+(b)[0],(c)[1]=(a)[1]+(b)[1],(c)[2]=(a)[2]+(b)[2],(c)[3]=(a)[3]+(b)[3])
-#define Vector4Copy(a,b)        ((b)[0]=(a)[0],(b)[1]=(a)[1],(b)[2]=(a)[2],(b)[3]=(a)[3])
-#define Vector4Clear(a)         ((a)[0]=(a)[1]=(a)[2]=(a)[3]=0)
-#define Vector4Negate(a,b)      ((b)[0]=-(a)[0],(b)[1]=-(a)[1],(b)[2]=-(a)[2],(b)[3]=-(a)[3])
+#define Vector4Subtract(a,b,c)      ((c)[0]=(a)[0]-(b)[0],(c)[1]=(a)[1]-(b)[1],(c)[2]=(a)[2]-(b)[2],(c)[3]=(a)[3]-(b)[3])
+#define Vector4Add(a,b,c)           ((c)[0]=(a)[0]+(b)[0],(c)[1]=(a)[1]+(b)[1],(c)[2]=(a)[2]+(b)[2],(c)[3]=(a)[3]+(b)[3])
+#define Vector4Copy(a,b)            ((b)[0]=(a)[0],(b)[1]=(a)[1],(b)[2]=(a)[2],(b)[3]=(a)[3])
+#define Vector4Clear(a)             ((a)[0]=(a)[1]=(a)[2]=(a)[3]=0)
+#define Vector4Negate(a,b)          ((b)[0]=-(a)[0],(b)[1]=-(a)[1],(b)[2]=-(a)[2],(b)[3]=-(a)[3])
 #define Vector4Set(v, a, b, c, d)   ((v)[0]=(a),(v)[1]=(b),(v)[2]=(c),(v)[3]=(d))
-#define Vector4Compare(v1,v2)    ((v1)[0]==(v2)[0]&&(v1)[1]==(v2)[1]&&(v1)[2]==(v2)[2]&&(v1)[3]==(v2)[3])
+#define Vector4Compare(v1,v2)       ((v1)[0]==(v2)[0]&&(v1)[1]==(v2)[1]&&(v1)[2]==(v2)[2]&&(v1)[3]==(v2)[3])
+#define Dot4Product(x, y)           ((x)[0]*(y)[0]+(x)[1]*(y)[1]+(x)[2]*(y)[2]+(x)[3]*(y)[3])
+
+//rekkie -- ENGINE_DLL -- s
+void VectorRotate2(vec3_t v, float degrees);
+void RotatePointAroundVector(vec3_t dst, const vec3_t dir, const vec3_t point, float degrees);
+//#endif // End of ENGINE_DLL
 
 void AngleVectors(const vec3_t angles, vec3_t forward, vec3_t right, vec3_t up);
 vec_t VectorNormalize(vec3_t v);        // returns vector length
@@ -268,14 +451,11 @@ static inline void TransposeAxis(vec3_t axis[3])
 static inline void RotatePoint(vec3_t point, const vec3_t axis[3])
 {
     vec3_t temp;
-
     VectorCopy(point, temp);
-    point[0] = DotProduct(temp, axis[0]);
-    point[1] = DotProduct(temp, axis[1]);
-    point[2] = DotProduct(temp, axis[2]);
+    VectorRotate(temp, axis, point);
 }
 
-static inline unsigned npot32(unsigned k)
+static inline uint32_t Q_npot32(uint32_t k)
 {
     if (k == 0)
         return 1;
@@ -288,6 +468,22 @@ static inline unsigned npot32(unsigned k)
     k = k | (k >> 16);
 
     return k + 1;
+}
+
+static inline int Q_log2(uint32_t k)
+{
+#if q_has_builtin(__builtin_clz)
+    return 31 - __builtin_clz(k | 1);
+#elif (defined _MSC_VER)
+    unsigned long index;
+    _BitScanReverse(&index, k | 1);
+    return index;
+#else
+    for (int i = 31; i > 0; i--)
+        if (k & BIT(i))
+            return i;
+    return 0;
+#endif
 }
 
 static inline float LerpAngle(float a2, float a1, float frac)
@@ -305,7 +501,13 @@ static inline float anglemod(float a)
     return a;
 }
 
-static inline int Q_align(int value, int align)
+static inline int Q_align_down(int value, int align)
+{
+    int mod = value % align;
+    return value - mod;
+}
+
+static inline int Q_align_up(int value, int align)
 {
     int mod = value % align;
     return mod ? value + align - mod : value;
@@ -321,12 +523,80 @@ static inline int Q_gcd(int a, int b)
     return a;
 }
 
+void ProjectPointOnPlane (vec3_t dst, const vec3_t p, const vec3_t normal);
+void PerpendicularVector (vec3_t dst, const vec3_t src);
+void RotatePointAroundVector (vec3_t dst, const vec3_t dir,
+			      const vec3_t point, float degrees);
+
+//void VectorRotate( vec3_t in, vec3_t angles, vec3_t out );  // a_doorkick.c
+void VectorRotate2( vec3_t v, float degrees );
+
 void Q_srand(uint32_t seed);
 uint32_t Q_rand(void);
 uint32_t Q_rand_uniform(uint32_t n);
 
-#define clamp(a,b,c)    ((a)<(b)?(a)=(b):(a)>(c)?(a)=(c):(a))
-#define cclamp(a,b,c)   ((b)>(c)?clamp(a,c,b):clamp(a,b,c))
+#define bound(a,b,c) ((a) >= (c) ? (a) : (b) < (a) ? (a) : (b) > (c) ? (c) : (b))
+
+static inline int Q_clip(int a, int b, int c)
+{
+    if (a < b)
+        return b;
+    if (a > c)
+        return c;
+    return a;
+}
+
+static inline float Q_clipf(float a, float b, float c)
+{
+#if defined(__GNUC__) && defined(__SSE__)
+    __asm__("maxss %1, %0 \n\t"
+            "minss %2, %0 \n\t"
+            : "+&x"(a) : "xm"(b), "xm"(c));
+    return a;
+#else
+    if (a < b)
+        return b;
+    if (a > c)
+        return c;
+    return a;
+#endif
+}
+
+static inline float Q_circ_clipf(float a, float b, float c)
+{
+    return b > c ? Q_clipf(a, c, b) : Q_clipf(a, b, c);
+}
+
+static inline int8_t Q_clip_int8(int a)
+{
+    return ((a + 0x80U) & ~0xFF) ? (a >> 31) ^ 0x7F : a;
+}
+
+static inline int16_t Q_clip_int16(int a)
+{
+    return ((a + 0x8000U) & ~0xFFFF) ? (a >> 31) ^ 0x7FFF : a;
+}
+
+static inline int32_t Q_clip_int32(int64_t a)
+{
+    return ((a + 0x80000000ULL) & ~0xFFFFFFFFULL) ? (a >> 63) ^ 0x7FFFFFFF : a;
+}
+
+#ifdef _LP64
+#define Q_clipl_int32(a)    Q_clip_int32(a)
+#else
+#define Q_clipl_int32(a)    (a)
+#endif
+
+static inline uint8_t Q_clip_uint8(int a)
+{
+    return (a & ~0xFF) ? ~a >> 31 : a;
+}
+
+static inline uint16_t Q_clip_uint16(int a)
+{
+    return (a & ~0xFFFF) ? ~a >> 31 : a;
+}
 
 #ifndef max
 #define max(a,b) ((a)>(b)?(a):(b))
@@ -341,9 +611,9 @@ uint32_t Q_rand_uniform(uint32_t n);
 
 #define Q_rint(x)   ((x) < 0 ? ((int)((x) - 0.5f)) : ((int)((x) + 0.5f)))
 
-#define Q_IsBitSet(data, bit)   (((data)[(bit) >> 3] & (1 << ((bit) & 7))) != 0)
-#define Q_SetBit(data, bit)     ((data)[(bit) >> 3] |= (1 << ((bit) & 7)))
-#define Q_ClearBit(data, bit)   ((data)[(bit) >> 3] &= ~(1 << ((bit) & 7)))
+#define Q_IsBitSet(data, bit)   ((((const byte *)(data))[(bit) >> 3] >> ((bit) & 7)) & 1)
+#define Q_SetBit(data, bit)     (((byte *)(data))[(bit) >> 3] |= (1 << ((bit) & 7)))
+#define Q_ClearBit(data, bit)   (((byte *)(data))[(bit) >> 3] &= ~(1 << ((bit) & 7)))
 
 //=============================================
 
@@ -442,18 +712,44 @@ int Q_strcasecmp(const char *s1, const char *s2);
 int Q_strncasecmp(const char *s1, const char *s2, size_t n);
 char *Q_strcasestr(const char *s1, const char *s2);
 
-#define Q_stricmp   Q_strcasecmp
+//Defined above
+//#define Q_stricmp   Q_strcasecmp
+
 #define Q_stricmpn  Q_strncasecmp
 #define Q_stristr   Q_strcasestr
 
+#ifdef HAVE_STRCHRNUL
+#define Q_strchrnul strchrnul
+#else
 char *Q_strchrnul(const char *s, int c);
+#endif
+
+#ifdef HAVE_MEMCCPY
+#define Q_memccpy memccpy
+#else
 void *Q_memccpy(void *dst, const void *src, int c, size_t size);
+#endif
+
+#ifdef HAVE_STRNLEN
+#define Q_strnlen strnlen
+#else
 size_t Q_strnlen(const char *s, size_t maxlen);
+#endif
+
+#ifdef _WIN32
+#define Q_atoi(s) atoi(s)
+#else
+int Q_atoi(const char *s);
+#endif
+
+#define Q_atof(s) strtof(s, NULL)
 
 char *COM_SkipPath(const char *pathname);
 size_t COM_StripExtension(char *out, const char *in, size_t size);
 size_t COM_DefaultExtension(char *path, const char *ext, size_t size);
 char *COM_FileExtension(const char *in);
+void COM_SplitPath(const char *in, char *name, size_t name_size,
+                   char *path, size_t path_size, bool strip_ext);
 
 #define COM_CompareExtension(in, ext) \
     Q_strcasecmp(COM_FileExtension(in), ext)
@@ -463,8 +759,14 @@ bool COM_IsUint(const char *s);
 bool COM_IsPath(const char *s);
 bool COM_IsWhite(const char *s);
 
+extern unsigned com_linenum;
+
+#define COM_SkipToken(data_p) COM_ParseToken(data_p, NULL, 0)
+size_t COM_ParseToken(const char **data_p, char *buffer, size_t size);
 char *COM_Parse(const char **data_p);
 // data is an in/out parm, returns a parsed out token
+char *COM_ParseC(char **data_p);
+// mutable version of COM_Parse
 size_t COM_Compress(char *data);
 
 int SortStrcmp(const void *p1, const void *p2);
@@ -472,6 +774,7 @@ int SortStricmp(const void *p1, const void *p2);
 
 size_t COM_strclr(char *s);
 char *COM_StripQuotes(char *s);
+char *COM_TrimSpace(char *s);
 
 // buffer safe operations
 size_t Q_strlcpy(char *dst, const char *src, size_t size);
@@ -493,15 +796,23 @@ char    *vtos(const vec3_t v);
 
 static inline uint16_t ShortSwap(uint16_t s)
 {
+#if q_has_builtin(__builtin_bswap16)
+    return __builtin_bswap16(s);
+#else
     s = (s >> 8) | (s << 8);
     return s;
+#endif
 }
 
 static inline uint32_t LongSwap(uint32_t l)
 {
+#if q_has_builtin(__builtin_bswap32)
+    return __builtin_bswap32(l);
+#else
     l = ((l >> 8) & 0x00ff00ff) | ((l << 8) & 0xff00ff00);
     l = (l >> 16) | (l << 16);
     return l;
+#endif
 }
 
 static inline float FloatSwap(float f)
@@ -516,29 +827,46 @@ static inline float FloatSwap(float f)
     return dat2.f;
 }
 
+static inline float LongToFloat(uint32_t l)
+{
+    union {
+        float f;
+        uint32_t l;
+    } dat;
+
+    dat.l = l;
+    return dat.f;
+}
+
+static inline int32_t SignExtend(uint32_t v, int bits)
+{
+    return (int32_t)(v << (32 - bits)) >> (32 - bits);
+}
+
 #if USE_LITTLE_ENDIAN
-#define BigShort    ShortSwap
-#define BigLong     LongSwap
-#define BigFloat    FloatSwap
-#define LittleShort(x)    ((uint16_t)(x))
-#define LittleLong(x)     ((uint32_t)(x))
-#define LittleFloat(x)    ((float)(x))
-#define MakeRawLong(b1,b2,b3,b4) (((unsigned)(b4)<<24)|((b3)<<16)|((b2)<<8)|(b1))
+#define BigShort(x)     ShortSwap(x)
+#define BigLong(x)      LongSwap(x)
+#define BigFloat(x)     FloatSwap(x)
+#define LittleShort(x)  ((uint16_t)(x))
+#define LittleLong(x)   ((uint32_t)(x))
+#define LittleFloat(x)  ((float)(x))
+#define MakeRawLong(b1,b2,b3,b4) MakeLittleLong(b1,b2,b3,b4)
 #define MakeRawShort(b1,b2) (((b2)<<8)|(b1))
 #elif USE_BIG_ENDIAN
 #define BigShort(x)     ((uint16_t)(x))
 #define BigLong(x)      ((uint32_t)(x))
 #define BigFloat(x)     ((float)(x))
-#define LittleShort ShortSwap
-#define LittleLong  LongSwap
-#define LittleFloat FloatSwap
-#define MakeRawLong(b1,b2,b3,b4) (((unsigned)(b1)<<24)|((b2)<<16)|((b3)<<8)|(b4))
+#define LittleShort(x)  ShortSwap(x)
+#define LittleLong(x)   LongSwap(x)
+#define LittleFloat(x)  FloatSwap(x)
+#define MakeRawLong(b1,b2,b3,b4) MakeBigLong(b1,b2,b3,b4)
 #define MakeRawShort(b1,b2) (((b1)<<8)|(b2))
 #else
 #error Unknown byte order
 #endif
 
-#define MakeLittleLong(b1,b2,b3,b4) (((unsigned)(b4)<<24)|((b3)<<16)|((b2)<<8)|(b1))
+#define MakeLittleLong(b1,b2,b3,b4) (((uint32_t)(b4)<<24)|((uint32_t)(b3)<<16)|((uint32_t)(b2)<<8)|(uint32_t)(b1))
+#define MakeBigLong(b1,b2,b3,b4) (((uint32_t)(b1)<<24)|((uint32_t)(b2)<<16)|((uint32_t)(b3)<<8)|(uint32_t)(b4))
 
 #define LittleVector(a,b) \
     ((b)[0]=LittleFloat((a)[0]),\
@@ -579,18 +907,21 @@ CVARS (console variables)
 #ifndef CVAR
 #define CVAR
 
-#define CVAR_ARCHIVE    1   // set to cause it to be saved to vars.rc
-#define CVAR_USERINFO   2   // added to userinfo  when changed
-#define CVAR_SERVERINFO 4   // added to serverinfo when changed
-#define CVAR_NOSET      8   // don't allow change from console at all,
-                            // but can be set from the command line
-#define CVAR_LATCH      16  // save changes until server restart
+#define CVAR_ARCHIVE        BIT(0)  // set to cause it to be saved to vars.rc
+#define CVAR_USERINFO       BIT(1)  // added to userinfo when changed
+#define CVAR_SERVERINFO     BIT(2)  // added to serverinfo when changed
+#define CVAR_NOSET          BIT(3)  // don't allow change from console at all,
+                                    // but can be set from the command line
+#define CVAR_LATCH          BIT(4)  // save changes until server restart
+#define CVAR_SERVERINFO_EXT BIT(16) // queryable via rulesext protocol
 
+#if USE_CLIENT || USE_SERVER
 struct cvar_s;
 struct genctx_s;
 
 typedef void (*xchanged_t)(struct cvar_s *);
 typedef void (*xgenerator_t)(struct genctx_s *);
+#endif
 
 // nothing outside the cvar.*() functions should modify these fields!
 typedef struct cvar_s {
@@ -603,9 +934,14 @@ typedef struct cvar_s {
     struct cvar_s *next;
 
 // ------ new stuff ------
-#if USE_CLIENT || USE_SERVER
+#ifdef AQTION_EXTENSION
+	int			sync_index;
+#endif
+#if USE_NEW_GAME_API
     int         integer;
     char        *default_string;
+#endif
+#if USE_CLIENT || USE_SERVER
     xchanged_t      changed;
     xgenerator_t    generator;
     struct cvar_s   *hashNext;
@@ -623,54 +959,60 @@ COLLISION DETECTION
 */
 
 // lower bits are stronger, and will eat weaker brushes completely
-#define CONTENTS_SOLID          1       // an eye is never valid in a solid
-#define CONTENTS_WINDOW         2       // translucent, but not watery
-#define CONTENTS_AUX            4
-#define CONTENTS_LAVA           8
-#define CONTENTS_SLIME          16
-#define CONTENTS_WATER          32
-#define CONTENTS_MIST           64
-#define LAST_VISIBLE_CONTENTS   64
+#define CONTENTS_SOLID          BIT(0)      // an eye is never valid in a solid
+#define CONTENTS_WINDOW         BIT(1)      // translucent, but not watery
+#define CONTENTS_AUX            BIT(2)
+#define CONTENTS_LAVA           BIT(3)
+#define CONTENTS_SLIME          BIT(4)
+#define CONTENTS_WATER          BIT(5)
+#define CONTENTS_MIST           BIT(6)
 
 // remaining contents are non-visible, and don't eat brushes
 
-#define CONTENTS_AREAPORTAL     0x8000
+#define CONTENTS_PROJECTILECLIP BIT(14)     // KEX
+#define CONTENTS_AREAPORTAL     BIT(15)
 
-#define CONTENTS_PLAYERCLIP     0x10000
-#define CONTENTS_MONSTERCLIP    0x20000
+#define CONTENTS_PLAYERCLIP     BIT(16)
+#define CONTENTS_MONSTERCLIP    BIT(17)
 
 // currents can be added to any other contents, and may be mixed
-#define CONTENTS_CURRENT_0      0x40000
-#define CONTENTS_CURRENT_90     0x80000
-#define CONTENTS_CURRENT_180    0x100000
-#define CONTENTS_CURRENT_270    0x200000
-#define CONTENTS_CURRENT_UP     0x400000
-#define CONTENTS_CURRENT_DOWN   0x800000
+#define CONTENTS_CURRENT_0      BIT(18)
+#define CONTENTS_CURRENT_90     BIT(19)
+#define CONTENTS_CURRENT_180    BIT(20)
+#define CONTENTS_CURRENT_270    BIT(21)
+#define CONTENTS_CURRENT_UP     BIT(22)
+#define CONTENTS_CURRENT_DOWN   BIT(23)
 
-#define CONTENTS_ORIGIN         0x1000000   // removed before bsping an entity
+#define CONTENTS_ORIGIN         BIT(24)     // removed before bsping an entity
 
-#define CONTENTS_MONSTER        0x2000000   // should never be on a brush, only in game
-#define CONTENTS_DEADMONSTER    0x4000000
-#define CONTENTS_DETAIL         0x8000000   // brushes to be added after vis leafs
-#define CONTENTS_TRANSLUCENT    0x10000000  // auto set if any surface has trans
-#define CONTENTS_LADDER         0x20000000
+#define CONTENTS_MONSTER        BIT(25)     // should never be on a brush, only in game
+#define CONTENTS_DEADMONSTER    BIT(26)
+#define CONTENTS_DETAIL         BIT(27)     // brushes to be added after vis leafs
+#define CONTENTS_TRANSLUCENT    BIT(28)     // auto set if any surface has trans
+#define CONTENTS_LADDER         BIT(29)
 
+//KEX
+#define CONTENTS_PLAYER         BIT(30)     // should never be on a brush, only in game
+#define CONTENTS_PROJECTILE     BIT(31)
+//KEX
 
+#define SURF_LIGHT              BIT(0)      // value will hold the light strength
+#define SURF_SLICK              BIT(1)      // effects game physics
+#define SURF_SKY                BIT(2)      // don't draw, but add to skybox
+#define SURF_WARP               BIT(3)      // turbulent water warp
+#define SURF_TRANS33            BIT(4)
+#define SURF_TRANS66            BIT(5)
+#define SURF_FLOWING            BIT(6)      // scroll towards angle
+#define SURF_NODRAW             BIT(7)      // don't bother referencing the texture
 
-#define SURF_LIGHT      0x1     // value will hold the light strength
+#define SURF_ALPHATEST          BIT(25)     // used by KMQuake2
 
-#define SURF_SLICK      0x2     // effects game physics
-
-#define SURF_SKY        0x4     // don't draw, but add to skybox
-#define SURF_WARP       0x8     // turbulent water warp
-#define SURF_TRANS33    0x10
-#define SURF_TRANS66    0x20
-#define SURF_FLOWING    0x40    // scroll towards angle
-#define SURF_NODRAW     0x80    // don't bother referencing the texture
-
-#define SURF_ALPHATEST  0x02000000  // used by kmquake2
-
-
+//KEX
+#define SURF_N64_UV             BIT(28)
+#define SURF_N64_SCROLL_X       BIT(29)
+#define SURF_N64_SCROLL_Y       BIT(30)
+#define SURF_N64_SCROLL_FLIP    BIT(31)
+//KEX
 
 // content masks
 #define MASK_ALL                (-1)
@@ -683,15 +1025,13 @@ COLLISION DETECTION
 #define MASK_SHOT               (CONTENTS_SOLID|CONTENTS_MONSTER|CONTENTS_WINDOW|CONTENTS_DEADMONSTER)
 #define MASK_CURRENT            (CONTENTS_CURRENT_0|CONTENTS_CURRENT_90|CONTENTS_CURRENT_180|CONTENTS_CURRENT_270|CONTENTS_CURRENT_UP|CONTENTS_CURRENT_DOWN)
 
-
 // gi.BoxEdicts() can return a list of either solid or trigger entities
 // FIXME: eliminate AREA_ distinction?
 #define AREA_SOLID      1
 #define AREA_TRIGGERS   2
 
-
 // plane_t structure
-typedef struct cplane_s {
+typedef struct {
     vec3_t  normal;
     float   dist;
     byte    type;           // for fast side tests
@@ -703,17 +1043,9 @@ typedef struct cplane_s {
 #define PLANE_X         0
 #define PLANE_Y         1
 #define PLANE_Z         2
-
-// 3-5 are non-axial planes snapped to the nearest
-#define PLANE_ANYX      3
-#define PLANE_ANYY      4
-#define PLANE_ANYZ      5
-
-// planes (x&~1) and (x&~1)+1 are always opposites
-
 #define PLANE_NON_AXIAL 6
 
-typedef struct csurface_s {
+typedef struct {
     char        name[16];
     int         flags;
     int         value;
@@ -728,7 +1060,7 @@ typedef struct {
     cplane_t    plane;      // surface normal at impact
     csurface_t  *surface;   // surface hit
     int         contents;   // contents on other side of surface hit
-    struct edict_s  *ent;       // not set by CM_*() functions
+    struct edict_s  *ent;   // not set by CM_*() functions
 } trace_t;
 
 // pmove_state_t is the information necessary for client side movement
@@ -746,19 +1078,24 @@ typedef enum {
 //#define AQTION_EXTENSION
 
 // pmove->pm_flags
-#define PMF_DUCKED          1
-#define PMF_JUMP_HELD       2
-#define PMF_ON_GROUND       4
-#define PMF_TIME_WATERJUMP  8   // pm_time is waterjump
-#define PMF_TIME_LAND       16  // pm_time is time before rejump
-#define PMF_TIME_TELEPORT   32  // pm_time is non-moving time
-#define PMF_NO_PREDICTION   64  // temporarily disables prediction (used for grappling hook)
-#define PMF_TELEPORT_BIT    128 // used by q2pro
+#define PMF_DUCKED          BIT(0)
+#define PMF_JUMP_HELD       BIT(1)
+#define PMF_ON_GROUND       BIT(2)
+#define PMF_TIME_WATERJUMP  BIT(3)      // pm_time is waterjump
+#define PMF_TIME_LAND       BIT(4)      // pm_time is time before rejump
+#define PMF_TIME_TELEPORT   BIT(5)      // pm_time is non-moving time
+#define PMF_NO_PREDICTION   BIT(6)      // temporarily disables prediction (used for grappling hook)
+#define PMF_TELEPORT_BIT    BIT(7)      // used by Q2PRO (non-extended servers)
 
+//KEX
+#define PMF_IGNORE_PLAYER_COLLISION     BIT(7)
+#define PMF_ON_LADDER                   BIT(8)
+//KEX
 
 #ifdef AQTION_EXTENSION
 // pmove->pm_aq2_flags
 #define PMF_AQ2_LIMP		0x01 // used to predict limping
+#define PMF_AQ2_FRICTION    0x02 //rekkie -- Increase friction for bots
 #endif
 
 // this structure needs to be communicated bit-accurate
@@ -781,19 +1118,36 @@ typedef struct {
 	unsigned short pm_timestamp; // timestamp, resets every 60 seconds
 	byte		pm_aq2_leghits;		 // number of leg hits
 #endif
-} pmove_state_t;
+} pmove_state_old_t;
 
+#if USE_NEW_GAME_API
+typedef struct {
+    pmtype_t    pm_type;
+
+    int32_t     origin[3];      // 19.3
+    int32_t     velocity[3];    // 19.3
+    uint16_t    pm_flags;       // ducked, jump_held, etc
+    uint16_t    pm_time;        // in msec
+    int16_t     gravity;
+    int16_t     delta_angles[3];    // add to command angles to get view direction
+                                    // changed by spawns, rotating objects, and teleporters
+#ifdef AQTION_EXTENSION
+	short       pm_aq2_flags;   // limping, bandaging, etc
+	unsigned short pm_timestamp; // timestamp, resets every 60 seconds
+	byte		pm_aq2_leghits;		 // number of leg hits
+#endif
+} pmove_state_new_t;
+#endif
 
 //
 // button bits
 //
-#define BUTTON_ATTACK       1
-#define BUTTON_USE          2
-#define BUTTON_ANY          128         // any key whatsoever
-
+#define BUTTON_ATTACK   BIT(0)
+#define BUTTON_USE      BIT(1)
+#define BUTTON_ANY      BIT(7)  // any key whatsoever
 
 // usercmd_t is sent to the server each client frame
-typedef struct usercmd_s {
+typedef struct {
     byte    msec;
     byte    buttons;
     short   angles[3];
@@ -802,18 +1156,18 @@ typedef struct usercmd_s {
     byte    lightlevel;     // light level the player is standing on
 } usercmd_t;
 
-
 #define MAXTOUCH    32
+
 typedef struct {
     // state (in / out)
-    pmove_state_t   s;
+    pmove_state_old_t   s;
 
     // command (in)
     usercmd_t       cmd;
     qboolean        snapinitial;    // if s has been changed outside pmove
 
     // results (out)
-    int         numtouch;
+    int             numtouch;
     struct edict_s  *touchents[MAXTOUCH];
 
     vec3_t      viewangles;         // clamped
@@ -822,87 +1176,147 @@ typedef struct {
     vec3_t      mins, maxs;         // bounding box size
 
     struct edict_s  *groundentity;
-    int         watertype;
-    int         waterlevel;
+    int             watertype;
+    int             waterlevel;
 
     // callbacks to test the world
     trace_t     (* q_gameabi trace)(const vec3_t start, const vec3_t mins, const vec3_t maxs, const vec3_t end);
     int         (*pointcontents)(const vec3_t point);
-} pmove_t;
+} pmove_old_t;
 
+#if USE_NEW_GAME_API
+typedef struct {
+    // state (in / out)
+    pmove_state_new_t   s;
+
+    // command (in)
+    usercmd_t       cmd;
+    qboolean        snapinitial;    // if s has been changed outside pmove
+
+    // results (out)
+    int             numtouch;
+    struct edict_s  *touchents[MAXTOUCH];
+
+    vec3_t      viewangles;         // clamped
+    float       viewheight;
+
+    vec3_t      mins, maxs;         // bounding box size
+
+    struct edict_s  *groundentity;
+    cplane_t        groundplane;
+    int             watertype;
+    int             waterlevel;
+
+    // callbacks to test the world
+    trace_t     (* q_gameabi trace)(const vec3_t start, const vec3_t mins, const vec3_t maxs, const vec3_t end, int contentmask);
+    int         (*pointcontents)(const vec3_t point);
+} pmove_new_t;
+#endif
 
 // entity_state_t->effects
 // Effects are things handled on the client side (lights, particles, frame animations)
 // that happen constantly on the given entity.
 // An entity that has effects will be sent to the client
 // even if it has a zero index model.
-#define EF_ROTATE           0x00000001      // rotate (bonus items)
-#define EF_GIB              0x00000002      // leave a trail
-#define EF_BLASTER          0x00000008      // redlight + trail
-#define EF_ROCKET           0x00000010      // redlight + trail
-#define EF_GRENADE          0x00000020
-#define EF_HYPERBLASTER     0x00000040
-#define EF_BFG              0x00000080
-#define EF_COLOR_SHELL      0x00000100
-#define EF_POWERSCREEN      0x00000200
-#define EF_ANIM01           0x00000400      // automatically cycle between frames 0 and 1 at 2 hz
-#define EF_ANIM23           0x00000800      // automatically cycle between frames 2 and 3 at 2 hz
-#define EF_ANIM_ALL         0x00001000      // automatically cycle through all frames at 2hz
-#define EF_ANIM_ALLFAST     0x00002000      // automatically cycle through all frames at 10hz
-#define EF_FLIES            0x00004000
-#define EF_QUAD             0x00008000
-#define EF_PENT             0x00010000
-#define EF_TELEPORTER       0x00020000      // particle fountain
-#define EF_FLAG1            0x00040000
-#define EF_FLAG2            0x00080000
+#define EF_ROTATE           BIT(0)      // rotate (bonus items)
+#define EF_GIB              BIT(1)      // leave a trail
+#define EF_BOB              BIT(2)      // used by KEX
+#define EF_BLASTER          BIT(3)      // redlight + trail
+#define EF_ROCKET           BIT(4)      // redlight + trail
+#define EF_GRENADE          BIT(5)
+#define EF_HYPERBLASTER     BIT(6)
+#define EF_BFG              BIT(7)
+#define EF_COLOR_SHELL      BIT(8)
+#define EF_POWERSCREEN      BIT(9)
+#define EF_ANIM01           BIT(10)     // automatically cycle between frames 0 and 1 at 2 hz
+#define EF_ANIM23           BIT(11)     // automatically cycle between frames 2 and 3 at 2 hz
+#define EF_ANIM_ALL         BIT(12)     // automatically cycle through all frames at 2hz
+#define EF_ANIM_ALLFAST     BIT(13)     // automatically cycle through all frames at 10hz
+#define EF_FLIES            BIT(14)
+#define EF_QUAD             BIT(15)
+#define EF_PENT             BIT(16)
+#define EF_TELEPORTER       BIT(17)     // particle fountain
+#define EF_FLAG1            BIT(18)
+#define EF_FLAG2            BIT(19)
+
 // RAFAEL
-#define EF_IONRIPPER        0x00100000
-#define EF_GREENGIB         0x00200000
-#define EF_BLUEHYPERBLASTER 0x00400000
-#define EF_SPINNINGLIGHTS   0x00800000
-#define EF_PLASMA           0x01000000
-#define EF_TRAP             0x02000000
+#define EF_IONRIPPER        BIT(20)
+#define EF_GREENGIB         BIT(21)
+#define EF_BLUEHYPERBLASTER BIT(22)
+#define EF_SPINNINGLIGHTS   BIT(23)
+#define EF_PLASMA           BIT(24)
+#define EF_TRAP             BIT(25)
 
 //ROGUE
-#define EF_TRACKER          0x04000000
-#define EF_DOUBLE           0x08000000
-#define EF_SPHERETRANS      0x10000000
-#define EF_TAGTRAIL         0x20000000
-#define EF_HALF_DAMAGE      0x40000000
-#define EF_TRACKERTRAIL     0x80000000
+#define EF_TRACKER          BIT(26)
+#define EF_DOUBLE           BIT(27)
+#define EF_SPHERETRANS      BIT(28)
+#define EF_TAGTRAIL         BIT(29)
+#define EF_HALF_DAMAGE      BIT(30)
+#define EF_TRACKERTRAIL     BIT(31)
 //ROGUE
+
+// entity_state_t->morefx flags
+//KEX
+#define EFX_DUALFIRE            BIT(0)
+#define EFX_HOLOGRAM            BIT(1)
+#define EFX_FLASHLIGHT          BIT(2)
+#define EFX_BARREL_EXPLODING    BIT(3)
+#define EFX_TELEPORTER2         BIT(4)
+#define EFX_GRENADE_LIGHT       BIT(5)
+//KEX
 
 // entity_state_t->renderfx flags
-#define RF_MINLIGHT         1       // allways have some light (viewmodel)
-#define RF_VIEWERMODEL      2       // don't draw through eyes, only mirrors
-#define RF_WEAPONMODEL      4       // only draw through eyes
-#define RF_FULLBRIGHT       8       // allways draw full intensity
-#define RF_DEPTHHACK        16      // for view weapon Z crunching
-#define RF_TRANSLUCENT      32
-#define RF_FRAMELERP        64
-#define RF_BEAM             128
-#define RF_CUSTOMSKIN       256     // skin is an index in image_precache
-#define RF_GLOW             512     // pulse lighting for bonus items
-#define RF_SHELL_RED        1024
-#define RF_SHELL_GREEN      2048
-#define RF_SHELL_BLUE       4096
-#define RF_NOSHADOW         8192    // used by YQ2
+#define RF_MINLIGHT         BIT(0)      // allways have some light (viewmodel)
+#define RF_VIEWERMODEL      BIT(1)      // don't draw through eyes, only mirrors
+#define RF_WEAPONMODEL      BIT(2)      // only draw through eyes
+#define RF_FULLBRIGHT       BIT(3)      // allways draw full intensity
+#define RF_DEPTHHACK        BIT(4)      // for view weapon Z crunching
+#define RF_TRANSLUCENT      BIT(5)
+#define RF_FRAMELERP        BIT(6)
+#define RF_BEAM             BIT(7)
+#define RF_CUSTOMSKIN       BIT(8)      // skin is an index in image_precache
+#define RF_GLOW             BIT(9)      // pulse lighting for bonus items
+#define RF_SHELL_RED        BIT(10)
+#define RF_SHELL_GREEN      BIT(11)
+#define RF_SHELL_BLUE       BIT(12)
+#define RF_NOSHADOW         BIT(13)     // used by YQ2
+#define RF_CASTSHADOW       BIT(14)     // used by KEX
 
 //ROGUE
-#define RF_IR_VISIBLE       0x00008000      // 32768
-#define RF_SHELL_DOUBLE     0x00010000      // 65536
-#define RF_SHELL_HALF_DAM   0x00020000
-#define RF_USE_DISGUISE     0x00040000
+#define RF_IR_VISIBLE       BIT(15)
+#define RF_SHELL_DOUBLE     BIT(16)
+#define RF_SHELL_HALF_DAM   BIT(17)
+#define RF_USE_DISGUISE     BIT(18)
 //ROGUE
+
+//KEX
+#define RF_SHELL_LITE_GREEN BIT(19)
+#define RF_CUSTOM_LIGHT     BIT(20)
+#define RF_FLARE            BIT(21)
+#define RF_OLD_FRAME_LERP   BIT(22)
+#define RF_DOT_SHADOW       BIT(23)
+#define RF_LOW_PRIORITY     BIT(24)
+#define RF_NO_LOD           BIT(25)
+#define RF_STAIR_STEP       BIT(26)
+
+#define RF_NO_STEREO        RF_WEAPONMODEL
+#define RF_FLARE_LOCK_ANGLE RF_MINLIGHT
+#define RF_BEAM_LIGHTNING   (RF_BEAM | RF_GLOW)
+//KEX
 
 // player_state_t->refdef flags
-#define RDF_UNDERWATER      1       // warp the screen as apropriate
-#define RDF_NOWORLDMODEL    2       // used for player configuration screen
+#define RDF_UNDERWATER      BIT(0)      // warp the screen as apropriate
+#define RDF_NOWORLDMODEL    BIT(1)      // used for player configuration screen
 
 //ROGUE
-#define RDF_IRGOGGLES       4
-#define RDF_UVGOGGLES       8
+#define RDF_IRGOGGLES       BIT(2)
+#define RDF_UVGOGGLES       BIT(3)
 //ROGUE
+
+#define RF_INDICATOR			(RF_TRANSLUCENT | RF_FULLBRIGHT | RF_DEPTHHACK)
+#define IS_INDICATOR(rflags)	((rflags & RF_INDICATOR) == RF_INDICATOR)
+#define RDF_TELEPORT_BIT    BIT(4)      // used by Q2PRO (extended servers)
 
 //
 // muzzle flashes / player effects
@@ -930,10 +1344,14 @@ enum {
     MZ_BLUEHYPERBLASTER,
     MZ_PHALANX,
 
+// KEX
+    MZ_BFG2,
+    MZ_PHALANX2,
+
 //ROGUE
     MZ_ETF_RIFLE = 30,
-    MZ_UNUSED,
-    MZ_SHOTGUN2,
+    MZ_PROX,        // KEX
+    MZ_SHOTGUN2,    // MZ_ETF_RIFLE_2 in KEX
     MZ_HEATBEAM,
     MZ_BLASTER2,
     MZ_TRACKER,
@@ -943,97 +1361,8 @@ enum {
     MZ_NUKE8,
 //ROGUE
 
-    MZ_SILENCED = 128,  // bit flag ORed with one of the above numbers
+    MZ_SILENCED = BIT(7),  // bit flag ORed with one of the above numbers
 };
-
-//
-// monster muzzle flashes
-//
-enum {
-    MZ2_TANK_BLASTER_1 = 1, MZ2_TANK_BLASTER_2, MZ2_TANK_BLASTER_3,
-    MZ2_TANK_MACHINEGUN_1, MZ2_TANK_MACHINEGUN_2, MZ2_TANK_MACHINEGUN_3,
-    MZ2_TANK_MACHINEGUN_4, MZ2_TANK_MACHINEGUN_5, MZ2_TANK_MACHINEGUN_6,
-    MZ2_TANK_MACHINEGUN_7, MZ2_TANK_MACHINEGUN_8, MZ2_TANK_MACHINEGUN_9,
-    MZ2_TANK_MACHINEGUN_10, MZ2_TANK_MACHINEGUN_11, MZ2_TANK_MACHINEGUN_12,
-    MZ2_TANK_MACHINEGUN_13, MZ2_TANK_MACHINEGUN_14, MZ2_TANK_MACHINEGUN_15,
-    MZ2_TANK_MACHINEGUN_16, MZ2_TANK_MACHINEGUN_17, MZ2_TANK_MACHINEGUN_18,
-    MZ2_TANK_MACHINEGUN_19, MZ2_TANK_ROCKET_1, MZ2_TANK_ROCKET_2,
-    MZ2_TANK_ROCKET_3, MZ2_INFANTRY_MACHINEGUN_1, MZ2_INFANTRY_MACHINEGUN_2,
-    MZ2_INFANTRY_MACHINEGUN_3, MZ2_INFANTRY_MACHINEGUN_4,
-    MZ2_INFANTRY_MACHINEGUN_5, MZ2_INFANTRY_MACHINEGUN_6,
-    MZ2_INFANTRY_MACHINEGUN_7, MZ2_INFANTRY_MACHINEGUN_8,
-    MZ2_INFANTRY_MACHINEGUN_9, MZ2_INFANTRY_MACHINEGUN_10,
-    MZ2_INFANTRY_MACHINEGUN_11, MZ2_INFANTRY_MACHINEGUN_12,
-    MZ2_INFANTRY_MACHINEGUN_13, MZ2_SOLDIER_BLASTER_1, MZ2_SOLDIER_BLASTER_2,
-    MZ2_SOLDIER_SHOTGUN_1, MZ2_SOLDIER_SHOTGUN_2, MZ2_SOLDIER_MACHINEGUN_1,
-    MZ2_SOLDIER_MACHINEGUN_2, MZ2_GUNNER_MACHINEGUN_1, MZ2_GUNNER_MACHINEGUN_2,
-    MZ2_GUNNER_MACHINEGUN_3, MZ2_GUNNER_MACHINEGUN_4, MZ2_GUNNER_MACHINEGUN_5,
-    MZ2_GUNNER_MACHINEGUN_6, MZ2_GUNNER_MACHINEGUN_7, MZ2_GUNNER_MACHINEGUN_8,
-    MZ2_GUNNER_GRENADE_1, MZ2_GUNNER_GRENADE_2, MZ2_GUNNER_GRENADE_3,
-    MZ2_GUNNER_GRENADE_4, MZ2_CHICK_ROCKET_1, MZ2_FLYER_BLASTER_1,
-    MZ2_FLYER_BLASTER_2, MZ2_MEDIC_BLASTER_1, MZ2_GLADIATOR_RAILGUN_1,
-    MZ2_HOVER_BLASTER_1, MZ2_ACTOR_MACHINEGUN_1, MZ2_SUPERTANK_MACHINEGUN_1,
-    MZ2_SUPERTANK_MACHINEGUN_2, MZ2_SUPERTANK_MACHINEGUN_3,
-    MZ2_SUPERTANK_MACHINEGUN_4, MZ2_SUPERTANK_MACHINEGUN_5,
-    MZ2_SUPERTANK_MACHINEGUN_6, MZ2_SUPERTANK_ROCKET_1, MZ2_SUPERTANK_ROCKET_2,
-    MZ2_SUPERTANK_ROCKET_3, MZ2_BOSS2_MACHINEGUN_L1, MZ2_BOSS2_MACHINEGUN_L2,
-    MZ2_BOSS2_MACHINEGUN_L3, MZ2_BOSS2_MACHINEGUN_L4, MZ2_BOSS2_MACHINEGUN_L5,
-    MZ2_BOSS2_ROCKET_1, MZ2_BOSS2_ROCKET_2, MZ2_BOSS2_ROCKET_3,
-    MZ2_BOSS2_ROCKET_4, MZ2_FLOAT_BLASTER_1, MZ2_SOLDIER_BLASTER_3,
-    MZ2_SOLDIER_SHOTGUN_3, MZ2_SOLDIER_MACHINEGUN_3, MZ2_SOLDIER_BLASTER_4,
-    MZ2_SOLDIER_SHOTGUN_4, MZ2_SOLDIER_MACHINEGUN_4, MZ2_SOLDIER_BLASTER_5,
-    MZ2_SOLDIER_SHOTGUN_5, MZ2_SOLDIER_MACHINEGUN_5, MZ2_SOLDIER_BLASTER_6,
-    MZ2_SOLDIER_SHOTGUN_6, MZ2_SOLDIER_MACHINEGUN_6, MZ2_SOLDIER_BLASTER_7,
-    MZ2_SOLDIER_SHOTGUN_7, MZ2_SOLDIER_MACHINEGUN_7, MZ2_SOLDIER_BLASTER_8,
-    MZ2_SOLDIER_SHOTGUN_8, MZ2_SOLDIER_MACHINEGUN_8,
-
-// --- Xian shit below ---
-    MZ2_MAKRON_BFG, MZ2_MAKRON_BLASTER_1, MZ2_MAKRON_BLASTER_2,
-    MZ2_MAKRON_BLASTER_3, MZ2_MAKRON_BLASTER_4, MZ2_MAKRON_BLASTER_5,
-    MZ2_MAKRON_BLASTER_6, MZ2_MAKRON_BLASTER_7, MZ2_MAKRON_BLASTER_8,
-    MZ2_MAKRON_BLASTER_9, MZ2_MAKRON_BLASTER_10, MZ2_MAKRON_BLASTER_11,
-    MZ2_MAKRON_BLASTER_12, MZ2_MAKRON_BLASTER_13, MZ2_MAKRON_BLASTER_14,
-    MZ2_MAKRON_BLASTER_15, MZ2_MAKRON_BLASTER_16, MZ2_MAKRON_BLASTER_17,
-    MZ2_MAKRON_RAILGUN_1, MZ2_JORG_MACHINEGUN_L1, MZ2_JORG_MACHINEGUN_L2,
-    MZ2_JORG_MACHINEGUN_L3, MZ2_JORG_MACHINEGUN_L4, MZ2_JORG_MACHINEGUN_L5,
-    MZ2_JORG_MACHINEGUN_L6, MZ2_JORG_MACHINEGUN_R1, MZ2_JORG_MACHINEGUN_R2,
-    MZ2_JORG_MACHINEGUN_R3, MZ2_JORG_MACHINEGUN_R4, MZ2_JORG_MACHINEGUN_R5,
-    MZ2_JORG_MACHINEGUN_R6, MZ2_JORG_BFG_1, MZ2_BOSS2_MACHINEGUN_R1,
-    MZ2_BOSS2_MACHINEGUN_R2, MZ2_BOSS2_MACHINEGUN_R3, MZ2_BOSS2_MACHINEGUN_R4,
-    MZ2_BOSS2_MACHINEGUN_R5,
-
-//ROGUE
-    MZ2_CARRIER_MACHINEGUN_L1, MZ2_CARRIER_MACHINEGUN_R1, MZ2_CARRIER_GRENADE,
-    MZ2_TURRET_MACHINEGUN, MZ2_TURRET_ROCKET, MZ2_TURRET_BLASTER,
-    MZ2_STALKER_BLASTER, MZ2_DAEDALUS_BLASTER, MZ2_MEDIC_BLASTER_2,
-    MZ2_CARRIER_RAILGUN, MZ2_WIDOW_DISRUPTOR, MZ2_WIDOW_BLASTER,
-    MZ2_WIDOW_RAIL, MZ2_WIDOW_PLASMABEAM, MZ2_CARRIER_MACHINEGUN_L2,
-    MZ2_CARRIER_MACHINEGUN_R2, MZ2_WIDOW_RAIL_LEFT, MZ2_WIDOW_RAIL_RIGHT,
-    MZ2_WIDOW_BLASTER_SWEEP1, MZ2_WIDOW_BLASTER_SWEEP2,
-    MZ2_WIDOW_BLASTER_SWEEP3, MZ2_WIDOW_BLASTER_SWEEP4,
-    MZ2_WIDOW_BLASTER_SWEEP5, MZ2_WIDOW_BLASTER_SWEEP6,
-    MZ2_WIDOW_BLASTER_SWEEP7, MZ2_WIDOW_BLASTER_SWEEP8,
-    MZ2_WIDOW_BLASTER_SWEEP9, MZ2_WIDOW_BLASTER_100, MZ2_WIDOW_BLASTER_90,
-    MZ2_WIDOW_BLASTER_80, MZ2_WIDOW_BLASTER_70, MZ2_WIDOW_BLASTER_60,
-    MZ2_WIDOW_BLASTER_50, MZ2_WIDOW_BLASTER_40, MZ2_WIDOW_BLASTER_30,
-    MZ2_WIDOW_BLASTER_20, MZ2_WIDOW_BLASTER_10, MZ2_WIDOW_BLASTER_0,
-    MZ2_WIDOW_BLASTER_10L, MZ2_WIDOW_BLASTER_20L, MZ2_WIDOW_BLASTER_30L,
-    MZ2_WIDOW_BLASTER_40L, MZ2_WIDOW_BLASTER_50L, MZ2_WIDOW_BLASTER_60L,
-    MZ2_WIDOW_BLASTER_70L, MZ2_WIDOW_RUN_1, MZ2_WIDOW_RUN_2, MZ2_WIDOW_RUN_3,
-    MZ2_WIDOW_RUN_4, MZ2_WIDOW_RUN_5, MZ2_WIDOW_RUN_6, MZ2_WIDOW_RUN_7,
-    MZ2_WIDOW_RUN_8, MZ2_CARRIER_ROCKET_1, MZ2_CARRIER_ROCKET_2,
-    MZ2_CARRIER_ROCKET_3, MZ2_CARRIER_ROCKET_4, MZ2_WIDOW2_BEAMER_1,
-    MZ2_WIDOW2_BEAMER_2, MZ2_WIDOW2_BEAMER_3, MZ2_WIDOW2_BEAMER_4,
-    MZ2_WIDOW2_BEAMER_5, MZ2_WIDOW2_BEAM_SWEEP_1, MZ2_WIDOW2_BEAM_SWEEP_2,
-    MZ2_WIDOW2_BEAM_SWEEP_3, MZ2_WIDOW2_BEAM_SWEEP_4, MZ2_WIDOW2_BEAM_SWEEP_5,
-    MZ2_WIDOW2_BEAM_SWEEP_6, MZ2_WIDOW2_BEAM_SWEEP_7, MZ2_WIDOW2_BEAM_SWEEP_8,
-    MZ2_WIDOW2_BEAM_SWEEP_9, MZ2_WIDOW2_BEAM_SWEEP_10,
-    MZ2_WIDOW2_BEAM_SWEEP_11,
-//ROGUE
-};
-
-extern const vec3_t monster_flash_offset[256];
-
 
 // temp entity events
 //
@@ -1072,6 +1401,7 @@ typedef enum {
     TE_BLUEHYPERBLASTER,
     TE_PLASMA_EXPLOSION,
     TE_TUNNEL_SPARKS,
+
 //ROGUE
     TE_BLASTER2,
     TE_RAILTRAIL2,
@@ -1101,97 +1431,164 @@ typedef enum {
     TE_FLECHETTE,
 //ROGUE
 
+//[Paril-KEX]
+    TE_BLUEHYPERBLASTER_2,
+    TE_BFG_ZAP,
+    TE_BERSERK_SLAM,
+    TE_GRAPPLE_CABLE_2,
+    TE_POWER_SPLASH,
+    TE_LIGHTNING_BEAM,
+    TE_EXPLOSION1_NL,
+    TE_EXPLOSION2_NL,
+//[Paril-KEX]
+
+    TE_DAMAGE_DEALT = 128,
+
     TE_NUM_ENTITIES
 } temp_event_t;
 
-#define SPLASH_UNKNOWN      0
-#define SPLASH_SPARKS       1
-#define SPLASH_BLUE_WATER   2
-#define SPLASH_BROWN_WATER  3
-#define SPLASH_SLIME        4
-#define SPLASH_LAVA         5
-#define SPLASH_BLOOD        6
-
+enum {
+    SPLASH_UNKNOWN,
+    SPLASH_SPARKS,
+    SPLASH_BLUE_WATER,
+    SPLASH_BROWN_WATER,
+    SPLASH_SLIME,
+    SPLASH_LAVA,
+    SPLASH_BLOOD,
+    SPLASH_ELECTRIC_N64, // KEX
+};
 
 // sound channels
 // channel 0 never willingly overrides
 // other channels (1-7) allways override a playing sound on that channel
-#define CHAN_AUTO               0
-#define CHAN_WEAPON             1
-#define CHAN_VOICE              2
-#define CHAN_ITEM               3
-#define CHAN_BODY               4
-// modifier flags
-#define CHAN_NO_PHS_ADD         8   // send to all clients, not just ones in PHS (ATTN 0 will also do this)
-#define CHAN_RELIABLE           16  // send by reliable message, not datagram
+enum {
+    CHAN_AUTO,
+    CHAN_WEAPON,
+    CHAN_VOICE,
+    CHAN_ITEM,
+    CHAN_BODY,
 
+    // modifier flags
+    CHAN_NO_PHS_ADD     = BIT(3),   // send to all clients, not just ones in PHS (ATTN 0 will also do this)
+    CHAN_RELIABLE       = BIT(4),   // send by reliable message, not datagram
+};
 
 // sound attenuation values
+#define ATTN_LOOP_NONE          -1  // ugly hack for remaster
 #define ATTN_NONE               0   // full volume the entire level
+#define ATTN_LOUD               0.4  // handcannon
 #define ATTN_NORM               1
 #define ATTN_IDLE               2
-#define ATTN_STATIC             3   // diminish very rapidly with distance
+#define ATTN_STATIC             3	// diminish very rapidly with distance
 
+// adjustable weapon sounds
+#define MIN_WEAPON_SOUND        0
+#define MAX_WEAPON_SOUND        7
 
 // player_state->stats[] indexes
-#define STAT_HEALTH_ICON        0
-#define STAT_HEALTH             1
-#define STAT_AMMO_ICON          2
-#define STAT_AMMO               3
-#define STAT_ARMOR_ICON         4
-#define STAT_ARMOR              5
-#define STAT_SELECTED_ICON      6
-#define STAT_PICKUP_ICON        7
-#define STAT_PICKUP_STRING      8
-#define STAT_TIMER_ICON         9
-#define STAT_TIMER              10
-#define STAT_HELPICON           11
-#define STAT_SELECTED_ITEM      12
-#define STAT_LAYOUTS            13
-#define STAT_FRAGS              14
-#define STAT_FLASHES            15      // cleared each frame, 1 = health, 2 = armor
-#define STAT_CHASE              16
-#define STAT_SPECTATOR          17
+enum {
+    STAT_HEALTH_ICON,
+    STAT_HEALTH,
+    STAT_AMMO_ICON,
+    STAT_AMMO,
+    STAT_TEAM_ICON,
+    STAT_ARMOR,
+    STAT_SELECTED_ICON,
+    STAT_PICKUP_ICON,
+    STAT_PICKUP_STRING,
+    STAT_TIMER_ICON,
+    STAT_TIMER,
+    STAT_HELPICON,
+    STAT_SELECTED_ITEM,
+    STAT_LAYOUTS,
+    STAT_FRAGS,
+    STAT_FLASHES,           // cleared each frame, 1 = health, 2 = armor
+    STAT_CLIP_ICON,
+    STAT_CLIP,
+    STAT_SNIPER_ICON,
+    STAT_ITEMS_ICON,
+    STAT_WEAPONS_ICON,
+    STAT_ID_VIEW,
+    STAT_TEAM_HEADER,
+    STAT_FLAG_PIC,
+    STAT_TEAM1_PIC,
+    STAT_TEAM2_PIC,
+    STAT_TEAM1_SCORE,
+    STAT_TEAM2_SCORE,
+    STAT_GRENADE_ICON,
+    STAT_GRENADES,
+    STAT_TEAM3_PIC,
+    STAT_TEAM3_SCORE,
 
-#define MAX_STATS               32
+    MAX_STATS = 32
+};
 
+#define STAT_TEAM1_HEADER  30
+#define STAT_TEAM2_HEADER  31
+
+#define MAX_STATS_OLD   32
+#define MAX_STATS_NEW   64
+
+// STAT_LAYOUTS flags
+#define LAYOUTS_LAYOUT          BIT(0)
+#define LAYOUTS_INVENTORY       BIT(1)
+#define LAYOUTS_HIDE_HUD        BIT(2)
+#define LAYOUTS_INTERMISSION    BIT(3)
+#define LAYOUTS_HELP            BIT(4)
+#define LAYOUTS_HIDE_CROSSHAIR  BIT(5)
 
 // dmflags->value flags
-#define DF_NO_HEALTH        0x00000001  // 1
-#define DF_NO_ITEMS         0x00000002  // 2
-#define DF_WEAPONS_STAY     0x00000004  // 4
-#define DF_NO_FALLING       0x00000008  // 8
-#define DF_INSTANT_ITEMS    0x00000010  // 16
-#define DF_SAME_LEVEL       0x00000020  // 32
-#define DF_SKINTEAMS        0x00000040  // 64
-#define DF_MODELTEAMS       0x00000080  // 128
-#define DF_NO_FRIENDLY_FIRE 0x00000100  // 256
-#define DF_SPAWN_FARTHEST   0x00000200  // 512
-#define DF_FORCE_RESPAWN    0x00000400  // 1024
-#define DF_NO_ARMOR         0x00000800  // 2048
-#define DF_ALLOW_EXIT       0x00001000  // 4096
-#define DF_INFINITE_AMMO    0x00002000  // 8192
-#define DF_QUAD_DROP        0x00004000  // 16384
-#define DF_FIXED_FOV        0x00008000  // 32768
+#define DF_NO_HEALTH        BIT(0)
+#define DF_NO_ITEMS         BIT(1)
+#define DF_WEAPONS_STAY     BIT(2)
+#define DF_NO_FALLING       BIT(3)
+#define DF_INSTANT_ITEMS    BIT(4)
+#define DF_SAME_LEVEL       BIT(5)
+#define DF_SKINTEAMS        BIT(6)
+#define DF_MODELTEAMS       BIT(7)
+#define DF_NO_FRIENDLY_FIRE BIT(8)
+#define DF_SPAWN_FARTHEST   BIT(9)
+#define DF_FORCE_RESPAWN    BIT(10)
+#define DF_NO_ARMOR         BIT(11)
+#define DF_ALLOW_EXIT       BIT(12)
+#define DF_INFINITE_AMMO    BIT(13)
+#define DF_QUAD_DROP        BIT(14)
+#define DF_FIXED_FOV        BIT(15)
+
+// ACTION
+#define DF_WEAPON_RESPAWN   BIT(16)
 
 // RAFAEL
-#define DF_QUADFIRE_DROP    0x00010000  // 65536
+// Note: DF_QUADFIRE_DROP shares the same bit as DF_WEAPON_RESPAWN, never use simultaneously
+#define DF_QUADFIRE_DROP    DF_WEAPON_RESPAWN
 
 //ROGUE
-#define DF_NO_MINES         0x00020000
-#define DF_NO_STACK_DOUBLE  0x00040000
-#define DF_NO_NUKES         0x00080000
-#define DF_NO_SPHERES       0x00100000
+#define DF_NO_MINES         BIT(17)
+#define DF_NO_STACK_DOUBLE  BIT(18)
+#define DF_NO_NUKES         BIT(19)
+#define DF_NO_SPHERES       BIT(20)
 //ROGUE
 
+#define UF_AUTOSCREENSHOT   BIT(0)
+#define UF_AUTORECORD       BIT(1)
+#define UF_LOCALFOV         BIT(2)
+#define UF_MUTE_PLAYERS     BIT(3)
+#define UF_MUTE_OBSERVERS   BIT(4)
+#define UF_MUTE_MISC        BIT(5)
+#define UF_PLAYERFOV        BIT(6)
 
-#define UF_AUTOSCREENSHOT   1
-#define UF_AUTORECORD       2
-#define UF_LOCALFOV         4
-#define UF_MUTE_PLAYERS     8
-#define UF_MUTE_OBSERVERS   16
-#define UF_MUTE_MISC        32
-#define UF_PLAYERFOV        64
+// PaTMaN - Flags for ToGgle
+#define	TG_LASER            BIT(0)
+#define	TG_SLIPPERS         BIT(1)
+#define	TG_SILENCER         BIT(2)
+#define	TG_VEST             BIT(3)
+#define	TG_KICKABLE         BIT(4)
+#define TG_HELMET           BIT(5)
+
+#define	TG_HUD_RANGE        BIT(7)
+
+#define	TG_IR               BIT(13)
+// Why the gaps, I do not know?
 
 /*
 ==========================================================
@@ -1216,7 +1613,6 @@ typedef enum {
 #define COORD2SHORT(x)  ((int)((x)*8.0f))
 #define SHORT2COORD(x)  ((x)*(1.0f/8))
 
-
 //
 // config strings are a general means of communication from
 // the server to all connected clients.
@@ -1229,27 +1625,75 @@ typedef enum {
 #define CS_SKYROTATE        4
 #define CS_STATUSBAR        5       // display program string
 
-#define CS_AIRACCEL         29      // air acceleration control
-#define CS_MAXCLIENTS       30
-#define CS_MAPCHECKSUM      31      // for catching cheater maps
+#define CS_AIRACCEL_OLD         29      // air acceleration control
+#define CS_MAXCLIENTS_OLD       30
+#define CS_MAPCHECKSUM_OLD      31      // for catching cheater maps
+#define CS_MODELS_OLD           32
+#define CS_SOUNDS_OLD           (CS_MODELS_OLD + MAX_MODELS_OLD)
+#define CS_IMAGES_OLD           (CS_SOUNDS_OLD + MAX_SOUNDS_OLD)
+#define CS_LIGHTS_OLD           (CS_IMAGES_OLD + MAX_IMAGES_OLD)
+#define CS_ITEMS_OLD            (CS_LIGHTS_OLD + MAX_LIGHTSTYLES)
+#define CS_PLAYERSKINS_OLD      (CS_ITEMS_OLD + MAX_ITEMS)
+#define CS_GENERAL_OLD          (CS_PLAYERSKINS_OLD + MAX_CLIENTS)
+#define MAX_CONFIGSTRINGS_OLD   (CS_GENERAL_OLD + MAX_GENERAL)
 
-#define CS_MODELS           32
-#define CS_SOUNDS           (CS_MODELS+MAX_MODELS)
-#define CS_IMAGES           (CS_SOUNDS+MAX_SOUNDS)
-#define CS_LIGHTS           (CS_IMAGES+MAX_IMAGES)
-#define CS_ITEMS            (CS_LIGHTS+MAX_LIGHTSTYLES)
-#define CS_PLAYERSKINS      (CS_ITEMS+MAX_ITEMS)
-#define CS_GENERAL          (CS_PLAYERSKINS+MAX_CLIENTS)
-#define MAX_CONFIGSTRINGS   (CS_GENERAL+MAX_GENERAL)
+#if USE_PROTOCOL_EXTENSIONS
+#define CS_AIRACCEL         59
+#define CS_MAXCLIENTS       60
+#define CS_MAPCHECKSUM      61
+#define CS_MODELS           62
+#define CS_SOUNDS           (CS_MODELS + MAX_MODELS)
+#define CS_IMAGES           (CS_SOUNDS + MAX_SOUNDS)
+#define CS_LIGHTS           (CS_IMAGES + MAX_IMAGES)
+#define CS_ITEMS            (CS_LIGHTS + MAX_LIGHTSTYLES)
+#define CS_PLAYERSKINS      (CS_ITEMS + MAX_ITEMS)
+#define CS_GENERAL          (CS_PLAYERSKINS + MAX_CLIENTS)
+#define MAX_CONFIGSTRINGS   (CS_GENERAL + MAX_GENERAL)
+#else
+#define CS_AIRACCEL         CS_AIRACCEL_OLD
+#define CS_MAXCLIENTS       CS_MAXCLIENTS_OLD
+#define CS_MAPCHECKSUM      CS_MAPCHECKSUM_OLD
+#define CS_MODELS           CS_MODELS_OLD
+#define CS_SOUNDS           CS_SOUNDS_OLD
+#define CS_IMAGES           CS_IMAGES_OLD
+#define CS_LIGHTS           CS_LIGHTS_OLD
+#define CS_ITEMS            CS_ITEMS_OLD
+#define CS_PLAYERSKINS      CS_PLAYERSKINS_OLD
+#define CS_GENERAL          CS_GENERAL_OLD
+#define MAX_CONFIGSTRINGS   MAX_CONFIGSTRINGS_OLD
+#endif
 
-// Some mods actually exploit CS_STATUSBAR to take space up to CS_AIRACCEL
-#define CS_SIZE(cs) \
-    ((cs) >= CS_STATUSBAR && (cs) < CS_AIRACCEL ? \
-      MAX_QPATH * (CS_AIRACCEL - (cs)) : MAX_QPATH)
+#if USE_PROTOCOL_EXTENSIONS
 
+typedef struct {
+    bool        extended;
+
+    uint16_t    max_edicts;
+    uint16_t    max_models;
+    uint16_t    max_sounds;
+    uint16_t    max_images;
+
+    uint16_t    airaccel;
+    uint16_t    maxclients;
+    uint16_t    mapchecksum;
+
+    uint16_t    models;
+    uint16_t    sounds;
+    uint16_t    images;
+    uint16_t    lights;
+    uint16_t    items;
+    uint16_t    playerskins;
+    uint16_t    general;
+
+    uint16_t    end;
+} cs_remap_t;
+
+extern const cs_remap_t     cs_remap_old;
+extern const cs_remap_t     cs_remap_new;
+
+#endif
 
 //==============================================
-
 
 // entity_state_t->event values
 // ertity events are for effects that take place reletive
@@ -1263,14 +1707,17 @@ typedef enum {
     EV_FALL,
     EV_FALLFAR,
     EV_PLAYER_TELEPORT,
-    EV_OTHER_TELEPORT
+    EV_OTHER_TELEPORT,
+// KEX
+    EV_OTHER_FOOTSTEP,
+    EV_LADDER_STEP,
+// KEX
 } entity_event_t;
-
 
 // entity_state_t is the information conveyed from the server
 // in an update message about entities that the client will
 // need to render in some way
-typedef struct entity_state_s {
+typedef struct {
     int     number;         // edict index
 
     vec3_t  origin;
@@ -1293,13 +1740,12 @@ typedef struct entity_state_s {
 
 //==============================================
 
-
 // player_state_t is the information needed in addition to pmove_state_t
 // to rendered a view.  There will only be 10 player_state_t sent each second,
 // but the number of pmove_state_t changes will be reletive to client
 // frame rates
 typedef struct {
-    pmove_state_t   pmove;      // for prediction
+    pmove_state_old_t   pmove;  // for prediction
 
     // these fields do not need to be communicated bit-precise
 
@@ -1313,11 +1759,106 @@ typedef struct {
     int         gunindex;
     int         gunframe;
 
-    float       blend[4];       // rgba full screen effect
+    vec4_t      blend;          // rgba full screen effect
 
     float       fov;            // horizontal field of view
 
     int         rdflags;        // refdef flags
 
-    short       stats[MAX_STATS];       // fast status bar updates
-} player_state_t;
+    short       stats[MAX_STATS_OLD];   // fast status bar updates
+} player_state_old_t;
+
+#if USE_NEW_GAME_API
+typedef struct {
+    vec3_t color;
+    float density;
+    float sky_factor;
+} player_fog_t;
+
+typedef struct {
+    struct {
+        vec3_t color;
+        float dist;
+    } start, end;
+    float density;
+    float falloff;
+} player_heightfog_t;
+
+typedef struct {
+    pmove_state_new_t   pmove;  // for prediction
+
+    // these fields do not need to be communicated bit-precise
+
+    vec3_t      viewangles;     // for fixed views
+    vec3_t      viewoffset;     // add to pmovestate->origin
+    vec3_t      kick_angles;    // add to view direction to get render angles
+                                // set by weapon kicks, pain effects, etc
+
+    vec3_t      gunangles;
+    vec3_t      gunoffset;
+    int         gunindex;
+    int         gunframe;
+    int         reserved_1;
+    int         reserved_2;
+
+    vec4_t      blend;          // rgba full screen effect
+    vec4_t      damage_blend;
+
+    player_fog_t        fog;
+    player_heightfog_t  heightfog;
+
+    float       fov;            // horizontal field of view
+
+    int         rdflags;        // refdef flags
+
+    int         reserved_3;
+    int         reserved_4;
+
+    int16_t     stats[MAX_STATS_NEW];   // fast status bar updates
+} player_state_new_t;
+#endif
+
+// Reki : Cvar Sync info shared between engine and game
+#define CVARSYNC_MAXSIZE	64
+#define CVARSYNC_MAX		32
+typedef struct {
+	char name[CVARSYNC_MAXSIZE];
+	char value[CVARSYNC_MAXSIZE];
+} cvarsync_t;
+
+typedef char cvarsyncvalue_t[CVARSYNC_MAXSIZE];
+//==============================================
+
+#if USE_PROTOCOL_EXTENSIONS
+
+#define ENTITYNUM_BITS      13
+#define ENTITYNUM_MASK      MASK(ENTITYNUM_BITS)
+
+#define GUNINDEX_BITS       13  // upper 3 bits are skinnum
+#define GUNINDEX_MASK       MASK(GUNINDEX_BITS)
+
+typedef struct {
+    int         morefx;
+    float       alpha;
+    float       scale;
+    float       loop_volume;
+    float       loop_attenuation;
+} entity_state_extension_t;
+
+#endif
+
+#if USE_NEW_GAME_API
+
+#define MAX_STATS           MAX_STATS_NEW
+typedef pmove_new_t         pmove_t;
+typedef pmove_state_new_t   pmove_state_t;
+typedef player_state_new_t  player_state_t;
+
+#else
+
+#define MAX_STATS           MAX_STATS_OLD
+typedef pmove_old_t         pmove_t;
+typedef pmove_state_old_t   pmove_state_t;
+typedef player_state_old_t  player_state_t;
+
+#endif

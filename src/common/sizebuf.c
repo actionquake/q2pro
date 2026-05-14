@@ -17,26 +17,29 @@ with this program; if not, write to the Free Software Foundation, Inc.,
 */
 
 #include "shared/shared.h"
-#include "common/protocol.h"
 #include "common/sizebuf.h"
 #include "common/intreadwrite.h"
 
-void SZ_TagInit(sizebuf_t *buf, void *data, size_t size, const char *tag)
+void SZ_Init(sizebuf_t *buf, void *data, size_t size, const char *tag)
 {
+    Q_assert(size <= INT32_MAX);
     memset(buf, 0, sizeof(*buf));
     buf->data = data;
     buf->maxsize = size;
     buf->tag = tag;
 }
 
-void SZ_Init(sizebuf_t *buf, void *data, size_t size)
+void SZ_InitWrite(sizebuf_t *buf, void *data, size_t size)
 {
-    memset(buf, 0, sizeof(*buf));
-    buf->data = data;
-    buf->maxsize = size;
+    SZ_Init(buf, data, size, "none");
     buf->allowoverflow = true;
+}
+
+void SZ_InitRead(sizebuf_t *buf, const void *data, size_t size)
+{
+    SZ_Init(buf, (void *)data, size, "none");
+    buf->cursize = size;
     buf->allowunderflow = true;
-    buf->tag = "none";
 }
 
 void SZ_Clear(sizebuf_t *buf)
@@ -59,7 +62,7 @@ void *SZ_GetSpace(sizebuf_t *buf, size_t len)
     if (len > buf->maxsize - buf->cursize) {
         if (len > buf->maxsize) {
             Com_Error(ERR_FATAL,
-                      "%s: %s: %zu is > full buffer size %zu",
+                      "%s: %s: %zu is > full buffer size %u",
                       __func__, buf->tag, len, buf->maxsize);
         }
 
@@ -151,8 +154,20 @@ int SZ_ReadShort(sizebuf_t *sb)
     return buf ? (int16_t)RL16(buf) : -1;
 }
 
+int SZ_ReadWord(sizebuf_t *sb)
+{
+    byte *buf = SZ_ReadData(sb, 2);
+    return buf ? (uint16_t)RL16(buf) : -1;
+}
+
 int SZ_ReadLong(sizebuf_t *sb)
 {
     byte *buf = SZ_ReadData(sb, 4);
-    return buf ? RL32(buf) : -1;
+    return buf ? (int32_t)RL32(buf) : -1;
+}
+
+float SZ_ReadFloat(sizebuf_t *sb)
+{
+    byte *buf = SZ_ReadData(sb, 4);
+    return buf ? LongToFloat(RL32(buf)) : -1.0f;
 }

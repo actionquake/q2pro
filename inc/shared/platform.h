@@ -20,6 +20,8 @@ with this program; if not, write to the Free Software Foundation, Inc.,
 // platform.h -- platform-specific definitions
 //
 
+#pragma once
+
 #include <sys/types.h>
 #include <sys/stat.h>
 
@@ -32,9 +34,8 @@ with this program; if not, write to the Free Software Foundation, Inc.,
 
 #ifdef _WIN32
 #define LIBSUFFIX   ".dll"
-// TODO: Uncomment this when TNG and Q2Pro are merged
-// #elif __APPLE__
-// #define LIBSUFFIX   ".dylib"
+#elif (defined __APPLE__)
+#define LIBSUFFIX   ".dylib"
 #else
 #define LIBSUFFIX   ".so"
 #endif
@@ -90,6 +91,11 @@ with this program; if not, write to the Free Software Foundation, Inc.,
 #else
 #define SOLIB_X_OK X_OK
 #endif   
+#ifdef __has_builtin
+#define q_has_builtin(x)    __has_builtin(x)
+#else
+#define q_has_builtin(x)    0
+#endif
 
 #ifdef __GNUC__
 
@@ -99,6 +105,7 @@ with this program; if not, write to the Free Software Foundation, Inc.,
 #define q_printf(f, a)      __attribute__((format(printf, f, a)))
 #endif
 #define q_noreturn          __attribute__((noreturn))
+#define q_noreturn_ptr      q_noreturn
 #define q_noinline          __attribute__((noinline))
 #define q_malloc            __attribute__((malloc))
 #if __GNUC__ >= 4
@@ -106,6 +113,7 @@ with this program; if not, write to the Free Software Foundation, Inc.,
 #else
 #define q_sentinel
 #endif
+#define q_cold              __attribute__((cold))
 
 #define q_likely(x)         __builtin_expect(!!(x), 1)
 #define q_unlikely(x)       __builtin_expect(!!(x), 0)
@@ -130,22 +138,40 @@ with this program; if not, write to the Free Software Foundation, Inc.,
 
 #define q_unused            __attribute__((unused))
 
+#if q_has_builtin(__builtin_unreachable)
+#define q_unreachable()     __builtin_unreachable()
+#else
+#define q_unreachable()     abort()
+#endif
+
+#define q_forceinline       inline __attribute__((always_inline))
+
 #else /* __GNUC__ */
 
-#define q_printf(f, a)
+#ifdef _MSC_VER
+#define q_noreturn          __declspec(noreturn)
+#define q_noinline          __declspec(noinline)
+#define q_malloc            __declspec(restrict)
+#define q_alignof(t)        __alignof(t)
+#define q_unreachable()     __assume(0)
+#define q_forceinline       __forceinline
+#else
 #define q_noreturn
 #define q_noinline
 #define q_malloc
+#define q_alignof(t)        1
+#define q_unreachable()     abort()
+#define q_forceinline       inline
+#endif
+
+#define q_printf(f, a)
+#define q_noreturn_ptr
 #define q_sentinel
+#define q_cold
 
 #define q_likely(x)         (x)
 #define q_unlikely(x)       (x)
 #define q_offsetof(t, m)    ((size_t)&((t *)0)->m)
-#ifdef _MSC_VER
-#define q_alignof(t)        __alignof(t)
-#else
-#define q_alignof(t)        1
-#endif
 
 #define q_gameabi
 

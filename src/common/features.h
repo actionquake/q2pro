@@ -25,6 +25,9 @@ static const char *Com_GetFeatures(void)
 #if USE_AUTOREPLY
     "auto-reply "
 #endif
+#if USE_AVCODEC
+    "avcodec "
+#endif
 #if USE_CLIENT_GTV
     "client-gtv "
 #endif
@@ -52,14 +55,14 @@ static const char *Com_GetFeatures(void)
 #if USE_MD3
     "md3 "
 #endif
+#if USE_MD5
+    "md5 "
+#endif
 #if USE_MVD_CLIENT
     "mvd-client "
 #endif
 #if USE_MVD_SERVER
     "mvd-server "
-#endif
-#if USE_OGG
-    "ogg "
 #endif
 #if USE_OPENAL
     "openal "

@@ -64,7 +64,7 @@ static void tty_fatal_error(const char *what)
 
 // handles partial writes correctly, but never spins too much
 // blocks for 100 ms before giving up and losing data
-static void tty_stdout_write(const char *buf, size_t len)
+static void tty_write(const char *buf, size_t len)
 {
     int ret = write(STDOUT_FILENO, buf, len);
     if (ret == len)
@@ -112,7 +112,7 @@ static void tty_stdout_write(const char *buf, size_t len)
 }
 
 q_printf(1, 2)
-static void tty_stdout_writef(const char *fmt, ...)
+static void tty_printf(const char *fmt, ...)
 {
     char buf[MAX_STRING_CHARS];
     va_list ap;
@@ -122,7 +122,7 @@ static void tty_stdout_writef(const char *fmt, ...)
     len = Q_vscnprintf(buf, sizeof(buf), fmt, ap);
     va_end(ap);
 
-    tty_stdout_write(buf, len);
+    tty_write(buf, len);
 }
 
 static int tty_get_width(void)
@@ -141,7 +141,7 @@ static void tty_hide_input(void)
 {
     if (!tty_hidden) {
         // move to start of line, erase from cursor to end of line
-        tty_stdout_write(CONST_STR_LEN("\r\033[K"));
+        tty_write(CONST_STR_LEN("\r\033[K"));
     }
     tty_hidden++;
 }
@@ -167,7 +167,7 @@ static void tty_show_input(void)
 
         // move to start of line, print prompt and text,
         // move to start of line, forward N chars
-        tty_stdout_writef("\r]%.*s\r\033[%zuC", (int)f->visibleChars, text, pos + 1);
+        tty_printf("\r]%.*s\r\033[%zuC", (int)f->visibleChars, text, pos + 1);
     }
 }
 
@@ -188,13 +188,13 @@ static void tty_move_cursor(inputField_t *f, size_t pos)
     if (oldpos < f->visibleChars && pos < f->visibleChars) {
         if (oldpos == pos - 1) {
             // forward one char
-            tty_stdout_write("\033[C", 3);
+            tty_write("\033[C", 3);
         } else if (oldpos == pos + 1) {
             // backward one char
-            tty_stdout_write("\033[D", 3);
+            tty_write("\033[D", 3);
         } else {
             // move to start of line, forward N chars
-            tty_stdout_writef("\r\033[%zuC", pos + 1);
+            tty_printf("\r\033[%zuC", pos + 1);
         }
     } else {
         tty_hide_input();
@@ -264,7 +264,7 @@ static void tty_parse_input(const char *text)
             if (f->cursorPos > 0) {
                 if (f->text[f->cursorPos] == 0 && f->cursorPos < f->visibleChars) {
                     f->text[--f->cursorPos] = 0;
-                    tty_stdout_write("\b \b", 3);
+                    tty_write("\b \b", 3);
                 } else {
                     tty_hide_input();
                     memmove(f->text + f->cursorPos - 1, f->text + f->cursorPos, sizeof(f->text) - f->cursorPos);
@@ -303,14 +303,14 @@ static void tty_parse_input(const char *text)
             if (f->text[f->cursorPos]) {
                 f->text[f->cursorPos] = 0;
                 // erase from cursor to end of line
-                tty_stdout_write("\033[K", 3);
+                tty_write("\033[K", 3);
             }
             break;
 
         case CTRL_L:
             tty_hide_input();
             // move cursor to top left corner, erase screen
-            tty_stdout_write(CONST_STR_LEN("\033[H\033[2J"));
+            tty_write(CONST_STR_LEN("\033[H\033[2J"));
             tty_show_input();
             break;
 
@@ -339,11 +339,11 @@ static void tty_parse_input(const char *text)
                 // when cursor is at the rightmost column, terminal may or may
                 // not advance it. force absolute position to keep it in the
                 // same place.
-                tty_stdout_writef("%c\r\033[%zuC", key, f->cursorPos + 1);
+                tty_printf("%c\r\033[%zuC", key, f->cursorPos + 1);
                 f->text[f->cursorPos + 0] = key;
                 f->text[f->cursorPos + 1] = 0;
             } else if (f->text[f->cursorPos] == 0 && f->cursorPos + 1 < f->visibleChars) {
-                tty_stdout_write(&(char){ key }, 1);
+                tty_write(&(char){ key }, 1);
                 f->text[f->cursorPos + 0] = key;
                 f->text[f->cursorPos + 1] = 0;
                 f->cursorPos++;
@@ -367,7 +367,7 @@ static void tty_parse_input(const char *text)
                 Cbuf_AddText(&cmd_buffer, s);
                 Cbuf_AddText(&cmd_buffer, "\n");
             } else {
-                tty_stdout_write("]\n", 2);
+                tty_write("]\n", 2);
             }
             tty_show_input();
             break;
@@ -491,10 +491,12 @@ static void tty_parse_input(const char *text)
     }
 }
 
-static void q_unused winch_handler(int signum)
+#ifdef TIOCGWINSZ
+static void winch_handler(int signum)
 {
     tty_prompt.inputLine.visibleChars = 0;  // force refresh
 }
+#endif
 
 void tty_init_input(void)
 {
@@ -542,16 +544,15 @@ void tty_init_input(void)
 #endif
 
     // determine terminal width
-    int width = tty_get_width();
-    tty_prompt.widthInChars = width;
+    tty_prompt.widthInChars = tty_get_width();
     tty_prompt.printf = Sys_Printf;
     tty_enabled = true;
 
     // figure out input line width
-    IF_Init(&tty_prompt.inputLine, width - 1, MAX_FIELD_TEXT - 1);
+    IF_Init(&tty_prompt.inputLine, tty_prompt.widthInChars - 1, MAX_FIELD_TEXT - 1);
 
     // display command prompt
-    tty_stdout_write("]", 1);
+    tty_write("]", 1);
     return;
 
 no_tty:
@@ -565,22 +566,40 @@ static void tty_kill_stdin(void)
         NET_FreePollFd(tty_input);
         tty_input = NULL;
     }
+
     if (tty_enabled) {
-        tty_hide_input();
+        if (!tty_hidden)
+            if (write(STDOUT_FILENO, CONST_STR_LEN("\r\033[K")) < 0)
+                (void)"Shut up GCC";
         tcsetattr(STDIN_FILENO, TCSADRAIN, &tty_orig);
         tty_enabled = false;
     }
-    Cvar_Set("sys_console", "1");
 }
 
 void tty_shutdown_input(void)
 {
     tty_kill_stdin();
+
     if (sys_console && sys_console->integer) {
         Sys_SetNonBlock(STDIN_FILENO, false);
         Sys_SetNonBlock(STDOUT_FILENO, false);
     }
-    Cvar_Set("sys_console", "0");
+
+    sys_console = NULL;
+}
+
+void Sys_LoadHistory(void)
+{
+    if (tty_enabled && sys_history && sys_history->integer > 0) {
+        Prompt_LoadHistory(&tty_prompt, SYS_HISTORYFILE_NAME);
+    }
+}
+
+void Sys_SaveHistory(void)
+{
+    if (tty_enabled && sys_history && sys_history->integer > 0) {
+        Prompt_SaveHistory(&tty_prompt, SYS_HISTORYFILE_NAME, sys_history->integer);
+    }
 }
 
 void Sys_RunConsole(void)
@@ -588,11 +607,13 @@ void Sys_RunConsole(void)
     char text[MAX_STRING_CHARS];
     int ret;
 
-    if (!sys_console || !sys_console->integer) {
+    if (!tty_input) {
         return;
     }
 
-    if (!tty_input || !(tty_input->revents & (POLLIN | POLLERR | POLLHUP))) {
+    Q_assert(!(tty_input->revents & POLLNVAL));
+
+    if (!(tty_input->revents & (POLLIN | POLLERR | POLLHUP))) {
         return;
     }
 
@@ -634,7 +655,7 @@ void Sys_ConsoleOutput(const char *text, size_t len)
     }
 
     if (!tty_enabled) {
-        tty_stdout_write(text, len);
+        tty_write(text, len);
     } else {
         static bool hack = false;
 
@@ -643,7 +664,7 @@ void Sys_ConsoleOutput(const char *text, size_t len)
             hack = true;
         }
 
-        tty_stdout_write(text, len);
+        tty_write(text, len);
 
         if (text[len - 1] == '\n') {
             tty_show_input();
@@ -656,10 +677,6 @@ void Sys_SetConsoleTitle(const char *title)
 {
     char buf[MAX_STRING_CHARS];
     size_t len;
-
-    if (!sys_console || !sys_console->integer) {
-        return;
-    }
 
     if (!tty_enabled) {
         return;
@@ -680,17 +697,13 @@ void Sys_SetConsoleTitle(const char *title)
 
     buf[len++] = '\007';
 
-    tty_stdout_write(buf, len);
+    tty_write(buf, len);
 }
 
 void Sys_SetConsoleColor(color_index_t color)
 {
     char buf[5];
     size_t len;
-
-    if (!sys_console || !sys_console->integer) {
-        return;
-    }
 
     if (!tty_enabled) {
         return;
@@ -721,21 +734,8 @@ void Sys_SetConsoleColor(color_index_t color)
     if (color != COLOR_NONE) {
         tty_hide_input();
     }
-    tty_stdout_write(buf, len);
+    tty_write(buf, len);
     if (color == COLOR_NONE) {
         tty_show_input();
     }
-}
-
-void Sys_Printf(const char *fmt, ...)
-{
-    va_list     argptr;
-    char        msg[MAXPRINTMSG];
-    size_t      len;
-
-    va_start(argptr, fmt);
-    len = Q_vscnprintf(msg, sizeof(msg), fmt, argptr);
-    va_end(argptr);
-
-    Sys_ConsoleOutput(msg, len);
 }

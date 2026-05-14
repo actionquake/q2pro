@@ -1,0 +1,35 @@
+{
+    "name": "VeY",
+    "clan_id": null,
+    "skin": "male/aqgvillain",
+    "weaponPreferences": {
+        "mk23": 0.3,
+        "dual_mk23": 0.9,
+        "mp5": 0.5,
+        "m4": 0.6,
+        "m3": 0.5,
+        "hc": 0.3,
+        "sniper": 0.9,
+        "knives": 0.6,
+        "grenades": 0.7
+    },
+    "itemPreferences": {
+        "vest": 0.6,
+        "helm": 0.2,
+        "laser": 0.3,
+        "silencer": 0.4,
+        "slippers": 0.3,
+        "bandolier": 0.2
+    },
+    "coreTraits": {
+        "aggressiveness": 0.8,
+        "teamwork": 0.3,
+        "curiosity": 0.3,
+        "aimingSkill": 0.8,
+        "reactionTime": 0.5,
+        "communicationFreq": 0.2,
+        "communicationTone": 0.3,
+        "movementStyle": 0.2,
+        "objectiveFocus": 0.4
+    }
+}

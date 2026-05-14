@@ -59,6 +59,9 @@ typedef struct {
     unsigned        clients_active;
     unsigned        players_active;
 
+    msgEsFlags_t    esFlags;
+    msgPsFlags_t    psFlags;
+
     // reliable data, may not be discarded
     sizebuf_t       message;
 
@@ -139,7 +142,7 @@ static char        dummy_buffer_text[MAX_STRING_CHARS];
 
 static void dummy_wait_f(void)
 {
-    int count = atoi(Cmd_Argv(1));
+    int count = Q_atoi(Cmd_Argv(1));
     dummy_buffer.waitCount += max(count, 1);
 }
 
@@ -267,10 +270,10 @@ static void dummy_exec_string(cmdbuf_t *buf, const char *line)
     dummy_command();
 }
 
-static void dummy_add_message(client_t *client, byte *data,
+static void dummy_add_message(client_t *client, const byte *data,
                               size_t length, bool reliable)
 {
-    char *text;
+    char text[MAX_STRING_CHARS];
 
     if (!length || !reliable || data[0] != svc_stufftext) {
         return; // not interesting
@@ -280,9 +283,12 @@ static void dummy_add_message(client_t *client, byte *data,
         return; // not allowed
     }
 
-    data[length] = 0;
-    text = (char *)(data + 1);
-    Com_DPrintf("dummy stufftext: %s\n", text);
+    // truncate at MAX_STRING_CHARS
+    length = min(length, sizeof(text));
+    memcpy(text, data + 1, length - 1);
+    text[length - 1] = 0;
+
+    Com_DPrintf("dummy stufftext: %s\n", Com_MakePrintable(text));
     Cbuf_AddText(&dummy_buffer, text);
 }
 
@@ -333,7 +339,7 @@ static client_t *dummy_find_slot(void)
 }
 
 #define MVD_USERINFO1 \
-    "\\name\\[MVDSPEC]\\skin\\male/grunt"
+    "\\name\\[MVDSPEC]\\skin\\male/grunt\\spectator\\1"
 
 #define MVD_USERINFO2 \
     "\\mvdspec\\" STRINGIFY(PROTOCOL_VERSION_MVD_CURRENT) "\\ip\\loopback"
@@ -343,7 +349,7 @@ static int dummy_create(void)
     client_t *newcl;
     char userinfo[MAX_INFO_STRING * 2];
     const char *s;
-    int allow;
+    qboolean allow;
     int number;
 
     // do nothing if already created
@@ -369,12 +375,11 @@ static int dummy_create(void)
 
     memset(newcl, 0, sizeof(*newcl));
     number = newcl - svs.client_pool;
-    newcl->number = newcl->slot = number;
+    newcl->number = newcl->infonum = number;
     newcl->protocol = -1;
     newcl->state = cs_connected;
     newcl->AddMessage = dummy_add_message;
     newcl->edict = EDICT_NUM(number + 1);
-    newcl->netchan.remote_address.type = NA_LOOPBACK;
 
     List_Init(&newcl->entry);
 
@@ -474,7 +479,8 @@ should do it for us by providing some SVF_* flag or something.
 */
 static bool player_is_active(const edict_t *ent)
 {
-    int num;
+    int num, pm_type, pm_flags;
+    float fov;
 
     if ((g_features->integer & GMF_PROPERINUSE) && !ent->inuse) {
         return false;
@@ -498,8 +504,20 @@ static bool player_is_active(const edict_t *ent)
         }
     }
 
+    if (IS_NEW_GAME_API) {
+        const gclient_new_t *cl = ent->client;
+        pm_type  = cl->ps.pmove.pm_type;
+        pm_flags = cl->ps.pmove.pm_flags;
+        fov      = cl->ps.fov;
+    } else {
+        const gclient_old_t *cl = ent->client;
+        pm_type  = cl->ps.pmove.pm_type;
+        pm_flags = cl->ps.pmove.pm_flags;
+        fov      = cl->ps.fov;
+    }
+
     // first of all, make sure player_state_t is valid
-    if (!ent->client->ps.fov) {
+    if (!fov) {
         return false;
     }
 
@@ -509,12 +527,12 @@ static bool player_is_active(const edict_t *ent)
     }
 
     // never capture spectators
-    if (ent->client->ps.pmove.pm_type == PM_SPECTATOR) {
+    if (pm_type == PM_SPECTATOR) {
         return false;
     }
 
     // check entity visibility
-    if ((ent->svflags & SVF_NOCLIENT) || !ES_INUSE(&ent->s)) {
+    if ((ent->svflags & SVF_NOCLIENT) || !HAS_EFFECTS(ent)) {
         // never capture invisible entities
         if (sv_mvd_capture_flags->integer & 2) {
             return false;
@@ -527,12 +545,12 @@ static bool player_is_active(const edict_t *ent)
     }
 
     // they are likely following someone in case of PM_FREEZE
-    if (ent->client->ps.pmove.pm_type == PM_FREEZE) {
+    if (pm_type == PM_FREEZE) {
         return false;
     }
 
     // they are likely following someone if PMF_NO_PREDICTION is set
-    if (ent->client->ps.pmove.pm_flags & PMF_NO_PREDICTION) {
+    if (pm_flags & PMF_NO_PREDICTION) {
         return false;
     }
 
@@ -549,7 +567,7 @@ static bool entity_is_active(const edict_t *ent)
         return false;
     }
 
-    return ES_INUSE(&ent->s);
+    return HAS_EFFECTS(ent);
 }
 
 // Initializes MVD delta compressor for the first time on this map.
@@ -559,7 +577,7 @@ static void build_gamestate(void)
     int i;
 
     memset(mvd.players, 0, sizeof(mvd.players[0]) * sv_maxclients->integer);
-    memset(mvd.entities, 0, sizeof(mvd.entities[0]) * MAX_EDICTS);
+    memset(mvd.entities, 0, sizeof(mvd.entities[0]) * svs.csr.max_edicts);
 
     // set base player states
     for (i = 0; i < sv_maxclients->integer; i++) {
@@ -569,7 +587,10 @@ static void build_gamestate(void)
             continue;
         }
 
-        MSG_PackPlayer(&mvd.players[i], &ent->client->ps);
+        if (IS_NEW_GAME_API)
+            MSG_PackPlayerNew(&mvd.players[i], ent->client);
+        else
+            MSG_PackPlayerOld(&mvd.players[i], ent->client);
         PPS_INUSE(&mvd.players[i]) = true;
     }
 
@@ -581,8 +602,8 @@ static void build_gamestate(void)
             continue;
         }
 
-        ent->s.number = i;
-        MSG_PackEntity(&mvd.entities[i], &ent->s, false);
+        SV_CheckEntityNumber(ent, i);
+        MSG_PackEntity(&mvd.entities[i], &ent->s, ENT_EXTENSION(&svs.csr, ent));
     }
 }
 
@@ -595,7 +616,7 @@ static void emit_gamestate(void)
     player_packed_t *ps;
     entity_packed_t *es;
     size_t      length;
-    int         flags, extra, portalbytes;
+    int         flags, portalbytes;
     byte        portalbits[MAX_MAP_PORTAL_BYTES];
 
     // don't bother writing if there are no active MVD clients
@@ -603,16 +624,25 @@ static void emit_gamestate(void)
         return;
     }
 
-    // pack MVD stream flags into extra bits
-    extra = 0;
-    if (sv_mvd_nomsgs->integer && mvd.dummy) {
-        extra |= MVF_NOMSGS << SVCMD_BITS;
-    }
+    // setup MVD stream flags
+    flags = 0;
+    if (sv_mvd_nomsgs->integer && mvd.dummy)
+        flags |= MVF_NOMSGS;
 
     // send the serverdata
-    MSG_WriteByte(mvd_serverdata | extra);
-    MSG_WriteLong(PROTOCOL_VERSION_MVD);
-    MSG_WriteShort(PROTOCOL_VERSION_MVD_CURRENT);
+    if (svs.csr.extended) {
+        flags |= MVF_EXTLIMITS;
+        if (IS_NEW_GAME_API)
+            flags |= MVF_EXTLIMITS_2;
+        MSG_WriteByte(mvd_serverdata);
+        MSG_WriteLong(PROTOCOL_VERSION_MVD);
+        MSG_WriteShort(PROTOCOL_VERSION_MVD_CURRENT);
+        MSG_WriteShort(flags);
+    } else {
+        MSG_WriteByte(mvd_serverdata | (flags << SVCMD_BITS));
+        MSG_WriteLong(PROTOCOL_VERSION_MVD);
+        MSG_WriteShort(PROTOCOL_VERSION_MVD_DEFAULT);
+    }
     MSG_WriteLong(sv.spawncount);
     MSG_WriteString(fs_game->string);
     if (mvd.dummy)
@@ -621,7 +651,7 @@ static void emit_gamestate(void)
         MSG_WriteShort(-1);
 
     // send configstrings
-    for (i = 0; i < MAX_CONFIGSTRINGS; i++) {
+    for (i = 0; i < svs.csr.end; i++) {
         string = sv.configstrings[i];
         if (!string[0]) {
             continue;
@@ -631,7 +661,7 @@ static void emit_gamestate(void)
         MSG_WriteData(string, length);
         MSG_WriteByte(0);
     }
-    MSG_WriteShort(MAX_CONFIGSTRINGS);
+    MSG_WriteShort(i);
 
     // send baseline frame
     portalbytes = CM_WritePortalBits(&sv.cm, portalbits);
@@ -639,25 +669,18 @@ static void emit_gamestate(void)
     MSG_WriteData(portalbits, portalbytes);
 
     // send player states
-    flags = 0;
-    if (sv_mvd_noblend->integer) {
-        flags |= MSG_PS_IGNORE_BLEND;
-    }
-    if (sv_mvd_nogun->integer) {
-        flags |= MSG_PS_IGNORE_GUNINDEX | MSG_PS_IGNORE_GUNFRAMES;
-    }
     for (i = 0, ps = mvd.players; i < sv_maxclients->integer; i++, ps++) {
-        extra = 0;
+        flags = mvd.psFlags;
         if (!PPS_INUSE(ps)) {
-            extra |= MSG_PS_REMOVE;
+            flags |= MSG_PS_REMOVE;
         }
-        MSG_WriteDeltaPlayerstate_Packet(NULL, ps, i, flags | extra);
+        MSG_WriteDeltaPlayerstate_Packet(NULL, ps, i, flags);
     }
     MSG_WriteByte(CLIENTNUM_NONE);
 
     // send entity states
     for (i = 1, es = mvd.entities + 1; i < ge->num_edicts; i++, es++) {
-        flags = MSG_ES_UMASK;
+        flags = mvd.esFlags;
         if ((j = es->number) != 0) {
             if (i <= sv_maxclients->integer) {
                 ps = &mvd.players[i - 1];
@@ -675,26 +698,6 @@ static void emit_gamestate(void)
     MSG_WriteShort(0);
 }
 
-static void copy_entity_state(entity_packed_t *dst, const entity_packed_t *src, int flags)
-{
-    if (!(flags & MSG_ES_FIRSTPERSON)) {
-        VectorCopy(src->origin, dst->origin);
-        VectorCopy(src->angles, dst->angles);
-        VectorCopy(src->old_origin, dst->old_origin);
-    }
-    dst->modelindex = src->modelindex;
-    dst->modelindex2 = src->modelindex2;
-    dst->modelindex3 = src->modelindex3;
-    dst->modelindex4 = src->modelindex4;
-    dst->frame = src->frame;
-    dst->skinnum = src->skinnum;
-    dst->effects = src->effects;
-    dst->renderfx = src->renderfx;
-    dst->solid = src->solid;
-    dst->sound = src->sound;
-    dst->event = 0;
-}
-
 /*
 Builds a new delta compressed MVD frame by capturing all entity and player
 states and calculating portalbits. The same frame is used for all MVD clients,
@@ -702,9 +705,11 @@ as well as local recorder.
 */
 static void emit_frame(void)
 {
-    player_packed_t *oldps, newps;
-    entity_packed_t *oldes, newes;
+    player_packed_t *oldps, newps = { 0 };
+    entity_packed_t *oldes, newes = { 0 };
+    entity_state_t ent_state;
     edict_t *ent;
+    int	ent_active;
     int flags, portalbytes;
     byte portalbits[MAX_MAP_PORTAL_BYTES];
     int i;
@@ -716,14 +721,6 @@ static void emit_frame(void)
     MSG_WriteByte(portalbytes);
     MSG_WriteData(portalbits, portalbytes);
 
-    flags = MSG_PS_IGNORE_PREDICTION | MSG_PS_IGNORE_DELTAANGLES;
-    if (sv_mvd_noblend->integer) {
-        flags |= MSG_PS_IGNORE_BLEND;
-    }
-    if (sv_mvd_nogun->integer) {
-        flags |= MSG_PS_IGNORE_GUNINDEX | MSG_PS_IGNORE_GUNFRAMES;
-    }
-
     // send player states
     for (i = 0; i < sv_maxclients->integer; i++) {
         oldps = &mvd.players[i];
@@ -732,24 +729,27 @@ static void emit_frame(void)
         if (!player_is_active(ent)) {
             if (PPS_INUSE(oldps)) {
                 // the old player isn't present in the new message
-                MSG_WriteDeltaPlayerstate_Packet(NULL, NULL, i, flags);
+                MSG_WriteDeltaPlayerstate_Packet(NULL, NULL, i, mvd.psFlags);
                 PPS_INUSE(oldps) = false;
             }
             continue;
         }
 
         // quantize
-        MSG_PackPlayer(&newps, &ent->client->ps);
+        if (IS_NEW_GAME_API)
+            MSG_PackPlayerNew(&newps, ent->client);
+        else
+            MSG_PackPlayerOld(&newps, ent->client);
 
         if (PPS_INUSE(oldps)) {
             // delta update from old position
             // because the force parm is false, this will not result
             // in any bytes being emited if the player has not changed at all
-            MSG_WriteDeltaPlayerstate_Packet(oldps, &newps, i, flags);
+            MSG_WriteDeltaPlayerstate_Packet(oldps, &newps, i, mvd.psFlags);
         } else {
             // this is a new player, send it from the last state
             MSG_WriteDeltaPlayerstate_Packet(oldps, &newps, i,
-                                             flags | MSG_PS_FORCE);
+                                             mvd.psFlags | MSG_PS_FORCE);
         }
 
         // shuffle current state to previous
@@ -764,6 +764,15 @@ static void emit_frame(void)
         oldes = &mvd.entities[i];
         ent = EDICT_NUM(i);
 
+        ent_state = ent->s;
+        ent_active = entity_is_active(ent);
+
+    #ifdef AQTION_EXTENSION
+		if (ent_active && GE_customizeentityforclient)
+			if (!GE_customizeentityforclient(NULL, ent, &ent_state))
+				ent_active = false;
+    #endif
+
         if (!entity_is_active(ent)) {
             if (oldes->number) {
                 // the old entity isn't present in the new message
@@ -773,14 +782,11 @@ static void emit_frame(void)
             continue;
         }
 
-        if (ent->s.number != i) {
-            Com_WPrintf("%s: fixing ent->s.number: %d to %d\n",
-                        __func__, ent->s.number, i);
-            ent->s.number = i;
-        }
+        SV_CheckEntityNumber(ent, i);
 
         // calculate flags
-        flags = MSG_ES_UMASK;
+        flags = mvd.esFlags;
+        oldps = NULL; // shut up compiler
         if (i <= sv_maxclients->integer) {
             oldps = &mvd.players[i - 1];
             if (PPS_INUSE(oldps) && oldps->pmove.pm_type == PM_NORMAL) {
@@ -796,13 +802,16 @@ static void emit_frame(void)
         }
 
         // quantize
-        MSG_PackEntity(&newes, &ent->s, false);
+        MSG_PackEntity(&newes, &ent->s, ENT_EXTENSION(&svs.csr, ent));
 
         MSG_WriteDeltaEntity(oldes, &newes, flags);
 
         // shuffle current state to previous
-        copy_entity_state(oldes, &newes, flags);
-        oldes->number = i;
+        *oldes = newes;
+
+        // fixup origin for next delta
+        if (flags & MSG_ES_FIRSTPERSON)
+            VectorCopy(oldps->pmove.origin, oldes->origin);
     }
 
     MSG_WriteShort(0);      // end of packetentities
@@ -832,6 +841,13 @@ static void resume_streams(void)
     // build and emit gamestate
     build_gamestate();
     emit_gamestate();
+
+    // check for overflow
+    if (msg_write.overflowed) {
+        SZ_Clear(&msg_write);
+        mvd_error("gamestate overflowed");
+        return;
+    }
 
     FOR_EACH_ACTIVE_GTV(client) {
         // send gamestate
@@ -918,9 +934,6 @@ static bool mvd_enable(void)
 
     // don't timeout
     mvd.clients_active = svs.realtime;
-
-    // check for activation
-    check_players_activity();
 
     return true;
 }
@@ -1042,7 +1055,7 @@ void SV_MvdEndFrame(void)
     emit_frame();
 
     // if reliable message and frame update don't fit, kick all clients
-    if (mvd.message.cursize + msg_write.cursize >= MAX_MSGLEN) {
+    if (msg_write.overflowed || mvd.message.cursize + msg_write.cursize >= MAX_MSGLEN) {
         SZ_Clear(&msg_write);
         mvd_error("frame overflowed");
         return;
@@ -1102,31 +1115,46 @@ out-of-band data into the MVD stream.
 /*
 ==============
 SV_MvdMulticast
+
+`to' must be < MULTICAST_ALL_R.
 ==============
 */
-void SV_MvdMulticast(int leafnum, multicast_t to)
+void SV_MvdMulticast(const mleaf_t *leaf, multicast_t to, bool reliable)
 {
+    int         leafnum = 0;
     mvd_ops_t   op;
     sizebuf_t   *buf;
-    int         bits;
 
     // do nothing if not active
     if (!mvd.active) {
         return;
     }
+
     if (msg_write.cursize >= 2048) {
         Com_WPrintf("%s: overflow\n", __func__);
         return;
     }
 
-    op = mvd_multicast_all + to;
-    buf = to < MULTICAST_ALL_R ? &mvd.datagram : &mvd.message;
-    bits = (msg_write.cursize >> 8) & 7;
+    if (to) {
+        leafnum = CM_NumLeaf(&sv.cm, leaf);
+        if (leafnum >= UINT16_MAX) {
+            Com_WPrintf("%s: leafnum out of range\n", __func__);
+            return;
+        }
+    }
 
-    SZ_WriteByte(buf, op | (bits << SVCMD_BITS));
+    if (reliable) {
+        op = mvd_multicast_all_r + to;
+        buf = &mvd.datagram;
+    } else {
+        op = mvd_multicast_all + to;
+        buf = &mvd.message;
+    }
+
+    SZ_WriteByte(buf, op | (msg_write.cursize >> 8 << SVCMD_BITS));
     SZ_WriteByte(buf, msg_write.cursize & 255);
 
-    if (op != mvd_multicast_all && op != mvd_multicast_all_r) {
+    if (to) {
         SZ_WriteShort(buf, leafnum);
     }
 
@@ -1135,7 +1163,7 @@ void SV_MvdMulticast(int leafnum, multicast_t to)
 
 // Performs some basic filtering of the unicast data that would be
 // otherwise discarded by the MVD client.
-static bool filter_unicast_data(edict_t *ent)
+static bool filter_unicast_data(const edict_t *ent)
 {
     int cmd = msg_write.data[0];
 
@@ -1170,11 +1198,10 @@ static bool filter_unicast_data(edict_t *ent)
 SV_MvdUnicast
 ==============
 */
-void SV_MvdUnicast(edict_t *ent, int clientNum, bool reliable)
+void SV_MvdUnicast(const edict_t *ent, int clientNum, bool reliable)
 {
     mvd_ops_t   op;
     sizebuf_t   *buf;
-    int         bits;
 
     // do nothing if not active
     if (!mvd.active) {
@@ -1205,8 +1232,7 @@ void SV_MvdUnicast(edict_t *ent, int clientNum, bool reliable)
     }
 
     // write it
-    bits = (msg_write.cursize >> 8) & 7;
-    SZ_WriteByte(buf, op | (bits << SVCMD_BITS));
+    SZ_WriteByte(buf, op | (msg_write.cursize >> 8 << SVCMD_BITS));
     SZ_WriteByte(buf, msg_write.cursize & 255);
     SZ_WriteByte(buf, clientNum);
     SZ_Write(buf, msg_write.data, msg_write.cursize);
@@ -1270,7 +1296,10 @@ void SV_MvdStartSound(int entnum, int channel, int flags,
 
     SZ_WriteByte(&mvd.datagram, mvd_sound | extrabits);
     SZ_WriteByte(&mvd.datagram, flags);
-    SZ_WriteByte(&mvd.datagram, soundindex);
+    if (flags & SND_INDEX16)
+        SZ_WriteShort(&mvd.datagram, soundindex);
+    else
+        SZ_WriteByte(&mvd.datagram, soundindex);
 
     if (flags & SND_VOLUME)
         SZ_WriteByte(&mvd.datagram, volume);
@@ -1409,10 +1438,9 @@ static void write_stream(gtv_client_t *client, void *data, size_t len)
         } while (z->avail_in);
     } else
 #endif
-
-        if (FIFO_Write(fifo, data, len) != len) {
-            drop_client(client, "overflowed");
-        }
+    if (FIFO_Write(fifo, data, len) != len) {
+        drop_client(client, "overflowed");
+    }
 }
 
 static void write_message(gtv_client_t *client, gtv_serverop_t op)
@@ -1426,7 +1454,7 @@ static void write_message(gtv_client_t *client, gtv_serverop_t op)
     write_stream(client, msg_write.data, msg_write.cursize);
 }
 
-static bool auth_client(gtv_client_t *client, const char *password)
+static bool auth_client(const gtv_client_t *client, const char *password)
 {
     if (SV_MatchAddress(&gtv_white_list, &client->stream.address))
         return true; // ALLOW whitelisted hosts without password
@@ -1560,6 +1588,11 @@ static void parse_stream_start(gtv_client_t *client)
     // send gamestate if active
     if (mvd.active) {
         emit_gamestate();
+        if (msg_write.overflowed) {
+            SZ_Clear(&msg_write);
+            drop_client(client, "gamestate overflowed");
+            return;
+        }
         write_message(client, GTS_STREAM_DATA);
         SZ_Clear(&msg_write);
     } else {
@@ -1610,7 +1643,7 @@ static void parse_stringcmd(gtv_client_t *client)
     Cmd_TokenizeString(string, false);
 
     Com_DPrintf("dummy stringcmd from %s[%s]: %s\n", client->name,
-                NET_AdrToString(&client->stream.address), string);
+                NET_AdrToString(&client->stream.address), Com_MakePrintable(string));
     dummy_command();
 }
 
@@ -1942,7 +1975,7 @@ static void mvd_drop(gtv_serverop_t op)
 // something bad happened, remove all clients
 static void mvd_error(const char *reason)
 {
-    Com_EPrintf("Fatal MVD error: %s\n", reason);
+    Com_EPrintf("Fatal MVD server error: %s\n", reason);
 
     // stop recording
     rec_stop();
@@ -1997,6 +2030,13 @@ void SV_MvdMapChanged(void)
         build_gamestate();
         emit_gamestate();
 
+        // check for overflow
+        if (msg_write.overflowed) {
+            SZ_Clear(&msg_write);
+            mvd_error("gamestate overflowed");
+            return;
+        }
+
         // send gamestate to all MVD clients
         FOR_EACH_ACTIVE_GTV(client) {
             write_message(client, GTS_STREAM_DATA);
@@ -2042,12 +2082,12 @@ void SV_MvdClientDropped(client_t *client)
 
 /*
 ==================
-SV_MvdInit
+SV_MvdPreInit
 
 Server is initializing, prepare MVD server for this game.
 ==================
 */
-void SV_MvdInit(void)
+void SV_MvdPreInit(void)
 {
     if (!sv_mvd_enable->integer) {
         return; // do nothing if disabled
@@ -2055,12 +2095,6 @@ void SV_MvdInit(void)
 
     // reserve CLIENTNUM_NONE slot
     Cvar_ClampInteger(sv_maxclients, 1, CLIENTNUM_NONE);
-
-    // allocate buffers
-    SZ_Init(&mvd.message, SV_Malloc(MAX_MSGLEN), MAX_MSGLEN);
-    SZ_Init(&mvd.datagram, SV_Malloc(MAX_MSGLEN), MAX_MSGLEN);
-    mvd.players = SV_Malloc(sizeof(mvd.players[0]) * sv_maxclients->integer);
-    mvd.entities = SV_Malloc(sizeof(mvd.entities[0]) * MAX_EDICTS);
 
     // reserve the slot for dummy MVD client
     if (!sv_reserved_slots->integer) {
@@ -2087,6 +2121,46 @@ void SV_MvdInit(void)
     dummy_buffer.text = dummy_buffer_text;
     dummy_buffer.maxsize = sizeof(dummy_buffer_text);
     dummy_buffer.exec = dummy_exec_string;
+}
+
+/*
+==================
+SV_MvdPostInit
+==================
+*/
+void SV_MvdPostInit(void)
+{
+    if (!sv_mvd_enable->integer) {
+        return; // do nothing if disabled
+    }
+
+    // allocate buffers
+    SZ_InitWrite(&mvd.message, SV_Malloc(MAX_MSGLEN), MAX_MSGLEN);
+    SZ_InitWrite(&mvd.datagram, SV_Malloc(MAX_MSGLEN), MAX_MSGLEN);
+    mvd.players = SV_Malloc(sizeof(mvd.players[0]) * sv_maxclients->integer);
+    mvd.entities = SV_Malloc(sizeof(mvd.entities[0]) * svs.csr.max_edicts);
+
+    // setup protocol flags
+    mvd.esFlags = MSG_ES_UMASK | MSG_ES_BEAMORIGIN;
+    mvd.psFlags = 0;
+
+    if (sv_mvd_noblend->integer) {
+        mvd.psFlags |= MSG_PS_IGNORE_BLEND;
+    }
+
+    if (sv_mvd_nogun->integer) {
+        mvd.psFlags |= MSG_PS_IGNORE_GUNINDEX | MSG_PS_IGNORE_GUNFRAMES;
+    }
+
+    if (svs.csr.extended) {
+        mvd.esFlags |= MSG_ES_LONGSOLID | MSG_ES_SHORTANGLES | MSG_ES_EXTENSIONS;
+        mvd.psFlags |= MSG_PS_EXTENSIONS;
+
+        if (IS_NEW_GAME_API) {
+            mvd.esFlags |= MSG_ES_EXTENSIONS_2;
+            mvd.psFlags |= MSG_PS_EXTENSIONS_2 | MSG_PS_MOREBITS;
+        }
+    }
 }
 
 /*
@@ -2199,11 +2273,20 @@ static void rec_start(qhandle_t demofile)
     magic = MVD_MAGIC;
     FS_Write(&magic, 4, demofile);
 
-    if (mvd.active) {
-        emit_gamestate();
-        rec_write();
+    if (!mvd.active)
+        return;
+
+    emit_gamestate();
+
+    // check for overflow
+    if (msg_write.overflowed) {
         SZ_Clear(&msg_write);
+        mvd_error("gamestate overflowed");
+        return;
     }
+
+    rec_write();
+    SZ_Clear(&msg_write);
 }
 
 /*

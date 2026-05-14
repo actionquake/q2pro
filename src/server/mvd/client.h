@@ -16,6 +16,8 @@ with this program; if not, write to the Free Software Foundation, Inc.,
 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
 */
 
+#pragma once
+
 #include "../server.h"
 #include <setjmp.h>
 
@@ -30,13 +32,15 @@ with this program; if not, write to the Free Software Foundation, Inc.,
     LIST_FOR_EACH(mvd_client_t, cl, &(mvd)->clients, entry)
 
 #define EDICT_MVDCL(ent)  ((mvd_client_t *)((ent)->client))
-#define CS_NUM(c, n)      ((char *)(c) + (n) * MAX_QPATH)
 
 #define MVD_InfoSet(var, val) \
     Cvar_FullSet(var, val, CVAR_SERVERINFO | CVAR_GAME, FROM_CODE)
 
 // game features MVD client supports
 #define MVD_FEATURES    (GMF_CLIENTNUM | GMF_PROPERINUSE | GMF_WANT_ALL_DISCONNECTS)
+
+// dummy flag to mark entity as seen
+#define SVF_MVD_SEEN    BIT(31)
 
 #define LAYOUT_MSEC     3000
 
@@ -114,8 +118,8 @@ typedef enum {
 
 typedef struct {
     int framenum;
+    unsigned msglen;
     int64_t filepos;
-    size_t msglen;
     byte data[1];
 } mvd_snap_t;
 
@@ -143,24 +147,28 @@ typedef struct mvd_s {
 
     // delay buffer
     fifo_t      delay;
-    size_t      msglen;
+    unsigned    msglen;
     unsigned    num_packets, min_packets;
     unsigned    underflows, overflows;
     int         framenum;
 
     // game state
-    char    gamedir[MAX_QPATH];
-    char    mapname[MAX_QPATH];
-    int     servercount;
-    int     maxclients;
-    edict_pool_t pool;
-    cm_t    cm;
-    vec3_t  spawnOrigin;
-    vec3_t  spawnAngles;
-    int     pm_type;
-    byte            dcs[CS_BITMAP_BYTES];
-    char            baseconfigstrings[MAX_CONFIGSTRINGS][MAX_QPATH];
-    char            configstrings[MAX_CONFIGSTRINGS][MAX_QPATH];
+    char            gamedir[MAX_QPATH];
+    char            mapname[MAX_QPATH];
+    int             version;
+    int             servercount;
+    int             maxclients;
+    game_export_t   ge;
+    cm_t            cm;
+    vec3_t          spawnOrigin;
+    vec3_t          spawnAngles;
+    int             pm_type;
+    size_t          dcs[BC_COUNT(MAX_CONFIGSTRINGS)];
+    configstring_t  baseconfigstrings[MAX_CONFIGSTRINGS];
+    configstring_t  configstrings[MAX_CONFIGSTRINGS];
+    const cs_remap_t *csr;
+    msgEsFlags_t    esFlags;
+    msgPsFlags_t    psFlags;
     edict_t         edicts[MAX_EDICTS];
     mvd_player_t    *players; // [maxclients]
     mvd_player_t    *dummy; // &players[clientNum]
@@ -194,7 +202,8 @@ extern jmp_buf  mvd_jmpbuf;
 extern cvar_t    *mvd_shownet;
 #endif
 
-void MVD_Destroyf(mvd_t *mvd, const char *fmt, ...) q_noreturn q_printf(2, 3);
+q_noreturn q_printf(2, 3)
+void MVD_Destroyf(mvd_t *mvd, const char *fmt, ...);
 void MVD_Shutdown(void);
 
 mvd_t *MVD_SetChannel(int arg);
@@ -235,5 +244,6 @@ void MVD_GameClientDrop(edict_t *ent, const char *prefix, const char *reason);
 void MVD_UpdateClients(mvd_t *mvd);
 void MVD_FreePlayer(mvd_player_t *player);
 void MVD_UpdateConfigstring(mvd_t *mvd, int index);
+void MVD_WriteStringList(mvd_client_t *client, mvd_cs_t *cs);
 void MVD_SetPlayerNames(mvd_t *mvd);
 void MVD_LinkEdict(mvd_t *mvd, edict_t *ent);

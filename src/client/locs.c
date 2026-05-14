@@ -93,9 +93,9 @@ void LOC_LoadLocations(void)
                 Com_WPrintf("Line %d is incomplete in %s\n", line, path);
             } else {
                 loc = LOC_Alloc(Cmd_RawArgsFrom(3));
-                loc->origin[0] = atof(Cmd_Argv(0)) * 0.125f;
-                loc->origin[1] = atof(Cmd_Argv(1)) * 0.125f;
-                loc->origin[2] = atof(Cmd_Argv(2)) * 0.125f;
+                loc->origin[0] = Q_atof(Cmd_Argv(0)) * 0.125f;
+                loc->origin[1] = Q_atof(Cmd_Argv(1)) * 0.125f;
+                loc->origin[2] = Q_atof(Cmd_Argv(2)) * 0.125f;
                 List_Append(&cl_locations, &loc->entry);
                 count++;
             }
@@ -151,7 +151,7 @@ static location_t *LOC_FindClosest(const vec3_t pos)
 
         if (loc_trace->integer) {
             CM_BoxTrace(&trace, pos, loc->origin, vec3_origin, vec3_origin,
-                        cl.bsp->nodes, MASK_SOLID);
+                        cl.bsp->nodes, MASK_SOLID, cl.csr.extended);
             if (trace.fraction != 1.0f) {
                 continue;
             }
@@ -200,7 +200,7 @@ void LOC_AddLocationsToScene(void)
         VectorCopy(loc->origin, ent.origin);
 
         if (loc == nearest) {
-            ent.origin[2] += 10.0f * sin(cl.time * 0.01f);
+            ent.origin[2] += 10.0f * sinf(cl.time * 0.01f);
             V_AddLight(loc->origin, 200, 1, 1, 1);
         }
 
@@ -239,7 +239,7 @@ static size_t LOC_There_m(char *buffer, size_t size)
 
         VectorMA(cl.playerEntityOrigin, 8192, cl.v_forward, pos);
         CM_BoxTrace(&trace, cl.playerEntityOrigin, pos, vec3_origin,
-                    vec3_origin, cl.bsp->nodes, MASK_SOLID);
+                    vec3_origin, cl.bsp->nodes, MASK_SOLID, cl.csr.extended);
 
         loc = LOC_FindClosest(trace.endpos);
     }

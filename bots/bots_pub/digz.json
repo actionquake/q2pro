@@ -1,0 +1,35 @@
+{
+    "name": "Digz",
+    "clan_id": null,
+    "skin": "sas/sasjungle",
+    "weaponPreferences": {
+        "mk23": 0.7,
+        "dual_mk23": 0.5,
+        "mp5": 0.3,
+        "m4": 0.8,
+        "m3": 0.9,
+        "hc": 1.0,
+        "sniper": 0.7,
+        "knives": 1.0,
+        "grenades": 0.5
+    },
+    "itemPreferences": {
+        "vest": 0.4,
+        "helm": 0.7,
+        "laser": 0.5,
+        "silencer": 0.3,
+        "slippers": 0.4,
+        "bandolier": 0.6
+    },
+    "coreTraits": {
+        "aggressiveness": 0.4,
+        "teamwork": 0.0,
+        "curiosity": 0.2,
+        "aimingSkill": 0.8,
+        "reactionTime": 0.5,
+        "communicationFreq": 0.8,
+        "communicationTone": 0.2,
+        "movementStyle": 0.5,
+        "objectiveFocus": 0.4
+    }
+}

@@ -53,7 +53,7 @@ LAYOUTS
 // clients per screen page
 #define PAGE_CLIENTS    16
 
-#define VER_OFS (272 - (int)(sizeof(VERSION) - 1) * CHAR_WIDTH)
+#define VER_OFS (272 - (int)(sizeof(VERSION) - 1) * CONCHAR_WIDTH)
 
 static void MVD_LayoutClients(mvd_client_t *client)
 {
@@ -397,7 +397,7 @@ static void MVD_UpdateLayouts(mvd_t *mvd)
             break;
         case LAYOUT_OLDSCORES:
         case LAYOUT_SCORES:
-            if (!client->layout_time) {
+            if (!client->layout_time || (!mvd->dummy && svs.realtime - client->layout_time > LAYOUT_MSEC)) {
                 MVD_LayoutScores(client);
             }
             break;
@@ -433,7 +433,7 @@ CHASE CAMERA
 ==============================================================================
 */
 
-static void write_cs_list(mvd_client_t *client, mvd_cs_t *cs)
+void MVD_WriteStringList(mvd_client_t *client, mvd_cs_t *cs)
 {
     for (; cs; cs = cs->next) {
         MSG_WriteByte(svc_configstring);
@@ -451,8 +451,7 @@ static void MVD_FollowStop(mvd_client_t *client)
     client->ps.viewangles[ROLL] = 0;
 
     for (i = 0; i < 3; i++) {
-        client->ps.pmove.delta_angles[i] = ANGLE2SHORT(
-                                               client->ps.viewangles[i]) - client->lastcmd.angles[i];
+        client->ps.pmove.delta_angles[i] = ANGLE2SHORT(client->ps.viewangles[i]) - client->lastcmd.angles[i];
     }
 
     VectorClear(client->ps.kick_angles);
@@ -465,7 +464,7 @@ static void MVD_FollowStop(mvd_client_t *client)
 
     // send delta configstrings
     if (mvd->dummy)
-        write_cs_list(client, mvd->dummy->configstrings);
+        MVD_WriteStringList(client, mvd->dummy->configstrings);
 
     client->clientNum = mvd->clientNum;
     client->oldtarget = client->target;
@@ -488,7 +487,7 @@ static void MVD_FollowStart(mvd_client_t *client, mvd_player_t *target)
     client->target = target;
 
     // send delta configstrings
-    write_cs_list(client, target->configstrings);
+    MVD_WriteStringList(client, target->configstrings);
 
     SV_ClientPrintf(client->cl, PRINT_LOW, "[MVD] Chasing %s.\n", target->name);
 
@@ -600,7 +599,7 @@ static void MVD_UpdateTarget(mvd_client_t *client)
 {
     mvd_t *mvd = client->mvd;
     mvd_player_t *target;
-    entity_state_t *ent;
+    edict_t *ent;
     int i;
 
     // find new target for effects auto chasecam
@@ -610,8 +609,8 @@ static void MVD_UpdateTarget(mvd_client_t *client)
             if (!target->inuse || target == mvd->dummy) {
                 continue;
             }
-            ent = &mvd->edicts[i + 1].s;
-            if (ent->effects & client->chase_mask) {
+            ent = &mvd->edicts[i + 1];
+            if (ent->s.effects & client->chase_mask) {
                 MVD_FollowStart(client, target);
                 return;
             }
@@ -667,7 +666,7 @@ static void MVD_UpdateClient(mvd_client_t *client)
         if (mvd->cm.cache) {
             vec3_t vieworg;
             VectorMA(client->ps.viewoffset, 0.125f, client->ps.pmove.origin, vieworg);
-            contents = CM_PointContents(vieworg, mvd->cm.cache->nodes);
+            contents = CM_PointContents(vieworg, mvd->cm.cache->nodes, mvd->csr->extended);
         }
 
         if (contents & (CONTENTS_LAVA | CONTENTS_SLIME | CONTENTS_WATER))
@@ -683,6 +682,8 @@ static void MVD_UpdateClient(mvd_client_t *client)
             Vector4Set(client->ps.blend, 0.5f, 0.3f, 0.2f, 0.4f);
         else
             Vector4Clear(client->ps.blend);
+
+        Vector4Clear(client->ps.damage_blend);
     } else {
         // copy entire player state
         client->ps = target->ps;
@@ -697,8 +698,8 @@ static void MVD_UpdateClient(mvd_client_t *client)
         if (target != mvd->dummy) {
             if (mvd_stats_hack->integer && mvd->dummy) {
                 // copy stats of the dummy MVD observer
-                for (i = 0; i < MAX_STATS; i++) {
-                    if (mvd_stats_hack->integer & (1U << i)) {
+                for (i = 0; i < MAX_STATS_OLD; i++) {
+                    if (mvd_stats_hack->integer & BIT(i)) {
                         client->ps.stats[i] = mvd->dummy->ps.stats[i];
                     }
                 }
@@ -774,16 +775,33 @@ void MVD_BroadcastPrintf(mvd_t *mvd, int level, int mask, const char *fmt, ...)
     SZ_Clear(&msg_write);
 }
 
+#define ES_MASK     (MSG_ES_SHORTANGLES | MSG_ES_EXTENSIONS | MSG_ES_EXTENSIONS_2)
+#define PS_MASK     (MSG_PS_EXTENSIONS | MSG_PS_EXTENSIONS_2 | MSG_PS_MOREBITS)
+
 static void MVD_SetServerState(client_t *cl, mvd_t *mvd)
 {
+    if (cl->csr != mvd->csr) {
+        Z_Freep(&cl->entities);
+        cl->num_entities = 0;
+    }
+
     cl->gamedir = mvd->gamedir;
     cl->mapname = mvd->mapname;
-    cl->configstrings = (char *)mvd->configstrings;
-    cl->slot = mvd->clientNum;
+    cl->configstrings = mvd->configstrings;
+    cl->csr = mvd->csr;
+    cl->infonum = mvd->clientNum;
     cl->cm = &mvd->cm;
-    cl->pool = &mvd->pool;
+    cl->ge = &mvd->ge;
     cl->spawncount = mvd->servercount;
     cl->maxclients = mvd->maxclients;
+
+    cl->esFlags &= ~ES_MASK;
+    cl->psFlags &= ~PS_MASK;
+    cl->esFlags |= mvd->esFlags & ES_MASK;
+    cl->psFlags |= mvd->psFlags & PS_MASK;
+
+    if (cl->protocol != PROTOCOL_VERSION_Q2PRO || cl->version < PROTOCOL_VERSION_Q2PRO_PLAYERFOG)
+        cl->psFlags &= ~MSG_PS_MOREBITS;
 }
 
 void MVD_SwitchChannel(mvd_client_t *client, mvd_t *mvd)
@@ -838,6 +856,21 @@ static bool MVD_PartFilter(mvd_client_t *client)
     return delta < treshold;
 }
 
+static bool MVD_ClientCompatible(client_t *cl, mvd_t *mvd)
+{
+    int minimal;
+
+    if (!(mvd->flags & (MVF_EXTLIMITS | MVF_EXTLIMITS_2)))
+        return true;
+    if (cl->protocol != PROTOCOL_VERSION_Q2PRO)
+        return false;
+
+    minimal = (mvd->flags & MVF_EXTLIMITS_2) ?
+        PROTOCOL_VERSION_Q2PRO_EXTENDED_LIMITS_2 :
+        PROTOCOL_VERSION_Q2PRO_EXTENDED_LIMITS;
+    return cl->version >= minimal;
+}
+
 static void MVD_TrySwitchChannel(mvd_client_t *client, mvd_t *mvd)
 {
     if (mvd == client->mvd) {
@@ -846,6 +879,12 @@ static void MVD_TrySwitchChannel(mvd_client_t *client, mvd_t *mvd)
                         "in the Waiting Room" : "on this channel");
         return; // nothing to do
     }
+    if (!MVD_ClientCompatible(client->cl, mvd)) {
+        SV_ClientPrintf(client->cl, PRINT_HIGH,
+                        "[MVD] This channel is not compatible with your client version.\n");
+        return;
+    }
+
     if (client->begin_time) {
         if (svs.realtime - client->begin_time < 2000) {
             SV_ClientPrintf(client->cl, PRINT_HIGH,
@@ -1017,7 +1056,7 @@ static mvd_player_t *MVD_SetPlayer(mvd_client_t *client, const char *s)
 
     // numeric values are just slot numbers
     if (COM_IsUint(s)) {
-        i = atoi(s);
+        i = Q_atoi(s);
         if (i < 0 || i >= mvd->maxclients) {
             SV_ClientPrintf(client->cl, PRINT_HIGH,
                             "[MVD] Player slot number %d is invalid.\n", i);
@@ -1149,7 +1188,7 @@ static bool count_chase_bits(mvd_client_t *client)
     for (i = 0; i < (mvd->maxclients + CHAR_BIT - 1) / CHAR_BIT; i++)
         if (client->chase_bitmap[i])
             for (j = 0; j < 8; j++)
-                if (client->chase_bitmap[i] & (1 << j))
+                if (client->chase_bitmap[i] & BIT(j))
                     count++;
 
     return count;
@@ -1220,7 +1259,7 @@ static void MVD_AutoFollow_f(mvd_client_t *client)
         memset(client->chase_bitmap, 0, sizeof(client->chase_bitmap));
 
         for (i = 2; i < argc; i++) {
-            j = atoi(Cmd_Argv(i));
+            j = Q_atoi(Cmd_Argv(i));
             if (j >= 0 && j < mvd->maxclients)
                 Q_SetBit(client->chase_bitmap, j);
         }
@@ -1600,7 +1639,7 @@ static void set_player_name(mvd_t *mvd, int index)
     mvd_player_t *player;
     char *string, *p;
 
-    string = mvd->configstrings[CS_PLAYERSKINS + index];
+    string = mvd->configstrings[mvd->csr->playerskins + index];
     player = &mvd->players[index];
     Q_strlcpy(player->name, string, sizeof(player->name));
     p = strchr(player->name, '\\');
@@ -1644,10 +1683,10 @@ void MVD_UpdateConfigstring(mvd_t *mvd, int index)
     char *s = mvd->configstrings[index];
     mvd_client_t *client;
 
-    if (index >= CS_PLAYERSKINS && index < CS_PLAYERSKINS + mvd->maxclients) {
+    if (index >= mvd->csr->playerskins && index < mvd->csr->playerskins + mvd->maxclients) {
         // update player name
-        update_player_name(mvd, index - CS_PLAYERSKINS);
-    } else if (index >= CS_GENERAL) {
+        update_player_name(mvd, index - mvd->csr->playerskins);
+    } else if (index >= mvd->csr->general) {
         // reset unicast versions of this string
         reset_unicast_strings(mvd, index);
     }
@@ -1677,27 +1716,31 @@ MISC GAME FUNCTIONS
 
 void MVD_LinkEdict(mvd_t *mvd, edict_t *ent)
 {
-    int         index;
-    mmodel_t    *cm;
-    bsp_t       *cache = mvd->cm.cache;
+    int             index;
+    const mmodel_t  *mod;
+    const bsp_t     *bsp = mvd->cm.cache;
 
-    if (!cache) {
+    if (!bsp)
         return;
-    }
 
-    if (ent->s.solid == PACKED_BSP) {
-        index = ent->s.modelindex;
-        if (index < 1 || index > cache->nummodels) {
-            Com_WPrintf("%s: entity %d: bad inline model index: %d\n",
-                        __func__, ent->s.number, index);
-            return;
-        }
-        cm = &cache->models[index - 1];
-        VectorCopy(cm->mins, ent->mins);
-        VectorCopy(cm->maxs, ent->maxs);
-        ent->solid = SOLID_BSP;
-    } else if (ent->s.solid) {
-        MSG_UnpackSolid16(ent->s.solid, ent->mins, ent->maxs);
+    index = ent->s.modelindex - 1;
+    if (index == MODELINDEX_PLAYER - 1)
+        index = 0;
+    else if (index >= MODELINDEX_PLAYER)
+        index--;
+    if (index > 0 && index < bsp->nummodels) {
+        mod = &bsp->models[index];
+        VectorCopy(mod->mins, ent->mins);
+        VectorCopy(mod->maxs, ent->maxs);
+        if (ent->s.solid == PACKED_BSP)
+            ent->solid = SOLID_BSP;
+        else
+            ent->solid = SOLID_TRIGGER;
+    } else if (ent->s.solid && ent->s.solid != PACKED_BSP) {
+        if (mvd->csr->extended)
+            MSG_UnpackSolid32_Ver2(ent->s.solid, ent->mins, ent->maxs);
+        else
+            MSG_UnpackSolid16(ent->s.solid, ent->mins, ent->maxs);
         ent->solid = SOLID_BBOX;
     } else {
         VectorClear(ent->mins);
@@ -1755,7 +1798,7 @@ static void MVD_GameInit(void)
 
     for (i = 0; i < sv_maxclients->integer; i++) {
         mvd_clients[i].cl = &svs.client_pool[i];
-        edicts[i + 1].client = (gclient_t *)&mvd_clients[i];
+        edicts[i + 1].client = &mvd_clients[i];
     }
 
     mvd_ge.edicts = edicts;
@@ -1771,8 +1814,8 @@ static void MVD_GameInit(void)
         Com_EPrintf("Couldn't load %s for the Waiting Room: %s\n",
                     buffer, BSP_ErrorString(ret));
         Cvar_Reset(mvd_default_map);
-        strcpy(buffer, "maps/q2dm1.bsp");
-        checksum = 80717714;
+        strcpy(buffer, "maps/wfall.bsp");
+        checksum = 917713192;
         VectorSet(mvd->spawnOrigin, 984, 192, 784);
         VectorSet(mvd->spawnAngles, 25, 72, 0);
     } else {
@@ -1789,14 +1832,15 @@ static void MVD_GameInit(void)
 
     strcpy(mvd->configstrings[CS_NAME], "Waiting Room");
     strcpy(mvd->configstrings[CS_SKY], "unit1_");
-    strcpy(mvd->configstrings[CS_MAXCLIENTS], "8");
-    sprintf(mvd->configstrings[CS_MAPCHECKSUM], "%d", checksum);
-    strcpy(mvd->configstrings[CS_MODELS + 1], buffer);
-    strcpy(mvd->configstrings[CS_LIGHTS], "m");
+    strcpy(mvd->configstrings[CS_MAXCLIENTS_OLD], "8");
+    sprintf(mvd->configstrings[CS_MAPCHECKSUM_OLD], "%d", checksum);
+    strcpy(mvd->configstrings[CS_MODELS_OLD + 1], buffer);
+    strcpy(mvd->configstrings[CS_LIGHTS_OLD], "m");
 
     mvd->dummy = &mvd_dummy;
     mvd->pm_type = PM_FREEZE;
     mvd->servercount = sv.spawncount;
+    mvd->csr = &cs_remap_old;
 
     // set serverinfo variables
     SV_InfoSet("mapname", mvd->mapname);
@@ -1841,13 +1885,14 @@ static void MVD_GameReadLevel(const char *filename)
 static qboolean MVD_GameClientConnect(edict_t *ent, char *userinfo)
 {
     mvd_client_t *client = EDICT_MVDCL(ent);
-    mvd_t *mvd;
+    mvd_t *mvd = NULL;
 
     // if there is exactly one active channel, assign them to it,
     // otherwise, assign to Waiting Room
     if (LIST_SINGLE(&mvd_channel_list)) {
         mvd = LIST_FIRST(mvd_t, &mvd_channel_list, entry);
-    } else {
+    }
+    if (!mvd || !MVD_ClientCompatible(client->cl, mvd)) {
         mvd = &mvd_waitingRoom;
     }
     List_SeqAdd(&mvd->clients, &client->entry);
@@ -1931,9 +1976,9 @@ static void MVD_GameClientUserinfoChanged(edict_t *ent, char *userinfo)
     mvd_client_t *client = EDICT_MVDCL(ent);
     int fov;
 
-    client->uf = atoi(Info_ValueForKey(userinfo, "uf"));
+    client->uf = Q_atoi(Info_ValueForKey(userinfo, "uf"));
 
-    fov = atoi(Info_ValueForKey(userinfo, "fov"));
+    fov = Q_atoi(Info_ValueForKey(userinfo, "fov"));
     if (fov < 1) {
         fov = 90;
     } else if (fov > 160) {
@@ -2004,7 +2049,7 @@ static mvd_player_t *MVD_HitPlayer(mvd_client_t *client)
 
     if (mvd->cm.cache) {
         CM_BoxTrace(&trace, start, end, vec3_origin, vec3_origin,
-                    mvd->cm.cache->nodes, CONTENTS_SOLID);
+                    mvd->cm.cache->nodes, CONTENTS_SOLID, mvd->csr->extended);
         fraction = trace.fraction;
     } else {
         fraction = 1;
@@ -2025,7 +2070,8 @@ static mvd_player_t *MVD_HitPlayer(mvd_client_t *client)
 
         CM_TransformedBoxTrace(&trace, start, end, vec3_origin, vec3_origin,
                                CM_HeadnodeForBox(ent->mins, ent->maxs),
-                               CONTENTS_MONSTER, ent->s.origin, vec3_origin);
+                               CONTENTS_MONSTER, ent->s.origin, vec3_origin,
+                               mvd->csr->extended);
 
         if (trace.fraction < fraction) {
             fraction = trace.fraction;
@@ -2036,7 +2082,7 @@ static mvd_player_t *MVD_HitPlayer(mvd_client_t *client)
     return target;
 }
 
-static trace_t q_gameabi MVD_Trace(const vec3_t start, const vec3_t mins, const vec3_t maxs, const vec3_t end)
+static trace_t q_gameabi MVD_Trace(const vec3_t start, const vec3_t mins, const vec3_t maxs, const vec3_t end, int contentmask)
 {
     trace_t trace;
 
@@ -2200,19 +2246,14 @@ static void MVD_NotifyClient(mvd_client_t *client)
 void MVD_UpdateClients(mvd_t *mvd)
 {
     mvd_client_t *client;
+    bool intermission = mvd_freeze_hack->integer
+        && mvd->dummy && mvd->dummy->ps.pmove.pm_type == PM_FREEZE;
 
     // check for intermission
-    if (mvd_freeze_hack->integer && mvd->dummy) {
-        if (!mvd->intermission) {
-            if (mvd->dummy->ps.pmove.pm_type == PM_FREEZE) {
-                MVD_IntermissionStart(mvd);
-            }
-        } else if (mvd->dummy->ps.pmove.pm_type != PM_FREEZE) {
-            MVD_IntermissionStop(mvd);
-        }
-    } else if (mvd->intermission) {
+    if (!mvd->intermission && intermission)
+        MVD_IntermissionStart(mvd);
+    else if (mvd->intermission && !intermission)
         MVD_IntermissionStop(mvd);
-    }
 
     // update UDP clients
     FOR_EACH_MVDCL(client, mvd) {
@@ -2293,7 +2334,7 @@ void MVD_PrepWorldFrame(void)
 
     // reset events and old origins
     FOR_EACH_MVD(mvd) {
-        for (i = 1; i < mvd->pool.num_edicts; i++) {
+        for (i = 1; i < mvd->ge.num_edicts; i++) {
             ent = &mvd->edicts[i];
             if (!ent->inuse) {
                 continue;

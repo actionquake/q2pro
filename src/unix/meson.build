@@ -29,3 +29,24 @@ if not config.has('USE_SDL') and not config.has('USE_X11') and not config.has('U
   warning('No video drivers enabled, client will not be built')
   client_deps += disabler()
 endif
+
+# This is needed due to specific OpenGL-specific symbols being used in the client for navmesh drawing
+if not config.has('USE_X11')
+  if host_machine.system() == 'linux'
+  exe_link_args += '-lGL'
+  # else
+  # exe_link_args += ['-framework', 'OpenGL']  # MacOS does not need this, but in case you ever wanted to know how
+  endif
+endif
+
+test_funcs = [
+  'memccpy',
+  'strchrnul',
+  'strnlen',
+]
+
+foreach func: test_funcs
+  if cc.has_function(func, args: '-D_GNU_SOURCE', prefix: '#include <string.h>')
+    config.set('HAVE_' + func.to_upper(), true)
+  endif
+endforeach

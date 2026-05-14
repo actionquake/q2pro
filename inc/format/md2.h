@@ -31,7 +31,7 @@ with this program; if not, write to the Free Software Foundation, Inc.,
 
 #define MD2_MAX_TRIANGLES   4096
 #define MD2_MAX_VERTS       2048
-#define MD2_MAX_FRAMES      512
+#define MD2_MAX_FRAMES      1024
 #define MD2_MAX_SKINS       32
 #define MD2_MAX_SKINNAME    64
 #define MD2_MAX_SKINWIDTH   640
@@ -70,8 +70,7 @@ typedef struct {
 // a vertex consists of a floating point s, a floating point t,
 // and an integer vertex index.
 
-
-typedef struct dmd2header_s {
+typedef struct {
     uint32_t        ident;
     uint32_t        version;
 

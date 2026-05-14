@@ -40,7 +40,7 @@ static byte     buttondown[256 / 8];
 
 static bool     key_overstrike;
 
-typedef struct keyname_s {
+typedef struct {
     const char  *name;
     int         keynum;
 } keyname_t;
@@ -486,7 +486,7 @@ static void Key_Bindlist_f(void)
     }
 }
 
-static cmdreg_t c_keys[] = {
+static const cmdreg_t c_keys[] = {
     { "bind", Key_Bind_f, Key_Bind_c },
     { "unbind", Key_Unbind_f, Key_Unbind_c },
     { "unbindall", Key_Unbindall_f },
@@ -653,7 +653,7 @@ void Key_Event(unsigned key, bool down, unsigned time)
         }
 
         if (cls.key_dest == KEY_GAME &&
-            cl.frame.ps.stats[STAT_LAYOUTS] &&
+            cl.frame.ps.stats[STAT_LAYOUTS] & (LAYOUTS_LAYOUT | LAYOUTS_INVENTORY | LAYOUTS_HELP) &&
             !cls.demo.playback) {
             if (keydown[key] == 2) {
                 // force main menu if escape is held

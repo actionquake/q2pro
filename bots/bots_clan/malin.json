@@ -1,0 +1,35 @@
+{
+    "name": "Malin",
+    "clan_id": 44,
+    "skin": "actionmale/ctf_r",
+    "weaponPreferences": {
+        "mk23": 0.8,
+        "dual_mk23": 0.6,
+        "mp5": 0.8,
+        "m4": 0.6,
+        "m3": 0.2,
+        "hc": 0.5,
+        "sniper": 0.3,
+        "knives": 0.4,
+        "grenades": 0.4
+    },
+    "itemPreferences": {
+        "vest": 0.8,
+        "helm": 0.7,
+        "laser": 0.7,
+        "silencer": 0.5,
+        "slippers": 0.4,
+        "bandolier": 0.8
+    },
+    "coreTraits": {
+        "aggressiveness": 0.5,
+        "teamwork": 0.4,
+        "curiosity": 0.4,
+        "aimingSkill": 0.5,
+        "reactionTime": 0.5,
+        "communicationFreq": 0.4,
+        "communicationTone": 0.5,
+        "movementStyle": 0.3,
+        "objectiveFocus": 0.6
+    }
+}

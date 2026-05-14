@@ -1,0 +1,16 @@
+[ctf]
+type=balanced
+author=stric&matic
+grapple=no
+
+[respawn]
+red=4
+blue=4
+
+[flags]
+red=<402 146 326>
+blue=<-1892 2332 46>
+
+[spawns]
+red=<-488 550 350 -126>,<-55 195 46 3>,<-1100 660 46 90>
+blue=<-1191 1834 81 -132>,<-745 2411 382 -179>,<-1100 660 46 90>

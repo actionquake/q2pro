@@ -38,7 +38,7 @@ with this program; if not, write to the Free Software Foundation, Inc.,
 #define U32_RGB     MakeColor(255, 255, 255,   0)
 
 // absolute limit for OpenGL renderer
-#define MAX_TEXTURE_SIZE    4096
+#define MAX_TEXTURE_SIZE    8192
 
 typedef enum {
     IM_PCX,
@@ -58,24 +58,28 @@ typedef enum {
 typedef struct image_s {
     list_t          entry;
     char            name[MAX_QPATH]; // game path
-    int             baselen; // without extension
-    imagetype_t     type;
-    imageflags_t    flags;
-    int             width, height; // source image
-    int             upload_width, upload_height; // after power of two and picmip
-    int             registration_sequence; // 0 = free
-    unsigned        texnum; // gl texture binding
+    uint8_t         baselen; // without extension
+    uint8_t         type;
+    uint16_t        flags;
+    uint16_t        width, height; // source image
+    uint16_t        upload_width, upload_height; // after power of two and picmip
+    unsigned        registration_sequence;
+    unsigned        texnum, texnum2; // gl texture binding
     float           sl, sh, tl, th;
+    float           aspect;
 } image_t;
 
-#define MAX_RIMAGES     1024
+#define MAX_RIMAGES     8192
 
 extern image_t  r_images[MAX_RIMAGES];
 extern int      r_numImages;
 
-extern int registration_sequence;
+extern unsigned r_registration_sequence;
 
-#define R_NOTEXTURE &r_images[0]
+#define R_NUM_AUTO_IMG  3
+#define R_NOTEXTURE     (&r_images[0])
+#define R_SHELLTEXTURE  (&r_images[1])
+#define R_SKYTEXTURE    (&r_images[2])
 
 extern uint32_t d_8to24table[256];
 
@@ -91,17 +95,17 @@ image_t *IMG_ForHandle(qhandle_t h);
 void IMG_Unload(image_t *image);
 void IMG_Load(image_t *image, byte *pic);
 
-struct screenshot_s;
+typedef struct screenshot_s screenshot_t;
 
-typedef int (*save_cb_t)(struct screenshot_s *restrict);
+typedef int (*save_cb_t)(const screenshot_t *);
 
-typedef struct screenshot_s {
+struct screenshot_s {
     save_cb_t save_cb;
     byte *pixels;
     FILE *fp;
     char *filename;
     int width, height, rowbytes, bpp, status, param;
     bool async;
-} screenshot_t;
+};
 
-void IMG_ReadPixels(screenshot_t *s);
+int IMG_ReadPixels(screenshot_t *s);

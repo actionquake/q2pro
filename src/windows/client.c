@@ -349,7 +349,7 @@ int Win_GetDpiScale(void)
         int dpi = win.GetDpiForWindow(win.wnd);
         if (dpi) {
             int scale = (dpi + USER_DEFAULT_SCREEN_DPI / 2) / USER_DEFAULT_SCREEN_DPI;
-            return clamp(scale, 1, 10);
+            return Q_clip(scale, 1, 10);
         }
     }
     return 1;
@@ -621,7 +621,7 @@ static void mouse_wheel_event(int delta)
 
     if (Key_GetDest() & KEY_CONSOLE) {
         SystemParametersInfo(SPI_GETWHEELSCROLLLINES, 0, &lines, 0);
-        clamp(lines, 1, 9);
+        lines = Q_clip(lines, 1, 9);
     } else {
         lines = 1;
     }
@@ -663,10 +663,10 @@ static BOOL check_cursor_pos(void)
     return PtInRect(&win.screen_rc, pt);
 }
 
-#define BTN_DN(i) (1<<(i*2+0))
-#define BTN_UP(i) (1<<(i*2+1))
+#define BTN_DN(i)   BIT((i) * 2 + 0)
+#define BTN_UP(i)   BIT((i) * 2 + 1)
 
-static void raw_mouse_event(PRAWMOUSE rm)
+static void raw_mouse_event(const RAWMOUSE *rm)
 {
     int i;
 
@@ -764,7 +764,7 @@ static void pos_changing_event(HWND wnd, WINDOWPOS *pos)
     pos->cy = max(pos->cy, rc.bottom - rc.top);
 }
 
-static void pos_changed_event(HWND wnd, WINDOWPOS *pos)
+static void pos_changed_event(HWND wnd, const WINDOWPOS *pos)
 {
     RECT rc;
 

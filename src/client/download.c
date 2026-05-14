@@ -21,6 +21,7 @@ with this program; if not, write to the Free Software Foundation, Inc.,
 //
 
 #include "client.h"
+#include "common/mdfour.h"
 #include "format/md2.h"
 #include "format/sp2.h"
 
@@ -34,6 +35,12 @@ typedef enum {
 static precache_t precache_check;
 static int precache_sexed_sounds[MAX_SOUNDS];
 static int precache_sexed_total;
+
+// Track if we've already attempted a CRC-based map re-download
+static bool map_crc_retry_attempted = false;
+
+cvar_t   *r_override_textures;
+cvar_t   *r_texture_overrides;
 
 /*
 ===============
@@ -91,12 +98,19 @@ int CL_QueueDownload(const char *path, dltype_t type)
 CL_IgnoreDownload
 
 Returns true if specified path matches against an entry in download ignore
-list.
+list. Path should be converted to lower case by the caller.
 ===============
 */
 bool CL_IgnoreDownload(const char *path)
 {
     string_entry_t *entry;
+
+    if (!strncmp(path, CONST_STR_LEN("save/")))
+        return true;
+    if (!strncmp(path, CONST_STR_LEN("music/")))
+        return true;
+    if (!strncmp(path, CONST_STR_LEN("video/")))
+        return true;
 
     for (entry = cls.download.ignores; entry; entry = entry->next) {
         if (Com_WildCmp(entry->string, path)) {
@@ -144,6 +158,8 @@ void CL_CleanupDownloads(void)
 
     List_Init(&cls.download.queue);
     cls.download.pending = 0;
+
+    map_crc_retry_attempted = false;  // Reset retry flag on disconnect
 
     cls.download.current = NULL;
     cls.download.percent = 0;
@@ -194,7 +210,7 @@ static bool start_udp_download(dlqueue_t *q)
     ret = FS_OpenFile(cls.download.temp, &f, FS_MODE_RDWR);
     if (ret > INT_MAX) {
         FS_CloseFile(f);
-        ret = -EFBIG;
+        ret = Q_ERR(EFBIG);
     }
     if (ret >= 0) {  // it exists
         cls.download.file = f;
@@ -284,7 +300,7 @@ static void finish_udp_download(const char *msg)
     CL_StartNextDownload();
 }
 
-static bool write_udp_download(byte *data, int size)
+static bool write_udp_download(const byte *data, int size)
 {
     int ret;
 
@@ -302,28 +318,27 @@ static bool write_udp_download(byte *data, int size)
 #if USE_ZLIB
 // handles both continuous deflate stream for entire download and chunked
 // per-packet streams for compatibility.
-static bool inflate_udp_download(byte *data, int size, int decompressed_size)
+static bool inflate_udp_download(const byte *data, int size, int decompressed_size)
 {
     z_streamp   z = &cls.download.z;
     byte        buffer[0x10000];
     int         ret;
 
     // initialize stream if not done yet
-    if (!z->state)
-        Q_assert(inflateInit2(z, -MAX_WBITS) == Z_OK);
+    Q_assert(z->state || inflateInit2(z, -MAX_WBITS) == Z_OK);
 
     if (!size)
         return true;
 
     // run inflate() until output buffer not full
-    z->next_in = data;
+    z->next_in = (Bytef *)data;
     z->avail_in = size;
     do {
         z->next_out = buffer;
         z->avail_out = sizeof(buffer);
 
         ret = inflate(z, Z_SYNC_FLUSH);
-        if (ret != Z_OK && ret != Z_STREAM_END) {
+        if (ret != Z_OK && ret != Z_STREAM_END && ret != Z_BUF_ERROR) {
             Com_EPrintf("[UDP] Error %d decompressing download\n", ret);
             finish_udp_download(NULL);
             return false;
@@ -356,7 +371,7 @@ CL_HandleDownload
 An UDP download data has been received from the server.
 =====================
 */
-void CL_HandleDownload(byte *data, int size, int percent, int decompressed_size)
+void CL_HandleDownload(const byte *data, int size, int percent, int decompressed_size)
 {
     dlqueue_t *q = cls.download.current;
     int ret;
@@ -447,8 +462,8 @@ bool CL_CheckDownloadExtension(const char *ext)
 static int check_file_len(const char *path, size_t len, dltype_t type)
 {
     char buffer[MAX_QPATH], *ext;
+    path_valid_t valid;
     int ret;
-    int valid;
 
     // check for oversize path
     if (len >= MAX_QPATH)
@@ -476,9 +491,57 @@ static int check_file_len(const char *path, size_t len, dltype_t type)
     if (*ext != '.' || !CL_CheckDownloadExtension(ext + 1))
         return Q_ERR_INVALID_PATH;
 
-    if (FS_FileExists(buffer))
-        // it exists, no need to download
-        return Q_ERR(EEXIST);
+    if (FS_FileExists(buffer)) {
+        // For map files, validate CRC before skipping download
+        if (type == DL_MAP && !map_crc_retry_attempted) {
+            // Parse server checksum as signed int (server stores with "%d"), then
+            // treat as unsigned so both sides compare as the same 32-bit bit pattern.
+            unsigned server_checksum = (unsigned)Q_atoi(cl.configstrings[cl.csr.mapchecksum]);
+
+            if (server_checksum != 0) {  // Server sent a valid checksum
+                // Compute local CRC directly from raw file bytes.
+                // Do NOT use BSP_Load here: it caches in memory and may return a
+                // stale entry if this map was previously loaded (e.g. listen server).
+                byte *raw;
+                int filelen = FS_LoadFile(buffer, (void **)&raw);
+                if (raw) {
+                    unsigned local_checksum = Com_BlockChecksum(raw, filelen);
+                    FS_FreeFile(raw);
+
+                    if (local_checksum != server_checksum) {
+                        char fullpath[MAX_OSPATH];
+
+                        Com_Printf("Map CRC mismatch: local=%u, server=%u — re-downloading %s\n",
+                                   local_checksum, server_checksum, buffer);
+
+                        // Delete mismatched file using absolute filesystem path
+                        Q_concat(fullpath, sizeof(fullpath), fs_gamedir, "/", buffer);
+                        remove(fullpath);
+
+                        // Mark that we've attempted retry (only once per connection)
+                        map_crc_retry_attempted = true;
+
+                        // Fall through to download logic below
+                    } else {
+                        return Q_ERR(EEXIST);  // CRC matches, skip download
+                    }
+                } else {
+                    // Could not read the file — re-download it
+                    char fullpath[MAX_OSPATH];
+                    Com_Printf("Could not read local map for CRC check, re-downloading: %s\n", buffer);
+                    Q_concat(fullpath, sizeof(fullpath), fs_gamedir, "/", buffer);
+                    remove(fullpath);
+                    map_crc_retry_attempted = true;
+                }
+            } else {
+                // No server checksum available, skip download
+                return Q_ERR(EEXIST);
+            }
+        } else {
+            // Non-map files OR already retried: keep existing behavior
+            return Q_ERR(EEXIST);
+        }
+    }
 
     if (valid == PATH_MIXED_CASE)
         // convert to lower case to make download server happy
@@ -628,7 +691,7 @@ static void check_player(const char *name)
     // sexed sounds
     for (i = 0; i < precache_sexed_total; i++) {
         j = precache_sexed_sounds[i];
-        p = cl.configstrings[CS_SOUNDS + j];
+        p = cl.configstrings[cl.csr.sounds + j];
 
         if (*p == '*') {
             len = Q_concat(fn, sizeof(fn), "players/", model, "/", p + 1);
@@ -669,11 +732,6 @@ void CL_RequestNextDownload(void)
     char fn[MAX_QPATH], *name;
     size_t len;
     int i;
-    static cvar_t   *r_override_textures;
-    static cvar_t   *r_texture_overrides;
-
-    r_override_textures = Cvar_Get("r_override_textures", "1", CVAR_FILES);
-    r_texture_overrides = Cvar_Get("r_texture_overrides", "-1", CVAR_FILES);
 
     if (cls.state != ca_connected && cls.state != ca_loading)
         return;
@@ -691,16 +749,16 @@ void CL_RequestNextDownload(void)
     case PRECACHE_MODELS:
         // confirm map
         if (allow_download_maps->integer)
-            check_file(cl.configstrings[CS_MODELS + 1], DL_MAP);
+            check_file(cl.configstrings[cl.csr.models + 1], DL_MAP);
 
         // checking for models
         if (allow_download_models->integer) {
-            for (i = 2; i < MAX_MODELS; i++) {
-                name = cl.configstrings[CS_MODELS + i];
-                if (!name[0]) {
+            for (i = 2; i < cl.csr.max_models; i++) {
+                name = cl.configstrings[cl.csr.models + i];
+                if (!name[0] && i != MODELINDEX_PLAYER) {
                     break;
                 }
-                if (name[0] == '*' || name[0] == '#') {
+                if (name[0] == '*' || name[0] == '#' || name[0] == 0) {
                     continue;
                 }
                 check_file(name, DL_MODEL);
@@ -718,21 +776,38 @@ void CL_RequestNextDownload(void)
                 return;
             }
 
-            for (i = 2; i < MAX_MODELS; i++) {
-                name = cl.configstrings[CS_MODELS + i];
-                if (!name[0]) {
+            for (i = 2; i < cl.csr.max_models; i++) {
+                name = cl.configstrings[cl.csr.models + i];
+                if (!name[0] && i != MODELINDEX_PLAYER) {
                     break;
                 }
-                if (name[0] == '*' || name[0] == '#') {
+                if (name[0] == '*' || name[0] == '#' || name[0] == 0) {
                     continue;
                 }
                 check_skins(name);
             }
+
+            // check skins for RF_CUSTOMSKIN
+            if (cl.csr.extended) {
+                for (i = 1; i < cl.csr.max_images; i++) {
+                    name = cl.configstrings[cl.csr.images + i];
+                    if (!name[0]) {
+                        break;
+                    }
+                    if (name[0] == '/' || name[0] == '\\') {
+                        continue;
+                    }
+                    if (!*COM_FileExtension(name) || !strchr(name, '/')) {
+                        continue;
+                    }
+                    check_file(name, DL_OTHER);
+                }
+            }
         }
 
         if (allow_download_sounds->integer) {
-            for (i = 1; i < MAX_SOUNDS; i++) {
-                name = cl.configstrings[CS_SOUNDS + i];
+            for (i = 1; i < cl.csr.max_sounds; i++) {
+                name = cl.configstrings[cl.csr.sounds + i];
                 if (!name[0]) {
                     break;
                 }
@@ -749,13 +824,15 @@ void CL_RequestNextDownload(void)
         }
 
         if (allow_download_pics->integer) {
-            for (i = 1; i < MAX_IMAGES; i++) {
-                name = cl.configstrings[CS_IMAGES + i];
+            for (i = 1; i < cl.csr.max_images; i++) {
+                name = cl.configstrings[cl.csr.images + i];
                 if (!name[0]) {
                     break;
                 }
                 if (name[0] == '/' || name[0] == '\\') {
                     len = Q_strlcpy(fn, name + 1, sizeof(fn));
+                } else if (cl.csr.extended && *COM_FileExtension(name) && strchr(name, '/')) {
+                    continue;
                 } else {
                     len = Q_concat(fn, sizeof(fn), "pics/", name, ".pcx");
                 }
@@ -766,14 +843,14 @@ void CL_RequestNextDownload(void)
         if (allow_download_players->integer) {
             // find sexed sounds
             precache_sexed_total = 0;
-            for (i = 1; i < MAX_SOUNDS; i++) {
-                if (cl.configstrings[CS_SOUNDS + i][0] == '*') {
+            for (i = 1; i < cl.csr.max_sounds; i++) {
+                if (cl.configstrings[cl.csr.max_sounds + i][0] == '*') {
                     precache_sexed_sounds[precache_sexed_total++] = i;
                 }
             }
 
             for (i = 0; i < MAX_CLIENTS; i++) {
-                name = cl.configstrings[CS_PLAYERSKINS + i];
+                name = cl.configstrings[cl.csr.playerskins + i];
                 if (!name[0]) {
                     continue;
                 }
@@ -782,12 +859,8 @@ void CL_RequestNextDownload(void)
         }
 
         if (allow_download_textures->integer) {
-            static const char env_suf[6][3] = {
-                "rt", "bk", "lf", "ft", "up", "dn"
-            };
-
             for (i = 0; i < 6; i++) {
-                len = Q_concat(fn, sizeof(fn), "env/", cl.configstrings[CS_SKY], env_suf[i], ".tga");
+                len = Q_concat(fn, sizeof(fn), "env/", cl.configstrings[CS_SKY], com_env_suf[i], ".tga");
                 check_file_len(fn, len, DL_OTHER);
             }
         }
@@ -806,28 +879,15 @@ void CL_RequestNextDownload(void)
         CL_RegisterBspModels();
 
         if (allow_download_textures->integer) {
-            // Only download jpg textures along with wal if r_override_textures = 1 and
-            // r_texture_overrides bitmap is -1 (all), 16 (walls), 32 (skies) or 48 (walls and skies)
-            if (r_override_textures->value && 
-                (r_texture_overrides->value == -1 
-                || r_texture_overrides->value == 16 
-                || r_texture_overrides->value == 32 
-                || r_texture_overrides->value == 48)) 
-                {
-                // Some textures do not have high def versions, for those we still default to wal, 
-                // so we download both of them
-                for (i = 0; i < cl.bsp->numtexinfo; i++) {
+            for (i = 0; i < cl.bsp->numtexinfo; i++) {
+                if (cl.bsp->texinfo[i].c.flags & SURF_NODRAW)
+                    continue;
+                if (r_override_textures->integer == 2 || (r_texture_overrides->integer & 16)) {
                     len = Q_concat(fn, sizeof(fn), "textures/", cl.bsp->texinfo[i].name, ".jpg");
                     check_file_len(fn, len, DL_OTHER);
-                    len = Q_concat(fn, sizeof(fn), "textures/", cl.bsp->texinfo[i].name, ".wal");
-                    check_file_len(fn, len, DL_OTHER);
                 }
-            }
-            else { // Only download wal due to the user's settings not wanting hi res textures
-                for (i = 0; i < cl.bsp->numtexinfo; i++) {
-                    len = Q_concat(fn, sizeof(fn), "textures/", cl.bsp->texinfo[i].name, ".wal");
-                    check_file_len(fn, len, DL_OTHER);
-                }
+                len = Q_concat(fn, sizeof(fn), "textures/", cl.bsp->texinfo[i].name, ".wal");
+                check_file_len(fn, len, DL_OTHER);
             }
         }
 
@@ -853,6 +913,12 @@ void CL_RequestNextDownload(void)
 void CL_ResetPrecacheCheck(void)
 {
     precache_check = PRECACHE_MODELS;
+    map_crc_retry_attempted = false;  // Reset retry flag for new connection
+}
+
+bool CL_MapRetryAttempted(void)
+{
+    return map_crc_retry_attempted;
 }
 
 /*

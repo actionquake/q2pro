@@ -19,6 +19,8 @@ with this program; if not, write to the Free Software Foundation, Inc.,
 #include "server.h"
 #include "client/input.h"
 
+bot_client_t bot_clients[MAX_CLIENTS];
+
 pmoveParams_t   sv_pmp;
 
 master_t    sv_masters[MAX_MASTERS];   // address of group servers
@@ -80,6 +82,8 @@ cvar_t  *sv_calcpings_method;
 cvar_t  *sv_changemapcmd;
 cvar_t  *sv_max_download_size;
 cvar_t  *sv_max_packet_entities;
+cvar_t  *sv_trunc_packet_entities;
+cvar_t  *sv_prioritize_entities;
 
 cvar_t  *sv_strafejump_hack;
 cvar_t  *sv_waterjump_hack;
@@ -88,7 +92,7 @@ cvar_t  *sv_packetdup_hack;
 #endif
 cvar_t  *sv_allow_map;
 cvar_t  *sv_cinematics;
-#if !USE_CLIENT
+#if USE_SERVER
 cvar_t  *sv_recycle;
 #endif
 cvar_t  *sv_enhanced_setplayer;
@@ -96,6 +100,7 @@ cvar_t  *sv_enhanced_setplayer;
 cvar_t  *sv_iplimit;
 cvar_t  *sv_status_limit;
 cvar_t  *sv_status_show;
+cvar_t  *sv_status_ext;
 cvar_t  *sv_uptime;
 cvar_t  *sv_auth_limit;
 cvar_t  *sv_rcon_limit;
@@ -161,6 +166,10 @@ void SV_CleanClient(client_t *client)
     for (i = 0; i < SV_BASELINES_CHUNKS; i++) {
         Z_Freep(&client->baselines[i]);
     }
+
+    // free packet entities
+    Z_Freep(&client->entities);
+    client->num_entities = 0;
 }
 
 static void print_drop_reason(client_t *client, const char *reason, clstate_t oldstate)
@@ -372,7 +381,7 @@ void SV_RateInit(ratelimit_t *r, const char *s)
     r->cost = rate2credits(rate);
 }
 
-addrmatch_t *SV_MatchAddress(list_t *list, netadr_t *addr)
+addrmatch_t *SV_MatchAddress(const list_t *list, const netadr_t *addr)
 {
     addrmatch_t *match;
 
@@ -446,7 +455,7 @@ static size_t SV_StatusString(char *status)
             }
             len = Q_snprintf(entry, sizeof(entry),
                              "%i %i \"%s\"\n",
-                             cl->edict->client->ps.stats[STAT_FRAGS],
+                             SV_GetClient_Stat(cl, STAT_FRAGS),
                              cl->ping, cl->name);
             if (len >= sizeof(entry)) {
                 continue;
@@ -457,6 +466,25 @@ static size_t SV_StatusString(char *status)
             memcpy(status + total, entry, len);
             total += len;
         }
+
+        //rekkie -- Fake Bot Client -- s	
+        for (int i = 0; i < MAX_CLIENTS; i++)
+        {
+            if (bot_clients[i].in_use)
+            {
+                len = Q_snprintf(entry, sizeof(entry), "%i %i \"%s\"\n", bot_clients[i].score, bot_clients[i].ping, bot_clients[i].name);  //entry	example = "0 1 \"[AIR]-Mech\"\n"	char[1024]
+
+                if (len >= sizeof(entry))
+                    continue;
+
+                if (total + len >= SV_OUTPUTBUF_LENGTH)
+                    break; // can't hold any more
+
+                memcpy(status + total, entry, len);
+                total += len;
+            }
+        }
+        //rekkie -- Fake Bot Client -- e
     }
 
     status[total] = 0;
@@ -498,6 +526,422 @@ static void SVC_Status(void)
 
 /*
 ================
+Extended Status Protocol (statusx)
+
+Multi-packet extended status response with player statistics
+================
+*/
+
+#define STATUSX_CHUNK_SIZE 1200
+#define STATUSX_MAX_CHUNKS 32
+#define STATUSX_CACHE_TIME 5000  // 5 seconds
+
+typedef struct {
+    char data[STATUSX_CHUNK_SIZE * STATUSX_MAX_CHUNKS];
+    size_t total_size;
+    int chunk_count;
+    unsigned timestamp;
+} statusx_cache_t;
+
+static statusx_cache_t statusx_cache;
+
+/*
+================
+SV_BuildExtendedStatus
+
+Builds the complete extended status response with server info,
+team data, and detailed player statistics.
+Returns the total size written to buffer.
+================
+*/
+static size_t SV_BuildExtendedStatus(char *buffer, size_t max_size)
+{
+    size_t pos = 0;
+    size_t len;
+    char entry[1024];
+    client_t *cl;
+    int i, num_clients, num_bots;
+
+    // Count real clients and bots
+    num_clients = SV_CountClients();
+    num_bots = 0;
+    for (i = 0; i < MAX_CLIENTS; i++) {
+        if (bot_clients[i].in_use) {
+            num_bots++;
+        }
+    }
+
+    // [SERVER_INFO]
+    len = Q_scnprintf(entry, sizeof(entry), "[SERVER_INFO]\n");
+    if (pos + len >= max_size) return pos;
+    memcpy(buffer + pos, entry, len);
+    pos += len;
+
+    // Server info fields
+    len = Q_scnprintf(entry, sizeof(entry), "hostname\\%s\n", sv_hostname->string);
+    if (pos + len >= max_size) return pos;
+    memcpy(buffer + pos, entry, len);
+    pos += len;
+
+    len = Q_scnprintf(entry, sizeof(entry), "mapname\\%s\n", sv.name);
+    if (pos + len >= max_size) return pos;
+    memcpy(buffer + pos, entry, len);
+    pos += len;
+
+    len = Q_scnprintf(entry, sizeof(entry), "clients\\%i\n", num_clients);
+    if (pos + len >= max_size) return pos;
+    memcpy(buffer + pos, entry, len);
+    pos += len;
+
+    len = Q_scnprintf(entry, sizeof(entry), "bots\\%i\n", num_bots);
+    if (pos + len >= max_size) return pos;
+    memcpy(buffer + pos, entry, len);
+    pos += len;
+
+    len = Q_scnprintf(entry, sizeof(entry), "maxclients\\%i\n",
+                      sv_maxclients->integer - sv_reserved_slots->integer);
+    if (pos + len >= max_size) return pos;
+    memcpy(buffer + pos, entry, len);
+    pos += len;
+
+    // Game mode and settings from CVAR_SERVERINFO
+    // Add common game cvars that clients need to know about
+    cvar_t *gamename = Cvar_FindVar("gamename");
+    cvar_t *fraglimit = Cvar_FindVar("fraglimit");
+    cvar_t *timelimit = Cvar_FindVar("timelimit");
+    cvar_t *dmflags = Cvar_FindVar("dmflags");
+    cvar_t *teamplay = Cvar_FindVar("teamplay");
+
+    if (gamename) {
+        len = Q_scnprintf(entry, sizeof(entry), "gamename\\%s\n", gamename->string);
+        if (pos + len >= max_size) return pos;
+        memcpy(buffer + pos, entry, len);
+        pos += len;
+    }
+
+    if (fraglimit) {
+        len = Q_scnprintf(entry, sizeof(entry), "fraglimit\\%s\n", fraglimit->string);
+        if (pos + len >= max_size) return pos;
+        memcpy(buffer + pos, entry, len);
+        pos += len;
+    }
+
+    if (timelimit) {
+        len = Q_scnprintf(entry, sizeof(entry), "timelimit\\%s\n", timelimit->string);
+        if (pos + len >= max_size) return pos;
+        memcpy(buffer + pos, entry, len);
+        pos += len;
+    }
+
+    if (dmflags) {
+        len = Q_scnprintf(entry, sizeof(entry), "dmflags\\%s\n", dmflags->string);
+        if (pos + len >= max_size) return pos;
+        memcpy(buffer + pos, entry, len);
+        pos += len;
+    }
+
+    if (teamplay) {
+        len = Q_scnprintf(entry, sizeof(entry), "teamplay\\%s\n", teamplay->string);
+        if (pos + len >= max_size) return pos;
+        memcpy(buffer + pos, entry, len);
+        pos += len;
+    }
+
+    // [PLAYERS]
+    len = Q_scnprintf(entry, sizeof(entry), "[PLAYERS]\n");
+    if (pos + len >= max_size) return pos;
+    memcpy(buffer + pos, entry, len);
+    pos += len;
+
+    // Real clients
+    FOR_EACH_CLIENT(cl) {
+        if (cl->state == cs_zombie) {
+            continue;
+        }
+
+        int frags = SV_GetClient_Stat(cl, STAT_FRAGS);
+        int ping = cl->ping;
+
+        len = Q_scnprintf(entry, sizeof(entry),
+                         "%i %i \"%s\"\n",
+                         frags, ping, cl->name);
+        if (len >= sizeof(entry)) {
+            continue;
+        }
+        if (pos + len >= max_size) {
+            break;
+        }
+        memcpy(buffer + pos, entry, len);
+        pos += len;
+    }
+
+    // Bot clients
+    for (i = 0; i < MAX_CLIENTS; i++) {
+        if (bot_clients[i].in_use) {
+            len = Q_scnprintf(entry, sizeof(entry),
+                             "%i %i \"%s\" (BOT)\n",
+                             bot_clients[i].score, bot_clients[i].ping,
+                             bot_clients[i].name);
+            if (len >= sizeof(entry)) {
+                continue;
+            }
+            if (pos + len >= max_size) {
+                break;
+            }
+            memcpy(buffer + pos, entry, len);
+            pos += len;
+        }
+    }
+
+    // [END]
+    len = Q_scnprintf(entry, sizeof(entry), "[END]\n");
+    if (pos + len >= max_size) return pos;
+    memcpy(buffer + pos, entry, len);
+    pos += len;
+
+    return pos;
+}
+
+/*
+================
+SV_SendStatusChunk
+
+Sends a single chunk of the extended status data.
+================
+*/
+static void SV_SendStatusChunk(int chunk_num)
+{
+    char buffer[MAX_PACKETLEN_DEFAULT];
+    size_t len;
+    size_t chunk_start;
+    size_t chunk_data_size;
+
+    if (chunk_num < 0 || chunk_num >= statusx_cache.chunk_count) {
+        return;
+    }
+
+    chunk_start = chunk_num * STATUSX_CHUNK_SIZE;
+    chunk_data_size = (chunk_num == statusx_cache.chunk_count - 1) ?
+                      (statusx_cache.total_size - chunk_start) : STATUSX_CHUNK_SIZE;
+
+    len = Q_scnprintf(buffer, sizeof(buffer),
+                     "\xff\xff\xff\xffstatusxdata %d/%d %zu\n",
+                     chunk_num, statusx_cache.chunk_count, chunk_data_size);
+
+    if (len + chunk_data_size >= sizeof(buffer)) {
+        Com_DPrintf("Chunk %d too large to send\n", chunk_num);
+        return;
+    }
+
+    memcpy(buffer + len, statusx_cache.data + chunk_start, chunk_data_size);
+    len += chunk_data_size;
+
+    NET_SendPacket(NS_SERVER, buffer, len, &net_from);
+}
+
+/*
+================
+SVC_StatusExt
+
+Handles extended status queries (statusx command).
+Supports requesting metadata (-1) or specific chunks.
+================
+*/
+static void SVC_StatusExt(void)
+{
+    int chunk_num;
+    char buffer[MAX_PACKETLEN_DEFAULT];
+    size_t len;
+    unsigned now;
+
+    if (!sv_status_ext->integer) {
+        return;  // Feature disabled
+    }
+
+    if (SV_RateLimited(&svs.ratelimit_status)) {
+        Com_DPrintf("Dropping statusx request from %s\n",
+                    NET_AdrToString(&net_from));
+        return;
+    }
+
+    now = Sys_Milliseconds();
+
+    // Rebuild cache if expired or first time
+    if (!statusx_cache.chunk_count || (now - statusx_cache.timestamp) > STATUSX_CACHE_TIME) {
+        statusx_cache.total_size = SV_BuildExtendedStatus(statusx_cache.data,
+                                                         sizeof(statusx_cache.data));
+        statusx_cache.chunk_count = (statusx_cache.total_size + STATUSX_CHUNK_SIZE - 1) /
+                                     STATUSX_CHUNK_SIZE;
+        statusx_cache.timestamp = now;
+    }
+
+    // Get requested chunk number (default to 0)
+    chunk_num = (Cmd_Argc() > 1) ? Q_atoi(Cmd_Argv(1)) : 0;
+
+    // Handle metadata request (-1)
+    if (chunk_num == -1) {
+        len = Q_scnprintf(buffer, sizeof(buffer),
+                         "\xff\xff\xff\xffstatusxmeta %d %zu\n",
+                         statusx_cache.chunk_count, statusx_cache.total_size);
+        NET_SendPacket(NS_SERVER, buffer, len, &net_from);
+        return;
+    }
+
+    // Send requested chunk
+    SV_SendStatusChunk(chunk_num);
+}
+
+/*
+================
+Extended Rules Protocol (rulesext)
+
+Multi-packet extended rules response with CVARs marked CVAR_SERVERINFO_EXT
+================
+*/
+
+#define RULESEXT_CHUNK_SIZE 1200
+#define RULESEXT_MAX_CHUNKS 32
+#define RULESEXT_CACHE_TIME 5000  // 5 seconds
+
+typedef struct {
+    char data[RULESEXT_CHUNK_SIZE * RULESEXT_MAX_CHUNKS];
+    size_t total_size;
+    int chunk_count;
+    unsigned timestamp;
+} rulesext_cache_t;
+
+static rulesext_cache_t rulesext_cache;
+
+/*
+================
+SV_BuildExtendedRules
+
+Builds the complete extended rules response with all CVARs
+marked with CVAR_SERVERINFO_EXT flag.
+Returns the total size written to buffer.
+================
+*/
+static size_t SV_BuildExtendedRules(char *buffer, size_t max_size)
+{
+    size_t pos = 0;
+    size_t len;
+    char entry[1024];
+    cvar_t *cv;
+    int count = 0;
+
+    // [EXTENDED_RULES]
+    len = Q_scnprintf(entry, sizeof(entry), "[EXTENDED_RULES]\n");
+    if (pos + len >= max_size) return pos;
+    memcpy(buffer + pos, entry, len);
+    pos += len;
+
+    // Add all CVARs marked with CVAR_SERVERINFO_EXT flag
+    for (cv = cvar_vars; cv; cv = cv->next) {
+        if (cv->flags & CVAR_SERVERINFO_EXT) {
+            count++;
+            len = Q_scnprintf(entry, sizeof(entry), "%s\\%s\n", cv->name, cv->string);
+            if (len < sizeof(entry) && pos + len < max_size) {
+                memcpy(buffer + pos, entry, len);
+                pos += len;
+            }
+        }
+    }
+
+    // [END]
+    len = Q_scnprintf(entry, sizeof(entry), "[END]\n");
+    if (pos + len >= max_size) return pos;
+    memcpy(buffer + pos, entry, len);
+    pos += len;
+
+    return pos;
+}
+
+/*
+================
+SV_SendRulesChunk
+
+Sends a single chunk of the extended rules data.
+================
+*/
+static void SV_SendRulesChunk(int chunk_num)
+{
+    char buffer[MAX_PACKETLEN_DEFAULT];
+    size_t len;
+    size_t chunk_start;
+    size_t chunk_data_size;
+
+    if (chunk_num < 0 || chunk_num >= rulesext_cache.chunk_count) {
+        return;
+    }
+
+    chunk_start = chunk_num * RULESEXT_CHUNK_SIZE;
+    chunk_data_size = (chunk_num == rulesext_cache.chunk_count - 1) ?
+                      (rulesext_cache.total_size - chunk_start) : RULESEXT_CHUNK_SIZE;
+
+    len = Q_scnprintf(buffer, sizeof(buffer),
+                     "\xff\xff\xff\xffrulesxdata %d/%d %zu\n",
+                     chunk_num, rulesext_cache.chunk_count, chunk_data_size);
+
+    if (len + chunk_data_size >= sizeof(buffer)) {
+        Com_DPrintf("Rules chunk %d too large to send\n", chunk_num);
+        return;
+    }
+
+    memcpy(buffer + len, rulesext_cache.data + chunk_start, chunk_data_size);
+    NET_SendPacket(NS_SERVER, buffer, len + chunk_data_size, &net_from);
+}
+
+/*
+================
+SVC_RulesExt
+
+Extended rules query handler
+================
+*/
+static void SVC_RulesExt(void)
+{
+    char buffer[MAX_PACKETLEN_DEFAULT];
+    int chunk_num = 0;
+    size_t len;
+
+    if (!sv_status_ext->integer) {
+        return;
+    }
+
+    if (SV_RateLimited(&svs.ratelimit_status)) {
+        Com_DPrintf("Dropping rulesext request from %s\n",
+                    NET_AdrToString(&net_from));
+        return;
+    }
+
+    // Check if we need to rebuild the cache
+    if (svs.realtime - rulesext_cache.timestamp > RULESEXT_CACHE_TIME) {
+        len = SV_BuildExtendedRules(rulesext_cache.data, sizeof(rulesext_cache.data));
+        rulesext_cache.total_size = len;
+        rulesext_cache.chunk_count = (len + RULESEXT_CHUNK_SIZE - 1) / RULESEXT_CHUNK_SIZE;
+        rulesext_cache.timestamp = svs.realtime;
+    }
+
+    // Parse chunk number from command
+    if (Cmd_Argc() > 1) {
+        chunk_num = atoi(Cmd_Argv(1));
+    }
+
+    // Handle metadata request
+    if (chunk_num == -1) {
+        len = Q_scnprintf(buffer, sizeof(buffer),
+                         "\xff\xff\xff\xffrulesxmeta %d %zu\n",
+                         rulesext_cache.chunk_count, rulesext_cache.total_size);
+        NET_SendPacket(NS_SERVER, buffer, len, &net_from);
+        return;
+    }
+
+    // Send requested chunk
+    SV_SendRulesChunk(chunk_num);
+}
+
+/*
+================
 SVC_Ack
 
 ================
@@ -533,7 +977,7 @@ static void SVC_Info(void)
     if (sv_maxclients->integer == 1)
         return; // ignore in single player
 
-    version = atoi(Cmd_Argv(1));
+    version = Q_atoi(Cmd_Argv(1));
     if (version < PROTOCOL_VERSION_DEFAULT || version > PROTOCOL_VERSION_AQTION)
         return; // ignore invalid versions
 
@@ -575,7 +1019,7 @@ static void SVC_GetChallenge(void)
     unsigned    oldestTime;
 
     oldest = 0;
-    oldestTime = 0xffffffff;
+    oldestTime = UINT_MAX;
 
     // see if we already have a challenge for this ip
     for (i = 0; i < MAX_CHALLENGES; i++) {
@@ -590,7 +1034,7 @@ static void SVC_GetChallenge(void)
         }
     }
 
-    challenge = Q_rand() & 0x7fffffff;
+    challenge = Q_rand() & INT_MAX;
     if (i == MAX_CHALLENGES) {
         // overwrite the oldest
         svs.challenges[oldest].challenge = challenge;
@@ -634,13 +1078,13 @@ typedef struct {
 
 // small hack to permit one-line return statement :)
 #define reject(...) reject_printf(__VA_ARGS__), false
-#define reject2(...) reject_printf(__VA_ARGS__), NULL
+#define reject_ptr(...) reject_printf(__VA_ARGS__), NULL
 
 static bool parse_basic_params(conn_params_t *p)
 {
-    p->protocol = atoi(Cmd_Argv(1));
-    p->qport = atoi(Cmd_Argv(2)) ;
-    p->challenge = atoi(Cmd_Argv(3));
+    p->protocol = Q_atoi(Cmd_Argv(1));
+    p->qport = Q_atoi(Cmd_Argv(2)) ;
+    p->challenge = Q_atoi(Cmd_Argv(3));
 
     // check for invalid protocol version
     if (p->protocol < PROTOCOL_VERSION_OLD ||
@@ -738,7 +1182,7 @@ static bool parse_packet_length(conn_params_t *p)
     if (p->protocol >= PROTOCOL_VERSION_R1Q2) {
         s = Cmd_Argv(5);
         if (*s) {
-            p->maxlength = atoi(s);
+            p->maxlength = Q_atoi(s);
             if (p->maxlength < 0 || p->maxlength > MAX_PACKETLEN_WRITABLE)
                 return reject("Invalid maximum message length.\n");
 
@@ -769,10 +1213,9 @@ static bool parse_enhanced_params(conn_params_t *p)
         // set minor protocol version
         s = Cmd_Argv(6);
         if (*s) {
-            p->version = atoi(s);
-            clamp(p->version,
-                  PROTOCOL_VERSION_R1Q2_MINIMUM,
-                  PROTOCOL_VERSION_R1Q2_CURRENT);
+            p->version = Q_clip(Q_atoi(s),
+                PROTOCOL_VERSION_R1Q2_MINIMUM,
+                PROTOCOL_VERSION_R1Q2_CURRENT);
         } else {
             p->version = PROTOCOL_VERSION_R1Q2_MINIMUM;
         }
@@ -782,7 +1225,7 @@ static bool parse_enhanced_params(conn_params_t *p)
         // set netchan type
         s = Cmd_Argv(6);
         if (*s) {
-            p->nctype = atoi(s);
+            p->nctype = Q_atoi(s);
             if (p->nctype < NETCHAN_OLD || p->nctype > NETCHAN_NEW)
                 return reject("Invalid netchan type.\n");
         } else {
@@ -791,15 +1234,14 @@ static bool parse_enhanced_params(conn_params_t *p)
 
         // set zlib
         s = Cmd_Argv(7);
-        p->has_zlib = !*s || atoi(s);
+        p->has_zlib = !*s || Q_atoi(s);
 
         // set minor protocol version
         s = Cmd_Argv(8);
         if (*s) {
-            p->version = atoi(s);
-            clamp(p->version,
-                  PROTOCOL_VERSION_Q2PRO_MINIMUM,
-                  PROTOCOL_VERSION_Q2PRO_CURRENT);
+            p->version = Q_clip(Q_atoi(s),
+                PROTOCOL_VERSION_Q2PRO_MINIMUM,
+                PROTOCOL_VERSION_Q2PRO_CURRENT);
             if (p->version == PROTOCOL_VERSION_Q2PRO_RESERVED) {
                 p->version--; // never use this version
             }
@@ -811,7 +1253,7 @@ static bool parse_enhanced_params(conn_params_t *p)
 		// set netchan type
 		s = Cmd_Argv(6);
 		if (*s) {
-			p->nctype = atoi(s);
+			p->nctype = Q_atoi(s);
 			if (p->nctype < NETCHAN_OLD || p->nctype > NETCHAN_NEW)
 				return reject("Invalid netchan type.\n");
 		}
@@ -826,8 +1268,7 @@ static bool parse_enhanced_params(conn_params_t *p)
 		// set minor protocol version
 		s = Cmd_Argv(8);
 		if (*s) {
-			p->version = atoi(s);
-			clamp(p->version,
+			p->version = Q_clip(Q_atoi(s),
 				PROTOCOL_VERSION_AQTION_MINIMUM,
 				PROTOCOL_VERSION_AQTION_CURRENT);
 		}
@@ -837,10 +1278,34 @@ static bool parse_enhanced_params(conn_params_t *p)
 	}
 
 
+    // verify protocol extensions compatibility
+    if (svs.csr.extended) {
+        int minimal = IS_NEW_GAME_API ?
+            PROTOCOL_VERSION_Q2PRO_EXTENDED_LIMITS_2 :
+            PROTOCOL_VERSION_Q2PRO_EXTENDED_LIMITS;
+
+        if (p->protocol == PROTOCOL_VERSION_Q2PRO && p->version >= minimal)
+            return true;
+
+    // verify protocol extensions compatibility
+    if (svs.csr.extended) {
+        int minimal = IS_NEW_GAME_API ?
+            PROTOCOL_VERSION_Q2PRO_EXTENDED_LIMITS_2 :
+            PROTOCOL_VERSION_Q2PRO_EXTENDED_LIMITS;
+
+        if (p->protocol == PROTOCOL_VERSION_Q2PRO && p->version >= minimal)
+            return true;
+
+        return reject("This is a protocol limit removing enhanced server.\n"
+                      "Your client version is not compatible. Make sure you are "
+                      "running the latest Q2PRO client version.\n");
+        }
+    }
+
     return true;
 }
 
-static char *userinfo_ip_string(void)
+static const char *userinfo_ip_string(void)
 {
     // fake up reserved IPv4 address to prevent IPv6 unaware mods from exploding
     if (net_from.type == NA_IP6 && !(g_features->integer & GMF_IPV6_ADDRESS_AWARE)) {
@@ -983,13 +1448,13 @@ static client_t *find_client_slot(conn_params_t *params)
 
     // clients that know the password are never redirected
     if (sv_reserved_slots->integer != params->reserved)
-        return reject2("Server and reserved slots are full.\n");
+        return reject_ptr("Server and reserved slots are full.\n");
 
     // optionally redirect them to a different address
     if (*s)
         return redirect(s);
 
-    return reject2("Server is full.\n");
+    return reject_ptr("Server is full.\n");
 }
 
 static void init_pmove_and_es_flags(client_t *newcl)
@@ -997,7 +1462,7 @@ static void init_pmove_and_es_flags(client_t *newcl)
     int force;
 
     // copy default pmove parameters
-    newcl->pmp = sv_pmp;
+    newcl->pmp = svs.pmp;
     newcl->pmp.airaccelerate = sv_airaccelerate->integer;
 
     // common extensions
@@ -1008,7 +1473,7 @@ static void init_pmove_and_es_flags(client_t *newcl)
     }
     newcl->pmp.strafehack = sv_strafejump_hack->integer >= force;
 
-    // r1q2 extensions
+    // R1Q2 extensions
     if (newcl->protocol == PROTOCOL_VERSION_R1Q2) {
         newcl->esFlags |= MSG_ES_BEAMORIGIN;
         if (newcl->version >= PROTOCOL_VERSION_R1Q2_LONG_SOLID) {
@@ -1016,7 +1481,7 @@ static void init_pmove_and_es_flags(client_t *newcl)
         }
     }
 
-    // q2pro extensions
+    // Q2PRO extensions
     force = 2;
     if (newcl->protocol == PROTOCOL_VERSION_Q2PRO) {
         if (sv_qwmod->integer) {
@@ -1028,6 +1493,21 @@ static void init_pmove_and_es_flags(client_t *newcl)
         if (newcl->version >= PROTOCOL_VERSION_Q2PRO_BEAM_ORIGIN) {
             newcl->esFlags |= MSG_ES_BEAMORIGIN;
         }
+        if (newcl->version >= PROTOCOL_VERSION_Q2PRO_SHORT_ANGLES) {
+            newcl->esFlags |= MSG_ES_SHORTANGLES;
+        }
+        if (svs.csr.extended) {
+            newcl->esFlags |= MSG_ES_EXTENSIONS;
+            newcl->psFlags |= MSG_PS_EXTENSIONS;
+
+            if (IS_NEW_GAME_API) {
+                newcl->esFlags |= MSG_ES_EXTENSIONS_2;
+                newcl->psFlags |= MSG_PS_EXTENSIONS_2;
+                if (newcl->version >= PROTOCOL_VERSION_Q2PRO_PLAYERFOG) {
+                    newcl->psFlags |= MSG_PS_MOREBITS;
+                }
+            }
+        }
         force = 1;
     }
 	else if (newcl->protocol == PROTOCOL_VERSION_AQTION) {
@@ -1036,12 +1516,17 @@ static void init_pmove_and_es_flags(client_t *newcl)
 		}
 		newcl->pmp.flyhack = true;
 		newcl->pmp.flyfriction = 4;
-		newcl->esFlags |= MSG_ES_UMASK;
-		newcl->esFlags |= MSG_ES_LONGSOLID;
-		newcl->esFlags |= MSG_ES_BEAMORIGIN;
-		if (newcl->version >= PROTOCOL_VERSION_Q2PRO_MINIMUM) {
-			force = 1;
-		}
+		newcl->esFlags |= MSG_ES_UMASK | MSG_ES_LONGSOLID;
+        if (newcl->version >= PROTOCOL_VERSION_Q2PRO_BEAM_ORIGIN) {
+            newcl->esFlags |= MSG_ES_BEAMORIGIN;
+        }
+        if (newcl->version >= PROTOCOL_VERSION_Q2PRO_SHORT_ANGLES) {
+            newcl->esFlags |= MSG_ES_SHORTANGLES;
+        }
+        if (svs.csr.extended) {
+            newcl->esFlags |= MSG_ES_EXTENSIONS;
+        }
+        force = 1;
 	}
     newcl->pmp.waterhack = sv_waterjump_hack->integer >= force;
 }
@@ -1067,6 +1552,12 @@ static void send_connect_packet(client_t *newcl, int nctype)
         dlstring1 = " dlserver=";
         dlstring2 = sv_downloadserver->string;
     }
+    #if USE_AQTION
+    else {
+        dlstring1 = " dlserver=";
+        dlstring2 = DOWNLOADSERVER;
+    }
+    #endif
 
     Netchan_OutOfBand(NS_SERVER, &net_from, "client_connect%s%s%s%s map=%s",
                       ncstring, acstring, dlstring1, dlstring2, newcl->mapname);
@@ -1090,6 +1581,81 @@ static void append_extra_userinfo(conn_params_t *params, char *userinfo)
                params->protocol, params->version, params->nctype,
                params->maxlength, params->qport, params->has_zlib);
 }
+
+//rekkie -- Fake Bot Client -- s
+// Init Fake Bot Client
+void SV_BotInit(void)
+{
+    for (int i = 0; i < MAX_CLIENTS; i++)
+    {
+        bot_clients[i].in_use = false;
+        bot_clients[i].name[0] = 0;
+        bot_clients[i].ping = 0;
+        bot_clients[i].score = 0;
+        bot_clients[i].number = i;
+    }
+}
+// Game DLL updates Server of bot info
+void SV_BotUpdateInfo(char* name, int ping, int score)
+{
+    for (int i = 0; i < MAX_CLIENTS; i++)
+    {
+        if (bot_clients[i].in_use)
+        {
+            if (strcmp(bot_clients[i].name, name) == 0)
+            {
+                bot_clients[i].ping = ping;
+                bot_clients[i].score = score;
+                return;
+            }
+        }
+    }
+}
+// Game DLL requests Server to add fake bot client
+void SV_BotConnect(char* name)
+{
+    for (int i = 0; i < MAX_CLIENTS; i++)
+    {
+        if (bot_clients[i].in_use == false) // Found a free slot
+        {
+            bot_clients[i].in_use = true;
+            Q_snprintf(bot_clients[i].name, sizeof(bot_clients[i].name), "%s", name);
+            bot_clients[i].ping = 0;
+            bot_clients[i].score = 0;
+            bot_clients[i].number = i;
+            Com_Printf("%s Server added %s as a fake client\n", __func__, bot_clients[i].name);
+            break;
+        }
+    }
+}
+// Game DLL requests Server to remove fake bot client
+void SV_BotDisconnect(char* name)
+{
+    for (int i = 0; i < MAX_CLIENTS; i++)
+    {
+        if (bot_clients[i].in_use && strcmp(bot_clients[i].name, name) == 0)
+        {
+            bot_clients[i].in_use = false;
+            bot_clients[i].name[0] = 0;
+            bot_clients[i].ping = 0;
+            bot_clients[i].score = 0;
+            Com_Printf("%s Server removed %s as a fake client\n", __func__, name);
+            break;
+        }
+    }
+}
+// Game DLL requests Server to clear bot clients (init / map change)
+void SV_BotClearClients(void)
+{
+    for (int i = 0; i < MAX_CLIENTS; i++)
+    {
+        bot_clients[i].in_use = false;
+        bot_clients[i].name[0] = 0;
+        bot_clients[i].ping = 0;
+        bot_clients[i].score = 0;
+    }
+}
+//rekkie -- Fake Bot Client -- e
 
 static void SVC_DirectConnect(void)
 {
@@ -1125,7 +1691,7 @@ static void SVC_DirectConnect(void)
     // accept the new client
     // this is the only place a client_t is ever initialized
     memset(newcl, 0, sizeof(*newcl));
-    newcl->number = newcl->slot = number;
+    newcl->number = newcl->infonum = number;
     newcl->challenge = params.challenge; // save challenge for checksumming
     newcl->protocol = params.protocol;
     newcl->version = params.version;
@@ -1133,15 +1699,16 @@ static void SVC_DirectConnect(void)
     newcl->edict = EDICT_NUM(number + 1);
     newcl->gamedir = fs_game->string;
     newcl->mapname = sv.name;
-    newcl->configstrings = (char *)sv.configstrings;
-    newcl->pool = (edict_pool_t *)&ge->edicts;
+    newcl->configstrings = sv.configstrings;
+    newcl->csr = &svs.csr;
+    newcl->ge = ge;
     newcl->cm = &sv.cm;
     newcl->spawncount = sv.spawncount;
     newcl->maxclients = sv_maxclients->integer;
     Q_strlcpy(newcl->reconnect_var, params.reconnect_var, sizeof(newcl->reconnect_var));
     Q_strlcpy(newcl->reconnect_val, params.reconnect_val, sizeof(newcl->reconnect_val));
 #if USE_FPS
-    newcl->framediv = sv.framediv;
+    newcl->framediv = sv.frametime.div;
     newcl->settings[CLS_FPS] = BASE_FRAMERATE;
 #endif
 
@@ -1298,6 +1865,8 @@ static const ucmd_t svcmds[] = {
     { "ping",           SVC_Ping          },
     { "ack",            SVC_Ack           },
     { "status",         SVC_Status        },
+    { "statusx",        SVC_StatusExt     },
+    { "rulesx",         SVC_RulesExt      },
     { "info",           SVC_Info          },
     { "getchallenge",   SVC_GetChallenge  },
     { "connect",        SVC_DirectConnect },
@@ -1375,14 +1944,14 @@ int SV_CountClients(void)
     return count;
 }
 
-static int ping_nop(client_t *cl)
+static int ping_nop(const client_t *cl)
 {
     return 0;
 }
 
-static int ping_min(client_t *cl)
+static int ping_min(const client_t *cl)
 {
-    client_frame_t *frame;
+    const client_frame_t *frame;
     int i, j, count = INT_MAX;
 
     for (i = 0; i < UPDATE_BACKUP; i++) {
@@ -1399,9 +1968,9 @@ static int ping_min(client_t *cl)
     return count == INT_MAX ? 0 : count;
 }
 
-static int ping_avg(client_t *cl)
+static int ping_avg(const client_t *cl)
 {
-    client_frame_t *frame;
+    const client_frame_t *frame;
     int i, j, total = 0, count = 0;
 
     for (i = 0; i < UPDATE_BACKUP; i++) {
@@ -1428,7 +1997,7 @@ Updates the cl->ping and cl->fps variables
 static void SV_CalcPings(void)
 {
     client_t    *cl;
-    int         (*calc)(client_t *);
+    int         (*calc)(const client_t *);
     int         res;
 
     switch (sv_calcpings_method->integer) {
@@ -1465,7 +2034,7 @@ static void SV_CalcPings(void)
         }
 
         // let the game dll know about the ping
-        cl->edict->client->ping = cl->ping;
+        SV_SetClient_Ping(cl, cl->ping);
     }
 }
 
@@ -1573,7 +2142,7 @@ static void SV_PacketEvent(void)
             netchan->remote_address.port = net_from.port;
         }
 
-        if (!netchan->Process(netchan))
+        if (!Netchan_Process(netchan))
             break;
 
         if (client->state == cs_zombie)
@@ -1599,7 +2168,7 @@ static void SV_PacketEvent(void)
 static void update_client_mtu(client_t *client, int ee_info)
 {
     netchan_t *netchan = &client->netchan;
-    size_t newpacketlen;
+    unsigned newpacketlen;
 
     // sanity check discovered MTU
     if (ee_info < 576 || ee_info > 4096)
@@ -1619,7 +2188,7 @@ static void update_client_mtu(client_t *client, int ee_info)
     if (newpacketlen >= netchan->maxpacketlen)
         return;
 
-    Com_Printf("Fixing up maxmsglen for %s: %zu --> %zu\n",
+    Com_Printf("Fixing up maxmsglen for %s: %u --> %u\n",
                client->name, netchan->maxpacketlen, newpacketlen);
     netchan->maxpacketlen = newpacketlen;
 }
@@ -1631,7 +2200,7 @@ static void update_client_mtu(client_t *client, int ee_info)
 SV_ErrorEvent
 =================
 */
-void SV_ErrorEvent(netadr_t *from, int ee_errno, int ee_info)
+void SV_ErrorEvent(const netadr_t *from, int ee_errno, int ee_info)
 {
     client_t    *client;
     netchan_t   *netchan;
@@ -1683,6 +2252,11 @@ static void SV_CheckTimeouts(void)
     unsigned    delta;
 
     FOR_EACH_CLIENT(client) {
+        if (Netchan_SeqTooBig(&client->netchan)) {
+            SV_DropClient(client, "outgoing sequence too big");
+            continue;
+        }
+
         // never timeout local clients
         if (NET_IsLocalAddress(&client->netchan.remote_address)) {
             continue;
@@ -1745,6 +2319,11 @@ static void SV_PrepWorldFrame(void)
         return;
     }
 #endif
+
+    if (gex && gex->PrepFrame) {
+        gex->PrepFrame();
+        return;
+    }
 
     if (!SV_FRAMESYNC)
         return;
@@ -1817,8 +2396,11 @@ static void SV_RunGameFrame(void)
         time_after_game = Sys_Milliseconds();
 #endif
 
+    if (msg_write.overflowed)
+        Com_Error(ERR_DROP, "%s: message buffer overflowed", __func__);
+
     if (msg_write.cursize) {
-        Com_WPrintf("Game left %zu bytes "
+        Com_WPrintf("Game left %u bytes "
                     "in multicast buffer, cleared.\n",
                     msg_write.cursize);
         SZ_Clear(&msg_write);
@@ -2057,8 +2639,7 @@ void SV_UserinfoChanged(client_t *cl)
     // rate command
     val = Info_ValueForKey(cl->userinfo, "rate");
     if (*val) {
-        cl->rate = atoi(val);
-        clamp(cl->rate, sv_min_rate->integer, sv_max_rate->integer);
+        cl->rate = Q_clip(Q_atoi(val), sv_min_rate->integer, sv_max_rate->integer);
     } else {
         cl->rate = 5000;
     }
@@ -2077,8 +2658,7 @@ void SV_UserinfoChanged(client_t *cl)
     // msg command
     val = Info_ValueForKey(cl->userinfo, "msg");
     if (*val) {
-        cl->messagelevel = atoi(val);
-        clamp(cl->messagelevel, PRINT_LOW, PRINT_CHAT + 1);
+        cl->messagelevel = Q_clip(Q_atoi(val), PRINT_LOW, 256);
     }
 }
 
@@ -2124,7 +2704,7 @@ static void init_rate_limits(void)
 
 static void sv_rate_changed(cvar_t *self)
 {
-    Cvar_ClampInteger(sv_min_rate, 100, Cvar_ClampInteger(sv_max_rate, 1000, INT_MAX));
+    Cvar_ClampInteger(sv_min_rate, 1500, Cvar_ClampInteger(sv_max_rate, 1500, INT_MAX));
 }
 
 void sv_sec_timeout_changed(cvar_t *self)
@@ -2156,7 +2736,7 @@ static void sv_hostname_changed(cvar_t *self)
 #if USE_ZLIB
 voidpf SV_zalloc(voidpf opaque, uInt items, uInt size)
 {
-    return SV_Malloc(items * size);
+    return SV_Malloc((size_t)items * size);
 }
 
 void SV_zfree(voidpf opaque, voidpf address)
@@ -2234,7 +2814,7 @@ void SV_Init(void)
     sv_reserved_password = Cvar_Get("sv_reserved_password", "", CVAR_PRIVATE);
     sv_locked = Cvar_Get("sv_locked", "0", 0);
     sv_novis = Cvar_Get("sv_novis", "0", 0);
-    sv_downloadserver = Cvar_Get("sv_downloadserver", "", 0);
+    sv_downloadserver = Cvar_Get("sv_downloadserver", "http://gameassets.aqtiongame.com/", 0);
     sv_redirect_address = Cvar_Get("sv_redirect_address", "", 0);
 
 #if USE_DEBUG
@@ -2242,14 +2822,16 @@ void SV_Init(void)
     sv_pad_packets = Cvar_Get("sv_pad_packets", "0", 0);
 #endif
     sv_lan_force_rate = Cvar_Get("sv_lan_force_rate", "0", CVAR_LATCH);
-    sv_min_rate = Cvar_Get("sv_min_rate", "100", CVAR_LATCH);
-    sv_max_rate = Cvar_Get("sv_max_rate", "15000", CVAR_LATCH);
+    sv_min_rate = Cvar_Get("sv_min_rate", "15000", CVAR_LATCH);
+    sv_max_rate = Cvar_Get("sv_max_rate", "60000", CVAR_LATCH);
     sv_max_rate->changed = sv_min_rate->changed = sv_rate_changed;
     sv_max_rate->changed(sv_max_rate);
     sv_calcpings_method = Cvar_Get("sv_calcpings_method", "2", 0);
     sv_changemapcmd = Cvar_Get("sv_changemapcmd", "", 0);
     sv_max_download_size = Cvar_Get("sv_max_download_size", "8388608", 0);
-    sv_max_packet_entities = Cvar_Get("sv_max_packet_entities", STRINGIFY(MAX_PACKET_ENTITIES), 0);
+    sv_max_packet_entities = Cvar_Get("sv_max_packet_entities", "0", 0);
+    sv_trunc_packet_entities = Cvar_Get("sv_trunc_packet_entities", "1", 0);
+    sv_prioritize_entities = Cvar_Get("sv_prioritize_entities", "0", 0);
 
     sv_strafejump_hack = Cvar_Get("sv_strafejump_hack", "1", CVAR_LATCH);
     sv_waterjump_hack = Cvar_Get("sv_waterjump_hack", "1", CVAR_LATCH);
@@ -2258,10 +2840,10 @@ void SV_Init(void)
     sv_packetdup_hack = Cvar_Get("sv_packetdup_hack", "0", 0);
 #endif
 
-    sv_allow_map = Cvar_Get("sv_allow_map", "0", 0);
+    sv_allow_map = Cvar_Get("sv_allow_map", COM_DEDICATED ? "0" : "1", 0);
     sv_cinematics = Cvar_Get("sv_cinematics", "1", 0);
 
-#if !USE_CLIENT
+#if USE_SERVER
     sv_recycle = Cvar_Get("sv_recycle", "0", 0);
 #endif
 
@@ -2270,6 +2852,8 @@ void SV_Init(void)
     sv_iplimit = Cvar_Get("sv_iplimit", "3", 0);
 
     sv_status_show = Cvar_Get("sv_status_show", "2", 0);
+
+    sv_status_ext = Cvar_Get("sv_status_ext", "0", 0);
 
     sv_status_limit = Cvar_Get("sv_status_limit", "15", 0);
     sv_status_limit->changed = sv_status_limit_changed;
@@ -2294,20 +2878,21 @@ void SV_Init(void)
 	g_view_predict = Cvar_Get("g_view_predict", "0", CVAR_ROM);
 	g_view_low = Cvar_Get("g_view_low", "0", CVAR_ROM);
 	g_view_high = Cvar_Get("g_view_high", "0", CVAR_ROM);
+	sv_load_ent = Cvar_Get("sv_load_ent", "1", CVAR_LATCH);
 
     init_rate_limits();
 
 #if USE_FPS
     // set up default frametime for main loop
-    sv.frametime = BASE_FRAMETIME;
+    sv.framerate = BASE_FRAMERATE;
+    sv.frametime = Com_ComputeFrametime(sv.framerate);
 #endif
-
-    // set up default pmove parameters
-    PmoveInit(&sv_pmp);
 
 #if USE_SYSCON
     SV_SetConsoleTitle();
 #endif
+
+    G_InitializeExtensions();
 
     sv_registered = true;
 }
@@ -2353,9 +2938,9 @@ static void SV_FinalMessage(const char *message, error_type_t type)
             }
             netchan = &client->netchan;
             while (netchan->fragment_pending) {
-                netchan->TransmitNextFragment(netchan);
+                Netchan_TransmitNextFragment(netchan);
             }
-            netchan->Transmit(netchan, msg_write.cursize, msg_write.data, 1);
+            Netchan_Transmit(netchan, msg_write.cursize, msg_write.data, 1);
         }
     }
 
@@ -2385,6 +2970,8 @@ void SV_Shutdown(const char *finalmsg, error_type_t type)
     if (!sv_registered)
         return;
 
+    R_ClearDebugLines();    // for local system
+
 #if USE_MVD_CLIENT
     if (ge != &mvd_ge && !(type & MVD_SPAWN_INTERNAL)) {
         // shutdown MVD client now if not already running the built-in MVD game module
@@ -2408,7 +2995,6 @@ void SV_Shutdown(const char *finalmsg, error_type_t type)
 
     // free server static data
     Z_Free(svs.client_pool);
-    Z_Free(svs.entities);
 #if USE_ZLIB
     deflateEnd(&svs.z);
     Z_Free(svs.z_buffer);
@@ -2420,7 +3006,8 @@ void SV_Shutdown(const char *finalmsg, error_type_t type)
 
 #if USE_FPS
     // set up default frametime for main loop
-    sv.frametime = BASE_FRAMETIME;
+    sv.framerate = BASE_FRAMERATE;
+    sv.frametime = Com_ComputeFrametime(sv.framerate);
 #endif
 
     sv_client = NULL;

@@ -50,24 +50,27 @@ static void SV_CreateBaselines(void)
     // clear baselines from previous level
     for (i = 0; i < SV_BASELINES_CHUNKS; i++) {
         base = sv_client->baselines[i];
-        if (!base) {
-            continue;
+        if (base) {
+            memset(base, 0, sizeof(*base) * SV_BASELINES_PER_CHUNK);
         }
-        memset(base, 0, sizeof(*base) * SV_BASELINES_PER_CHUNK);
     }
 
-    for (i = 1; i < sv_client->pool->num_edicts; i++) {
-        ent = EDICT_POOL(sv_client, i);
+#ifdef AQTION_EXTENSION
+	// clear ghud from previous level
+	memset(sv_client->ghud, 0, sizeof(ghud_element_t) * MAX_GHUDS);
+#endif
+    for (i = 1; i < sv_client->ge->num_edicts; i++) {
+        ent = EDICT_NUM2(sv_client->ge, i);
 
         if ((g_features->integer & GMF_PROPERINUSE) && !ent->inuse) {
             continue;
         }
 
-        if (!ES_INUSE(&ent->s)) {
+        if (!HAS_EFFECTS(ent)) {
             continue;
         }
 
-        ent->s.number = i;
+        SV_CheckEntityNumber(ent, i);
 
         chunk = &sv_client->baselines[i >> SV_BASELINES_SHIFT];
         if (*chunk == NULL) {
@@ -75,16 +78,26 @@ static void SV_CreateBaselines(void)
         }
 
         base = *chunk + (i & SV_BASELINES_MASK);
-        MSG_PackEntity(base, &ent->s, Q2PRO_SHORTANGLES(sv_client, i));
+        MSG_PackEntity(base, &ent->s, ENT_EXTENSION(sv_client->csr, ent));
+
+        // no need to transmit data that will change anyway
+        if (i <= sv_client->maxclients) {
+            VectorClear(base->origin);
+            VectorClear(base->angles);
+            base->frame = 0;
+        }
+
+        // don't ever transmit event
+        base->event = 0;
 
 #if USE_MVD_CLIENT
         if (sv.state == ss_broadcast) {
             // spectators only need to know about inline BSP models
-            if (base->solid != PACKED_BSP)
+            if (!sv_client->csr->extended && base->solid != PACKED_BSP)
                 base->solid = 0;
         } else
 #endif
-        if (sv_client->esFlags & MSG_ES_LONGSOLID) {
+        if (sv_client->esFlags & MSG_ES_LONGSOLID && !sv_client->csr->extended) {
             base->solid = sv.entities[i].solid32;
         }
     }
@@ -103,13 +116,13 @@ static void maybe_flush_msg(size_t size)
 
 static void write_configstrings(void)
 {
-    int     i;
-    char    *string;
-    size_t  length;
+    int         i;
+    const char *string;
+    size_t      length;
 
     // write a packet full of data
-    string = sv_client->configstrings;
-    for (i = 0; i < MAX_CONFIGSTRINGS; i++, string += MAX_QPATH) {
+    for (i = 0; i < sv_client->csr->end; i++) {
+        string = sv_client->configstrings[i];
         if (!string[0]) {
             continue;
         }
@@ -127,21 +140,15 @@ static void write_configstrings(void)
     SV_ClientAddMessage(sv_client, MSG_GAMESTATE);
 }
 
-static void write_baseline(entity_packed_t *base)
+static void write_baseline(const entity_packed_t *base)
 {
-    msgEsFlags_t flags = sv_client->esFlags | MSG_ES_FORCE;
-
-    if (Q2PRO_SHORTANGLES(sv_client, base->number)) {
-        flags |= MSG_ES_SHORTANGLES;
-    }
-
-    MSG_WriteDeltaEntity(NULL, base, flags);
+    MSG_WriteDeltaEntity(NULL, base, sv_client->esFlags | MSG_ES_FORCE);
 }
 
 static void write_baselines(void)
 {
     int i, j;
-    entity_packed_t *base;
+    const entity_packed_t *base;
 
     // write a packet full of data
     for (i = 0; i < SV_BASELINES_CHUNKS; i++) {
@@ -152,7 +159,7 @@ static void write_baselines(void)
         for (j = 0; j < SV_BASELINES_PER_CHUNK; j++) {
             if (base->number) {
                 // check if this baseline will overflow
-                maybe_flush_msg(64);
+                maybe_flush_msg(MAX_PACKETENTITY_BYTES);
 
                 MSG_WriteByte(svc_spawnbaseline);
                 write_baseline(base);
@@ -164,18 +171,81 @@ static void write_baselines(void)
     SV_ClientAddMessage(sv_client, MSG_GAMESTATE);
 }
 
+static void write_configstring_stream(void)
+{
+    int         i;
+    const char *string;
+    size_t      length;
+
+    MSG_WriteByte(svc_configstringstream);
+
+    // write a packet full of data
+    for (i = 0; i < sv_client->csr->end; i++) {
+        string = sv_client->configstrings[i];
+        if (!string[0]) {
+            continue;
+        }
+        length = Q_strnlen(string, MAX_QPATH);
+
+        // check if this configstring will overflow
+        if (msg_write.cursize + length + 5 > msg_write.maxsize) {
+            MSG_WriteShort(sv_client->csr->end);
+            SV_ClientAddMessage(sv_client, MSG_GAMESTATE);
+            MSG_WriteByte(svc_configstringstream);
+        }
+
+        MSG_WriteShort(i);
+        MSG_WriteData(string, length);
+        MSG_WriteByte(0);
+    }
+
+    MSG_WriteShort(sv_client->csr->end);
+    SV_ClientAddMessage(sv_client, MSG_GAMESTATE);
+}
+
+static void write_baseline_stream(void)
+{
+    int i, j;
+    const entity_packed_t *base;
+
+    MSG_WriteByte(svc_baselinestream);
+
+    // write a packet full of data
+    for (i = 0; i < SV_BASELINES_CHUNKS; i++) {
+        base = sv_client->baselines[i];
+        if (!base) {
+            continue;
+        }
+        for (j = 0; j < SV_BASELINES_PER_CHUNK; j++, base++) {
+            if (!base->number) {
+                continue;
+            }
+            // check if this baseline will overflow
+            if (msg_write.cursize + MAX_PACKETENTITY_BYTES > msg_write.maxsize) {
+                MSG_WriteShort(0);
+                SV_ClientAddMessage(sv_client, MSG_GAMESTATE);
+                MSG_WriteByte(svc_baselinestream);
+            }
+            write_baseline(base);
+        }
+    }
+
+    MSG_WriteShort(0);
+    SV_ClientAddMessage(sv_client, MSG_GAMESTATE);
+}
+
 static void write_gamestate(void)
 {
-    entity_packed_t  *base;
+    const entity_packed_t   *base;
     int         i, j;
     size_t      length;
-    char        *string;
+    const char  *string;
 
     MSG_WriteByte(svc_gamestate);
 
     // write configstrings
-    string = sv_client->configstrings;
-    for (i = 0; i < MAX_CONFIGSTRINGS; i++, string += MAX_QPATH) {
+    for (i = 0; i < sv_client->csr->end; i++) {
+        string = sv_client->configstrings[i];
         if (!string[0]) {
             continue;
         }
@@ -184,7 +254,7 @@ static void write_gamestate(void)
         MSG_WriteData(string, length);
         MSG_WriteByte(0);
     }
-    MSG_WriteShort(MAX_CONFIGSTRINGS);   // end of configstrings
+    MSG_WriteShort(i);      // end of configstrings
 
     // write baselines
     for (i = 0; i < SV_BASELINES_CHUNKS; i++) {
@@ -204,7 +274,7 @@ static void write_gamestate(void)
     SV_ClientAddMessage(sv_client, MSG_GAMESTATE);
 }
 
-static void stuff_cmds(list_t *list)
+static void stuff_cmds(const list_t *list)
 {
     stuffcmd_t *stuff;
 
@@ -231,14 +301,12 @@ static void stuff_junk(void)
     static const char junkchars[] =
         "!#&'()*+,-./0123456789:<=>?@[\\]^_``````````abcdefghijklmnopqrstuvwxyz|~~~~~~~~~~";
     char junk[8][16];
-    int i, j, k;
+    int i, j;
 
     for (i = 0; i < 8; i++) {
-        for (j = 0; j < 15; j++) {
-            k = Q_rand() % (sizeof(junkchars) - 1);
-            junk[i][j] = junkchars[k];
-        }
-        junk[i][15] = 0;
+        for (j = 0; j < 15; j++)
+            junk[i][j] = junkchars[Q_rand_uniform(sizeof(junkchars) - 1)];
+        junk[i][j] = 0;
     }
 
     Q_strlcpy(sv_client->reconnect_var, junk[2], sizeof(sv_client->reconnect_var));
@@ -259,6 +327,28 @@ static void stuff_junk(void)
     }
     SV_ClientCommand(sv_client, "$%s %s \"\"\n", junk[0], junk[0]);
     SV_ClientCommand(sv_client, "$%s $%s\n", junk[1], junk[4]);
+}
+
+static int q2pro_protocol_flags(void)
+{
+    int flags = 0;
+
+    if (sv_client->pmp.strafehack)
+        flags |= Q2PRO_PF_STRAFEJUMP_HACK;
+
+    if (sv_client->pmp.qwmode)
+        flags |= Q2PRO_PF_QW_MODE;
+
+    if (sv_client->pmp.waterhack)
+        flags |= Q2PRO_PF_WATERJUMP_HACK;
+
+    if (sv_client->csr->extended)
+        flags |= Q2PRO_PF_EXTENSIONS;
+
+    if (sv_client->esFlags & MSG_ES_EXTENSIONS_2)
+        flags |= Q2PRO_PF_EXTENSIONS_2;
+
+    return flags;
 }
 
 /*
@@ -305,20 +395,6 @@ void SV_New_f(void)
     // create baselines for this client
     SV_CreateBaselines();
 
-
-#ifdef AQTION_EXTENSION
-	// make sure we send initial hud elements that were created before connection
-
-	int i;
-	for (i = 0; i < MAX_GHUDS; i++)
-	{
-		if (!(svs.ghud[i].flags & GHF_INUSE))
-			break;
-
-		sv_client->ghud_updateflags[i] = 0xFF;
-	}
-#endif
-
     // send the serverdata
     MSG_WriteByte(svc_serverdata);
     MSG_WriteLong(sv_client->protocol);
@@ -328,8 +404,8 @@ void SV_New_f(void)
     if (sv.state == ss_pic || sv.state == ss_cinematic)
         MSG_WriteShort(-1);
     else
-        MSG_WriteShort(sv_client->slot);
-    MSG_WriteString(&sv_client->configstrings[CS_NAME * MAX_QPATH]);
+        MSG_WriteShort(sv_client->infonum);
+    MSG_WriteString(sv_client->configstrings[CS_NAME]);
 
     // send protocol specific stuff
     switch (sv_client->protocol) {
@@ -345,16 +421,27 @@ void SV_New_f(void)
             MSG_WriteByte(ss_pic);
         else
             MSG_WriteByte(sv.state);
-        MSG_WriteByte(sv_client->pmp.strafehack);
-        MSG_WriteByte(sv_client->pmp.qwmode);
-        MSG_WriteByte(sv_client->pmp.waterhack);
+        if (sv_client->version >= PROTOCOL_VERSION_Q2PRO_EXTENDED_LIMITS) {
+            MSG_WriteShort(q2pro_protocol_flags());
+        } else {
+            MSG_WriteByte(sv_client->pmp.strafehack);
+            MSG_WriteByte(sv_client->pmp.qwmode);
+            MSG_WriteByte(sv_client->pmp.waterhack);
+        }
         break;
 	case PROTOCOL_VERSION_AQTION:
 		MSG_WriteShort(sv_client->version);
-		MSG_WriteByte(sv.state);
-		MSG_WriteByte(sv_client->pmp.strafehack);
-		MSG_WriteByte(sv_client->pmp.qwmode);
-		MSG_WriteByte(sv_client->pmp.waterhack);
+        if (sv.state == ss_cinematic && sv_client->version < PROTOCOL_VERSION_AQTION_CINEMATICS)
+            MSG_WriteByte(ss_pic);
+        else
+            MSG_WriteByte(sv.state);
+        if (sv_client->version >= PROTOCOL_VERSION_AQTION_EXTENDED_LIMITS) {
+            MSG_WriteShort(q2pro_protocol_flags());
+        } else {
+            MSG_WriteByte(sv_client->pmp.strafehack);
+            MSG_WriteByte(sv_client->pmp.qwmode);
+            MSG_WriteByte(sv_client->pmp.waterhack);
+        }
 		break;
     }
 
@@ -362,7 +449,7 @@ void SV_New_f(void)
 
     if (sv_client->protocol == PROTOCOL_VERSION_Q2PRO &&
         sv_client->version < PROTOCOL_VERSION_Q2PRO_CLIENTNUM_SHORT &&
-        sv_client->slot == CLIENTNUM_NONE && oldstate == cs_assigned)
+        sv_client->infonum == CLIENTNUM_NONE && oldstate == cs_assigned)
     {
         SV_ClientPrintf(sv_client, PRINT_HIGH,
                         "WARNING: Server has allocated client slot number 255. "
@@ -403,11 +490,15 @@ void SV_New_f(void)
         return;
 
     // send gamestate
-    if (sv_client->netchan.type == NETCHAN_NEW) {
-        write_gamestate();
-    } else {
+    if (sv_client->netchan.type == NETCHAN_OLD) {
         write_configstrings();
         write_baselines();
+    } else if ((sv_client->protocol == PROTOCOL_VERSION_Q2PRO && sv_client->version >= PROTOCOL_VERSION_Q2PRO_EXTENDED_LIMITS) ||
+                (sv_client->protocol == PROTOCOL_VERSION_AQTION && sv_client->version >= PROTOCOL_VERSION_AQTION_EXTENDED_LIMITS)) {
+        write_configstring_stream();
+        write_baseline_stream();
+    } else {
+        write_gamestate();
     }
 
     // send next command
@@ -426,6 +517,44 @@ void SV_New_f(void)
 
 		SV_ClientAddMessage(sv_client, MSG_RELIABLE | MSG_CLEAR);
 	}
+
+#ifdef AQTION_EXTENSION
+	if (svs.cvarsync_length && sv_client->protocol == PROTOCOL_VERSION_AQTION && sv_client->version >= PROTOCOL_VERSION_AQTION_CVARSYNC)
+	{
+		MSG_WriteByte(svc_extend);
+		MSG_WriteByte(svc_cvarsync);
+		MSG_WriteByte(svs.cvarsync_length);
+		for (int i = 0; i < svs.cvarsync_length; i++)
+		{
+			cvarsync_t *var = &svs.cvarsync_list[i];
+			MSG_WriteString(var->name);
+			MSG_WriteString(var->value);
+
+			if (sv_client->edict)
+                {
+                    gclient_t *client = (gclient_t *)sv_client->edict->client;
+                    strcpy(client->cl_cvar[i], var->value);
+
+                    if (GE_CvarSync_Updated) // poke game dll to tell it a cvar was updated
+                        GE_CvarSync_Updated(i, sv_client->edict);
+                }
+		}
+
+		SV_ClientAddMessage(sv_client, MSG_RELIABLE | MSG_CLEAR);
+	}
+    else if (sv_client->edict)
+    {
+        gclient_t *client = (gclient_t *)sv_client->edict->client; // Cast to the correct type
+        for (int i = 0; i < svs.cvarsync_length; i++)
+        {
+            cvarsync_t *var = &svs.cvarsync_list[i];
+            strcpy(client->cl_cvar[i], var->value);
+
+            if (GE_CvarSync_Updated) // poke game dll to tell it a cvar was updated
+                GE_CvarSync_Updated(i, sv_client->edict);
+        }
+    }
+#endif
 }
 
 /*
@@ -445,6 +574,10 @@ void SV_Begin_f(void)
     }
     if (sv_client->state > cs_primed) {
         Com_DPrintf("Begin not valid -- already spawned\n");
+        return;
+    }
+    if (sv.state == ss_pic || sv.state == ss_cinematic) {
+        Com_DPrintf("Begin not valid -- map not loaded\n");
         return;
     }
 
@@ -474,6 +607,13 @@ void SV_Begin_f(void)
     SV_AlignKeyFrames(sv_client);
 
     stuff_cmds(&sv_cmdlist_begin);
+
+    // allocate packet entities if not done yet
+    if (!sv_client->entities) {
+        int max_packet_entities = sv_client->csr->extended ? MAX_PACKET_ENTITIES : MAX_PACKET_ENTITIES_OLD;
+        sv_client->num_entities = max_packet_entities * UPDATE_BACKUP;
+        sv_client->entities = SV_Mallocz(sizeof(sv_client->entities[0]) * sv_client->num_entities);
+    }
 
     // call the game begin function
     ge->ClientBegin(sv_player);
@@ -535,7 +675,7 @@ static void SV_BeginDownload_f(void)
     len = FS_NormalizePath(name);
 
     if (Cmd_Argc() > 2)
-        offset = atoi(Cmd_Argv(2));     // downloaded offset
+        offset = Q_atoi(Cmd_Argv(2));   // downloaded offset
 
     // hacked by zoid to allow more conrol over download
     // first off, no .. or global allow check
@@ -703,10 +843,13 @@ static void SV_NextServer_f(void)
     if (sv.state == ss_pic && !Cvar_VariableInteger("coop"))
         return;     // ss_pic can be nextserver'd in coop mode
 
-    if (atoi(Cmd_Argv(1)) != sv.spawncount)
+    if (Q_atoi(Cmd_Argv(1)) != sv.spawncount)
         return;     // leftover from last server
 
-    sv.spawncount ^= 1;     // make sure another doesn't sneak in
+    if (sv.nextserver_pending)
+        return;
+
+    sv.nextserver_pending = true;   // make sure another doesn't sneak in
 
     const char *v = Cvar_VariableString("nextserver");
     if (*v) {
@@ -783,7 +926,7 @@ static void SV_PacketdupHack_f(void)
     int numdups = sv_client->numpackets - 1;
 
     if (Cmd_Argc() > 1) {
-        numdups = atoi(Cmd_Argv(1));
+        numdups = Q_atoi(Cmd_Argv(1));
         if (numdups < 0 || numdups > sv_packetdup_hack->integer) {
             SV_ClientPrintf(sv_client, PRINT_HIGH,
                             "Packetdup of %d is not allowed on this server.\n", numdups);
@@ -799,17 +942,71 @@ static void SV_PacketdupHack_f(void)
 }
 #endif
 
+#if USE_AQTION
+static void SV_CvarSync_f(void)
+{
+	if (!sv_client->edict->client)
+		return;
+
+	if (Cmd_Argc() > 2) {
+    char varname[CVARSYNC_MAX];
+    Q_strlcpy(varname, Cmd_Argv(1), CVARSYNC_MAX);
+    varname[CVARSYNC_MAX - 1] = 0;
+
+    for (int i = 0; i < svs.cvarsync_length; i++)
+    {
+        cvarsync_t *var = &svs.cvarsync_list[i];
+        if (strcmp(var->name, varname))
+            continue;
+
+        gclient_t *client = (gclient_t *)sv_client->edict->client; // Cast to the correct type
+        strcpy(client->cl_cvar[i], Cmd_Argv(2));
+
+        if (GE_CvarSync_Updated) // poke game dll to tell it a cvar was updated
+            GE_CvarSync_Updated(i, sv_client->edict);
+
+        SV_ClientPrintf(sv_client, PRINT_HIGH, "cvarsync: set %s to %s\n", varname, client->cl_cvar[i]);
+    }
+        }
+        else if (Cmd_Argc() == 2)
+        {
+            char varname[CVARSYNC_MAX];
+            Q_strlcpy(varname, Cmd_Argv(1), CVARSYNC_MAX);
+            varname[CVARSYNC_MAX - 1] = 0;
+
+            for (int i = 0; i < svs.cvarsync_length; i++)
+            {
+                cvarsync_t *var = &svs.cvarsync_list[i];
+                if (strcmp(var->name, varname))
+                    continue;
+
+                gclient_t *client = (gclient_t *)sv_client->edict->client; // Cast to the correct type
+                SV_ClientPrintf(sv_client, PRINT_HIGH, "cvarsync: %s is currently set to %s\n", varname, client->cl_cvar[i]);
+            }
+        }
+        else
+        {
+            for (int i = 0; i < svs.cvarsync_length; i++)
+            {
+                cvarsync_t *var = &svs.cvarsync_list[i];
+                gclient_t *client = (gclient_t *)sv_client->edict->client; // Cast to the correct type
+                SV_ClientPrintf(sv_client, PRINT_HIGH, "cvarsync: %s = %s\n", var->name, client->cl_cvar[i]);
+            }
+        }
+}
+#endif
+
 static bool match_cvar_val(const char *s, const char *v)
 {
     switch (*s++) {
     case '*':
         return *v;
     case '=':
-        return atof(v) == atof(s);
+        return Q_atof(v) == Q_atof(s);
     case '<':
-        return atof(v) < atof(s);
+        return Q_atof(v) < Q_atof(s);
     case '>':
-        return atof(v) > atof(s);
+        return Q_atof(v) > Q_atof(s);
     case '~':
         return Q_stristr(v, s);
     case '#':
@@ -946,11 +1143,14 @@ static const ucmd_t ucmds[] = {
 #endif
     { "aclist", SV_AC_List_f },
     { "acinfo", SV_AC_Info_f },
+#ifdef AQTION_EXTENSION
+	{ "cvarsync", SV_CvarSync_f },
+#endif
 
     { NULL, NULL }
 };
 
-static void handle_filtercmd(filtercmd_t *filter)
+static void handle_filtercmd(const filtercmd_t *filter)
 {
     if (filter->action == FA_IGNORE)
         return;
@@ -1367,7 +1567,7 @@ static void SV_ParseFullUserinfo(void)
     }
 
     Com_DDPrintf("%s(%s): %s [%d]\n", __func__,
-                 sv_client->name, sv_client->userinfo, userinfoUpdateCount);
+                 sv_client->name, Com_MakePrintable(sv_client->userinfo), userinfoUpdateCount);
 
     SV_UpdateUserinfo();
     userinfoUpdateCount++;
@@ -1424,12 +1624,14 @@ static void SV_ParseDeltaUserinfo(void)
 }
 
 #if USE_FPS
+// key frames must be aligned for all clients (and game) to ensure there isn't
+// additional frame of latency for clients with framediv > 1.
 void SV_AlignKeyFrames(client_t *client)
 {
-    int framediv = sv.framediv / client->framediv;
-    int framenum = sv.framenum / client->framediv;
+    int framediv = sv.frametime.div / client->framediv;
+    int framenum = (sv.framenum + client->framediv - 1) / client->framediv;
     int frameofs = framenum % framediv;
-    int newnum = frameofs + Q_align(client->framenum, framediv);
+    int newnum = frameofs + Q_align_up(client->framenum, framediv);
 
     Com_DDPrintf("[%d] align %d --> %d (num = %d, div = %d, ofs = %d)\n",
                  sv.framenum, client->framenum, newnum, framenum, framediv, frameofs);
@@ -1444,15 +1646,12 @@ static void set_client_fps(int value)
     if (!value)
         value = sv.framerate;
 
-    framediv = value / BASE_FRAMERATE;
-
-    clamp(framediv, 1, MAX_FRAMEDIV);
-
-    framediv = sv.framediv / Q_gcd(sv.framediv, framediv);
+    framediv = Q_clip(value / BASE_FRAMERATE, 1, MAX_FRAMEDIV);
+    framediv = sv.frametime.div / Q_gcd(sv.frametime.div, framediv);
     framerate = sv.framerate / framediv;
 
     Com_DDPrintf("[%d] client div=%d, server div=%d, rate=%d\n",
-                 sv.framenum, framediv, sv.framediv, framerate);
+                 sv.framenum, framediv, sv.frametime.div, framerate);
 
     sv_client->framediv = framediv;
 
@@ -1503,7 +1702,7 @@ static void SV_ParseClientCommand(void)
         return;
     }
 
-    Com_DDPrintf("%s(%s): %s\n", __func__, sv_client->name, buffer);
+    Com_DDPrintf("%s(%s): %s\n", __func__, sv_client->name, Com_MakePrintable(buffer));
 
     SV_ExecuteUserCommand(buffer);
     stringCmdCount++;
@@ -1519,6 +1718,7 @@ The current net_message is parsed for the given client
 void SV_ExecuteClientMessage(client_t *client)
 {
     int c;
+	int index;
 
     sv_client = client;
     sv_player = sv_client->edict;
@@ -1538,7 +1738,7 @@ void SV_ExecuteClientMessage(client_t *client)
         if (c == -1)
             break;
 
-        if (client->protocol == PROTOCOL_VERSION_Q2PRO) {
+        if (client->protocol == PROTOCOL_VERSION_Q2PRO || client->protocol == PROTOCOL_VERSION_AQTION) {
             switch (c & SVCMD_MASK) {
             case clc_move_nodelta:
             case clc_move_batched:
@@ -1589,6 +1789,21 @@ badbyte:
 
             SV_ParseDeltaUserinfo();
             break;
+
+		case clc_cvarsync:
+			if (client->protocol != PROTOCOL_VERSION_AQTION)
+				goto badbyte;
+#ifdef AQTION_EXTENSION
+        index = MSG_ReadByte();
+        gclient_t *client = (gclient_t *)sv_player->client; // Cast to the correct type
+        MSG_ReadString(client->cl_cvar[index], CVARSYNC_MAXSIZE);
+
+        if (GE_CvarSync_Updated) // poke game dll to tell it a cvar was updated
+            GE_CvarSync_Updated(index, sv_player);
+#else
+			goto badbyte;
+#endif
+			break;
         }
 
 nextcmd:

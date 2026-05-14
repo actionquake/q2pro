@@ -51,7 +51,7 @@ void CL_CheckPredictionError(void)
 
     // save the prediction error for interpolation
     len = abs(delta[0]) + abs(delta[1]) + abs(delta[2]);
-    if (len < 1 || len > 640) {
+    if (len <= 1 || len > 640) {
         // > 80 world units is a teleport or something
         VectorClear(cl.prediction_error);
         return;
@@ -73,19 +73,21 @@ void CL_CheckPredictionError(void)
 /*
 ====================
 CL_ClipMoveToEntities
-
 ====================
 */
-static void CL_ClipMoveToEntities(const vec3_t start, const vec3_t mins, const vec3_t maxs, const vec3_t end, trace_t *tr)
+static void CL_ClipMoveToEntities(trace_t *tr, const vec3_t start, const vec3_t end, const vec3_t mins, const vec3_t maxs, int contentmask)
 {
     int         i;
     trace_t     trace;
-    mnode_t     *headnode;
-    centity_t   *ent;
-    mmodel_t    *cmodel;
+    const mnode_t   *headnode;
+    const centity_t *ent;
+    const mmodel_t  *cmodel;
 
     for (i = 0; i < cl.numSolidEntities; i++) {
         ent = cl.solidEntities[i];
+
+        if (cl.csr.extended && ent->current.number <= cl.maxclients && !(contentmask & CONTENTS_PLAYER))
+            continue;
 
         if (ent->current.solid == PACKED_BSP) {
             // special value for bmodel
@@ -101,42 +103,47 @@ static void CL_ClipMoveToEntities(const vec3_t start, const vec3_t mins, const v
             return;
 
         CM_TransformedBoxTrace(&trace, start, end,
-                               mins, maxs, headnode,  MASK_PLAYERSOLID,
-                               ent->current.origin, ent->current.angles);
+                               mins, maxs, headnode, contentmask,
+                               ent->current.origin, ent->current.angles,
+                               cl.csr.extended);
 
         CM_ClipEntity(tr, &trace, (struct edict_s *)ent);
     }
 }
 
-
 /*
 ================
-CL_PMTrace
+CL_Trace
 ================
 */
-static trace_t q_gameabi CL_Trace(const vec3_t start, const vec3_t mins, const vec3_t maxs, const vec3_t end)
+void CL_Trace(trace_t *tr, const vec3_t start, const vec3_t end, const vec3_t mins, const vec3_t maxs, int contentmask)
 {
-    trace_t    t;
-
     // check against world
-    CM_BoxTrace(&t, start, end, mins, maxs, cl.bsp->nodes, MASK_PLAYERSOLID);
-    if (t.fraction < 1.0f)
-        t.ent = (struct edict_s *)1;
+    CM_BoxTrace(tr, start, end, mins, maxs, cl.bsp->nodes, contentmask, cl.csr.extended);
+    tr->ent = (struct edict_s *)cl_entities;
+    if (tr->fraction == 0)
+        return;     // blocked by the world
 
     // check all other solid models
-    CL_ClipMoveToEntities(start, mins, maxs, end, &t);
+    CL_ClipMoveToEntities(tr, start, end, mins, maxs, contentmask);
+}
 
+static int pm_clipmask;
+
+static trace_t q_gameabi CL_PMTrace(const vec3_t start, const vec3_t mins, const vec3_t maxs, const vec3_t end, int contentmask)
+{
+    trace_t t;
+    CL_Trace(&t, start, end, mins, maxs, (cl.csr.extended && contentmask) ? contentmask : pm_clipmask);
     return t;
 }
 
 static int CL_PointContents(const vec3_t point)
 {
-    int         i;
-    centity_t   *ent;
-    mmodel_t    *cmodel;
-    int         contents;
+    const centity_t *ent;
+    const mmodel_t  *cmodel;
+    int i, contents;
 
-    contents = CM_PointContents(point, cl.bsp->nodes);
+    contents = CM_PointContents(point, cl.bsp->nodes, cl.csr.extended);
 
     for (i = 0; i < cl.numSolidEntities; i++) {
         ent = cl.solidEntities[i];
@@ -148,10 +155,8 @@ static int CL_PointContents(const vec3_t point)
         if (!cmodel)
             continue;
 
-        contents |= CM_TransformedPointContents(
-                        point, cmodel->headnode,
-                        ent->current.origin,
-                        ent->current.angles);
+        contents |= CM_TransformedPointContents(point, cmodel->headnode, ent->current.origin,
+                                                ent->current.angles, cl.csr.extended);
     }
 
     return contents;
@@ -209,16 +214,29 @@ void CL_PredictMovement(void)
         return;
     }
 
+    pm_clipmask = MASK_PLAYERSOLID;
+
+    // remaster player collision rules
+    if (cl.csr.extended) {
+        if (cl.frame.ps.pmove.pm_type == PM_DEAD || cl.frame.ps.pmove.pm_type == PM_GIB)
+            pm_clipmask = MASK_DEADSOLID;
+
+        if (!(cl.frame.ps.pmove.pm_flags & PMF_IGNORE_PLAYER_COLLISION))
+            pm_clipmask |= CONTENTS_PLAYER;
+    }
+
     // copy current state to pmove
     memset(&pm, 0, sizeof(pm));
-    pm.trace = CL_Trace;
+    pm.trace = CL_PMTrace;
     pm.pointcontents = CL_PointContents;
     pm.s = cl.frame.ps.pmove;
+    pm.snapinitial = qtrue;
 
     // run frames
     while (++ack <= current) {
         pm.cmd = cl.cmds[ack & CMD_MASK];
-        Pmove(&pm, &cl.pmp);
+        PmoveNew(&pm, &cl.pmp);
+        pm.snapinitial = qfalse;
 
         // save for debug checking
         VectorCopy(pm.s.origin, cl.predicted_origins[ack & CMD_MASK]);
@@ -230,7 +248,7 @@ void CL_PredictMovement(void)
         pm.cmd.forwardmove = cl.localmove[0];
         pm.cmd.sidemove = cl.localmove[1];
         pm.cmd.upmove = cl.localmove[2];
-        Pmove(&pm, &cl.pmp);
+        PmoveNew(&pm, &cl.pmp);
         frame = current;
 
         // save for debug checking
@@ -242,8 +260,14 @@ void CL_PredictMovement(void)
     if (pm.s.pm_type != PM_SPECTATOR && (pm.s.pm_flags & PMF_ON_GROUND)) {
         oldz = cl.predicted_origins[cl.predicted_step_frame & CMD_MASK][2];
         step = pm.s.origin[2] - oldz;
-        if (step > 63 && step < 160) {
-            cl.predicted_step = step * 0.125f;
+        if (step >= 63 && step < 160) {
+            // check for stepping up before a previous step is completed
+            unsigned delta = cls.realtime - cl.predicted_step_time;
+            float prev_step = 0;
+            if (delta < 100)
+                prev_step = cl.predicted_step * (100 - delta) * 0.01f;
+
+            cl.predicted_step = min(prev_step + step * 0.125f, 32);
             cl.predicted_step_time = cls.realtime;
             cl.predicted_step_frame = frame + 1;    // don't double step
         }
@@ -254,7 +278,11 @@ void CL_PredictMovement(void)
     }
 
 
-	if (cl.predicted_viewheight_frame != cl.frame.number)
+	if (cl.predicted_viewheight_frame != cl.frame.number
+#if USE_FPS
+		&& cl.frame.number == cl.keyframe.number
+#endif
+		)
 	{
 		cl.predicted_viewheight_frame = cl.frame.number;
 		cl.predicted_viewheight[1] = cl.predicted_viewheight[0];

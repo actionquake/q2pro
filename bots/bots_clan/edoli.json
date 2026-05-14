@@ -1,0 +1,35 @@
+{
+    "name": "Edoli",
+    "clan_id": 41,
+    "skin": "male/mikeyl",
+    "weaponPreferences": {
+        "mk23": 0.5,
+        "dual_mk23": 0.2,
+        "mp5": 0.4,
+        "m4": 0.3,
+        "m3": 0.8,
+        "hc": 0.6,
+        "sniper": 0.6,
+        "knives": 0.1,
+        "grenades": 0.4
+    },
+    "itemPreferences": {
+        "vest": 0.6,
+        "helm": 0.8,
+        "laser": 0.4,
+        "silencer": 0.2,
+        "slippers": 0.2,
+        "bandolier": 0.6
+    },
+    "coreTraits": {
+        "aggressiveness": 0.7,
+        "teamwork": 0.5,
+        "curiosity": 0.4,
+        "aimingSkill": 0.8,
+        "reactionTime": 0.3,
+        "communicationFreq": 0.3,
+        "communicationTone": 0.4,
+        "movementStyle": 0.2,
+        "objectiveFocus": 0.3
+    }
+}

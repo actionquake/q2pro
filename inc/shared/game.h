@@ -19,22 +19,41 @@ with this program; if not, write to the Free Software Foundation, Inc.,
 #pragma once
 
 #include "shared/list.h"
+#include "common/bsp.h"
 
 //
 // game.h -- game dll information visible to server
 //
 
-#ifdef AQTION_EXTENSION
-#define GAME_API_VERSION        4
+#define GAME_API_VERSION_OLD    3       // game uses gclient_old_t
+#define GAME_API_VERSION_AQTION 4       // game uses gclient_t with AQtion extension (aliased to gclient_old_t)
+#define GAME_API_VERSION_NEW    3302    // game uses gclient_new_t
+
+#if USE_NEW_GAME_API
+#define GAME_API_VERSION    GAME_API_VERSION_NEW
+#elif AQTION_EXTENSION
+#define GAME_API_VERSION    GAME_API_VERSION_AQTION
 #else
-#define GAME_API_VERSION        3
+#define GAME_API_VERSION    GAME_API_VERSION_OLD
 #endif
 
 // edict->svflags
 
-#define SVF_NOCLIENT            0x00000001  // don't send entity to clients, even if it has effects
-#define SVF_DEADMONSTER         0x00000002  // treat as CONTENTS_DEADMONSTER for collision
-#define SVF_MONSTER             0x00000004  // treat as CONTENTS_MONSTER for collision
+#define SVF_NOCLIENT            BIT(0)      // don't send entity to clients, even if it has effects
+#define SVF_DEADMONSTER         BIT(1)      // treat as CONTENTS_DEADMONSTER for collision
+#define SVF_MONSTER             BIT(2)      // only used by server as entity priority hint
+
+#if USE_PROTOCOL_EXTENSIONS
+#define SVF_PLAYER              BIT(3)      // treat as CONTENTS_PLAYER for collision
+#define SVF_BOT                 BIT(4)
+#define SVF_NOBOTS              BIT(5)
+#define SVF_RESPAWNING          BIT(6)
+#define SVF_PROJECTILE          BIT(7)      // treat as CONTENTS_PROJECTILE for collision
+#define SVF_INSTANCED           BIT(8)
+#define SVF_DOOR                BIT(9)
+#define SVF_NOCULL              BIT(10)     // always send entity to clients (no PVS checks)
+#define SVF_HULL                BIT(11)
+#endif
 
 // edict->solid values
 
@@ -47,40 +66,74 @@ typedef enum {
 
 // extended features
 
-#define GMF_CLIENTNUM               0x00000001
-#define GMF_PROPERINUSE             0x00000002
-#define GMF_MVDSPEC                 0x00000004
-#define GMF_WANT_ALL_DISCONNECTS    0x00000008
+// R1Q2 and Q2PRO specific
+#define GMF_CLIENTNUM               BIT(0)      // game sets clientNum gclient_s field
+#define GMF_PROPERINUSE             BIT(1)      // game maintains edict_s inuse field properly
+#define GMF_MVDSPEC                 BIT(2)      // game is dummy MVD client aware
+#define GMF_WANT_ALL_DISCONNECTS    BIT(3)      // game wants ClientDisconnect() for non-spawned clients
 
-#define GMF_ENHANCED_SAVEGAMES      0x00000400
-#define GMF_VARIABLE_FPS            0x00000800
-#define GMF_EXTRA_USERINFO          0x00001000
-#define GMF_IPV6_ADDRESS_AWARE      0x00002000
+// Q2PRO specific
+#define GMF_ENHANCED_SAVEGAMES      BIT(10)     // game supports safe/portable savegames
+#define GMF_VARIABLE_FPS            BIT(11)     // game supports variable server FPS
+#define GMF_EXTRA_USERINFO          BIT(12)     // game wants extra userinfo after normal userinfo
+#define GMF_IPV6_ADDRESS_AWARE      BIT(13)     // game supports IPv6 addresses
+#define GMF_ALLOW_INDEX_OVERFLOW    BIT(14)     // game wants PF_FindIndex() to return 0 on overflow
+#define GMF_PROTOCOL_EXTENSIONS     BIT(15)     // game supports protocol extensions
 
 //===============================================================
 
 #define MAX_ENT_CLUSTERS    16
 
+// link_t is only used for entity area links now
+typedef struct link_s
+{
+  struct link_s *prev, *next;
+}
+link_t;
 
 typedef struct edict_s edict_t;
-typedef struct gclient_s gclient_t;
-
 
 #ifndef GAME_INCLUDE
 
-struct gclient_s {
-    player_state_t  ps;     // communicated by server to clients
-    int             ping;
+typedef struct gclient_old_s gclient_old_t;
+typedef struct gclient_new_s gclient_new_t;
+
+// AQtion compatible
+typedef gclient_old_t gclient_t;
+
+struct gclient_old_s {
+    player_state_old_t  ps;     // communicated by server to clients
+    int                 ping;
+
+    // set to (client POV entity number) - 1 by game,
+    // only valid if g_features has GMF_CLIENTNUM bit
+    int             clientNum;
 
     // the game dll can add anything it wants after
     // this point in the structure
-    int             clientNum;
+#ifdef AQTION_EXTENSION
+	cvarsyncvalue_t cl_cvar[CVARSYNC_MAX];
+#endif
 };
 
+struct gclient_new_s {
+    player_state_new_t  ps;     // communicated by server to clients
+    int                 ping;
+
+    // set to (client POV entity number) - 1 by game,
+    // only valid if g_features has GMF_CLIENTNUM bit
+    int             clientNum;
+
+    // the game dll can add anything it wants after
+    // this point in the structure
+#ifdef AQTION_EXTENSION
+	cvarsyncvalue_t cl_cvar[CVARSYNC_MAX];
+#endif
+};
 
 struct edict_s {
     entity_state_t  s;
-    struct gclient_s    *client;
+    void        *client;
     qboolean    inuse;
     int         linkcount;
 
@@ -101,6 +154,14 @@ struct edict_s {
     int         clipmask;
     edict_t     *owner;
 
+    //================================
+
+#if USE_PROTOCOL_EXTENSIONS
+    // extra entity state communicated to clients
+    // only valid if g_features has GMF_PROTOCOL_EXTENSIONS bit
+    entity_state_extension_t    x;
+#endif
+
     // the game dll can add anything it wants after
     // this point in the structure
 };
@@ -108,6 +169,11 @@ struct edict_s {
 #endif      // GAME_INCLUDE
 
 //===============================================================
+
+// action start
+// making real copies for bot compatibility
+extern void (*real_cprintf) (struct edict_s * ent, int printlevel, const char *fmt, ...);
+extern void (*real_centerprintf) (struct edict_s * ent, const char *fmt, ...);
 
 //
 // functions provided by the main engine
@@ -119,7 +185,7 @@ typedef struct {
     void (* q_printf(3, 4) cprintf)(edict_t *ent, int printlevel, const char *fmt, ...);
     void (* q_printf(2, 3) centerprintf)(edict_t *ent, const char *fmt, ...);
     void (*sound)(edict_t *ent, int channel, int soundindex, float volume, float attenuation, float timeofs);
-    void (*positioned_sound)(const vec3_t origin, edict_t *ent, int channel, int soundinedex, float volume, float attenuation, float timeofs);
+    void (*positioned_sound)(const vec3_t origin, edict_t *ent, int channel, int soundindex, float volume, float attenuation, float timeofs);
 
     // config strings hold all the index strings, the lightstyles,
     // and misc data like the sky definition and cdtrack.
@@ -127,7 +193,7 @@ typedef struct {
     // they connect, and changes are sent to all connected clients.
     void (*configstring)(int num, const char *string);
 
-    void (* q_noreturn q_printf(1, 2) error)(const char *fmt, ...);
+    void (* q_noreturn_ptr q_printf(1, 2) error)(const char *fmt, ...);
 
     // the *index functions create configstrings and some internal server state
     int (*modelindex)(const char *name);
@@ -150,7 +216,11 @@ typedef struct {
     void (*linkentity)(edict_t *ent);
     void (*unlinkentity)(edict_t *ent);     // call before removing an interactive edict
     int (*BoxEdicts)(const vec3_t mins, const vec3_t maxs, edict_t **list, int maxcount, int areatype);
+#ifdef GAME_INCLUDE
     void (*Pmove)(pmove_t *pmove);          // player movement code common with client prediction
+#else
+    void (*Pmove)(void *pmove);
+#endif
 
     // network messaging
     void (*multicast)(const vec3_t origin, multicast_t to);
@@ -186,11 +256,7 @@ typedef struct {
 
     void (*DebugGraph)(float value, int color);
 
-#ifdef AQTION_EXTENSION
-	void *(*CheckForExtension)(char *text);
-#endif
 } game_import_t;
-
 //
 // functions exported by the game subsystem
 //
@@ -233,11 +299,6 @@ typedef struct {
     // of the parameters
     void (*ServerCommand)(void);
 
-#ifdef AQTION_EXTENSION
-	void* (*FetchGameExtension)(char *name);
-#endif
-
-
     //
     // global variables shared between game and server
     //
@@ -253,48 +314,3 @@ typedef struct {
 } game_export_t;
 
 typedef game_export_t *(*game_entry_t)(game_import_t *);
-
-//===============================================================
-
-/*
- * GetExtendedGameAPI() is guaranteed to be called after GetGameAPI() and
- * before ge->Init().
- *
- * Unlike GetGameAPI(), passed game_import_ex_t * is valid as long as game
- * library is loaded. Pointed to structure should be considered unknown length
- * and must not be copied locally.
- *
- * New fields can be safely added at the end of game_import_ex_t and
- * game_export_ex_t structures, provided GAME_API_VERSION_EX is also bumped.
- */
-
-#define GAME_API_VERSION_EX     1
-
-typedef struct {
-    int     apiversion;
-
-    int64_t (*OpenFile)(const char *path, qhandle_t *f, unsigned mode); // returns file length
-    int     (*CloseFile)(qhandle_t f);
-    int     (*LoadFile)(const char *path, void **buffer, unsigned flags, unsigned tag);
-
-    int     (*ReadFile)(void *buffer, size_t len, qhandle_t f);
-    int     (*WriteFile)(const void *buffer, size_t len, qhandle_t f);
-    int     (*FlushFile)(qhandle_t f);
-    int64_t (*TellFile)(qhandle_t f);
-    int     (*SeekFile)(qhandle_t f, int64_t offset, int whence);
-    int     (*ReadLine)(qhandle_t f, char *buffer, size_t size);
-
-    void    **(*ListFiles)(const char *path, const char *filter, unsigned flags, int *count_p);
-    void    (*FreeFileList)(void **list);
-
-    const char *(*ErrorString)(int error);
-    void    *(*TagRealloc)(void *ptr, size_t size);
-} game_import_ex_t;
-
-typedef struct {
-    int     apiversion;
-
-    void    (*RestartFilesystem)(void); // called when fs_restart is issued
-} game_export_ex_t;
-
-typedef const game_export_ex_t *(*game_entry_ex_t)(const game_import_ex_t *);

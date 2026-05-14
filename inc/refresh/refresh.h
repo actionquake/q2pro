@@ -21,33 +21,18 @@ with this program; if not, write to the Free Software Foundation, Inc.,
 #include "common/cvar.h"
 #include "common/error.h"
 
-#define MAX_DLIGHTS     32
-#define MAX_ENTITIES    1024
-#define MAX_PARTICLES   4096
+#define MAX_DLIGHTS     64
+#define MAX_ENTITIES    2048
+#define MAX_PARTICLES   8192
 #define MAX_LIGHTSTYLES 256
 
 #define POWERSUIT_SCALE     4.0f
 #define WEAPONSHELL_SCALE   0.5f
 
-#define SHELL_RED_COLOR     0xF2
-#define SHELL_GREEN_COLOR   0xD0
-#define SHELL_BLUE_COLOR    0xF3
-
-#define SHELL_RG_COLOR      0xDC
-//#define SHELL_RB_COLOR        0x86
-#define SHELL_RB_COLOR      0x68
-#define SHELL_BG_COLOR      0x78
-
-//ROGUE
-#define SHELL_DOUBLE_COLOR  0xDF // 223
-#define SHELL_HALF_DAM_COLOR    0x90
-#define SHELL_CYAN_COLOR    0x72
-//ROGUE
-
-#define SHELL_WHITE_COLOR   0xD7
+#define RF_TRACKER          BIT_ULL(32)
 
 #define RF_SHELL_MASK       (RF_SHELL_RED | RF_SHELL_GREEN | RF_SHELL_BLUE | \
-                             RF_SHELL_DOUBLE | RF_SHELL_HALF_DAM)
+                             RF_SHELL_DOUBLE | RF_SHELL_HALF_DAM | RF_SHELL_LITE_GREEN)
 
 #define DLIGHT_CUTOFF       64
 
@@ -59,13 +44,13 @@ typedef struct entity_s {
     ** most recent data
     */
     vec3_t              origin;     // also used as RF_BEAM's "from"
-    int                 frame;          // also used as RF_BEAM's diameter
+    unsigned            frame;      // also used as RF_BEAM's diameter
 
     /*
     ** previous data for lerping
     */
     vec3_t              oldorigin;  // also used as RF_BEAM's "to"
-    int                 oldframe;
+    unsigned            oldframe;
 
     /*
     ** misc
@@ -77,36 +62,43 @@ typedef struct entity_s {
     float   alpha;                  // ignore if RF_TRANSLUCENT isn't set
     color_t rgba;
 
+    uint64_t    flags;
+
     qhandle_t   skin;           // NULL for inline skin
-    int         flags;
+    float       scale;
 } entity_t;
 
-typedef struct dlight_s {
+typedef struct {
     vec3_t  origin;
     vec3_t  transformed;
     vec3_t  color;
     float   intensity;
 } dlight_t;
 
-typedef struct particle_s {
+typedef struct {
     vec3_t  origin;
     int     color;              // -1 => use rgba
+    float   scale;
     float   alpha;
     color_t rgba;
 } particle_t;
 
-typedef struct lightstyle_s {
-    float           white;          // highest of RGB
+typedef struct {
+    float   white;              // highest of RGB
 } lightstyle_t;
 
-typedef struct refdef_s {
+typedef struct {
     int         x, y, width, height;// in virtual screen coordinates
     float       fov_x, fov_y;
     vec3_t      vieworg;
     vec3_t      viewangles;
-    vec4_t      blend;          // rgba 0-1 full screen blend
+    vec4_t      screen_blend;       // rgba 0-1 full screen blend
+    vec4_t      damage_blend;       // rgba 0-1 damage blend
+    player_fog_t        fog;
+    player_heightfog_t  heightfog;
     float       time;               // time is uesed to auto animate
     int         rdflags;            // RDF_UNDERWATER, etc
+    bool        extended;
 
     byte        *areabits;          // if not NULL, only areas with set bits will be drawn
 
@@ -122,17 +114,26 @@ typedef struct refdef_s {
     particle_t  *particles;
 } refdef_t;
 
+enum {
+    QGL_PROFILE_NONE,
+    QGL_PROFILE_CORE,
+    QGL_PROFILE_ES,
+};
+
 typedef struct {
-    int     colorbits;
-    int     depthbits;
-    int     stencilbits;
-    int     multisamples;
-    bool    debug;
+    uint8_t     colorbits;
+    uint8_t     depthbits;
+    uint8_t     stencilbits;
+    uint8_t     multisamples;
+    bool        debug;
+    uint8_t     profile;
+    uint8_t     major_ver;
+    uint8_t     minor_ver;
 } r_opengl_config_t;
 
 typedef enum {
-    QVF_FULLSCREEN      = (1 << 0),
-    QVF_GAMMARAMP       = (1 << 1),
+    QVF_FULLSCREEN      = BIT(0),
+    QVF_GAMMARAMP       = BIT(1),
 } vidFlags_t;
 
 typedef struct {
@@ -148,16 +149,24 @@ typedef struct {
 } clipRect_t;
 
 typedef enum {
-    IF_NONE         = 0,
-    IF_PERMANENT    = (1 << 0),
-    IF_TRANSPARENT  = (1 << 1),
-    IF_PALETTED     = (1 << 2),
-    IF_UPSCALED     = (1 << 3),
-    IF_SCRAP        = (1 << 4),
-    IF_TURBULENT    = (1 << 5),
-    IF_REPEAT       = (1 << 6),
-    IF_NEAREST      = (1 << 7),
-    IF_OPAQUE       = (1 << 8),
+    IF_NONE             = 0,
+    IF_PERMANENT        = BIT(0),   // not freed by R_EndRegistration()
+    IF_TRANSPARENT      = BIT(1),   // known to be transparent
+    IF_PALETTED         = BIT(2),   // loaded from 8-bit paletted format
+    IF_UPSCALED         = BIT(3),   // upscaled
+    IF_SCRAP            = BIT(4),   // put in scrap texture
+    IF_TURBULENT        = BIT(5),   // turbulent surface (don't desaturate, etc)
+    IF_REPEAT           = BIT(6),   // tiling image
+    IF_NEAREST          = BIT(7),   // don't bilerp
+    IF_OPAQUE           = BIT(8),   // known to be opaque
+    IF_DEFAULT_FLARE    = BIT(9),   // default flare hack
+    IF_CUBEMAP          = BIT(10),  // cubemap (or part of it)
+    IF_CLASSIC_SKY      = BIT(11),  // split in two halves
+
+    // these flags only affect R_RegisterImage() behavior,
+    // and are not stored in image
+    IF_OPTIONAL         = BIT(16),  // don't warn if not found
+    IF_KEEP_EXTENSION   = BIT(17),  // don't override extension
 } imageflags_t;
 
 typedef enum {
@@ -194,15 +203,16 @@ void    R_BeginRegistration(const char *map);
 qhandle_t R_RegisterModel(const char *name);
 qhandle_t R_RegisterImage(const char *name, imagetype_t type,
                           imageflags_t flags);
-void    R_SetSky(const char *name, float rotate, const vec3_t axis);
+void    R_SetSky(const char *name, float rotate, bool autorotate, const vec3_t axis);
 void    R_EndRegistration(void);
 
 #define R_RegisterPic(name)     R_RegisterImage(name, IT_PIC, IF_PERMANENT)
-#define R_RegisterPic2(name)    R_RegisterImage(name, IT_PIC, IF_NONE)
+#define R_RegisterTempPic(name) R_RegisterImage(name, IT_PIC, IF_NONE)
 #define R_RegisterFont(name)    R_RegisterImage(name, IT_FONT, IF_PERMANENT)
 #define R_RegisterSkin(name)    R_RegisterImage(name, IT_SKIN, IF_NONE)
+#define R_RegisterSprite(name)  R_RegisterImage(name, IT_SPRITE, IF_NONE)
 
-void    R_RenderFrame(refdef_t *fd);
+void    R_RenderFrame(const refdef_t *fd);
 void    R_LightPoint(const vec3_t origin, vec3_t light);
 
 void    R_ClearColor(void);
@@ -217,6 +227,7 @@ int     R_DrawString(int x, int y, int flags, size_t maxChars,
 bool    R_GetPicSize(int *w, int *h, qhandle_t pic);   // returns transparency bit
 void    R_DrawPic(int x, int y, qhandle_t pic);
 void    R_DrawStretchPic(int x, int y, int w, int h, qhandle_t pic);
+void    R_DrawKeepAspectPic(int x, int y, int w, int h, qhandle_t pic);
 void    R_DrawStretchRaw(int x, int y, int w, int h);
 void    R_UpdateRawPic(int pic_w, int pic_h, const uint32_t *pic);
 void    R_TileClear(int x, int y, int w, int h, qhandle_t pic);
@@ -228,4 +239,12 @@ void    R_BeginFrame(void);
 void    R_EndFrame(void);
 void    R_ModeChanged(int width, int height, int flags);
 
-r_opengl_config_t *R_GetGLConfig(void);
+r_opengl_config_t R_GetGLConfig(void);
+
+
+// This used to be in images.c but I moved it because
+// download.c in src/client needs to know what to do
+#if USE_PNG || USE_JPG || USE_TGA
+extern cvar_t   *r_override_textures;
+extern cvar_t   *r_texture_overrides;
+#endif

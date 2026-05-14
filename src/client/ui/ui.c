@@ -285,7 +285,7 @@ char *UI_GetColumn(char *s, int n)
 UI_CursorInRect
 =================
 */
-bool UI_CursorInRect(vrect_t *rect)
+bool UI_CursorInRect(const vrect_t *rect)
 {
     if (uis.mouseCoords[0] < rect->x) {
         return false;
@@ -305,9 +305,9 @@ bool UI_CursorInRect(vrect_t *rect)
 void UI_DrawString(int x, int y, int flags, const char *string)
 {
     if ((flags & UI_CENTER) == UI_CENTER) {
-        x -= strlen(string) * CHAR_WIDTH / 2;
+        x -= strlen(string) * CONCHAR_WIDTH / 2;
     } else if (flags & UI_RIGHT) {
-        x -= strlen(string) * CHAR_WIDTH;
+        x -= strlen(string) * CONCHAR_WIDTH;
     }
 
     R_DrawString(x, y, flags, MAX_STRING_CHARS, string, uis.fontHandle);
@@ -320,8 +320,8 @@ void UI_DrawChar(int x, int y, int flags, int ch)
 
 void UI_StringDimensions(vrect_t *rc, int flags, const char *string)
 {
-    rc->height = CHAR_HEIGHT;
-    rc->width = CHAR_WIDTH * strlen(string);
+    rc->height = CONCHAR_HEIGHT;
+    rc->width = CONCHAR_WIDTH * strlen(string);
 
     if ((flags & UI_CENTER) == UI_CENTER) {
         rc->x -= rc->width / 2;
@@ -394,8 +394,8 @@ UI_MouseEvent
 */
 void UI_MouseEvent(int x, int y)
 {
-    clamp(x, 0, r_config.width - 1);
-    clamp(y, 0, r_config.height - 1);
+    x = Q_clip(x, 0, r_config.width - 1);
+    y = Q_clip(y, 0, r_config.height - 1);
 
     uis.mouseCoords[0] = Q_rint(x * uis.scale);
     uis.mouseCoords[1] = Q_rint(y * uis.scale);
@@ -614,9 +614,6 @@ UI_Init
 */
 void UI_Init(void)
 {
-    char buffer[MAX_QPATH];
-    int i;
-
     Cmd_Register(c_ui);
 
     ui_debug = Cvar_Get("ui_debug", "0", 0);
@@ -628,9 +625,8 @@ void UI_Init(void)
     uis.cursorHandle = R_RegisterPic("ch1");
     R_GetPicSize(&uis.cursorWidth, &uis.cursorHeight, uis.cursorHandle);
 
-    for (i = 0; i < NUM_CURSOR_FRAMES; i++) {
-        Q_snprintf(buffer, sizeof(buffer), "m_cursor%d", i);
-        uis.bitmapCursors[i] = R_RegisterPic(buffer);
+    for (int i = 0; i < NUM_CURSOR_FRAMES; i++) {
+        uis.bitmapCursors[i] = R_RegisterPic(va("m_cursor%d", i));
     }
 
     uis.color.background.u32    = MakeColor(0,   0,   0, 255);

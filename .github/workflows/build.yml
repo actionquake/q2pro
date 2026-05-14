@@ -2,30 +2,36 @@ name: build
 
 on:
   push:
-    branches: [master, aqtion, ci]
+    branches: [master, aqtion, aqtion-alpha, ci]
   pull_request:
-    branches: [master, aqtion]
+    branches: [master, aqtion, aqtion-alpha]
+  workflow_dispatch:
 
 env:
   MESON_ARGS: >-
     --auto-features=enabled
     --fatal-meson-warnings
     -Danticheat-server=true
+    -Davcodec=disabled
     -Dclient-gtv=true
     -Dpacketdup-hack=true
     -Dtests=false
     -Dvariable-fps=true
     -Dwerror=false
     -Daqtion-build=true
-    -Ddiscord-sdk=true
+    -Ddiscord-sdk=false
 
   MESON_ARGS_WIN: >-
     -Dsdl2=disabled
-    -Dwayland=disabled
-    -Dwrap_mode=forcefallback
     -Dx11=disabled
+    -Dwayland=disabled
+    -Dwindows-egl=true
+    -Dwrap_mode=forcefallback
 
   MESON_ARGS_LINUX: >-
+    -Dx11=enabled
+    -Dwayland=enabled
+    -Dsdl2=enabled
     -Dwindows-crash-dumps=disabled
     -Dwrap_mode=nofallback
 
@@ -38,15 +44,15 @@ env:
 
 jobs:
   mingw:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     strategy:
       matrix:
         #arch: ["i686", "x86_64"]
         arch: ["x86_64"]
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v6
 
-      - uses: actions/cache@v3
+      - uses: actions/cache@v4
         with:
           path: subprojects/packagecache
           key: ${{ hashFiles('subprojects/*.wrap') }}
@@ -54,7 +60,8 @@ jobs:
       - name: Install dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y gcc-mingw-w64 meson nasm
+          sudo apt-get install -y gcc-mingw-w64 nasm python3-pip ninja-build
+          sudo python3 -m pip install meson
 
       - name: Build
         run: |
@@ -63,12 +70,13 @@ jobs:
           meson compile -vC builddir
 
       - name: Generate Win Mingw archives
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v6
         with:
           name: q2pro-mingw-${{ matrix.arch }}
           path: |
             builddir/q2pro.exe
             builddir/q2proded.exe
+            builddir/gamex86_64.dll
 
   msvc:
     runs-on: windows-latest
@@ -77,9 +85,9 @@ jobs:
         #arch: ["x86", "x64"]
         arch: ["x64"]
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v6
 
-      - uses: actions/cache@v3
+      - uses: actions/cache@v4
         with:
           path: subprojects/packagecache
           key: ${{ hashFiles('subprojects/*.wrap') }}
@@ -95,16 +103,17 @@ jobs:
 
       - name: Build
         run: |
-          meson setup ${{ env.MESON_ARGS }} ${{ env.MESON_ARGS_WIN }} -Dvorbis:werror=false builddir
-          meson compile -vC builddir
+          meson setup ${{ env.MESON_ARGS }} ${{ env.MESON_ARGS_WIN }} builddir
+          meson compile -C builddir
 
       - name: Generate Win MSVC archives
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v6
         with:
           name: q2pro-msvc-${{ matrix.arch }}
           path: |
             builddir/q2pro.exe
             builddir/q2proded.exe
+            builddir/gamex86_64.dll
 
   linux64:
     runs-on: ubuntu-22.04
@@ -113,16 +122,25 @@ jobs:
       matrix:
         cc: [gcc, clang]
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v6
 
       - name: Install dependencies
         run: |
           sudo apt-get update
           sudo apt-get install -y meson libsdl2-dev libopenal-dev \
           libpng-dev libjpeg-dev zlib1g-dev mesa-common-dev \
-          libcurl4-gnutls-dev libx11-dev libxi-dev \
+          libcurl4-openssl-dev libx11-dev libxi-dev \
           libwayland-dev wayland-protocols libdecor-0-dev \
-          libogg-dev libvorbis-dev patchelf
+          libavcodec-dev libavformat-dev libavutil-dev \
+          libswresample-dev libswscale-dev \
+          uuid-dev patchelf
+
+      - name: Install libjansson libs from source
+        run: |
+          wget https://github.com/akheron/jansson/releases/download/v2.14/jansson-2.14.tar.gz
+          tar xfz jansson-2.14.tar.gz && cd jansson-2.14
+          CFLAGS="-fPIC" ./configure
+          make && sudo make install
 
       - name: Build
         run: |
@@ -133,19 +151,20 @@ jobs:
 
       - name: patchelf path to discord_game_sdk.so
         run: |
-          patchelf --replace-needed /home/github/actions-runner/_work/q2pro/q2pro/extern/discord/lib/x86_64/discord_game_sdk.so ./discord_game_sdk.so builddir/q2pro
+          patchelf --replace-needed /home/runner/work/q2pro/q2pro/extern/discord/lib/x86_64/discord_game_sdk.so ./discord_game_sdk.so builddir/q2pro
 
       - name: Set binaries as executable
         run: |
           chmod +x builddir/q2pro*
           
       - name: Generate Linux x64 archives
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v6
         with:
-          name: q2pro-lin-${{ matrix.cc }}
+          name: q2pro-lin-${{ matrix.cc }}-x86_64
           path: |
             builddir/q2pro
             builddir/q2proded
+            builddir/gamex86_64.so
 
   linuxARM64:
     runs-on: [self-hosted, ARM64]
@@ -153,7 +172,7 @@ jobs:
       matrix:
         cc: [gcc]
     steps:
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@v6
 
       # - name: Install dependencies
       #   run: |
@@ -176,24 +195,58 @@ jobs:
           chmod +x builddir/q2pro*
 
       - name: Generate Linux ARM archives
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v6
         with:
           name: q2pro-lin-arm64
           path: |
             builddir/q2pro
             builddir/q2proded
+            builddir/gamearm64.so
+
+  fedora:
+    runs-on: [self-hosted, linux, fedora]
+    steps:
+      - uses: actions/checkout@v6
+
+      # Already installed, run this manually to update/patch versions
+      # - name: Install dependencies
+      #   run: |
+      #     sudo dnf install -y meson ninja-build gcc \
+      #     SDL2-devel openal-soft-devel \
+      #     libpng-devel libjpeg-turbo-devel zlib-devel mesa-libGL-devel \
+      #     libcurl-devel libX11-devel libXi-devel \
+      #     wayland-devel wayland-protocols-devel libdecor-devel \
+      #     libuuid-devel patchelf jansson-devel
+
+      # jansson needed built from source, uuid needed dnf install mingw64-crt-13.0.0-2.fc43.noarch and ln -s the libuuid.a to /usr/lib64
+      - name: Build
+        run: |
+          meson setup --wipe --force-fallback-for=jansson,uuid ${{ env.MESON_ARGS }} ${{ env.MESON_ARGS_LINUX }} builddir
+          meson compile -C builddir
+
+      - name: Set binaries as executable
+        run: |
+          chmod +x builddir/q2pro*
+
+      - name: Generate Linux Fedora archives
+        uses: actions/upload-artifact@v6
+        with:
+          name: q2pro-fedora-x86_64
+          path: |
+            builddir/q2pro
+            builddir/q2proded
+            builddir/gamex86_64.so
 
   darwin:
-    runs-on: macos-latest
-    strategy:
-      matrix:
-        arch: [x86_64]
+    runs-on: macos-15-intel
     steps:
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@v6
 
       - name: Install dependencies
         run: |
-          brew install meson libpng sdl2 openal-soft zlib curl libvorbis jpeg-turbo
+          brew install pkg-config meson libpng sdl2 \
+          openal-soft zlib curl ffmpeg jpeg-turbo \
+          ossp-uuid jansson
 
       - name: Build
         run: |
@@ -209,40 +262,41 @@ jobs:
           chmod +x builddir/q2pro*
 
       - name: Generate Mac archives
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v6
         with:
-          name: q2pro-darwin-${{ matrix.arch }}
+          name: q2pro-darwin-x86_64
           path: |
             builddir/q2pro
             builddir/q2proded
+            builddir/gamex86_64.dylib
 
-  # Github does not support Apple Silicon yet
-  # macARM64:
-  #   runs-on: macos-latest
-  #   steps:
-  #     - uses: actions/checkout@v2
+  darwin-arm64:
+    runs-on: macos-14
+    steps:
+      - uses: actions/checkout@v6
 
-  #     - name: Setup Homebrew for ARM64 and dependencies
-  #       run: |
-  #         arch -arm64 brew install meson libpng jpeg sdl2 openal-soft zlib curl libvorbis
+      - name: Install dependencies
+        run: |
+          brew install pkg-config meson libpng sdl2 openal-soft zlib curl ffmpeg jpeg-turbo jansson ossp-uuid
 
-  #     - name: Build
-  #       run: |
-  #         meson setup ${{ env.MESON_ARGS }} builddir
-  #         ninja -vC builddir
-  #       env:
-  #         CC: "gcc"
-  #         PKG_CONFIG_PATH: "/opt/homebrew/Cellar/openal-soft/1.22.2/lib/pkgconfig/:/opt/homebrew/Cellar/jpeg/9e/lib/pkgconfig/"
-  #         CFLAGS: "-target arm64-apple-macos11"
+      - name: Build
+        run: |
+          meson setup ${{ env.MESON_ARGS }} ${{ env.MESON_ARGS_MAC }} builddir
+          meson compile -vC builddir
+        env:
+          CC: "gcc"
+          PKG_CONFIG_PATH: "/opt/homebrew/opt/openal-soft/lib/pkgconfig"
+          CFLAGS: "-target arm64-apple-macos11"
 
-  #     - name: Set binaries as executable
-  #       run: |
-  #         chmod +x builddir/q2pro*
+      - name: Set binaries as executable
+        run: |
+          chmod +x builddir/q2pro*
 
-  #     - name: Generate Mac archives
-  #       uses: actions/upload-artifact@v3
-  #       with:
-  #         name: q2pro-mac-arm64
-  #         path: |
-  #           builddir/q2pro
-  #           builddir/q2proded
+      - name: Generate Mac archives
+        uses: actions/upload-artifact@v6
+        with:
+          name: q2pro-darwin-arm64
+          path: |
+            builddir/q2pro
+            builddir/q2proded
+            builddir/gamearm64.dylib

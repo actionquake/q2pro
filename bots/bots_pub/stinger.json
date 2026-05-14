@@ -1,0 +1,35 @@
+{
+    "name": "Stinger",
+    "clan_id": null,
+    "skin": "aqmarine/urban",
+    "weaponPreferences": {
+        "mk23": 0.4,
+        "dual_mk23": 0.3,
+        "mp5": 0.6,
+        "m4": 0.4,
+        "m3": 0.1,
+        "hc": 0.6,
+        "sniper": 0.5,
+        "knives": 0.3,
+        "grenades": 0.6
+    },
+    "itemPreferences": {
+        "vest": 0.5,
+        "helm": 0.7,
+        "laser": 0.3,
+        "silencer": 0.6,
+        "slippers": 0.5,
+        "bandolier": 0.5
+    },
+    "coreTraits": {
+        "aggressiveness": 0.4,
+        "teamwork": 0.2,
+        "curiosity": 0.6,
+        "aimingSkill": 0.8,
+        "reactionTime": 0.4,
+        "communicationFreq": 0.2,
+        "communicationTone": 0.4,
+        "movementStyle": 0.6,
+        "objectiveFocus": 0.5
+    }
+}

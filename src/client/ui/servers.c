@@ -61,6 +61,7 @@ typedef struct {
     unsigned    timestamp;
     uint32_t    color;
     char        name[1];
+    bool        hasBots;
 } serverslot_t;
 
 typedef struct {
@@ -84,6 +85,7 @@ static m_servers_t  m_servers;
 static cvar_t   *ui_sortservers;
 static cvar_t   *ui_colorservers;
 static cvar_t   *ui_pingrate;
+static cvar_t   *ui_colorpingmax;
 
 static void UpdateSelection(void)
 {
@@ -163,6 +165,7 @@ static void FreeSlot(serverslot_t *slot)
         Z_Free(slot->rules[i]);
     for (i = 0; i < slot->numPlayers; i++)
         Z_Free(slot->players[i]);
+
     Z_Free(slot);
 }
 
@@ -188,17 +191,28 @@ static serverslot_t *FindSlot(const netadr_t *search, int *index_p)
 
 static uint32_t ColorForStatus(const serverStatus_t *status, unsigned ping)
 {
-    if (atoi(Info_ValueForKey(status->infostring, "needpass")) >= 1)
+    ui_colorpingmax = Cvar_Get("ui_colorpingmax", "50", 0);
+
+    if (Q_atoi(Info_ValueForKey(status->infostring, "needpass")) >= 1)
         return uis.color.disabled.u32;
 
-    if (atoi(Info_ValueForKey(status->infostring, "anticheat")) >= 2)
+    if (Q_atoi(Info_ValueForKey(status->infostring, "anticheat")) >= 2)
         return uis.color.disabled.u32;
 
     if (Q_stricmp(Info_ValueForKey(status->infostring, "NoFake"), "ENABLED") == 0)
         return uis.color.disabled.u32;
 
-    if (ping < 30)
+    if (atoi(Info_ValueForKey(status->infostring, "bots")) > 0)
+        return U32_MAGENTA;
+    
+    if (ping > (ui_colorpingmax->value * 3))
+        return U32_YELLOW;
+
+    if (ping <= ui_colorpingmax->value)
         return U32_GREEN;
+
+     if (atoi(Info_ValueForKey(status->infostring, "sv_antilag")) > 0)
+        return U32_CYAN;
 
     return U32_WHITE;
 }
@@ -214,12 +228,13 @@ void UI_StatusEvent(const serverStatus_t *status)
 {
     serverslot_t *slot;
     char *hostname;
-    const char *host, *mod, *map, *maxclients;
+    const char *host, *map, *maxclients;
     unsigned timestamp, ping;
     const char *info = status->infostring;
     char key[MAX_INFO_STRING];
     char value[MAX_INFO_STRING];
     int i;
+    int playerCount = status->numPlayers;
 
     // ignore unless menu is up
     if (!m_servers.args) {
@@ -228,6 +243,7 @@ void UI_StatusEvent(const serverStatus_t *status)
 
     // see if already added
     slot = FindSlot(&net_from, &i);
+
     if (!slot) {
         // reply to broadcast, create new slot
         if (m_servers.list.numItems >= MAX_STATUS_SERVERS) {
@@ -243,14 +259,21 @@ void UI_StatusEvent(const serverStatus_t *status)
         FreeSlot(slot);
     }
 
+    const char *am = "No";
+    #if USE_AQTION
+    // This checks if the server has bots, if so, turn the color of the server to MAGENTA
+    const char *hasBotsCheck = Info_ValueForKey(status->infostring, "bots");
+
+    if (hasBotsCheck == NULL || COM_IsWhite(hasBotsCheck) || *hasBotsCheck == '0') {
+        am = "No";
+    } else {
+        am = "Yes";
+    }
+    #endif
+
     host = Info_ValueForKey(info, "hostname");
     if (COM_IsWhite(host)) {
         host = hostname;
-    }
-
-    mod = Info_ValueForKey(info, "game");
-    if (COM_IsWhite(mod)) {
-        mod = "baseq2";
     }
 
     map = Info_ValueForKey(info, "mapname");
@@ -269,11 +292,18 @@ void UI_StatusEvent(const serverStatus_t *status)
     ping = com_eventTime - timestamp;
     if (ping > 999)
         ping = 999;
-
-    slot = UI_FormatColumns(SLOT_EXTRASIZE, host, mod, map,
+    
+    #if USE_AQTION
+    slot = UI_FormatColumns(SLOT_EXTRASIZE, host, am, map,
+                            va("%d/%s", playerCount, maxclients),
+                            va("%u", ping),
+                            NULL);
+    #else
+    slot = UI_FormatColumns(SLOT_EXTRASIZE, host, am, map,
                             va("%d/%s", status->numPlayers, maxclients),
                             va("%u", ping),
                             NULL);
+    #endif
     slot->status = SLOT_VALID;
     slot->address = net_from;
     slot->hostname = hostname;
@@ -301,11 +331,11 @@ void UI_StatusEvent(const serverStatus_t *status)
     for (i = 0; i < status->numPlayers; i++) {
         slot->players[i] =
             UI_FormatColumns(0,
-                             va("%d", status->players[i].score),
-                             va("%d", status->players[i].ping),
-                             status->players[i].name,
-                             NULL);
-    }
+                            va("%d", status->players[i].score),
+                            va("%d", status->players[i].ping),
+                            status->players[i].name,
+                            NULL);
+        }
 
     slot->timestamp = timestamp;
 
@@ -324,7 +354,7 @@ UI_ErrorEvent
 An ICMP destination-unreachable error has been received.
 =================
 */
-void UI_ErrorEvent(netadr_t *from)
+void UI_ErrorEvent(const netadr_t *from)
 {
     serverslot_t *slot;
     netadr_t address;
@@ -397,8 +427,8 @@ static menuSound_t CopyAddress(void)
 
     slot = m_servers.list.items[m_servers.list.curvalue];
 
-    if (vid.set_clipboard_data)
-        vid.set_clipboard_data(slot->hostname);
+    if (vid && vid->set_clipboard_data)
+        vid->set_clipboard_data(slot->hostname);
     return QMS_OUT;
 }
 
@@ -602,7 +632,7 @@ static void ParseMasterArgs(netadr_t *broadcast)
             if (len < 0)
                 continue;
             (*parse)(data, len, chunk);
-            free(data);
+            HTTP_FreeFile(data);
 #else
             Com_Printf("Can't fetch '%s', no HTTP support compiled in.\n", s);
 #endif
@@ -668,14 +698,13 @@ static void FinishPingStage(void)
 static void CalcPingRate(void)
 {
     extern cvar_t *info_rate;
+
+    // don't allow more than 100 packets/sec
     int rate = Cvar_ClampInteger(ui_pingrate, 0, 100);
 
     // assume average 450 bytes per reply packet
     if (!rate)
-        rate = info_rate->integer / 450;
-
-    // don't allow more than 100 packets/sec
-    clamp(rate, 1, 100);
+        rate = Q_clip(info_rate->integer / 450, 1, 100);
 
     // drop rate by stage
     m_servers.pingtime = (1000 * PING_STAGES) / (rate * m_servers.pingstage);
@@ -777,8 +806,8 @@ static int namecmp(serverslot_t *s1, serverslot_t *s2, int col)
 
 static int pingcmp(serverslot_t *s1, serverslot_t *s2)
 {
-    int n1 = atoi(UI_GetColumn(s1->name, COL_RTT));
-    int n2 = atoi(UI_GetColumn(s2->name, COL_RTT));
+    int n1 = Q_atoi(UI_GetColumn(s1->name, COL_RTT));
+    int n2 = Q_atoi(UI_GetColumn(s2->name, COL_RTT));
 
     return (n1 - n2) * m_servers.list.sortdir;
 }
@@ -900,52 +929,52 @@ static void SizeCompact(void)
 // server list
 //
     m_servers.list.generic.x            = 0;
-    m_servers.list.generic.y            = CHAR_HEIGHT;
-    m_servers.list.generic.height       = uis.height / 2 - CHAR_HEIGHT;
+    m_servers.list.generic.y            = CONCHAR_HEIGHT;
+    m_servers.list.generic.height       = uis.height / 2 - CONCHAR_HEIGHT;
 
-    m_servers.list.columns[0].width     = w - 10 * CHAR_WIDTH - MLIST_PADDING * 2;
+    m_servers.list.columns[0].width     = w - 10 * CONCHAR_WIDTH - MLIST_PADDING * 2;
     m_servers.list.columns[1].width     = 0;
     m_servers.list.columns[2].width     = 0;
-    m_servers.list.columns[3].width     = 7 * CHAR_WIDTH + MLIST_PADDING;
-    m_servers.list.columns[4].width     = 3 * CHAR_WIDTH + MLIST_PADDING;
+    m_servers.list.columns[3].width     = 7 * CONCHAR_WIDTH + MLIST_PADDING;
+    m_servers.list.columns[4].width     = 3 * CONCHAR_WIDTH + MLIST_PADDING;
 
 //
 // player list
 //
     m_servers.players.generic.x         = 0;
     m_servers.players.generic.y         = uis.height / 2 + 1;
-    m_servers.players.generic.height    = (uis.height + 1) / 2 - CHAR_HEIGHT - 2;
+    m_servers.players.generic.height    = (uis.height + 1) / 2 - CONCHAR_HEIGHT - 2;
 
-    m_servers.players.columns[0].width  = 3 * CHAR_WIDTH + MLIST_PADDING;
-    m_servers.players.columns[1].width  = 3 * CHAR_WIDTH + MLIST_PADDING;
-    m_servers.players.columns[2].width  = w - 6 * CHAR_WIDTH - MLIST_PADDING * 2;
+    m_servers.players.columns[0].width  = 3 * CONCHAR_WIDTH + MLIST_PADDING;
+    m_servers.players.columns[1].width  = 3 * CONCHAR_WIDTH + MLIST_PADDING;
+    m_servers.players.columns[2].width  = w - 6 * CONCHAR_WIDTH - MLIST_PADDING * 2;
 
     m_servers.players.mlFlags           |= MLF_SCROLLBAR;
 }
 
 static void SizeFull(void)
 {
-    int w = uis.width - MLIST_SCROLLBAR_WIDTH - 21 * CHAR_WIDTH - MLIST_PADDING * 3;
+    int w = uis.width - MLIST_SCROLLBAR_WIDTH - 21 * CONCHAR_WIDTH - MLIST_PADDING * 3;
 
 //
 // server list
 //
     m_servers.list.generic.x            = 0;
-    m_servers.list.generic.y            = CHAR_HEIGHT;
-    m_servers.list.generic.height       = uis.height / 2 - CHAR_HEIGHT;
+    m_servers.list.generic.y            = CONCHAR_HEIGHT;
+    m_servers.list.generic.height       = uis.height / 2 - CONCHAR_HEIGHT;
 
-    m_servers.list.columns[0].width     = w - 26 * CHAR_WIDTH - MLIST_PADDING * 4;
-    m_servers.list.columns[1].width     = 8 * CHAR_WIDTH + MLIST_PADDING;
-    m_servers.list.columns[2].width     = 8 * CHAR_WIDTH + MLIST_PADDING;
-    m_servers.list.columns[3].width     = 7 * CHAR_WIDTH + MLIST_PADDING;
-    m_servers.list.columns[4].width     = 3 * CHAR_WIDTH + MLIST_PADDING;
+    m_servers.list.columns[0].width     = w - 26 * CONCHAR_WIDTH - MLIST_PADDING * 4;
+    m_servers.list.columns[1].width     = 8 * CONCHAR_WIDTH + MLIST_PADDING;
+    m_servers.list.columns[2].width     = 8 * CONCHAR_WIDTH + MLIST_PADDING;
+    m_servers.list.columns[3].width     = 7 * CONCHAR_WIDTH + MLIST_PADDING;
+    m_servers.list.columns[4].width     = 3 * CONCHAR_WIDTH + MLIST_PADDING;
 
 //
 // server info
 //
     m_servers.info.generic.x            = 0;
     m_servers.info.generic.y            = uis.height / 2 + 1;
-    m_servers.info.generic.height       = (uis.height + 1) / 2 - CHAR_HEIGHT - 2;
+    m_servers.info.generic.height       = (uis.height + 1) / 2 - CONCHAR_HEIGHT - 2;
 
     m_servers.info.columns[0].width     = w / 3;
     m_servers.info.columns[1].width     = w - w / 3;
@@ -954,12 +983,12 @@ static void SizeFull(void)
 // player list
 //
     m_servers.players.generic.x         = w + MLIST_SCROLLBAR_WIDTH;
-    m_servers.players.generic.y         = CHAR_HEIGHT;
-    m_servers.players.generic.height    = uis.height - CHAR_HEIGHT * 2 - 1;
+    m_servers.players.generic.y         = CONCHAR_HEIGHT;
+    m_servers.players.generic.height    = uis.height - CONCHAR_HEIGHT * 2 - 1;
 
-    m_servers.players.columns[0].width  = 3 * CHAR_WIDTH + MLIST_PADDING;
-    m_servers.players.columns[1].width  = 3 * CHAR_WIDTH + MLIST_PADDING;
-    m_servers.players.columns[2].width  = 15 * CHAR_WIDTH + MLIST_PADDING;
+    m_servers.players.columns[0].width  = 3 * CONCHAR_WIDTH + MLIST_PADDING;
+    m_servers.players.columns[1].width  = 3 * CONCHAR_WIDTH + MLIST_PADDING;
+    m_servers.players.columns[2].width  = 15 * CONCHAR_WIDTH + MLIST_PADDING;
 
     m_servers.players.mlFlags           &= ~MLF_SCROLLBAR;
 }
@@ -1018,22 +1047,22 @@ static void DrawStatus(void)
     else
         w = uis.width;
 
-    R_DrawFill8(0, uis.height - CHAR_HEIGHT, w, CHAR_HEIGHT, 4);
-    R_DrawFill8(w, uis.height - CHAR_HEIGHT, uis.width - w, CHAR_HEIGHT, 0);
+    R_DrawFill8(0, uis.height - CONCHAR_HEIGHT, w, CONCHAR_HEIGHT, 4);
+    R_DrawFill8(w, uis.height - CONCHAR_HEIGHT, uis.width - w, CONCHAR_HEIGHT, 0);
 
     if (m_servers.status_c)
-        UI_DrawString(uis.width / 2, uis.height - CHAR_HEIGHT, UI_CENTER, m_servers.status_c);
+        UI_DrawString(uis.width / 2, uis.height - CONCHAR_HEIGHT, UI_CENTER, m_servers.status_c);
 
     if (uis.width < 800)
         return;
 
     if (m_servers.list.numItems)
-        UI_DrawString(uis.width, uis.height - CHAR_HEIGHT, UI_RIGHT, m_servers.status_r);
+        UI_DrawString(uis.width, uis.height - CONCHAR_HEIGHT, UI_RIGHT, m_servers.status_r);
 
     if (m_servers.list.numItems && m_servers.list.curvalue >= 0) {
         serverslot_t *slot = m_servers.list.items[m_servers.list.curvalue];
         if (slot->status > SLOT_PENDING) {
-            UI_DrawString(0, uis.height - CHAR_HEIGHT, UI_LEFT, slot->hostname);
+            UI_DrawString(0, uis.height - CONCHAR_HEIGHT, UI_LEFT, slot->hostname);
         }
     }
 }
@@ -1081,7 +1110,7 @@ void M_Menu_Servers(void)
 {
     ui_sortservers = Cvar_Get("ui_sortservers", "0", 0);
     ui_sortservers->changed = ui_sortservers_changed;
-    ui_colorservers = Cvar_Get("ui_colorservers", "0", 0);
+    ui_colorservers = Cvar_Get("ui_colorservers", "1", 0);
     ui_colorservers->changed = ui_colorservers_changed;
     ui_pingrate = Cvar_Get("ui_pingrate", "0", 0);
 
@@ -1117,7 +1146,7 @@ void M_Menu_Servers(void)
     m_servers.list.columns[0].uiFlags   = UI_LEFT;
     m_servers.list.columns[0].name      = "Hostname";
     m_servers.list.columns[1].uiFlags   = UI_CENTER;
-    m_servers.list.columns[1].name      = "Mod";
+    m_servers.list.columns[1].name      = "Bots";
     m_servers.list.columns[2].uiFlags   = UI_CENTER;
     m_servers.list.columns[2].name      = "Map";
     m_servers.list.columns[3].uiFlags   = UI_CENTER;

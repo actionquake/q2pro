@@ -131,9 +131,11 @@ end
 begin effects
     title "Effects Setup"
     values "dynamic lighting" gl_dynamic "no" "yes" "only switchable"
+    values "  lightstyles" gl_dynamic_lightstyles "off" "all" "only switchable"
+    values "  muzzleflash" gl_dynamic_muzzleflash "off" "on"
     values "entity cel-shading" gl_celshading no 1x 2x 3x
     toggle "entity glowing" cl_noglow ~
-    toggle "ground shadows" gl_shadows
+    values "ground shadows" gl_shadows no yes fade
     toggle "screen blending" gl_polyblend
     toggle "screen warping" gl_waterwarp
     toggle "grenade explosions" cl_disable_explosions ~0
@@ -163,6 +165,7 @@ begin screen
     pairs "HUD scale" scr_scale auto 0 1x 1 2x 2 4x 4
     pairs "console scale" con_scale auto 0 1x 1 2x 2 4x 4
     pairs "menu scale" ui_scale auto 0 1x 1 2x 2 4x 4
+    pairs "Lag graph scale" scr_lag_draw_scale default 1 2x 2 3x 3
     blank
     action --align "crosshair setup..." pushmenu crosshair
 end

@@ -90,7 +90,7 @@ typedef struct {
     bool ping_pending;
     unsigned last_ping;
     netstream_t stream;
-    size_t msglen;
+    unsigned msglen;
 } ac_locals_t;
 
 typedef struct {
@@ -108,10 +108,10 @@ typedef struct {
     char hashlist_name[MAX_QPATH];
 } ac_static_t;
 
-#define ACP_BLOCKPLAY   (1 << 0)
+#define ACP_BLOCKPLAY   BIT(0)
 
-#define ACH_REQUIRED    (1 << 0)
-#define ACH_NEGATIVE    (1 << 1)
+#define ACH_REQUIRED    BIT(0)
+#define ACH_NEGATIVE    BIT(1)
 
 #define AC_PROTOCOL_VERSION     0xAC03
 
@@ -972,7 +972,7 @@ static bool AC_ParseMessage(void)
     }
 
     if (msg_read.readcount > msg_read.cursize) {
-        Com_WPrintf("ANTICHEAT: Read %zu bytes past end of message %d\n",
+        Com_WPrintf("ANTICHEAT: Read %u bytes past end of message %d\n",
                     msg_read.readcount - msg_read.cursize, cmd);
     }
 
@@ -1094,7 +1094,7 @@ void AC_ClientAnnounce(client_t *cl)
     }
 }
 
-char *AC_ClientConnect(client_t *cl)
+const char *AC_ClientConnect(client_t *cl)
 {
     if (!ac_required->integer) {
         return ""; // anticheat is not in use
@@ -1576,7 +1576,7 @@ void AC_Info_f(void)
         filesubstring = Cmd_Argv(2);
 
         if (COM_IsUint(substring)) {
-            clientID = atoi(substring);
+            clientID = Q_atoi(substring);
             if (clientID < 0 || clientID >= sv_maxclients->integer) {
                 Com_Printf("Invalid client ID.\n");
                 return;

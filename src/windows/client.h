@@ -41,7 +41,7 @@ with this program; if not, write to the Free Software Foundation, Inc.,
 
 #if USE_CLIENT
 
-#define WINDOW_CLASS_NAME   "Quake 2 Pro"
+#define WINDOW_CLASS_NAME   "AQtion"
 
 #define IDI_APP 100
 
@@ -103,10 +103,10 @@ typedef struct {
     bool    alttab_disabled;
 
     enum {
-        MODE_SIZE       = (1 << 0),
-        MODE_POS        = (1 << 1),
-        MODE_STYLE      = (1 << 2),
-        MODE_REPOSITION = (1 << 3),
+        MODE_SIZE       = BIT(0),
+        MODE_POS        = BIT(1),
+        MODE_STYLE      = BIT(2),
+        MODE_REPOSITION = BIT(3),
     } mode_changed;
 
     struct {

@@ -1,7 +1,7 @@
 windows = import('windows')
 
 common_src += files('system.c', 'hunk.c')
-client_src += files('client.c', 'wgl.c', 'pthread.c')
+client_src += files('client.c', 'wgl.c')
 
 common_deps += cc.find_library('ws2_32')
 client_deps += cc.find_library('opengl32')
@@ -38,16 +38,16 @@ else
     depend_files:        ['res/q2proded.ico', 'res/q2proded.exe.manifest'],
     include_directories: rc_inc,
   )
-
-  game_src += windows.compile_resources('res/baseq2.rc',
-    args:                rc_args,
-    include_directories: rc_inc,
-  )
 endif
+
+game_src += windows.compile_resources('res/game.rc',
+  args:                rc_args,
+  include_directories: rc_inc,
+)
 
 client_deps += subproject('khr-headers').get_variable('khr_headers_dep')
 
-if get_option('software-sound')
+if get_option('software-sound').allowed()
   client_src += files('wave.c', 'dsound.c')
   client_deps += cc.find_library('winmm')
 endif

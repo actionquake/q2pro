@@ -44,6 +44,13 @@ static cvar_t   *cl_stats;
 
 cvar_t   *cl_adjustfov;
 
+#if USE_AQTION
+static cvar_t    *cl_zoom_autosens;
+static cvar_t    *cl_zoom_2x;
+static cvar_t    *cl_zoom_4x;
+static cvar_t    *cl_zoom_6x;
+#endif
+
 int         r_numdlights;
 dlight_t    r_dlights[MAX_DLIGHTS];
 
@@ -69,21 +76,18 @@ static void V_ClearScene(void)
     r_numparticles = 0;
 }
 
-
 /*
 =====================
 V_AddEntity
 
 =====================
 */
-void V_AddEntity(entity_t *ent)
+void V_AddEntity(const entity_t *ent)
 {
     if (r_numentities >= MAX_ENTITIES)
         return;
-
     r_entities[r_numentities++] = *ent;
 }
-
 
 /*
 =====================
@@ -91,7 +95,7 @@ V_AddParticle
 
 =====================
 */
-void V_AddParticle(particle_t *p)
+void V_AddParticle(const particle_t *p)
 {
     if (r_numparticles >= MAX_PARTICLES)
         return;
@@ -221,7 +225,7 @@ static void V_TestLights(void)
         return;
     }
 
-    r_numdlights = 32;
+    r_numdlights = MAX_DLIGHTS;
     memset(r_dlights, 0, sizeof(r_dlights));
 
     for (i = 0; i < r_numdlights; i++) {
@@ -293,10 +297,19 @@ static int entitycmpfnc(const void *_a, const void *_b)
     const entity_t *b = (const entity_t *)_b;
 
     // all other models are sorted by model then skin
-    if (a->model == b->model)
-        return a->skin - b->skin;
-    else
-        return a->model - b->model;
+    if (a->model > b->model)
+        return 1;
+    if (a->model < b->model)
+        return -1;
+
+    if (a->skin > b->skin)
+        return 1;
+    if (a->skin < b->skin)
+        return -1;
+
+    bool a_shell = a->flags & RF_SHELL_MASK;
+    bool b_shell = b->flags & RF_SHELL_MASK;
+    return a_shell - b_shell;
 }
 
 static void V_SetLightLevel(void)
@@ -336,14 +349,37 @@ float V_CalcFov(float fov_x, float width, float height)
     if (fov_x < 0.75f || fov_x > 179)
         Com_Error(ERR_DROP, "%s: bad fov: %f", __func__, fov_x);
 
-    x = width / tan(fov_x * (M_PI / 360));
+    x = width / tanf(fov_x * (M_PIf / 360));
 
-    a = atan(height / x);
-    a = a * (360 / M_PI);
+    a = atanf(height / x);
+    a = a * (360 / M_PIf);
 
     return a;
 }
 
+#if USE_AQTION
+static void cl_zoom_autosens_changed(float fov)
+{
+    cvar_t    *sensitivity = Cvar_Get("sensitivity", "0", CVAR_ARCHIVE);
+    cvar_t    *oldsens = Cvar_Get("oldsens", "0", CVAR_NOARCHIVE);
+
+    // Anchor value so we return to it after zooming
+    oldsens->value = atof(sensitivity->string);
+
+    // Adjust sensitivity based on zoom level
+    if (cl.fov_x >= 90.0f) {  // No zoom
+        Cvar_Set("sensitivity", oldsens->string);
+    } else if (cl.fov_x == 45.0f && cl_zoom_2x->value) { // 2x scope
+        Cvar_Set("sensitivity", cl_zoom_2x->string);
+    } else if (cl.fov_x == 20.0f && cl_zoom_4x->value) { // 4x scope
+        Cvar_Set("sensitivity", cl_zoom_4x->string);
+    } else if (cl.fov_x == 10.0f && cl_zoom_6x->value) { // 6x scope
+        Cvar_Set("sensitivity", cl_zoom_6x->string);
+    } else { // Safe default back to 1x
+        Cvar_Set("sensitivity", oldsens->string);
+    }
+}
+#endif
 
 /*
 ==================
@@ -370,12 +406,10 @@ void V_RenderView(void)
             V_TestEntities();
         if (cl_testlights->integer)
             V_TestLights();
-        if (cl_testblend->integer) {
-            cl.refdef.blend[0] = 1;
-            cl.refdef.blend[1] = 0.5f;
-            cl.refdef.blend[2] = 0.25f;
-            cl.refdef.blend[3] = 0.5f;
-        }
+        if (cl_testblend->integer & 1)
+            Vector4Set(cl.refdef.screen_blend, 1, 0.5f, 0.25f, 0.5f);
+        if (cl_testblend->integer & 2)
+            Vector4Set(cl.refdef.damage_blend, 0.25f, 0.5f, 0.7f, 0.5f);
 #endif
 
         // never let it sit exactly on a node line, because a water plane can
@@ -399,6 +433,11 @@ void V_RenderView(void)
             cl.refdef.fov_y = V_CalcFov(cl.refdef.fov_x, cl.refdef.width, cl.refdef.height);
         }
 
+        #if USE_AQTION
+        if (cl_zoom_autosens->value)
+            cl_zoom_autosens_changed(cl.fov_x);
+        #endif
+
         cl.refdef.time = cl.time * 0.001f;
 
         if (cl.frame.areabytes) {
@@ -413,8 +452,14 @@ void V_RenderView(void)
             r_numparticles = 0;
         if (!cl_add_lights->integer)
             r_numdlights = 0;
-        if (!cl_add_blend->integer)
-            Vector4Clear(cl.refdef.blend);
+        if (!cl_add_blend->integer) {
+            Vector4Clear(cl.refdef.screen_blend);
+            Vector4Clear(cl.refdef.damage_blend);
+        }
+        if (cl.custom_fog.density) {
+            cl.refdef.fog = cl.custom_fog;
+            cl.refdef.heightfog = (player_heightfog_t){ 0 };
+        }
 
         cl.refdef.num_entities = r_numentities;
         cl.refdef.entities = r_entities;
@@ -424,6 +469,7 @@ void V_RenderView(void)
         cl.refdef.dlights = r_dlights;
         cl.refdef.lightstyles = r_lightstyles;
         cl.refdef.rdflags = cl.frame.ps.rdflags;
+        cl.refdef.extended = cl.csr.extended;
 
         // sort entities for better cache locality
         qsort(cl.refdef.entities, cl.refdef.num_entities, sizeof(cl.refdef.entities[0]), entitycmpfnc);
@@ -449,11 +495,78 @@ static void V_Viewpos_f(void)
     Com_Printf("%s : %.f\n", vtos(cl.refdef.vieworg), cl.refdef.viewangles[YAW]);
 }
 
+/*
+=============
+V_Fog_f
+=============
+*/
+static void dump_fog(const player_fog_t *fog)
+{
+    Com_Printf("(%.3f %.3f %.3f) %f %f\n",
+               fog->color[0], fog->color[1], fog->color[2],
+               fog->density, fog->sky_factor);
+}
+
+static void dump_heightfog(const player_heightfog_t *fog)
+{
+    Com_Printf("Start  : (%.3f %.3f %.3f) %.f\n",
+               fog->start.color[0], fog->start.color[1], fog->start.color[2], fog->start.dist);
+    Com_Printf("End    : (%.3f %.3f %.3f) %.f\n",
+               fog->end.color[0], fog->end.color[1], fog->end.color[2], fog->end.dist);
+    Com_Printf("Density: %f\n", fog->density);
+    Com_Printf("Falloff: %f\n", fog->falloff);
+}
+
+static void V_Fog_f(void)
+{
+    int argc = Cmd_Argc();
+    float args[5];
+
+    if (argc == 1) {
+        if (cl.custom_fog.density) {
+            Com_Printf("User set global fog:\n");
+            dump_fog(&cl.custom_fog);
+            return;
+        }
+        if (!cl.frame.ps.fog.density && !cl.frame.ps.heightfog.density) {
+            Com_Printf("No fog.\n");
+            return;
+        }
+        if (cl.frame.ps.fog.density) {
+            Com_Printf("Global fog:\n");
+            dump_fog(&cl.frame.ps.fog);
+        }
+        if (cl.frame.ps.heightfog.density) {
+            Com_Printf("Height fog:\n");
+            dump_heightfog(&cl.frame.ps.heightfog);
+        }
+        return;
+    }
+
+    if (argc < 5) {
+        Com_Printf("Usage: %s <r g b density> [sky_factor]\n", Cmd_Argv(0));
+        return;
+    }
+
+    for (int i = 0; i < 5; i++)
+        args[i] = Q_clipf(Q_atof(Cmd_Argv(i + 1)), 0, 1);
+
+    cl.custom_fog.color[0]   = args[0];
+    cl.custom_fog.color[1]   = args[1];
+    cl.custom_fog.color[2]   = args[2];
+    cl.custom_fog.density    = args[3];
+    cl.custom_fog.sky_factor = args[4];
+
+    cl.refdef.fog = cl.custom_fog;
+    cl.refdef.heightfog = (player_heightfog_t){ 0 };
+}
+
 static const cmdreg_t v_cmds[] = {
     { "gun_next", V_Gun_Next_f },
     { "gun_prev", V_Gun_Prev_f },
     { "gun_model", V_Gun_Model_f },
     { "viewpos", V_Viewpos_f },
+    { "fog", V_Fog_f },
     { NULL }
 };
 
@@ -487,6 +600,13 @@ void V_Init(void)
     cl_add_blend->changed = cl_add_blend_changed;
 
     cl_adjustfov = Cvar_Get("cl_adjustfov", "1", 0);
+
+    #if USE_AQTION
+    cl_zoom_autosens = Cvar_Get("cl_zoom_autosens", "0", CVAR_ARCHIVE);
+    cl_zoom_2x = Cvar_Get("cl_zoom_2x", "0", CVAR_ARCHIVE);
+    cl_zoom_4x = Cvar_Get("cl_zoom_4x", "0", CVAR_ARCHIVE);
+    cl_zoom_6x = Cvar_Get("cl_zoom_6x", "0", CVAR_ARCHIVE);
+    #endif
 }
 
 void V_Shutdown(void)

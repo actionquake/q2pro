@@ -1,0 +1,35 @@
+{
+    "name": "Trench",
+    "clan_id": 35,
+    "skin": "actionmale/morpheus",
+    "weaponPreferences": {
+        "mk23": 0.8,
+        "dual_mk23": 0.3,
+        "mp5": 0.6,
+        "m4": 0.4,
+        "m3": 0.2,
+        "hc": 0.1,
+        "sniper": 0.5,
+        "knives": 0.3,
+        "grenades": 0.6
+    },
+    "itemPreferences": {
+        "vest": 0.7,
+        "helm": 0.4,
+        "laser": 0.8,
+        "silencer": 0.9,
+        "slippers": 0.7,
+        "bandolier": 0.5
+    },
+    "coreTraits": {
+        "aggressiveness": 0.5,
+        "teamwork": 0.5,
+        "curiosity": 0.7,
+        "aimingSkill": 0.2,
+        "reactionTime": 0.7,
+        "communicationFreq": 0.7,
+        "communicationTone": 0.6,
+        "movementStyle": 0.6,
+        "objectiveFocus": 0.4
+    }
+}

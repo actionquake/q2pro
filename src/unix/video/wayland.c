@@ -606,7 +606,7 @@ static void registry_global(void *data, struct wl_registry *wl_registry,
     }
 
     if (!strcmp(interface, wl_data_device_manager_interface.name)) {
-        wl.data_device_manager = wl_registry_bind(wl_registry, name, &wl_data_device_manager_interface, 3);
+        wl.data_device_manager = wl_registry_bind(wl_registry, name, &wl_data_device_manager_interface, 1);
         return;
     }
 
@@ -666,10 +666,12 @@ static void init_clipboard(void);
 
 static void shutdown(void)
 {
-    struct output *output, *next;
-    wl_list_for_each_safe(output, next, &wl.outputs, link) {
-        wl_output_destroy(output->wl_output);
-        Z_Free(output);
+    if (wl.outputs.next) {
+        struct output *output, *next;
+        wl_list_for_each_safe(output, next, &wl.outputs, link) {
+            wl_output_destroy(output->wl_output);
+            Z_Free(output);
+        }
     }
 
     if (wl.egl_display)
@@ -717,7 +719,7 @@ static void egl_error(const char *what)
     Com_EPrintf("%s failed with error %#x\n", what, eglGetError());
 }
 
-static bool choose_config(r_opengl_config_t *cfg, EGLConfig *config)
+static bool choose_config(r_opengl_config_t cfg, EGLConfig *config)
 {
     EGLint cfg_attr[] = {
         EGL_SURFACE_TYPE, EGL_WINDOW_BIT,
@@ -725,10 +727,10 @@ static bool choose_config(r_opengl_config_t *cfg, EGLConfig *config)
         EGL_RED_SIZE, 5,
         EGL_GREEN_SIZE, 5,
         EGL_BLUE_SIZE, 5,
-        EGL_DEPTH_SIZE, cfg->depthbits,
-        EGL_STENCIL_SIZE, cfg->stencilbits,
-        EGL_SAMPLE_BUFFERS, (bool)cfg->multisamples,
-        EGL_SAMPLES, cfg->multisamples,
+        EGL_DEPTH_SIZE, cfg.depthbits,
+        EGL_STENCIL_SIZE, cfg.stencilbits,
+        EGL_SAMPLE_BUFFERS, (bool)cfg.multisamples,
+        EGL_SAMPLES, cfg.multisamples,
         EGL_NONE
     };
 
@@ -779,13 +781,13 @@ static bool init(void)
 
     CHECK_EGL(eglBindAPI(EGL_OPENGL_API), "eglBindAPI");
 
-    r_opengl_config_t *cfg = R_GetGLConfig();
+    r_opengl_config_t cfg = R_GetGLConfig();
 
     EGLConfig config;
     if (!choose_config(cfg, &config)) {
         Com_Printf("Falling back to failsafe config\n");
         r_opengl_config_t failsafe = { .depthbits = 24 };
-        if (!choose_config(&failsafe, &config))
+        if (!choose_config(failsafe, &config))
             goto fail;
     }
 
@@ -807,7 +809,7 @@ static bool init(void)
     reload_cursor();
 
     EGLint ctx_attr[] = {
-        EGL_CONTEXT_OPENGL_DEBUG, cfg->debug,
+        EGL_CONTEXT_OPENGL_DEBUG, cfg.debug,
         EGL_NONE
     };
     if (egl_major == 1 && egl_minor < 5)
@@ -890,10 +892,8 @@ static void handle_relative_motion(void *data, struct zwp_relative_pointer_v1 *z
                                    wl_fixed_t dx_unaccel, wl_fixed_t dy_unaccel)
 {
     if (Key_GetDest() & KEY_MENU) {
-        wl.abs_mouse_x += dx;
-        wl.abs_mouse_y += dy;
-        clamp(wl.abs_mouse_x, 0, wl_fixed_from_int(wl.width * wl.scale_factor) - 1);
-        clamp(wl.abs_mouse_y, 0, wl_fixed_from_int(wl.height * wl.scale_factor) - 1);
+        wl.abs_mouse_x = Q_clip(wl.abs_mouse_x + dx, 0, wl_fixed_from_int(wl.width * wl.scale_factor) - 1);
+        wl.abs_mouse_y = Q_clip(wl.abs_mouse_y + dy, 0, wl_fixed_from_int(wl.height * wl.scale_factor) - 1);
         UI_MouseEvent(wl_fixed_to_int(wl.abs_mouse_x), wl_fixed_to_int(wl.abs_mouse_y));
     }
 

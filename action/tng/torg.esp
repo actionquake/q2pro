@@ -1,0 +1,28 @@
+[esp]
+type=etv
+author=darksaint
+name=AQ2Open Masters
+
+[respawn]
+red=7
+blue=7
+
+[spawns]
+red=<560 1210 238 -11>,<419 1059 446 0>,<510 107 398 68>
+blue=<2982 83 640 139>,<2436 2632 640 -74>,<2667 728 238 151>
+
+[target]
+escort=<2833 1288 682>
+name=The Grand Prize
+
+[red_team]
+name=maiJaw
+leader_name=The Grand Champion
+skin=male/ctf_r
+leader_skin=male/ctf_vip_r
+
+[blue_team]
+name=SPACE Bartenders
+leader_name=The Man
+skin=male/ctf_b
+leader_skin=male/ctf_vip_b

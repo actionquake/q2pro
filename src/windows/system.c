@@ -44,7 +44,6 @@ static cvar_t                   *sys_exitonerror;
 cvar_t  *sys_basedir;
 cvar_t  *sys_libdir;
 cvar_t  *sys_homedir;
-cvar_t  *sys_forcegamelib;
 
 /*
 ===============================================================================
@@ -203,11 +202,10 @@ Sys_ConsoleInput
 void Sys_RunConsole(void)
 {
     INPUT_RECORD    recs[MAX_CONSOLE_INPUT_EVENTS];
-    int     ch;
-    DWORD   numread, numevents;
-    int     i;
+    int             i, ch;
+    DWORD           numread, numevents;
     inputField_t    *f = &sys_con.inputLine;
-    char    *s;
+    char            *s;
 
     if (hinput == INVALID_HANDLE_VALUE) {
         return;
@@ -490,6 +488,20 @@ void Sys_RunConsole(void)
     }
 }
 
+void Sys_LoadHistory(void)
+{
+    if (gotConsole && sys_history && sys_history->integer > 0) {
+        Prompt_LoadHistory(&sys_con, SYS_HISTORYFILE_NAME);
+    }
+}
+
+void Sys_SaveHistory(void)
+{
+    if (gotConsole && sys_history && sys_history->integer > 0) {
+        Prompt_SaveHistory(&sys_con, SYS_HISTORYFILE_NAME, sys_history->integer);
+    }
+}
+
 #define FOREGROUND_BLACK    0
 #define FOREGROUND_WHITE    (FOREGROUND_BLUE|FOREGROUND_GREEN|FOREGROUND_RED)
 
@@ -769,26 +781,6 @@ MISC
 ===============================================================================
 */
 
-#if USE_SYSCON
-/*
-================
-Sys_Printf
-================
-*/
-void Sys_Printf(const char *fmt, ...)
-{
-    va_list     argptr;
-    char        msg[MAXPRINTMSG];
-    size_t      len;
-
-    va_start(argptr, fmt);
-    len = Q_vscnprintf(msg, sizeof(msg), fmt, argptr);
-    va_end(argptr);
-
-    Sys_ConsoleOutput(msg, len);
-}
-#endif
-
 /*
 ================
 Sys_Error
@@ -914,8 +906,6 @@ void Sys_Init(void)
     // specifies per-user writable directory for demos, screenshots, etc
     sys_homedir = Cvar_Get("homedir", "", CVAR_NOSET);
 
-    sys_forcegamelib = Cvar_Get("sys_forcegamelib", "", CVAR_NOSET);
-
     sys_exitonerror = Cvar_Get("sys_exitonerror", "0", 0);
 
 #if USE_WINSVC
@@ -1021,8 +1011,12 @@ void Sys_ListFiles_r(listfiles_t *list, const char *path, int depth)
     void        *info;
     const char  *filter = list->filter;
 
+    if (list->count >= MAX_LISTED_FILES) {
+        return;
+    }
+
     // optimize single extension search
-    if (!(list->flags & FS_SEARCH_BYFILTER) &&
+    if (!(list->flags & (FS_SEARCH_BYFILTER | FS_SEARCH_RECURSIVE)) &&
         filter && !strchr(filter, ';')) {
         if (*filter == '.') {
             filter++;
@@ -1103,12 +1097,8 @@ void Sys_ListFiles_r(listfiles_t *list, const char *path, int depth)
             }
         }
 
-        // strip path
-        if (list->flags & FS_SEARCH_SAVEPATH) {
-            name = fullpath + list->baselen;
-        } else {
-            name = data.name;
-        }
+        // skip path
+        name = fullpath + list->baselen;
 
         // reformat it back to quake filesystem style
         FS_ReplaceSeparators(name, '/');
@@ -1204,43 +1194,6 @@ static int Sys_Main(int argc, char **argv)
 
 #if USE_CLIENT
 
-#define MAX_LINE_TOKENS    128
-
-static char     *sys_argv[MAX_LINE_TOKENS];
-static int      sys_argc;
-
-/*
-===============
-Sys_ParseCommandLine
-
-===============
-*/
-static void Sys_ParseCommandLine(char *line)
-{
-    sys_argc = 1;
-    sys_argv[0] = APPLICATION;
-    while (*line) {
-        while (*line && *line <= 32) {
-            line++;
-        }
-        if (*line == 0) {
-            break;
-        }
-        sys_argv[sys_argc++] = line;
-        while (*line > 32) {
-            line++;
-        }
-        if (*line == 0) {
-            break;
-        }
-        *line = 0;
-        if (sys_argc == MAX_LINE_TOKENS) {
-            break;
-        }
-        line++;
-    }
-}
-
 /*
 ==================
 WinMain
@@ -1256,9 +1209,7 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
 
     hGlobalInstance = hInstance;
 
-    Sys_ParseCommandLine(lpCmdLine);
-
-    return Sys_Main(sys_argc, sys_argv);
+    return Sys_Main(__argc, __argv);
 }
 
 #else // USE_CLIENT

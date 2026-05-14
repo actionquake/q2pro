@@ -1,0 +1,28 @@
+[esp]
+type=etv
+author=darksaint
+name=Conspiracy to wreck the Loveboat
+
+[respawn]
+red=7
+blue=7
+
+[spawns]
+red=<-947 -2534 120 141>,<40 -2734 120 114>,<-1464 -1815 120 90>
+blue=<-1666 -605 120 -24>,<-768 -1982 -52 35>,<447 -1884 -56 90>
+
+[target]
+escort=<88 -663 -82>
+name=Proof of Guilt
+
+[red_team]
+name=Lawyers
+leader_name=Mister Chow
+skin=male/ctf_r
+leader_skin=male/ctf_vip_r
+
+[blue_team]
+name=Lighthouse Keepers
+leader_name=Lightmaster
+skin=male/ctf_b
+leader_skin=male/ctf_vip_b

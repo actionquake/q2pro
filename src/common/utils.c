@@ -188,6 +188,10 @@ bool Com_WildCmpEx(const char *filter, const char *string,
 ==============================================================================
 */
 
+#if USE_CLIENT
+const char com_env_suf[6][3] = { "rt", "lf", "bk", "ft", "up", "dn" };
+#endif
+
 const char *const colorNames[COLOR_COUNT] = {
     "black", "red", "green", "yellow",
     "blue", "cyan", "magenta", "white",
@@ -207,7 +211,7 @@ color_index_t Com_ParseColor(const char *s)
     color_index_t i;
 
     if (COM_IsUint(s)) {
-        i = atoi(s);
+        i = Q_atoi(s);
         if (i < 0 || i >= COLOR_COUNT) {
             return COLOR_NONE;
         }
@@ -250,7 +254,7 @@ unsigned Com_ParseExtensionString(const char *s, const char *const extnames[])
             l2 = strlen(extnames[i]);
             if (l1 == l2 && !memcmp(s, extnames[i], l1)) {
                 Com_DPrintf("Found %s\n", extnames[i]);
-                mask |= 1U << i;
+                mask |= BIT(i);
                 break;
             }
         }
@@ -369,7 +373,7 @@ unsigned Com_HashString(const char *s, unsigned size)
         hash = 127 * hash + c;
     }
 
-    hash = (hash >> 20) ^(hash >> 10) ^ hash;
+    hash = (hash >> 20) ^ (hash >> 10) ^ hash;
     return hash & (size - 1);
 }
 
@@ -391,7 +395,7 @@ unsigned Com_HashStringLen(const char *s, size_t len, unsigned size)
         hash = 127 * hash + c;
     }
 
-    hash = (hash >> 20) ^(hash >> 10) ^ hash;
+    hash = (hash >> 20) ^ (hash >> 10) ^ hash;
     return hash & (size - 1);
 }
 
@@ -557,3 +561,105 @@ size_t Com_FormatSizeLong(char *dest, size_t destsize, int64_t bytes)
     }
     return Q_scnprintf(dest, destsize, "unknown size");
 }
+
+static int escape_char(int c)
+{
+    switch (c) {
+        case '\a': return 'a';
+        case '\b': return 'b';
+        case '\t': return 't';
+        case '\n': return 'n';
+        case '\v': return 'v';
+        case '\f': return 'f';
+        case '\r': return 'r';
+        case '\\': return '\\';
+        case '"': return '"';
+    }
+    return 0;
+}
+
+const char com_hexchars[16] = "0123456789ABCDEF";
+
+size_t Com_EscapeString(char *dst, const char *src, size_t size)
+{
+    char *p, *end;
+
+    if (!size)
+        return 0;
+
+    p = dst;
+    end = dst + size;
+    while (*src) {
+        byte c = *src++;
+        int e = escape_char(c);
+
+        if (e) {
+            if (end - p <= 2)
+                break;
+            *p++ = '\\';
+            *p++ = e;
+        } else if (Q_isprint(c)) {
+            if (end - p <= 1)
+                break;
+            *p++ = c;
+        } else {
+            if (end - p <= 4)
+                break;
+            *p++ = '\\';
+            *p++ = 'x';
+            *p++ = com_hexchars[c >> 4];
+            *p++ = com_hexchars[c & 15];
+        }
+    }
+
+    *p = 0;
+    return p - dst;
+}
+
+char *Com_MakePrintable(const char *s)
+{
+    static char buffer[4096];
+    Com_EscapeString(buffer, s, sizeof(buffer));
+    return buffer;
+}
+
+#if USE_CLIENT
+
+/*
+===============
+Com_SlowRand
+
+`Slow' PRNG that begins consecutive frames with the same seed. Reseeded each 16
+ms. Used for random effects that shouldn't cause too much tearing without vsync.
+===============
+*/
+uint32_t Com_SlowRand(void)
+{
+    static uint32_t com_rand_ts;
+    static uint32_t com_rand_base;
+    static uint32_t com_rand_seed;
+    static uint32_t com_rand_frame;
+
+    // see if it's time to reseed
+    if (com_rand_ts != com_localTime2 / 16) {
+        com_rand_ts = com_localTime2 / 16;
+        com_rand_base = Q_rand();
+    }
+
+    // reset if started new frame
+    if (com_rand_frame != com_framenum) {
+        com_rand_frame = com_framenum;
+        com_rand_seed = com_rand_base;
+    }
+
+    // xorshift RNG
+    uint32_t x = com_rand_seed;
+
+    x ^= x << 13;
+    x ^= x >> 17;
+    x ^= x << 5;
+
+    return com_rand_seed = x;
+}
+
+#endif

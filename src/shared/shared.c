@@ -20,20 +20,28 @@ with this program; if not, write to the Free Software Foundation, Inc.,
 
 const vec3_t vec3_origin = { 0, 0, 0 };
 
+void VectorRotate2( vec3_t v, float degrees )
+{
+	float radians = DEG2RAD(degrees);
+	float x = v[0], y = v[1];
+	v[0] = x * cosf(radians) - y * sinf(radians);
+	v[1] = y * cosf(radians) + x * sinf(radians);
+}
+
 void AngleVectors(const vec3_t angles, vec3_t forward, vec3_t right, vec3_t up)
 {
     float        angle;
     float        sr, sp, sy, cr, cp, cy;
 
     angle = DEG2RAD(angles[YAW]);
-    sy = sin(angle);
-    cy = cos(angle);
+    sy = sinf(angle);
+    cy = cosf(angle);
     angle = DEG2RAD(angles[PITCH]);
-    sp = sin(angle);
-    cp = cos(angle);
+    sp = sinf(angle);
+    cp = cosf(angle);
     angle = DEG2RAD(angles[ROLL]);
-    sr = sin(angle);
-    cr = cos(angle);
+    sr = sinf(angle);
+    cr = cosf(angle);
 
     if (forward) {
         forward[0] = cp * cy;
@@ -66,24 +74,12 @@ vec_t VectorNormalize(vec3_t v)
     }
 
     return length;
-
 }
 
 vec_t VectorNormalize2(const vec3_t v, vec3_t out)
 {
-    float    length, ilength;
-
-    length = VectorLength(v);
-
-    if (length) {
-        ilength = 1 / length;
-        out[0] = v[0] * ilength;
-        out[1] = v[1] * ilength;
-        out[2] = v[2] * ilength;
-    }
-
-    return length;
-
+    VectorCopy(v, out);
+    return VectorNormalize(out);
 }
 
 void ClearBounds(vec3_t mins, vec3_t maxs)
@@ -211,6 +207,26 @@ size_t COM_DefaultExtension(char *path, const char *ext, size_t size)
         return strlen(path);
     else
         return Q_strlcat(path, ext, size);
+}
+
+/*
+============
+COM_SplitPath
+
+Splits an input filename into file name and path components
+============
+*/
+void COM_SplitPath(const char *in, char *name, size_t name_size,
+                   char *path, size_t path_size, bool strip_ext)
+{
+    const char *p = COM_SkipPath(in);
+
+    if (strip_ext)
+        COM_StripExtension(name, p, name_size);
+    else
+        Q_strlcpy(name, p, name_size);
+
+    Q_strlcpy(path, in, min(path_size, p - in + 1));
 }
 
 /*
@@ -348,6 +364,21 @@ char *COM_StripQuotes(char *s)
     return s;
 }
 
+char *COM_TrimSpace(char *s)
+{
+    size_t len;
+
+    while (*s && *s <= ' ')
+        s++;
+
+    len = strlen(s);
+    while (len > 0 && s[len - 1] <= ' ')
+        len--;
+
+    s[len] = 0;
+    return s;
+}
+
 /*
 ============
 va
@@ -390,8 +421,7 @@ char *vtos(const vec3_t v)
     return str[index];
 }
 
-static char     com_token[4][MAX_TOKEN_CHARS];
-static int      com_tokidx;
+unsigned com_linenum;
 
 /*
 ==============
@@ -401,22 +431,20 @@ Parse a token out of a string.
 Handles C and C++ comments.
 ==============
 */
-char *COM_Parse(const char **data_p)
+size_t COM_ParseToken(const char **data_p, char *buffer, size_t size)
 {
     int         c;
-    int         len;
+    size_t      len;
     const char  *data;
-    char        *s = com_token[com_tokidx];
-
-    com_tokidx = (com_tokidx + 1) & 3;
 
     data = *data_p;
     len = 0;
-    s[0] = 0;
+    if (size)
+        *buffer = 0;
 
     if (!data) {
         *data_p = NULL;
-        return s;
+        return len;
     }
 
 // skip whitespace
@@ -424,7 +452,10 @@ skipwhite:
     while ((c = *data) <= ' ') {
         if (c == 0) {
             *data_p = NULL;
-            return s;
+            return len;
+        }
+        if (c == '\n') {
+            com_linenum++;
         }
         data++;
     }
@@ -445,6 +476,9 @@ skipwhite:
                 data += 2;
                 break;
             }
+            if (data[0] == '\n') {
+                com_linenum++;
+            }
             data++;
         }
         goto skipwhite;
@@ -458,27 +492,131 @@ skipwhite:
             if (c == '\"' || !c) {
                 goto finish;
             }
-
-            if (len < MAX_TOKEN_CHARS - 1) {
-                s[len++] = c;
+            if (c == '\n') {
+                com_linenum++;
             }
+            if (len + 1 < size) {
+                *buffer++ = c;
+            }
+            len++;
         }
     }
 
 // parse a regular word
     do {
-        if (len < MAX_TOKEN_CHARS - 1) {
-            s[len++] = c;
+        if (len + 1 < size) {
+            *buffer++ = c;
         }
+        len++;
         data++;
         c = *data;
     } while (c > 32);
 
 finish:
-    s[len] = 0;
+    if (size)
+        *buffer = 0;
 
     *data_p = data;
+    return len;
+}
+
+char *COM_Parse(const char **data_p)
+{
+    static char     com_token[4][MAX_TOKEN_CHARS];
+    static int      com_tokidx;
+    char            *s = com_token[com_tokidx];
+
+    COM_ParseToken(data_p, s, sizeof(com_token[0]));
+    com_tokidx = (com_tokidx + 1) & 3;
     return s;
+}
+
+/*
+==============
+COM_ParseC
+
+Parse a token out of a string (mutable)
+==============
+*/
+char *COM_ParseC (char **data_p)
+{
+	int		c, len = 0;
+	char	*data;
+	static char	com_token[MAX_TOKEN_CHARS];
+
+	data = *data_p;
+	com_token[0] = 0;
+
+	if (!data)
+	{
+		*data_p = NULL;
+		return "";
+	}
+
+// skip whitespace
+skipwhite:
+	while ((c = *data) <= ' ')
+	{
+		if (c == 0)
+		{
+			*data_p = NULL;
+			return "";
+		}
+		data++;
+	}
+
+// skip // comments
+	if (c == '/' && data[1] == '/')
+	{
+		data += 2;
+		while (*data && *data != '\n')
+			data++;
+		goto skipwhite;
+	}
+
+
+// handle quoted strings specially
+	if (c == '\"')
+	{
+		data++;
+		while (1)
+		{
+			c = *data++;
+			if (c == '\"' || !c)
+			{
+				goto finish;
+			}
+			if (len < MAX_TOKEN_CHARS)
+			{
+				com_token[len] = c;
+				len++;
+			}
+		}
+	}
+
+// parse a regular word
+	do
+	{
+		if (len < MAX_TOKEN_CHARS)
+		{
+			com_token[len] = c;
+			len++;
+		}
+		data++;
+		c = *data;
+	}
+	while (c > 32);
+
+finish:
+	if (len == MAX_TOKEN_CHARS)
+	{
+//              Com_Printf ("Token exceeded %i chars, discarded.\n", MAX_TOKEN_CHARS);
+	len = 0;
+	}
+	com_token[len] = 0;
+
+	*data_p = data;
+	return com_token;
 }
 
 /*
@@ -804,6 +942,7 @@ size_t Q_scnprintf(char *dest, size_t size, const char *fmt, ...)
     return ret;
 }
 
+#ifndef HAVE_STRCHRNUL
 char *Q_strchrnul(const char *s, int c)
 {
     while (*s && *s != c) {
@@ -811,7 +950,9 @@ char *Q_strchrnul(const char *s, int c)
     }
     return (char *)s;
 }
+#endif
 
+#ifndef HAVE_MEMCCPY
 /*
 ===============
 Q_memccpy
@@ -833,12 +974,22 @@ void *Q_memccpy(void *dst, const void *src, int c, size_t size)
 
     return NULL;
 }
+#endif
 
+#ifndef HAVE_STRNLEN
 size_t Q_strnlen(const char *s, size_t maxlen)
 {
     char *p = memchr(s, 0, maxlen);
     return p ? p - s : maxlen;
 }
+#endif
+
+#ifndef _WIN32
+int Q_atoi(const char *s)
+{
+    return Q_clipl_int32(strtol(s, NULL, 10));
+}
+#endif
 
 /*
 =====================================================================
@@ -885,8 +1036,8 @@ uint32_t Q_rand(void)
         mt_index = 0;
 
 #define STEP(j, k) do {                 \
-        x  = mt_state[i] & 0x80000000;  \
-        x |= mt_state[j] & 0x7FFFFFFF;  \
+        x  = mt_state[i] & BIT(31);     \
+        x |= mt_state[j] & MASK(31);    \
         y  = x >> 1;                    \
         y ^= 0x9908B0DF & -(x & 1);     \
         mt_state[i] = mt_state[k] ^ y;  \
@@ -1255,3 +1406,123 @@ void Info_Print(const char *infostring)
         Com_Printf("%-20s %s\n", key, value);
     }
 }
+
+// action
+
+/*
+============
+Q_strncpyz
+============
+*/
+void Q_strncpyz( char *dest, const char *src, size_t size )
+{
+	if (size)
+	{
+		while (--size && (*dest++ = *src++));
+		*dest = '\0';
+	}
+}
+/*
+==============
+Q_strncatz
+==============
+*/
+void Q_strncatz( char *dest, const char *src, size_t size )
+{
+	if (size)
+	{
+		while (--size && *dest++);
+		if (size) {
+			dest--; size++;
+			while (--size && (*dest++ = *src++));
+		}
+		*dest = '\0';
+	}
+}
+
+#ifndef Q_strnicmp
+int Q_strnicmp (const char *s1, const char *s2, size_t size)
+{
+	int		c1, c2;
+	
+	do
+	{
+		c1 = *s1++;
+		c2 = *s2++;
+
+		if (!size--)
+			return 0;		// strings are equal until end point
+		
+		if (c1 != c2)
+		{
+			if (c1 >= 'a' && c1 <= 'z')
+				c1 -= ('a' - 'A');
+			if (c2 >= 'a' && c2 <= 'z')
+				c2 -= ('a' - 'A');
+			if (c1 != c2)
+				return -1;		// strings not equal
+		}
+	} while (c1);
+	
+	return 0;		// strings are equal
+}
+#endif
+
+// end action
+/*
+=====================================================================
+
+  CONFIG STRING REMAPPING
+
+=====================================================================
+*/
+
+#if USE_PROTOCOL_EXTENSIONS
+
+const cs_remap_t cs_remap_old = {
+    .extended    = false,
+
+    .max_edicts  = MAX_EDICTS_OLD,
+    .max_models  = MAX_MODELS_OLD,
+    .max_sounds  = MAX_SOUNDS_OLD,
+    .max_images  = MAX_IMAGES_OLD,
+
+    .airaccel    = CS_AIRACCEL_OLD,
+    .maxclients  = CS_MAXCLIENTS_OLD,
+    .mapchecksum = CS_MAPCHECKSUM_OLD,
+
+    .models      = CS_MODELS_OLD,
+    .sounds      = CS_SOUNDS_OLD,
+    .images      = CS_IMAGES_OLD,
+    .lights      = CS_LIGHTS_OLD,
+    .items       = CS_ITEMS_OLD,
+    .playerskins = CS_PLAYERSKINS_OLD,
+    .general     = CS_GENERAL_OLD,
+
+    .end         = MAX_CONFIGSTRINGS_OLD
+};
+
+const cs_remap_t cs_remap_new = {
+    .extended    = true,
+
+    .max_edicts  = MAX_EDICTS,
+    .max_models  = MAX_MODELS,
+    .max_sounds  = MAX_SOUNDS,
+    .max_images  = MAX_IMAGES,
+
+    .airaccel    = CS_AIRACCEL,
+    .maxclients  = CS_MAXCLIENTS,
+    .mapchecksum = CS_MAPCHECKSUM,
+
+    .models      = CS_MODELS,
+    .sounds      = CS_SOUNDS,
+    .images      = CS_IMAGES,
+    .lights      = CS_LIGHTS,
+    .items       = CS_ITEMS,
+    .playerskins = CS_PLAYERSKINS,
+    .general     = CS_GENERAL,
+
+    .end         = MAX_CONFIGSTRINGS
+};
+
+#endif

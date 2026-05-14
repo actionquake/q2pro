@@ -1,12 +1,14 @@
 [wrap-file]
-directory = zlib-1.2.13
-source_url = https://github.com/madler/zlib/releases/download/v1.2.13/zlib-1.2.13.tar.xz
-source_filename = zlib-1.2.13.tar.xz
-source_hash = d14c38e313afc35a9a8760dadf26042f51ea0f5d154b0630a31da0540107fb98
-patch_filename = zlib_1.2.13-1_patch.zip
-patch_url = https://wrapdb.mesonbuild.com/v2/zlib_1.2.13-1/get_patch
-patch_hash = 73a0103df54133b10f8774f92e23da048bd22554523e2b833cdb72b2702c0628
-wrapdb_version = 1.2.13-1
+directory = zlib-ng-2.2.4
+source_url = https://github.com/zlib-ng/zlib-ng/archive/refs/tags/2.2.4.tar.gz
+source_filename = zlib-ng-2.2.4.tar.gz
+source_hash = a73343c3093e5cdc50d9377997c3815b878fd110bf6511c2c7759f2afb90f5a3
+patch_filename = zlib-ng_2.2.4-2_patch.zip
+patch_url = https://wrapdb.mesonbuild.com/v2/zlib-ng_2.2.4-2/get_patch
+patch_hash = c33f97abde85382552341609dcfc8ddc9d63a4e33b994d10073a054462988a9a
+source_fallback_url = https://github.com/mesonbuild/wrapdb/releases/download/zlib-ng_2.2.4-2/zlib-ng-2.2.4.tar.gz
+wrapdb_version = 2.2.4-2
 
 [provide]
-zlib = zlib_dep
+zlib = zlib_ng_dep
+zlib-ng = zlib_ng_dep

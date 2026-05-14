@@ -22,61 +22,83 @@ with this program; if not, write to the Free Software Foundation, Inc.,
 #include "common/protocol.h"
 #include "common/sizebuf.h"
 
+#define MAX_PACKETENTITY_BYTES  70  // 68 bytes worst case + 2 byte eof
+
 // entity and player states are pre-quantized before sending to make delta
 // comparsion easier
 typedef struct {
     uint16_t    number;
-    int16_t     origin[3];
     int16_t     angles[3];
-    int16_t     old_origin[3];
-    uint8_t     modelindex;
-    uint8_t     modelindex2;
-    uint8_t     modelindex3;
-    uint8_t     modelindex4;
+    int32_t     origin[3];
+    int32_t     old_origin[3];
+    uint16_t    modelindex;
+    uint16_t    modelindex2;
+    uint16_t    modelindex3;
+    uint16_t    modelindex4;
     uint32_t    skinnum;
     uint32_t    effects;
     uint32_t    renderfx;
     uint32_t    solid;
+    uint32_t    morefx;
     uint16_t    frame;
-    uint8_t     sound;
+    uint16_t    sound;
     uint8_t     event;
+    uint8_t     alpha;
+    uint8_t     scale;
+    uint8_t     loop_volume;
+    uint8_t     loop_attenuation;
 } entity_packed_t;
 
 typedef struct {
-    pmove_state_t   pmove;
-    int16_t         viewangles[3];
-    int8_t          viewoffset[3];
-    int8_t          kick_angles[3];
-    int8_t          gunangles[3];
-    int8_t          gunoffset[3];
-    uint8_t         gunindex;
-    uint8_t         gunframe;
-    uint8_t         blend[4];
-    uint8_t         fov;
-    uint8_t         rdflags;
-    int16_t         stats[MAX_STATS];
+    uint8_t             color[3][3];
+    uint32_t            density;
+    uint16_t            height_density;
+    uint16_t            height_falloff;
+    int32_t             height_dist[2];
+} player_packed_fog_t;
+
+typedef struct {
+    pmove_state_new_t   pmove;
+    int16_t             viewangles[3];
+    int8_t              viewoffset[3];
+    int8_t              kick_angles[3];
+    int8_t              gunangles[3];
+    int8_t              gunoffset[3];
+    uint16_t            gunindex;
+    uint8_t             gunframe;
+    uint8_t             blend[4];
+    uint8_t             damage_blend[4];
+    player_packed_fog_t fog;
+    uint8_t             fov;
+    uint8_t             rdflags;
+    int16_t             stats[MAX_STATS_NEW];
 } player_packed_t;
 
 typedef enum {
-    MSG_PS_IGNORE_GUNINDEX      = (1 << 0),     // ignore gunindex
-    MSG_PS_IGNORE_GUNFRAMES     = (1 << 1),     // ignore gunframe/gunoffset/gunangles
-    MSG_PS_IGNORE_BLEND         = (1 << 2),     // ignore blend
-    MSG_PS_IGNORE_VIEWANGLES    = (1 << 3),     // ignore viewangles
-    MSG_PS_IGNORE_DELTAANGLES   = (1 << 4),     // ignore delta_angles
-    MSG_PS_IGNORE_PREDICTION    = (1 << 5),     // mutually exclusive with IGNORE_VIEWANGLES
-    MSG_PS_FORCE                = (1 << 7),     // send even if unchanged (MVD stream only)
-    MSG_PS_REMOVE               = (1 << 8),     // player is removed (MVD stream only)
+    MSG_PS_IGNORE_GUNINDEX      = BIT(0),   // ignore gunindex
+    MSG_PS_IGNORE_GUNFRAMES     = BIT(1),   // ignore gunframe/gunoffset/gunangles
+    MSG_PS_IGNORE_BLEND         = BIT(2),   // ignore blend
+    MSG_PS_IGNORE_VIEWANGLES    = BIT(3),   // ignore viewangles
+    MSG_PS_IGNORE_DELTAANGLES   = BIT(4),   // ignore delta_angles
+    MSG_PS_IGNORE_PREDICTION    = BIT(5),   // mutually exclusive with IGNORE_VIEWANGLES
+    MSG_PS_EXTENSIONS           = BIT(6),   // enable protocol extensions
+    MSG_PS_EXTENSIONS_2         = BIT(7),   // enable more protocol extensions
+    MSG_PS_MOREBITS             = BIT(8),   // read more playerstate bits
+    MSG_PS_FORCE                = BIT(9),   // send even if unchanged (MVD stream only)
+    MSG_PS_REMOVE               = BIT(10),  // player is removed (MVD stream only)
 } msgPsFlags_t;
 
 typedef enum {
-    MSG_ES_FORCE        = (1 << 0),     // send even if unchanged
-    MSG_ES_NEWENTITY    = (1 << 1),     // send old_origin
-    MSG_ES_FIRSTPERSON  = (1 << 2),     // ignore origin/angles
-    MSG_ES_LONGSOLID    = (1 << 3),     // higher precision bbox encoding
-    MSG_ES_UMASK        = (1 << 4),     // client has 16-bit mask MSB fix
-    MSG_ES_BEAMORIGIN   = (1 << 5),     // client has RF_BEAM old_origin fix
-    MSG_ES_SHORTANGLES  = (1 << 6),     // higher precision angles encoding
-    MSG_ES_REMOVE       = (1 << 7),     // entity is removed (MVD stream only)
+    MSG_ES_FORCE        = BIT(0),   // send even if unchanged
+    MSG_ES_NEWENTITY    = BIT(1),   // send old_origin
+    MSG_ES_FIRSTPERSON  = BIT(2),   // ignore origin/angles
+    MSG_ES_LONGSOLID    = BIT(3),   // higher precision bbox encoding
+    MSG_ES_UMASK        = BIT(4),   // client has 16-bit mask MSB fix
+    MSG_ES_BEAMORIGIN   = BIT(5),   // client has RF_BEAM old_origin fix
+    MSG_ES_SHORTANGLES  = BIT(6),   // higher precision angles encoding
+    MSG_ES_EXTENSIONS   = BIT(7),   // enable protocol extensions
+    MSG_ES_EXTENSIONS_2 = BIT(8),   // enable more protocol extensions
+    MSG_ES_REMOVE       = BIT(9),   // entity is removed (MVD stream only)
 } msgEsFlags_t;
 
 extern sizebuf_t    msg_write;
@@ -98,7 +120,8 @@ void    MSG_WriteShort(int c);
 void    MSG_WriteLong(int c);
 void    MSG_WriteLong64(int64_t c);
 void    MSG_WriteString(const char *s);
-void    MSG_WritePos(const vec3_t pos);
+void    MSG_WritePos(const vec3_t pos, bool extended);
+void    MSG_WriteIntPos(const int32_t pos[3], bool extended);
 void    MSG_WriteAngle(float f);
 #if USE_CLIENT
 void    MSG_FlushBits(void);
@@ -107,10 +130,11 @@ int     MSG_WriteDeltaUsercmd(const usercmd_t *from, const usercmd_t *cmd, int v
 int     MSG_WriteDeltaUsercmd_Enhanced(const usercmd_t *from, const usercmd_t *cmd);
 #endif
 void    MSG_WriteDir(const vec3_t vector);
-void    MSG_PackEntity(entity_packed_t *out, const entity_state_t *in, bool short_angles);
+void    MSG_PackEntity(entity_packed_t *out, const entity_state_t *in, const entity_state_extension_t *ext);
 void    MSG_WriteDeltaEntity(const entity_packed_t *from, const entity_packed_t *to, msgEsFlags_t flags);
-void    MSG_PackPlayer(player_packed_t *out, const player_state_t *in);
-void    MSG_WriteDeltaPlayerstate_Default(const player_packed_t *from, const player_packed_t *to);
+void    MSG_PackPlayerOld(player_packed_t *out, const player_state_old_t *in);
+void    MSG_PackPlayerNew(player_packed_t *out, const player_state_new_t *in);
+void    MSG_WriteDeltaPlayerstate_Default(const player_packed_t *from, const player_packed_t *to, msgPsFlags_t flags);
 int     MSG_WriteDeltaPlayerstate_Enhanced(const player_packed_t *from, player_packed_t *to, msgPsFlags_t flags);
 int     MSG_WriteDeltaPlayerstate_Aqtion(const player_packed_t *from, player_packed_t *to, msgPsFlags_t flags);
 void    MSG_WriteDeltaPlayerstate_Packet(const player_packed_t *from, const player_packed_t *to, int number, msgPsFlags_t flags);
@@ -137,27 +161,27 @@ int64_t MSG_ReadLong64(void);
 size_t  MSG_ReadString(char *dest, size_t size);
 size_t  MSG_ReadStringLine(char *dest, size_t size);
 #if USE_CLIENT
-void    MSG_ReadPos(vec3_t pos);
+void    MSG_ReadPos(vec3_t pos, bool extended);
 void    MSG_ReadDir(vec3_t vector);
 #endif
 int     MSG_ReadBits(int bits);
 void    MSG_ReadDeltaUsercmd(const usercmd_t *from, usercmd_t *cmd);
 void    MSG_ReadDeltaUsercmd_Hacked(const usercmd_t *from, usercmd_t *to);
 void    MSG_ReadDeltaUsercmd_Enhanced(const usercmd_t *from, usercmd_t *to);
-int     MSG_ParseEntityBits(int *bits);
-void    MSG_ParseDeltaEntity(const entity_state_t *from, entity_state_t *to, int number, int bits, msgEsFlags_t flags);
+int     MSG_ParseEntityBits(uint64_t *bits, msgEsFlags_t flags);
+void    MSG_ParseDeltaEntity(entity_state_t *to, entity_state_extension_t *ext, int number, uint64_t bits, msgEsFlags_t flags);
 #if USE_CLIENT
-void    MSG_ParseDeltaPlayerstate_Default(const player_state_t *from, player_state_t *to, int flags);
-void    MSG_ParseDeltaPlayerstate_Enhanced(const player_state_t *from, player_state_t *to, int flags, int extraflags);
-void    MSG_ParseDeltaPlayerstate_Aqtion(const player_state_t *from, player_state_t *to, int flags, int extraflags);
+void    MSG_ParseDeltaPlayerstate_Default(const player_state_t *from, player_state_t *to, int flags, msgPsFlags_t psflags);
+void    MSG_ParseDeltaPlayerstate_Enhanced(const player_state_t *from, player_state_t *to, int flags, int extraflags, msgPsFlags_t psflags);
+void    MSG_ParseDeltaPlayerstate_Aqtion(const player_state_t *from, player_state_t *to, int flags, int extraflags, msgPsFlags_t psflags);
 #endif
-void    MSG_ParseDeltaPlayerstate_Packet(const player_state_t *from, player_state_t *to, int flags);
+void    MSG_ParseDeltaPlayerstate_Packet(player_state_t *to, int flags, msgPsFlags_t psflags);
 #ifdef AQTION_EXTENSION
-void	MSG_WriteGhud(ghud_element_t *element, byte flags, short eflags);
+int		MSG_DeltaGhud(ghud_element_t *from, ghud_element_t *to, int protocolmask);
+void	MSG_WriteGhud(ghud_element_t *element, int flags);
 #if USE_CLIENT || USE_MVD_CLIENT
 void	MSG_ParseGhud(ghud_element_t *element);
 #endif
-
 #endif
 
 #if USE_DEBUG
@@ -167,7 +191,7 @@ void    MSG_ShowDeltaPlayerstateBits_Enhanced(int flags, int extraflags);
 void    MSG_ShowDeltaUsercmdBits_Enhanced(int bits);
 #endif
 #if USE_CLIENT || USE_MVD_CLIENT
-void    MSG_ShowDeltaEntityBits(int bits);
+void    MSG_ShowDeltaEntityBits(uint64_t bits);
 void    MSG_ShowDeltaPlayerstateBits_Packet(int flags);
 const char *MSG_ServerCommandString(int cmd);
 #endif // USE_CLIENT || USE_MVD_CLIENT
@@ -176,68 +200,82 @@ const char *MSG_ServerCommandString(int cmd);
 
 //============================================================================
 
+/*
+==================
+MSG_PackSolid*
+
+These functions assume x/y are equal (except *_Ver2) and symmetric. Z does not
+have to be symmetric, and z maxs can be negative.
+==================
+*/
 static inline int MSG_PackSolid16(const vec3_t mins, const vec3_t maxs)
 {
-    int x, zd, zu;
+    int x = maxs[0] / 8;
+    int zd = -mins[2] / 8;
+    int zu = (maxs[2] + 32) / 8;
 
-    // assume that x/y are equal and symetric
-    x = maxs[0] / 8;
-    clamp(x, 1, 31);
-
-    // z is not symetric
-    zd = -mins[2] / 8;
-    clamp(zd, 1, 31);
-
-    // and z maxs can be negative...
-    zu = (maxs[2] + 32) / 8;
-    clamp(zu, 1, 63);
+    x = Q_clip(x, 1, 31);
+    zd = Q_clip(zd, 1, 31);
+    zu = Q_clip(zu, 1, 63);
 
     return (zu << 10) | (zd << 5) | x;
 }
 
-static inline int MSG_PackSolid32(const vec3_t mins, const vec3_t maxs)
+static inline uint32_t MSG_PackSolid32_Ver1(const vec3_t mins, const vec3_t maxs)
 {
-    int x, zd, zu;
+    int x = maxs[0];
+    int zd = -mins[2];
+    int zu = maxs[2] + 32768;
 
-    // assume that x/y are equal and symetric
-    x = maxs[0];
-    clamp(x, 1, 255);
+    x = Q_clip(x, 1, 255);
+    zd = Q_clip_uint8(zd);
+    zu = Q_clip_uint16(zu);
 
-    // z is not symetric
-    zd = -mins[2];
-    clamp(zd, 1, 255);
+    return ((uint32_t)zu << 16) | (zd << 8) | x;
+}
 
-    // and z maxs can be negative...
-    zu = maxs[2] + 32768;
-    clamp(zu, 1, 65535);
+static inline uint32_t MSG_PackSolid32_Ver2(const vec3_t mins, const vec3_t maxs)
+{
+    int x = maxs[0];
+    int y = maxs[1];
+    int zd = -mins[2];
+    int zu = maxs[2] + 32;
 
-    return ((unsigned)zu << 16) | (zd << 8) | x;
+    x = Q_clip(x, 1, 255);
+    y = Q_clip(y, 1, 255);
+    zd = Q_clip_uint8(zd);
+    zu = Q_clip_uint8(zu);
+
+    return MakeLittleLong(x, y, zd, zu);
 }
 
 static inline void MSG_UnpackSolid16(int solid, vec3_t mins, vec3_t maxs)
 {
-    int x, zd, zu;
+    int x = 8 * (solid & 31);
+    int zd = 8 * ((solid >> 5) & 31);
+    int zu = 8 * ((solid >> 10) & 63) - 32;
 
-    x = 8 * (solid & 31);
-    zd = 8 * ((solid >> 5) & 31);
-    zu = 8 * ((solid >> 10) & 63) - 32;
-
-    mins[0] = mins[1] = -x;
-    maxs[0] = maxs[1] = x;
-    mins[2] = -zd;
-    maxs[2] = zu;
+    VectorSet(mins, -x, -x, -zd);
+    VectorSet(maxs,  x,  x,  zu);
 }
 
-static inline void MSG_UnpackSolid32(int solid, vec3_t mins, vec3_t maxs)
+static inline void MSG_UnpackSolid32_Ver1(uint32_t solid, vec3_t mins, vec3_t maxs)
 {
-    int x, zd, zu;
+    int x = solid & 255;
+    int zd = (solid >> 8) & 255;
+    int zu = ((solid >> 16) & 65535) - 32768;
 
-    x = solid & 255;
-    zd = (solid >> 8) & 255;
-    zu = ((solid >> 16) & 65535) - 32768;
+    VectorSet(mins, -x, -x, -zd);
+    VectorSet(maxs,  x,  x,  zu);
+}
 
-    mins[0] = mins[1] = -x;
-    maxs[0] = maxs[1] = x;
-    mins[2] = -zd;
-    maxs[2] = zu;
+static inline void MSG_UnpackSolid32_Ver2(uint32_t solid, vec3_t mins, vec3_t maxs)
+{
+    int x = solid & 255;
+    int y = (solid >> 8) & 255;
+    int zd = (solid >> 16) & 255;
+    int zu = ((solid >> 24) & 255) - 32;
+
+    VectorSet(mins, -x, -y, -zd);
+    VectorSet(maxs,  x,  y,  zu);
 }

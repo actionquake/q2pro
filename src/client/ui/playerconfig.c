@@ -30,7 +30,7 @@ PLAYER CONFIG MENU
 #define ID_MODEL 103
 #define ID_SKIN    104
 
-typedef struct m_player_s {
+typedef struct {
     menuFrameWork_t     menu;
     menuField_t         name;
     menuSpinControl_t   model;
@@ -43,12 +43,12 @@ typedef struct m_player_s {
     unsigned    time;
     unsigned    oldTime;
 
-    char *pmnames[MAX_PLAYERMODELS];
+    char *pmnames[MAX_PLAYERMODELS + 1];
 } m_player_t;
 
 static m_player_t    m_player;
 
-static const char *handedness[] = {
+static const char *const handedness[] = {
     "right",
     "left",
     "center",
@@ -150,7 +150,7 @@ static void Size(menuFrameWork_t *self)
                                       m_player.refdef.width, m_player.refdef.height);
 
     if (uis.width < 800 && uis.width >= 640) {
-        x -= CHAR_WIDTH * 10;
+        x -= CONCHAR_WIDTH * 10;
     }
 
     if (m_player.menu.banner) {
@@ -161,7 +161,7 @@ static void Size(menuFrameWork_t *self)
     }
 
     if (uis.width < 640) {
-        x -= CHAR_WIDTH * 10;
+        x -= CONCHAR_WIDTH * 10;
         m_player.hand.generic.name = "hand";
     } else {
         m_player.hand.generic.name = "handedness";
@@ -203,7 +203,7 @@ static menuSound_t Change(menuCommon_t *self)
 
 static void Pop(menuFrameWork_t *self)
 {
-    char scratch[MAX_OSPATH];
+    char scratch[MAX_QPATH];
 
     Cvar_SetEx("name", m_player.name.field.text, FROM_CONSOLE);
 

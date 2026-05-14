@@ -1,0 +1,35 @@
+{
+    "name": "Berserker",
+    "clan_id": null,
+    "skin": "terror/csw blue",
+    "weaponPreferences": {
+        "mk23": 0.6,
+        "dual_mk23": 0.2,
+        "mp5": 0.7,
+        "m4": 0.6,
+        "m3": 0.8,
+        "hc": 0.6,
+        "sniper": 0.6,
+        "knives": 0.2,
+        "grenades": 0.7
+    },
+    "itemPreferences": {
+        "vest": 0.5,
+        "helm": 0.6,
+        "laser": 0.3,
+        "silencer": 0.6,
+        "slippers": 0.9,
+        "bandolier": 0.6
+    },
+    "coreTraits": {
+        "aggressiveness": 0.2,
+        "teamwork": 0.4,
+        "curiosity": 0.4,
+        "aimingSkill": 0.6,
+        "reactionTime": 0.7,
+        "communicationFreq": 0.3,
+        "communicationTone": 0.6,
+        "movementStyle": 0.2,
+        "objectiveFocus": 0.6
+    }
+}
