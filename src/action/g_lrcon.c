@@ -22,6 +22,34 @@ extern cvar_t *lrcon_claimer_ip;
 extern int dosoft;
 
 /*
+ * lrcon_valid_mapname
+ *
+ * Returns true if mapname is safe to pass to the engine's map-change path.
+ * Restricts to alnum/underscore/hyphen — rejects path traversal (..),
+ * separators (/ \), command separators (; &), and quote/escape chars.
+ * Why: lrcon map / softmap embeds the name into a downstream AddCommandString
+ * path where ';' is a command separator; without validation a claimer can
+ * chain arbitrary server commands.
+ */
+static qboolean lrcon_valid_mapname(const char *s)
+{
+	size_t len;
+
+	if (!s || !*s)
+		return false;
+
+	len = strlen(s);
+	if (len >= MAX_QPATH)
+		return false;
+
+	for (; *s; s++) {
+		if (!Q_ispath(*s))
+			return false;
+	}
+	return true;
+}
+
+/*
  * Lrcon_CheckClaimer
  *
  * Verify that the caller is the current server claimer.
@@ -237,6 +265,12 @@ void Lrcon_Map(edict_t *ent)
 
 	mapname = gi.argv(2);
 
+	if (!lrcon_valid_mapname(mapname)) {
+		gi.cprintf(ent, PRINT_HIGH,
+				   "Invalid mapname. Use alphanumeric, underscore, hyphen only.\n");
+		return;
+	}
+
 	gi.bprintf(PRINT_HIGH, "%s is changing map to %s\n",
 			   ent->client->pers.netname, mapname);
 
@@ -262,6 +296,12 @@ void Lrcon_Softmap(edict_t *ent)
 	}
 
 	mapname = gi.argv(2);
+
+	if (!lrcon_valid_mapname(mapname)) {
+		gi.cprintf(ent, PRINT_HIGH,
+				   "Invalid mapname. Use alphanumeric, underscore, hyphen only.\n");
+		return;
+	}
 
 	gi.bprintf(PRINT_HIGH, "%s is soft-changing map to %s\n",
 			   ent->client->pers.netname, mapname);
