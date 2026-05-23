@@ -495,6 +495,22 @@ qboolean CheckAbandon(void)
 	return false;
 }
 
+/*
+ * Replace shell/stuffcmd-dangerous characters with '_' in-place.
+ * Why: team names are echoed into stuffcmd'd console commands (autorecord,
+ * etc.). An unescaped '"', ';', '\n', or '$' lets a captain inject commands
+ * into every other player's console.
+ */
+static void sanitize_command_arg(char *s)
+{
+	for (; *s; s++) {
+		if (*s == '"' || *s == '\\' || *s == '\n' || *s == '\r' ||
+		    *s == ';' || *s == '$' || (unsigned char)*s < 0x20) {
+			*s = '_';
+		}
+	}
+}
+
 void Cmd_Teamname_f(edict_t * ent)
 {
 	int i, argc, teamNum;
@@ -554,6 +570,11 @@ void Cmd_Teamname_f(edict_t * ent)
 		}
 		temp[18] = 0;
 	}
+
+	if (!temp[0])
+		strcpy( temp, "noname" );
+
+	sanitize_command_arg(temp);
 
 	if (!temp[0])
 		strcpy( temp, "noname" );
