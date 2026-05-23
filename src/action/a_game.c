@@ -1739,14 +1739,58 @@ void ReadLrconConfig(void)
 					game.lrcon_config.allowed_cvars_count++;
 				}
 			} else if (!strcmp(reading_section, "modes")) {
-				// Format: name|command
+				// Format: name|exec <filename.cfg>
+				// Why: mode command is passed verbatim to AddCommandString.
+				// Without restriction, an operator (or compromised config) can
+				// embed arbitrary commands via ';'. Restrict to strict
+				// "exec <safe-filename>.cfg" form.
 				char *pipe = strchr(buf, '|');
 				if (pipe != NULL && game.lrcon_config.modes_count < MAX_LRCON_MODES) {
+					const char *cmd, *fname;
+					size_t flen;
+					qboolean valid = true;
+
 					*pipe = 0;
+					cmd = pipe + 1;
+
+					// Must begin with "exec "
+					if (Q_strncasecmp(cmd, "exec ", 5) != 0) {
+						gi.dprintf("LRCON: rejecting mode '%s' — command must start with 'exec '\n", buf);
+						valid = false;
+					}
+
+					if (valid) {
+						fname = cmd + 5;
+						while (*fname == ' ') fname++;
+						flen = strlen(fname);
+
+						// Filename rules: non-empty, ends in .cfg, no traversal,
+						// only Q_ispath() chars plus '/' and '.'
+						if (flen < 5 || strcmp(fname + flen - 4, ".cfg") != 0) {
+							gi.dprintf("LRCON: rejecting mode '%s' — filename must end in .cfg\n", buf);
+							valid = false;
+						} else if (strstr(fname, "..") || fname[0] == '/' || fname[0] == '\\') {
+							gi.dprintf("LRCON: rejecting mode '%s' — filename has traversal or absolute path\n", buf);
+							valid = false;
+						} else {
+							const char *p;
+							for (p = fname; *p; p++) {
+								if (!(Q_ispath(*p) || *p == '/' || *p == '.')) {
+									gi.dprintf("LRCON: rejecting mode '%s' — filename has disallowed char\n", buf);
+									valid = false;
+									break;
+								}
+							}
+						}
+					}
+
+					if (!valid)
+						continue;
+
 					Q_strncpyz(game.lrcon_config.modes[game.lrcon_config.modes_count].name,
 							   buf, sizeof(game.lrcon_config.modes[0].name));
 					Q_strncpyz(game.lrcon_config.modes[game.lrcon_config.modes_count].command,
-							   pipe + 1, sizeof(game.lrcon_config.modes[0].command));
+							   cmd, sizeof(game.lrcon_config.modes[0].command));
 					gi.dprintf("LRCON: mode %d = %s -> %s\n",
 							   game.lrcon_config.modes_count,
 							   game.lrcon_config.modes[game.lrcon_config.modes_count].name,
