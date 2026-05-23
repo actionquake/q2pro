@@ -365,8 +365,12 @@ void Lrcon_Stuffcmd(edict_t *ent)
 	const char *target_arg;
 	const char *command;
 	const char *cmd_start;
+	const char *p;
+	char cmd_name[32];
 	edict_t *target;
 	int i, skip_count;
+	size_t name_len;
+	qboolean allowed;
 
 	if (!Lrcon_CheckClaimer(ent)) return;
 
@@ -386,6 +390,48 @@ void Lrcon_Stuffcmd(edict_t *ent)
 		cmd_start++;
 	}
 
+	/* Reject command-chaining or substitution characters anywhere in the
+	 * payload. Without this, the allowlist below can be bypassed via
+	 * `<allowed-cmd>; <denied-cmd>`. */
+	for (p = cmd_start; *p; p++) {
+		if (*p == ';' || *p == '\n' || *p == '\r' || *p == '$') {
+			gi.cprintf(ent, PRINT_HIGH,
+					   "lrcon stuffcmd: command contains disallowed character\n");
+			return;
+		}
+	}
+
+	/* Extract the command name (first whitespace-delimited token) and check
+	 * it against the operator-configured allowlist. The allowlist is loaded
+	 * from the [allowed_stuffcmds] section in lrcon.cfg as a comma-delimited
+	 * list. If empty, all stuffcmds are denied — secure-by-default. */
+	for (name_len = 0; cmd_start[name_len] && cmd_start[name_len] != ' ' &&
+	     cmd_start[name_len] != '\t' && name_len < sizeof(cmd_name) - 1;
+	     name_len++) {
+		cmd_name[name_len] = cmd_start[name_len];
+	}
+	cmd_name[name_len] = '\0';
+
+	if (!cmd_name[0]) {
+		gi.cprintf(ent, PRINT_HIGH, "lrcon stuffcmd: empty command\n");
+		return;
+	}
+
+	allowed = false;
+	for (i = 0; i < game.lrcon_config.allowed_stuffcmds_count; i++) {
+		if (!Q_stricmp(cmd_name, game.lrcon_config.allowed_stuffcmds[i])) {
+			allowed = true;
+			break;
+		}
+	}
+
+	if (!allowed) {
+		gi.cprintf(ent, PRINT_HIGH,
+				   "lrcon stuffcmd: '%s' is not in [allowed_stuffcmds]\n",
+				   cmd_name);
+		return;
+	}
+
 	if (!Q_stricmp(target_arg, "all")) {
 		/* Send to all clients */
 		for (i = 0; i < game.maxclients; i++) {
@@ -393,16 +439,16 @@ void Lrcon_Stuffcmd(edict_t *ent)
 			if (!target->inuse || !target->client) continue;
 			stuffcmd(target, va("%s\n", cmd_start));
 		}
-		gi.bprintf(PRINT_HIGH, "%s sent command to all players\n",
-				   ent->client->pers.netname);
+		gi.bprintf(PRINT_HIGH, "%s sent '%s' to all players\n",
+				   ent->client->pers.netname, cmd_name);
 	} else {
 		/* Send to specific client */
 		target = LookupPlayer(ent, target_arg, true, false);
 		if (!target) return;
 
 		stuffcmd(target, va("%s\n", cmd_start));
-		gi.bprintf(PRINT_HIGH, "%s sent command to %s\n",
-				   ent->client->pers.netname, target->client->pers.netname);
+		gi.bprintf(PRINT_HIGH, "%s sent '%s' to %s\n",
+				   ent->client->pers.netname, cmd_name, target->client->pers.netname);
 	}
 }
 

@@ -1659,6 +1659,7 @@ void ReadLrconConfig(void)
 	game.lrcon_config.quit_on_empty = 0;
 	game.lrcon_config.allowed_cvars_count = 0;
 	game.lrcon_config.modes_count = 0;
+	game.lrcon_config.allowed_stuffcmds_count = 0;
 
 	// Get config filename from cvar
 	lrcon_config_cvar = gi.cvar("lrcon_config", "lrcon.cfg", 0);
@@ -1737,6 +1738,25 @@ void ReadLrconConfig(void)
 							   game.lrcon_config.allowed_cvars_count,
 							   game.lrcon_config.allowed_cvars[game.lrcon_config.allowed_cvars_count]);
 					game.lrcon_config.allowed_cvars_count++;
+				}
+			} else if (!strcmp(reading_section, "allowed_stuffcmds")) {
+				// Comma-delimited list of commands allowed via `lrcon stuffcmd`.
+				// Why: without an allowlist, a claimer can stuffcmd `disconnect`,
+				// `quit`, arbitrary `bind`s, or chain commands via ';' — effectively
+				// RCE on every connected client.
+				char *tok, *saveptr_buf = buf;
+				while ((tok = strtok(saveptr_buf, ", \t")) != NULL) {
+					saveptr_buf = NULL;
+					if (game.lrcon_config.allowed_stuffcmds_count >= MAX_LRCON_STUFFCMDS)
+						break;
+					if (!*tok)
+						continue;
+					Q_strncpyz(game.lrcon_config.allowed_stuffcmds[game.lrcon_config.allowed_stuffcmds_count],
+							   tok, sizeof(game.lrcon_config.allowed_stuffcmds[0]));
+					gi.dprintf("LRCON: allowed stuffcmd %d = %s\n",
+							   game.lrcon_config.allowed_stuffcmds_count,
+							   game.lrcon_config.allowed_stuffcmds[game.lrcon_config.allowed_stuffcmds_count]);
+					game.lrcon_config.allowed_stuffcmds_count++;
 				}
 			} else if (!strcmp(reading_section, "modes")) {
 				// Format: name|exec <filename.cfg>
