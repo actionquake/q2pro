@@ -914,8 +914,14 @@ static void SVC_RulesExt(void)
         return;
     }
 
-    // Check if we need to rebuild the cache
-    if (svs.realtime - rulesext_cache.timestamp > RULESEXT_CACHE_TIME) {
+    // Check if we need to rebuild the cache.
+    // Force a build on first use (chunk_count == 0): otherwise during the
+    // first RULESEXT_CACHE_TIME (~5s) of uptime, svs.realtime and timestamp
+    // are both 0 so the staleness check is false and the cache stays empty,
+    // leaving all chunk replies empty until the threshold passes.
+    // Mirrors the SVC_StatusExt build-condition.
+    if (!rulesext_cache.chunk_count ||
+        svs.realtime - rulesext_cache.timestamp > RULESEXT_CACHE_TIME) {
         len = SV_BuildExtendedRules(rulesext_cache.data, sizeof(rulesext_cache.data));
         rulesext_cache.total_size = len;
         rulesext_cache.chunk_count = (len + RULESEXT_CHUNK_SIZE - 1) / RULESEXT_CHUNK_SIZE;
