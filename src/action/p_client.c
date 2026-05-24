@@ -1149,6 +1149,9 @@ void ClientObituary(edict_t * self, edict_t * inflictor, edict_t * attacker)
 				special_message = "was drop-kicked into the lava by";
 			message = "does a back flip into the lava";
 			break;
+		case MOD_ZERO_G:
+			message = "drifted into the void";
+			break;
 		case MOD_EXPLOSIVE:
 		case MOD_BARREL:
 			message = "blew up";

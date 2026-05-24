@@ -612,7 +612,7 @@ if get_option('tests')
   config.set10('USE_TESTS', true)
 endif
 
-if get_option('debug')
+if get_option('q2pro-debug')
   refresh_src += 'src/refresh/debug.c'
 endif
 
@@ -669,7 +669,7 @@ config.set_quoted('VID_GEOMETRY', get_option('vid-geometry'))
 config.set_quoted('VID_MODELIST', get_option('vid-modelist'))
 
 config.set10('USE_AUTOREPLY',     get_option('auto-reply'))
-config.set10('USE_DEBUG',         get_option('debug'))
+config.set10('USE_DEBUG',         get_option('q2pro-debug'))
 config.set10('USE_FPS',           get_option('variable-fps'))
 config.set10('USE_GLES',          get_option('opengl-es1'))
 config.set10('USE_ICMP',          get_option('icmp-errors').require(win32 or cc.has_header('linux/errqueue.h')).allowed())

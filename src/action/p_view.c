@@ -789,16 +789,20 @@ void P_WorldEffects (void)
 	//
 	if (!old_waterlevel && waterlevel)
 	{
-		PlayerNoise (current_player, current_player->s.origin, PNOISE_SELF);
-		if (current_player->watertype & CONTENTS_LAVA)
-			gi.sound (current_player, CHAN_BODY,
-			gi.soundindex ("player/lava_in.wav"), 1, ATTN_NORM, 0);
-		else if (current_player->watertype & CONTENTS_SLIME)
-			gi.sound (current_player, CHAN_BODY,
-			gi.soundindex ("player/watr_in.wav"), 1, ATTN_NORM, 0);
-		else if (current_player->watertype & CONTENTS_WATER)
-			gi.sound (current_player, CHAN_BODY,
-			gi.soundindex ("player/watr_in.wav"), 1, ATTN_NORM, 0);
+		// No sounds for zero_g (space is silent)
+		if (!(current_player->watertype & CONTENTS_ZERO_G))
+		{
+			PlayerNoise (current_player, current_player->s.origin, PNOISE_SELF);
+			if (current_player->watertype & CONTENTS_LAVA)
+				gi.sound (current_player, CHAN_BODY,
+				gi.soundindex ("player/lava_in.wav"), 1, ATTN_NORM, 0);
+			else if (current_player->watertype & CONTENTS_SLIME)
+				gi.sound (current_player, CHAN_BODY,
+				gi.soundindex ("player/watr_in.wav"), 1, ATTN_NORM, 0);
+			else if (current_player->watertype & CONTENTS_WATER)
+				gi.sound (current_player, CHAN_BODY,
+				gi.soundindex ("player/watr_in.wav"), 1, ATTN_NORM, 0);
+		}
 
 		current_player->flags |= FL_INWATER;
 
@@ -811,9 +815,13 @@ void P_WorldEffects (void)
 	//
 	if (old_waterlevel && !waterlevel)
 	{
-		PlayerNoise (current_player, current_player->s.origin, PNOISE_SELF);
-		gi.sound (current_player, CHAN_BODY,
-		gi.soundindex ("player/watr_out.wav"), 1, ATTN_NORM, 0);
+		// No sounds for zero_g (space is silent)
+		if (!(current_player->watertype & CONTENTS_ZERO_G))
+		{
+			PlayerNoise (current_player, current_player->s.origin, PNOISE_SELF);
+			gi.sound (current_player, CHAN_BODY,
+			gi.soundindex ("player/watr_out.wav"), 1, ATTN_NORM, 0);
+		}
 		current_player->flags &= ~FL_INWATER;
 	}
 
@@ -822,8 +830,12 @@ void P_WorldEffects (void)
 	//
 	if (old_waterlevel != 3 && waterlevel == 3)
 	{
-		gi.sound (current_player, CHAN_BODY,
-		gi.soundindex ("player/watr_un.wav"), 1, ATTN_NORM, 0);
+		// No sounds for zero_g (space is silent)
+		if (!(current_player->watertype & CONTENTS_ZERO_G))
+		{
+			gi.sound (current_player, CHAN_BODY,
+			gi.soundindex ("player/watr_un.wav"), 1, ATTN_NORM, 0);
+		}
 	}
 
 	//
@@ -831,16 +843,20 @@ void P_WorldEffects (void)
 	//
 	if (old_waterlevel == 3 && waterlevel != 3)
 	{
-		if (current_player->air_finished_framenum < level.framenum)
-		{			// gasp for air
-			gi.sound (current_player, CHAN_VOICE,
-			gi.soundindex ("player/gasp1.wav"), 1, ATTN_NORM, 0);
-			PlayerNoise (current_player, current_player->s.origin, PNOISE_SELF);
-		}
-		else if (current_player->air_finished_framenum < level.framenum + 11 * HZ)
-		{			// just break surface
-			gi.sound (current_player, CHAN_VOICE,
-			gi.soundindex ("player/gasp2.wav"), 1, ATTN_NORM, 0);
+		// No sounds for zero_g (space is silent)
+		if (!(current_player->watertype & CONTENTS_ZERO_G))
+		{
+			if (current_player->air_finished_framenum < level.framenum)
+			{			// gasp for air
+				gi.sound (current_player, CHAN_VOICE,
+				gi.soundindex ("player/gasp1.wav"), 1, ATTN_NORM, 0);
+				PlayerNoise (current_player, current_player->s.origin, PNOISE_SELF);
+			}
+			else if (current_player->air_finished_framenum < level.framenum + 11 * HZ)
+			{			// just break surface
+				gi.sound (current_player, CHAN_VOICE,
+				gi.soundindex ("player/gasp2.wav"), 1, ATTN_NORM, 0);
+			}
 		}
 	}
 
@@ -870,35 +886,57 @@ void P_WorldEffects (void)
 		// 	}
 		// }
 
-		// if out of air, start drowning
+		// if out of air, start drowning/void damage
 		if (current_player->air_finished_framenum < level.framenum)
-		{			// drown!
-			if (current_player->client->next_drown_framenum < level.framenum
-				&& current_player->health > 0)
-			{
-				current_player->client->next_drown_framenum = level.framenum + HZ;
+		{
+			if (current_player->watertype & CONTENTS_WATER)
+			{			// drown in water!
+				if (current_player->client->next_drown_framenum < level.framenum
+					&& current_player->health > 0)
+				{
+					current_player->client->next_drown_framenum = level.framenum + HZ;
 
-				// take more damage the longer underwater
-				current_player->dmg += 2;
-				if (current_player->dmg > 15)
-					current_player->dmg = 15;
+					// take more damage the longer underwater
+					current_player->dmg += 2;
+					if (current_player->dmg > 15)
+						current_player->dmg = 15;
 
-				// play a gurp sound instead of a normal pain sound
-				if (current_player->health <= current_player->dmg)
-					gi.sound (current_player, CHAN_VOICE,
-					gi.soundindex ("player/drown1.wav"), 1, ATTN_NORM, 0);
-				else if (rand () & 1)
-					gi.sound (current_player, CHAN_VOICE,
-					gi.soundindex ("*gurp1.wav"), 1, ATTN_NORM, 0);
-				else
-					gi.sound (current_player, CHAN_VOICE,
-					gi.soundindex ("*gurp2.wav"), 1, ATTN_NORM, 0);
+					// play a gurp sound instead of a normal pain sound
+					if (current_player->health <= current_player->dmg)
+						gi.sound (current_player, CHAN_VOICE,
+						gi.soundindex ("player/drown1.wav"), 1, ATTN_NORM, 0);
+					else if (rand () & 1)
+						gi.sound (current_player, CHAN_VOICE,
+						gi.soundindex ("*gurp1.wav"), 1, ATTN_NORM, 0);
+					else
+						gi.sound (current_player, CHAN_VOICE,
+						gi.soundindex ("*gurp2.wav"), 1, ATTN_NORM, 0);
 
-				current_player->pain_debounce_framenum = KEYFRAME(FRAMEDIV);
+					current_player->pain_debounce_framenum = KEYFRAME(FRAMEDIV);
 
-				T_Damage (current_player, world, world, vec3_origin,
-				current_player->s.origin, vec3_origin,
-				current_player->dmg, 0, DAMAGE_NO_ARMOR, MOD_WATER);
+					T_Damage (current_player, world, world, vec3_origin,
+					current_player->s.origin, vec3_origin,
+					current_player->dmg, 0, DAMAGE_NO_ARMOR, MOD_WATER);
+				}
+			}
+			else if (current_player->watertype & CONTENTS_ZERO_G)
+			{			// void damage in zero_g!
+				if (current_player->client->next_drown_framenum < level.framenum
+					&& current_player->health > 0)
+				{
+					current_player->client->next_drown_framenum = level.framenum + HZ;
+
+					// take more damage the longer in void
+					current_player->dmg += 2;
+					if (current_player->dmg > 15)
+						current_player->dmg = 15;
+
+					// No sounds for zero_g (space is silent)
+
+					T_Damage (current_player, world, world, vec3_origin,
+					current_player->s.origin, vec3_origin,
+					current_player->dmg, 0, DAMAGE_NO_ARMOR, MOD_ZERO_G);
+				}
 			}
 		}
 	}

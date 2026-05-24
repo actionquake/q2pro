@@ -1092,6 +1092,7 @@ typedef enum {
     MOD_WATER,
     MOD_SLIME,
     MOD_LAVA,
+    MOD_ZERO_G,
     MOD_CRUSH,
     MOD_TELEFRAG,
     MOD_FALLING,
