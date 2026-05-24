@@ -421,6 +421,13 @@ qboolean CheckAbandon(void)
 	if (!matchmode->value || !use_forfeit->value)
 		return false;
 
+	/* Treat forfeit_abandon_time <= 0 as "abandonment detection disabled".
+	 * Without this guard, abandonFrames becomes 0 in the registration path,
+	 * the `!level.abandonFrames` branch fires every server tick, and the
+	 * announcement spams the log forever. */
+	if (forfeit_abandon_time->value <= 0)
+		return false;
+
 	if (!team_game_going)
 		return false;
 
@@ -929,7 +936,10 @@ void Cmd_CallTimeout_f(edict_t * ent)
 		return;
 	}
 
-	if (level.matchTime >= timelimit->value * 60) {
+	/* Skip the last-round guard when timelimit is unlimited (0). Otherwise
+	 * `matchTime >= 0` is always true and timeouts are blocked permanently
+	 * on unlimited-time servers. */
+	if (timelimit->value > 0 && level.matchTime >= timelimit->value * 60) {
 		gi.cprintf(ent, PRINT_HIGH, "You cannot call for a timeout on the last round of the match\n");
 		return;
 	}
