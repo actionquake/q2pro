@@ -491,7 +491,13 @@ jobs:
 
       - name: Build against Steam Runtime Sniper
         run: |
-          meson setup ${{ env.MESON_ARGS }} ${{ env.MESON_ARGS_LINUX }} builddir
+          # Sniper provides SDL2, OpenAL, libpng, libjpeg, libcurl, zlib,
+          # ffmpeg, x11, wayland, mesa — but NOT jansson. Force the meson
+          # subproject fallback (subprojects/jansson.wrap) so it builds
+          # from source. uuid is added preemptively to mirror the fedora
+          # job's behavior in case the Sniper SDK doesn't ship libuuid-dev.
+          meson setup --force-fallback-for=jansson,uuid \
+            ${{ env.MESON_ARGS }} ${{ env.MESON_ARGS_LINUX }} builddir
           meson compile -C builddir
 
       - name: patchelf Discord SDK path
