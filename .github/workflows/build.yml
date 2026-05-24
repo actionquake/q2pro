@@ -339,7 +339,7 @@ jobs:
           cp builddir/gamearm64.dylib "$APP/Contents/MacOS/"
 
           cp .ci/mac/Info.plist               "$APP/Contents/Info.plist"
-          install -m 0755 .ci/mac/AQtion-launcher.sh "$APP/Contents/MacOS/AQtion-launcher.sh"
+          install -m 0755 .ci/mac/AQtion-launcher "$APP/Contents/MacOS/AQtion-launcher"
 
           # Icon: drop if present; otherwise the bundle ships without one
           # (Finder falls back to a generic icon — does not break launch).
@@ -384,14 +384,22 @@ jobs:
           codesign --force --deep --sign - AQtion.app
           codesign --verify --verbose AQtion.app
 
-      - name: Package .app as zip
+      - name: Diagnostic — confirm exec bits + bundle layout before upload
         run: |
-          zip -r -y AQtion-darwin-arm64.zip AQtion.app
+          echo "=== Bundle tree ==="
+          ls -laR AQtion.app | head -60
+          echo
+          echo "=== Launcher exec bit ==="
+          ls -la AQtion.app/Contents/MacOS/AQtion-launcher
+          file AQtion.app/Contents/MacOS/AQtion-launcher
 
+      # Upload the .app directly so actions/upload-artifact zips ONCE.
+      # User downloads AQtion-darwin-arm64.zip, extracts → AQtion.app.
+      # No double zip, no manual archiving needed.
       - uses: actions/upload-artifact@v6
         with:
-          name: q2pro-darwin-arm64-turnkey
-          path: AQtion-darwin-arm64.zip
+          name: AQtion-darwin-arm64
+          path: AQtion.app
 
   # Same as above for Intel Macs. Kept as a separate job so each artifact
   # is independently testable. (A future "lipo into universal" job can
@@ -424,7 +432,7 @@ jobs:
           cp builddir/gamex86_64.dylib "$APP/Contents/MacOS/"
 
           cp .ci/mac/Info.plist               "$APP/Contents/Info.plist"
-          install -m 0755 .ci/mac/AQtion-launcher.sh "$APP/Contents/MacOS/AQtion-launcher.sh"
+          install -m 0755 .ci/mac/AQtion-launcher "$APP/Contents/MacOS/AQtion-launcher"
 
           if [ -f .ci/mac/AQtion.icns ]; then
             cp .ci/mac/AQtion.icns "$APP/Contents/Resources/"
@@ -459,14 +467,19 @@ jobs:
           codesign --force --deep --sign - AQtion.app
           codesign --verify --verbose AQtion.app
 
-      - name: Package .app as zip
+      - name: Diagnostic — confirm exec bits + bundle layout before upload
         run: |
-          zip -r -y AQtion-darwin-x86_64.zip AQtion.app
+          echo "=== Bundle tree ==="
+          ls -laR AQtion.app | head -60
+          echo
+          echo "=== Launcher exec bit ==="
+          ls -la AQtion.app/Contents/MacOS/AQtion-launcher
+          file AQtion.app/Contents/MacOS/AQtion-launcher
 
       - uses: actions/upload-artifact@v6
         with:
-          name: q2pro-darwin-x86_64-turnkey
-          path: AQtion-darwin-x86_64.zip
+          name: AQtion-darwin-x86_64
+          path: AQtion.app
 
   # Linux turnkey build for Steam. Runs inside the official Steam Linux
   # Runtime "Sniper" SDK container — the binary links against exactly the

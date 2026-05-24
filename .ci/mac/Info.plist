@@ -6,7 +6,7 @@
     <string>en</string>
 
     <key>CFBundleExecutable</key>
-    <string>AQtion-launcher.sh</string>
+    <string>AQtion-launcher</string>
 
     <key>CFBundleIconFile</key>
     <string>AQtion</string>

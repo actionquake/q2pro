@@ -107,14 +107,14 @@ jobs:
         uses: dawidd6/action-download-artifact@v2
         with:
           workflow: build.yml
-          name: q2pro-darwin-arm64-turnkey
+          name: AQtion-darwin-arm64
           skip_unpack: true
 
       - name: Download Darwin x86_64 turnkey .app
         uses: dawidd6/action-download-artifact@v2
         with:
           workflow: build.yml
-          name: q2pro-darwin-x86_64-turnkey
+          name: AQtion-darwin-x86_64
           skip_unpack: true
 
       - name: Download Linux Steam (Sniper) build artifacts
@@ -140,6 +140,6 @@ jobs:
             q2pro-darwin-x86_64.zip
             q2pro-darwin-arm64.zip
             q2pro-fedora-x86_64.zip
-            q2pro-darwin-arm64-turnkey.zip
-            q2pro-darwin-x86_64-turnkey.zip
+            AQtion-darwin-arm64.zip
+            AQtion-darwin-x86_64.zip
             q2pro-linux-x86_64-steam-sniper.zip
