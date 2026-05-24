@@ -684,7 +684,10 @@ void Cmd_Teamnone_f(edict_t *ent)
 		return;
 	}
 
-	if (gi.argc() < 1) {
+	/* gi.argc() always returns at least 1 (the command name itself), so the
+	 * previous `< 1` guard was dead code — missing-arg silently fell through
+	 * with playernum=0 from atoi(""). */
+	if (gi.argc() < 2) {
 		gi.cprintf(ent, PRINT_HIGH, "You need to provide a playernum for this command\nUse 'playerlist' to get a list of playernums\n");
 		return;
 	}

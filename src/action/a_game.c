@@ -1661,12 +1661,21 @@ void ReadLrconConfig(void)
 	game.lrcon_config.modes_count = 0;
 	game.lrcon_config.allowed_stuffcmds_count = 0;
 
-	// Get config filename from cvar
+	// Get config filename from cvar.
+	// Validate value: must be a plain filename within the action/ directory.
+	// Without this, lrcon_config "../../../etc/crontab" would open arbitrary
+	// filesystem paths. Also replaces unbounded sprintf with Q_snprintf.
 	lrcon_config_cvar = gi.cvar("lrcon_config", "lrcon.cfg", 0);
-	if (lrcon_config_cvar->string && *(lrcon_config_cvar->string))
-		sprintf(cfgpath, "%s/%s", GAMEVERSION, lrcon_config_cvar->string);
-	else
-		sprintf(cfgpath, "%s/%s", GAMEVERSION, "lrcon.cfg");
+	{
+		const char *name = (lrcon_config_cvar->string && *lrcon_config_cvar->string)
+			? lrcon_config_cvar->string : "lrcon.cfg";
+		if (strstr(name, "..") || strchr(name, '/') || strchr(name, '\\') ||
+		    strchr(name, ':')) {
+			gi.dprintf("LRCON: refusing lrcon_config '%s' — must be a plain filename within action/\n", name);
+			return;
+		}
+		Q_snprintf(cfgpath, sizeof(cfgpath), "%s/%s", GAMEVERSION, name);
+	}
 
 	// Try to open config file
 	config_file = fopen(cfgpath, "r");
