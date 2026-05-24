@@ -1,10 +1,6 @@
 // This is set to 1 if either atl or etv are 1
 extern cvar_t *esp;
 
-// Discrete game modes
-extern cvar_t *atl;
-extern cvar_t *etv;
-
 #define IS_LEADER(ent) (teams[(ent)->client->resp.team].leader == (ent))
 #define	HAVE_LEADER(teamNum) (teams[(teamNum)].leader)
 #define MAX_ESP_STRLEN 32

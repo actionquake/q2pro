@@ -1232,6 +1232,7 @@ void RemoveSpaces(char *s)
 void Cmd_AutoRecord_f(edict_t * ent)
 {
 	char rec_date[20], recstr[MAX_QPATH];
+	char *p;
 	time_t clock;
 
 	time( &clock );
@@ -1247,6 +1248,16 @@ void Cmd_AutoRecord_f(edict_t * ent)
 		RemoveSpaces(recstr); //Remove spaces -M
 	} else {
 		Q_snprintf(recstr, sizeof(recstr), "%s-%s", rec_date, level.mapname);
+	}
+
+	/* Belt-and-suspenders: even though teamname intake sanitizes, scrub anything
+	 * that could break out of the quoted stuffcmd arg (recstr also includes
+	 * level.mapname which is engine-controlled but cheap to harden). */
+	for (p = recstr; *p; p++) {
+		if (*p == '"' || *p == '\\' || *p == '\n' || *p == '\r' ||
+		    *p == ';' || *p == '$' || (unsigned char)*p < 0x20) {
+			*p = '_';
+		}
 	}
 
 	stuffcmd(ent, va("record \"%s\"\n", recstr));

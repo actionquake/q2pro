@@ -793,6 +793,7 @@ typedef struct precache_s {
 
 #define MAX_LRCON_CVARS 32
 #define MAX_LRCON_MODES 16
+#define MAX_LRCON_STUFFCMDS 16
 
 /* LRCON state - tracks current server claim */
 typedef struct {
@@ -817,6 +818,8 @@ typedef struct {
   char allowed_cvars[MAX_LRCON_CVARS][64];  /* Whitelisted cvar names */
   int modes_count;            /* Number of available modes */
   lrcon_mode_t modes[MAX_LRCON_MODES];      /* Available server modes */
+  int allowed_stuffcmds_count;  /* Number of allowlisted client stuffcmds */
+  char allowed_stuffcmds[MAX_LRCON_STUFFCMDS][32];  /* Allowlisted commands for `lrcon stuffcmd` */
 } lrcon_config_t;
 
 //
@@ -976,6 +979,7 @@ typedef struct
   int timeoutFrames;
   float matchTime;
   float emptyTime;
+  float quit_empty_time;  // LRCON quit_on_empty: level.time when server first emptied, or -1 if not empty. Separate from emptyTime which empty_rotate uses as an accumulator.
   int abandonFrames;  // Countdown for abandon forfeit
   int weapon_sound_framenum;
   int pic_teamplay_timer_icon;
@@ -1396,8 +1400,6 @@ extern cvar_t *medkit_value;
 
 // BEGIN AQ2 ETE
 extern cvar_t *esp;  // Enable or disable Espionage mode
-extern cvar_t *atl;  // Enable or disable Assassinate the Leader mode (do not set this manually)
-extern cvar_t *etv;	 // Enable or disable Escort the VIP mode (do not set this manually)
 extern cvar_t *esp_atl;  // Prefer ATL mode even if ETV mode is available
 extern cvar_t *esp_punish;  // Enable or disable punishment for losing the around
 extern cvar_t *esp_etv_halftime;  // Enable or disable halftime in ETV mode

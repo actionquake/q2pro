@@ -490,7 +490,7 @@ void InitGame( void )
 	mm_allowlock = gi.cvar( "mm_allowlock", "1", CVAR_LATCH );
 	mm_pausecount = gi.cvar( "mm_allowcount", "3", CVAR_LATCH );
 	mm_pausetime = gi.cvar( "mm_pausetime", "2", CVAR_LATCH );
-	mm_timeoutcount = gi.cvar( "mm_timeoutcount", "1", CVAR_LATCH ); // 1 timeout
+	mm_timeoutcount = gi.cvar( "mm_timeoutcount", "2", CVAR_LATCH ); // 2 timeouts per team per match
 	mm_timeouttime = gi.cvar( "mm_timeouttime", "60", CVAR_LATCH ); // 60 seconds
 	use_forfeit = gi.cvar( "use_forfeit", "0", 0 ); // Enable forfeit command
 	forfeit_abandon_time = gi.cvar( "forfeit_abandon_time", "60", 0 ); // Abandon timer in seconds
@@ -618,7 +618,7 @@ void InitGame( void )
 	esp_matchmode = gi.cvar("esp_matchmode", "0", 0);
 	esp_respawn_uvtime = gi.cvar("esp_respawn_uvtime", "10", 0);
 	if (esp_respawn_uvtime->value > 20) {
-		gi.dprintf("esp_respawn_uvtime was set too high, setting to 2 seconds\n");
+		gi.dprintf("esp_respawn_uvtime was set too high, setting to 20 seconds\n");
 		gi.cvar_forceset("esp_respawn_uvtime", "20");
 	}
 	esp_debug = gi.cvar("esp_debug", "0", 0); // Set to 1 to enable debug messages for Espionage

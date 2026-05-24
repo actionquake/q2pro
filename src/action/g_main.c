@@ -533,8 +533,6 @@ cvar_t *jump;			// jumping mod
 
 // BEGIN AQ2 ETE
 cvar_t *esp;
-cvar_t *atl;
-cvar_t *etv;
 cvar_t *esp_atl;
 cvar_t *esp_punish;
 cvar_t *esp_etv_halftime;
@@ -1344,18 +1342,24 @@ void G_RunFrame (void)
 		return;
 	}
 
-	// LRCON quit_on_empty logic
+	// LRCON quit_on_empty logic.
+	// Uses its own quit_empty_time field — sharing level.emptyTime with the
+	// empty_rotate accumulator above caused the old comparison
+	// `level.time - level.emptyTime > 5.0` to fire after one frame when a
+	// player left a long-running server (level.time was already large but
+	// emptyTime had just incremented from 0). Sentinel -1.0f means "not
+	// currently empty" so we can distinguish from level.time == 0 at start.
 	if (game.lrcon_config.quit_on_empty) {
 		if (empty) {
-			if (level.emptyTime == 0) {
-				level.emptyTime = level.time;
+			if (level.quit_empty_time < 0) {
+				level.quit_empty_time = level.time;
 				gi.dprintf("LRCON: Server empty, will quit in 5 seconds\n");
-			} else if (level.time - level.emptyTime > 5.0) {
+			} else if (level.time - level.quit_empty_time > 5.0f) {
 				gi.dprintf("LRCON: Quitting server (empty for 5+ seconds)\n");
 				gi.AddCommandString("quit\n");
 			}
 		} else {
-			level.emptyTime = 0;
+			level.quit_empty_time = -1.0f;
 		}
 	}
 

@@ -1580,6 +1580,10 @@ void SpawnEntities (const char *mapname, const char *entities, const char *spawn
 	memset(&level, 0, sizeof (level));
 	memset(g_edicts, 0, game.maxentities * sizeof (g_edicts[0]));
 
+	// quit_empty_time uses -1 as the "not currently empty" sentinel (0 is a
+	// valid level.time at start of map).
+	level.quit_empty_time = -1.0f;
+
 	Q_strncpyz(level.mapname, mapname, sizeof(level.mapname));
 	Q_strncpyz(game.spawnpoint, spawnpoint, sizeof(game.spawnpoint));
 
