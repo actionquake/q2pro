@@ -1860,6 +1860,12 @@ void player_die(edict_t *self, edict_t *inflictor, edict_t *attacker, int damage
 		}
 		LookAtKiller(self, inflictor, attacker);
 		self->client->ps.pmove.pm_type = PM_DEAD;
+
+		// Snapshot true damage breakdown for truedmg command
+		self->client->resp.last_truedmg_player = self->client->truedmg_player;
+		self->client->resp.last_truedmg_bleed = self->client->truedmg_bleed;
+		self->client->resp.last_truedmg_env = self->client->truedmg_env;
+
 		ClientObituary(self, inflictor, attacker);
 		if (ctf->value)
 			CTFFragBonuses(self, inflictor, attacker);
@@ -4040,6 +4046,7 @@ void CreateGhost(edict_t * ent)
 	// Score
 	ghost->score = ent->client->resp.score;
 	ghost->damage_dealt = ent->client->resp.damage_dealt;
+	ghost->true_damage_dealt = ent->client->resp.true_damage_dealt;
 	ghost->kills = ent->client->resp.kills;
 	ghost->deaths = ent->client->resp.deaths;
 	ghost->ctf_caps = ent->client->resp.ctf_caps;

@@ -91,6 +91,7 @@ Additions and enhancements by darksaint, Reki, Rektek and the AQ2World team
     - [Darkmatch](#darkmatch)
     - [Map Restarting](#map-restarting)
     - [Statistics](#statistics)
+    - [True Damage Tracking](#true-damage-tracking)
     - [Automatic Joining/Equipping/Menu](#automatic-joiningequippingmenu)
     - [Automatic Demo Recording](#automatic-demo-recording)
     - [Spawn Code](#spawn-code)
@@ -823,6 +824,50 @@ The following read-only cvars are automatically maintained by the server and exp
 - `t1` - current score for Team 1
 - `t2` - current score for Team 2
 - `t3` - current score for Team 3 (3-team modes)
+
+### True Damage Tracking
+
+Standard damage statistics count raw damage dealt, including overkill. A sniper headshot deals 450+ damage, but the target only had 100 HP — the "true" damage is 100. True damage tracking provides two things:
+
+1. **Attacker-side `true_damage_dealt`**: Accumulated damage dealt to other players, capped at each victim's remaining HP at the time damage is applied. This is tracked alongside the existing raw `damage_dealt` stat and persists across respawns and reconnects (via ghost). The sum of all players' `true_damage_dealt` plus environmental damage equals the total HP lost across all victims in a round.
+
+2. **Victim-side HP breakdown**: When a player dies, their 100 HP is categorized into three buckets that sum to exactly 100:
+   - **Player damage**: HP lost from instant hits by other players (kevlar bruise damage, kicks, punches)
+   - **Bleeding damage**: HP lost from bleed-over-time ticks (the primary way gunshot damage depletes HP in AQ2)
+   - **Environmental damage**: HP lost from falls, drowning, lava, slime, or self-inflicted damage
+
+**Commands:**
+- `truedmg` - displays the victim-side HP breakdown from the player's last death (client side)
+- `stats` - now includes a "True Damage Dealt" line alongside the existing raw damage stat (client side)
+
+**Scoreboard:**
+
+True damage dealt can optionally be shown on the configurable scoreboard using the `E` field code. The `scoreboard` cvar accepts a string of field codes that define which columns appear:
+
+| Code | Column | Width |
+|------|--------|-------|
+| `F` | Frags | 5 chars |
+| `N` | Player name | 15 chars |
+| `M` | Time (minutes) | 4 chars |
+| `P` | Ping | 4 chars |
+| `S` | Score | 5 chars |
+| `K` | Kills | 5 chars |
+| `D` | Deaths | 6 chars |
+| `I` | Damage (raw) | 6 chars |
+| `E` | TrDmg (true damage) | 6 chars |
+| `A` | Accuracy (%) | 3 chars |
+| `T` | Team | 4 chars |
+| `C` | CTF Caps | 4 chars |
+
+The `E` field is **not included in any default scoreboard layout** and must be explicitly added by the server operator. This avoids adding packet overhead for legacy clients or servers that don't need it. Each additional column adds approximately 7-8 bytes per player line to the layout string, which is constrained to 1024 bytes. Server operators should be mindful of the total column count when many players are on the server.
+
+Example: `set scoreboard "FNMPEI"` adds true damage alongside raw damage on the scoreboard.
+
+Default layouts (when `scoreboard` is empty):
+- Standard teamplay: `FNMPIT`
+- Team deathmatch: `FNMPDT`
+- CTF: `SNMPCT`
+- No-score mode: `NMP`
 
 ### Automatic Joining/Equipping/Menu
 For the lazy players under us, we have created three new commands to make things easier.

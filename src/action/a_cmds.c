@@ -1309,6 +1309,7 @@ void Cmd_Ghost_f(edict_t * ent)
 	ent->client->resp.kills = ghost->kills;
 	ent->client->resp.deaths = ghost->deaths;
 	ent->client->resp.damage_dealt = ghost->damage_dealt;
+	ent->client->resp.true_damage_dealt = ghost->true_damage_dealt;
 	ent->client->resp.ctf_caps = ghost->ctf_caps;
 	ent->client->resp.ctf_capstreak = ghost->ctf_capstreak;
 	ent->client->resp.team_kills = ghost->team_kills;
