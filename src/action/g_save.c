@@ -618,7 +618,7 @@ void InitGame( void )
 	esp_matchmode = gi.cvar("esp_matchmode", "0", 0);
 	esp_respawn_uvtime = gi.cvar("esp_respawn_uvtime", "10", 0);
 	if (esp_respawn_uvtime->value > 20) {
-		gi.dprintf("esp_respawn_uvtime was set too high, setting to 2 seconds\n");
+		gi.dprintf("esp_respawn_uvtime was set too high, setting to 20 seconds\n");
 		gi.cvar_forceset("esp_respawn_uvtime", "20");
 	}
 	esp_debug = gi.cvar("esp_debug", "0", 0); // Set to 1 to enable debug messages for Espionage
