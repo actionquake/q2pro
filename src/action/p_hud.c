@@ -414,7 +414,12 @@ void DeathmatchScoreboard(edict_t *ent)
 		return;
 #endif
 	DeathmatchScoreboardMessage(ent, ent->enemy);
-	gi.unicast(ent, false);  // unreliable; periodic refresh catches drops
+	/* Reliable: this is a per-client on-demand request (TAB key), not part
+	 * of the periodic broadcast burst the stagger changes are reducing. The
+	 * 3-second periodic refresh is too slow to mask a dropped TAB response,
+	 * and a single-client unicast doesn't contribute to the full-server
+	 * burst problem. */
+	gi.unicast(ent, true);
 }
 
 

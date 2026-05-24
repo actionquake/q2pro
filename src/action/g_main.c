@@ -870,9 +870,17 @@ void ClientEndServerFrames (void)
 		ClientEndServerFrame(ent);
 
 		// Stagger periodic layout updates: each client on a different frame
-		// within the 3-second cycle, unless forced by teams_changed
+		// within the cycle, unless forced by teams_changed.
+		// Cycle = max(3*HZ, maxclients) so every client gets a unique slot.
+		// When maxclients <= 3*HZ (typical), cycle stays 3s and the refresh
+		// rate is unchanged. When maxclients > 3*HZ (e.g., 64-player server
+		// at HZ=10 gives 3*HZ=30), the cycle expands to maxclients frames
+		// so refresh slows slightly but no two clients collide into the
+		// same frame slot (which previously left some slots empty and
+		// others double-loaded).
+		int stagger_cycle = (game.maxclients > 3 * HZ) ? game.maxclients : 3 * HZ;
 		int clientUpdate = updateLayout ||
-			((level.realFramenum % (3 * HZ)) == (i % (3 * HZ)));
+			((level.realFramenum % stagger_cycle) == (i % stagger_cycle));
 
 		if (clientUpdate && ent->client->layout) {
 			if (ent->client->layout == LAYOUT_MENU)
