@@ -101,6 +101,29 @@ jobs:
           name: q2pro-fedora-x86_64
           skip_unpack: true
 
+      # ----- Turnkey ("no-install") artifacts (additive) -----
+
+      - name: Download Darwin ARM64 turnkey .app
+        uses: dawidd6/action-download-artifact@v2
+        with:
+          workflow: build.yml
+          name: q2pro-darwin-arm64-turnkey
+          skip_unpack: true
+
+      - name: Download Darwin x86_64 turnkey .app
+        uses: dawidd6/action-download-artifact@v2
+        with:
+          workflow: build.yml
+          name: q2pro-darwin-x86_64-turnkey
+          skip_unpack: true
+
+      - name: Download Linux Steam (Sniper) build artifacts
+        uses: dawidd6/action-download-artifact@v2
+        with:
+          workflow: build.yml
+          name: q2pro-linux-x86_64-steam-sniper
+          skip_unpack: true
+
       - name: Upload dist tarball to release
         uses: softprops/action-gh-release@v1
         env:
@@ -117,3 +140,6 @@ jobs:
             q2pro-darwin-x86_64.zip
             q2pro-darwin-arm64.zip
             q2pro-fedora-x86_64.zip
+            q2pro-darwin-arm64-turnkey.zip
+            q2pro-darwin-x86_64-turnkey.zip
+            q2pro-linux-x86_64-steam-sniper.zip

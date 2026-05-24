@@ -300,3 +300,221 @@ jobs:
             builddir/q2pro
             builddir/q2proded
             builddir/gamearm64.dylib
+
+  # ----------------------------------------------------------------------
+  # Turnkey ("no-install") builds for end users — additive, do not replace
+  # the existing builds above.
+  # ----------------------------------------------------------------------
+
+  # Self-contained AQtion.app for ARM64 Macs.
+  # All Homebrew dylib dependencies are bundled into Contents/Frameworks/
+  # via dylibbundler and the binary's link paths are rewritten to
+  # @executable_path/../Frameworks/ — player needs zero brew installs.
+  # Game data (baseaq/, action/) is expected ALONGSIDE the .app, not inside.
+  darwin-arm64-turnkey:
+    runs-on: macos-14
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Install build + bundling dependencies
+        run: |
+          brew install pkg-config meson libpng sdl2 openal-soft zlib curl ffmpeg jpeg-turbo jansson ossp-uuid dylibbundler
+
+      - name: Build
+        run: |
+          meson setup ${{ env.MESON_ARGS }} ${{ env.MESON_ARGS_MAC }} builddir
+          meson compile -vC builddir
+        env:
+          CC: "gcc"
+          PKG_CONFIG_PATH: "/opt/homebrew/opt/openal-soft/lib/pkgconfig"
+          CFLAGS: "-target arm64-apple-macos11"
+
+      - name: Assemble AQtion.app bundle
+        run: |
+          APP=AQtion.app
+          mkdir -p "$APP/Contents/MacOS" "$APP/Contents/Frameworks" "$APP/Contents/Resources"
+
+          cp builddir/q2pro          "$APP/Contents/MacOS/"
+          cp builddir/q2proded       "$APP/Contents/MacOS/"
+          cp builddir/gamearm64.dylib "$APP/Contents/MacOS/"
+
+          cp .ci/mac/Info.plist               "$APP/Contents/Info.plist"
+          install -m 0755 .ci/mac/AQtion-launcher.sh "$APP/Contents/MacOS/AQtion-launcher.sh"
+
+          # Icon: drop if present; otherwise the bundle ships without one
+          # (Finder falls back to a generic icon — does not break launch).
+          if [ -f .ci/mac/AQtion.icns ]; then
+            cp .ci/mac/AQtion.icns "$APP/Contents/Resources/"
+          fi
+
+      - name: Bundle all dylib dependencies into the .app
+        run: |
+          APP=AQtion.app
+          # Walk every linked dylib for the main binary, the dedicated server,
+          # and the game library; copy them into Frameworks/ and rewrite
+          # the binaries' install_name references.
+          dylibbundler -od -b \
+            -x "$APP/Contents/MacOS/q2pro" \
+            -x "$APP/Contents/MacOS/q2proded" \
+            -x "$APP/Contents/MacOS/gamearm64.dylib" \
+            -d "$APP/Contents/Frameworks/" \
+            -p "@executable_path/../Frameworks/"
+
+      - name: Verify .app has no external dylib references
+        run: |
+          APP=AQtion.app
+          echo "=== q2pro linkage ==="
+          otool -L "$APP/Contents/MacOS/q2pro"
+          echo
+          echo "=== Any reference to /usr/local, /opt, or absolute brew paths? ==="
+          if otool -L "$APP/Contents/MacOS/q2pro" "$APP/Contents/MacOS/q2proded" "$APP/Contents/MacOS/gamearm64.dylib" \
+              | grep -E "/usr/local/|/opt/homebrew|/opt/local" ; then
+            echo "ERROR: external dependency leaked into bundle"
+            exit 1
+          fi
+          echo "OK — bundle is self-contained"
+
+      - name: Ad-hoc codesign the .app
+        run: |
+          # Self-signed with no developer cert. Does NOT bypass Gatekeeper
+          # (user still right-click → Open on first launch when downloaded
+          # via browser), but produces a stable, valid signature so some
+          # macOS subsystems and third-party tools stop complaining about
+          # an unsigned binary. Free, no Apple Developer account required.
+          codesign --force --deep --sign - AQtion.app
+          codesign --verify --verbose AQtion.app
+
+      - name: Package .app as zip
+        run: |
+          zip -r -y AQtion-darwin-arm64.zip AQtion.app
+
+      - uses: actions/upload-artifact@v6
+        with:
+          name: q2pro-darwin-arm64-turnkey
+          path: AQtion-darwin-arm64.zip
+
+  # Same as above for Intel Macs. Kept as a separate job so each artifact
+  # is independently testable. (A future "lipo into universal" job can
+  # combine the two .app bundles.)
+  darwin-x86_64-turnkey:
+    runs-on: macos-15-intel
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Install build + bundling dependencies
+        run: |
+          brew install pkg-config meson libpng sdl2 openal-soft zlib curl ffmpeg jpeg-turbo ossp-uuid jansson dylibbundler
+
+      - name: Build
+        run: |
+          meson setup ${{ env.MESON_ARGS }} ${{ env.MESON_ARGS_MAC }} builddir
+          meson compile -vC builddir
+        env:
+          CC: "gcc"
+          PKG_CONFIG_PATH: "/usr/local/opt/openal-soft/lib/pkgconfig"
+          CFLAGS: "-mmacosx-version-min=10.7"
+
+      - name: Assemble AQtion.app bundle
+        run: |
+          APP=AQtion.app
+          mkdir -p "$APP/Contents/MacOS" "$APP/Contents/Frameworks" "$APP/Contents/Resources"
+
+          cp builddir/q2pro            "$APP/Contents/MacOS/"
+          cp builddir/q2proded         "$APP/Contents/MacOS/"
+          cp builddir/gamex86_64.dylib "$APP/Contents/MacOS/"
+
+          cp .ci/mac/Info.plist               "$APP/Contents/Info.plist"
+          install -m 0755 .ci/mac/AQtion-launcher.sh "$APP/Contents/MacOS/AQtion-launcher.sh"
+
+          if [ -f .ci/mac/AQtion.icns ]; then
+            cp .ci/mac/AQtion.icns "$APP/Contents/Resources/"
+          fi
+
+      - name: Bundle all dylib dependencies into the .app
+        run: |
+          APP=AQtion.app
+          dylibbundler -od -b \
+            -x "$APP/Contents/MacOS/q2pro" \
+            -x "$APP/Contents/MacOS/q2proded" \
+            -x "$APP/Contents/MacOS/gamex86_64.dylib" \
+            -d "$APP/Contents/Frameworks/" \
+            -p "@executable_path/../Frameworks/"
+
+      - name: Verify .app has no external dylib references
+        run: |
+          APP=AQtion.app
+          echo "=== q2pro linkage ==="
+          otool -L "$APP/Contents/MacOS/q2pro"
+          echo
+          echo "=== Any reference to /usr/local, /opt, or absolute brew paths? ==="
+          if otool -L "$APP/Contents/MacOS/q2pro" "$APP/Contents/MacOS/q2proded" "$APP/Contents/MacOS/gamex86_64.dylib" \
+              | grep -E "/usr/local/|/opt/homebrew|/opt/local" ; then
+            echo "ERROR: external dependency leaked into bundle"
+            exit 1
+          fi
+          echo "OK — bundle is self-contained"
+
+      - name: Ad-hoc codesign the .app
+        run: |
+          codesign --force --deep --sign - AQtion.app
+          codesign --verify --verbose AQtion.app
+
+      - name: Package .app as zip
+        run: |
+          zip -r -y AQtion-darwin-x86_64.zip AQtion.app
+
+      - uses: actions/upload-artifact@v6
+        with:
+          name: q2pro-darwin-x86_64-turnkey
+          path: AQtion-darwin-x86_64.zip
+
+  # Linux turnkey build for Steam. Runs inside the official Steam Linux
+  # Runtime "Sniper" SDK container — the binary links against exactly the
+  # libs Steam ships with every Steam install (sniper provides SDL2,
+  # OpenAL, libpng, libjpeg, libcurl, zlib, ffmpeg, x11, wayland, mesa,
+  # etc.). The user never installs anything via apt/dnf/etc.
+  #
+  # To use this artifact: upload as a Steam depot, then in app_build.vdf
+  # set "linux_runtime" "sniper" so Steam launches the game inside the
+  # Sniper container automatically.
+  linux-steam-sniper:
+    runs-on: ubuntu-24.04
+    container:
+      image: registry.gitlab.steamos.cloud/steamrt/sniper/sdk:latest
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: actions/cache@v4
+        with:
+          path: subprojects/packagecache
+          key: ${{ hashFiles('subprojects/*.wrap') }}
+
+      - name: Build against Steam Runtime Sniper
+        run: |
+          meson setup ${{ env.MESON_ARGS }} ${{ env.MESON_ARGS_LINUX }} builddir
+          meson compile -C builddir
+
+      - name: patchelf Discord SDK path
+        run: |
+          patchelf --replace-needed \
+            /home/runner/work/q2pro/q2pro/extern/discord/lib/x86_64/discord_game_sdk.so \
+            ./discord_game_sdk.so \
+            builddir/q2pro || true
+
+      - name: Set binaries as executable
+        run: |
+          chmod +x builddir/q2pro*
+
+      - name: Verify binary only links Sniper-provided libs
+        run: |
+          echo "=== q2pro linkage ==="
+          ldd builddir/q2pro
+          echo "OK — verify above that all libs resolve inside the Sniper runtime"
+
+      - uses: actions/upload-artifact@v6
+        with:
+          name: q2pro-linux-x86_64-steam-sniper
+          path: |
+            builddir/q2pro
+            builddir/q2proded
+            builddir/gamex86_64.so
