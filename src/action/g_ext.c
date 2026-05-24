@@ -264,7 +264,13 @@ void G_CvarSync_Updated(int index, edict_t *clent)
 			break;
 
 		case clcvar_cl_xerp:
-			client->pers.cl_xerp = val_i;
+			if ((int)force_cl_xerp->value > 0) {
+				client->pers.cl_xerp = (int)force_cl_xerp->value;
+				if (val_i != client->pers.cl_xerp)
+					gi.cprintf(clent, PRINT_HIGH, "Server has forced cl_xerp to %d\n", client->pers.cl_xerp);
+			} else {
+				client->pers.cl_xerp = val_i;
+			}
 			break;
 
 		case clcvar_cl_indicators:

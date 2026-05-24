@@ -1944,6 +1944,7 @@ void ResetScores (qboolean playerScores)
 	timewarning = fragwarning = 0;
 	level.pauseFrames = 0;
 	level.timeoutFrames = 0;
+	level.abandonFrames = 0;
 	level.matchTime = 0;
 	num_ghost_players = 0;
 
@@ -1954,6 +1955,7 @@ void ResetScores (qboolean playerScores)
 		teams[i].score = teams[i].total = 0;
 		teams[i].ready = teams[i].locked = 0;
 		teams[i].pauses_used = teams[i].wantReset = 0;
+		teams[i].forfeit = 0;
 		teams[i].timeout_count = (int)mm_timeoutcount->value;
 		if (teams[i].teamscore)
 			gi.cvar_forceset(teams[i].teamscore->name, "0");
@@ -2821,7 +2823,10 @@ int WonGame (int winner)
 	
 	if (CheckRoundLimit())
 		return 1;
-	
+
+	if (CheckAbandon())
+		return 1;
+
 	if (vCheckVote()) {
 		EndDMLevel ();
 		team_round_going = team_round_countdown = team_game_going = 0;
@@ -3311,7 +3316,7 @@ int G_NotSortedClients( gclient_t **sortedList )
 	return total;
 }
 
-#define MAX_SCOREBOARD_SIZE 1024
+#define MAX_SCOREBOARD_SIZE 1300
 #define TEAM_HEADER_WIDTH	160 //skin icon and team tag
 #define TEAM_ROW_CHARS		32  //"yv 42 string2 \"name\" "
 #define TEAM_ROW_WIDTH		160 //20 chars, name and possible captain tag
@@ -3322,12 +3327,12 @@ int G_NotSortedClients( gclient_t **sortedList )
 // Maximum number of lines of scores to put under each team's header.
 #define MAX_SCORES_PER_TEAM 9
 
-#define MAX_PLAYERS_PER_TEAM 8
+#define MAX_PLAYERS_PER_TEAM 10
 
 void A_NewScoreboardMessage(edict_t * ent)
 {
-	char buf[1024];
-	char string[1024] = { '\0' };
+	char buf[MAX_SCOREBOARD_SIZE];
+	char string[MAX_SCOREBOARD_SIZE] = { '\0' };
 	gclient_t *sortedClients[MAX_CLIENTS];
 	int total[TEAM_TOP] = { 0, 0, 0, 0 };
 	int i, j, line = 0, lineh = 8;

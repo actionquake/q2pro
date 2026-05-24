@@ -1723,10 +1723,12 @@ static void Cmd_PrintSettings_f( edict_t * ent )
 	Q_snprintf( text + length, sizeof( text ) - length, "\n"
 		"timelimit   %2d roundlimit  %2d roundtimelimit %2d\n"
 		"limchasecam %2d tgren       %2d antilag_interp %2d\n"
-		"use_xerp    %2d llsound     %2d stats %2d\n",
+		"use_xerp    %2d llsound     %2d stats %2d\n"
+		"force_cl_xerp %2d\n",
 		(int)timelimit->value, (int)roundlimit->value, (int)roundtimelimit->value,
 		(int)limchasecam->value, (int)tgren->value, (int)sv_antilag_interp->value,
-		(int)use_xerp->value, (int)llsound->value, (int)stat_logs->value );
+		(int)use_xerp->value, (int)llsound->value, (int)stat_logs->value,
+		(int)force_cl_xerp->value );
 	#else
 	Q_snprintf( text + length, sizeof( text ) - length, "\n"
 		"timelimit   %2d roundlimit  %2d roundtimelimit %2d\n"
@@ -1984,6 +1986,7 @@ static cmdList_t commandList[] =
 	{ "sub", Cmd_Sub_f, 0 },
 	{ "captain", Cmd_Captain_f, 0 },
 	{ "ready", Cmd_Ready_f, 0 },
+	{ "forfeit", Cmd_Forfeit_f, 0 },
 	{ "teamname", Cmd_Teamname_f, 0 },
 	{ "teamskin", Cmd_Teamskin_f, 0 },
 	{ "teamnone", Cmd_Teamnone_f, 0 },

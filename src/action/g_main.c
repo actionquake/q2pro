@@ -428,6 +428,8 @@ cvar_t *mm_pausecount;
 cvar_t *mm_pausetime;
 cvar_t *mm_timeoutcount;
 cvar_t *mm_timeouttime;
+cvar_t *use_forfeit;
+cvar_t *forfeit_abandon_time;
 
 cvar_t *teamdm;
 cvar_t *teamdm_respawn;
@@ -603,11 +605,13 @@ cvar_t *bots; 		// If bots are enabled and in the server
 
 // 2026
 cvar_t *use_buggy_ent_hitbox;  // Enables classic dead entity hitbox
+cvar_t *mm_carryover; // Carry over team scores across maps in matchmode
 
 #ifdef AQTION_EXTENSION
 cvar_t *use_newirvision;
 cvar_t *use_indicators;
 cvar_t *use_xerp;
+cvar_t *force_cl_xerp;
 #endif
 
 // Discord SDK integration with Q2Pro
@@ -824,24 +828,37 @@ void ClientEndServerFrames (void)
 	int i, updateLayout = 0, spectators = 0;
 	edict_t *ent;
 
+	// Stagger intermission scoreboard sends across frames
 	if (level.intermission_framenum) {
 		for (i = 0, ent = g_edicts + 1; i < game.maxclients; i++, ent++) {
 			if (!ent->inuse || !ent->client)
 				continue;
 
 			ClientEndServerFrame(ent);
+
+			if (ent->client->needs_intermission_scoreboard) {
+				int frames_since = level.realFramenum - level.intermission_framenum;
+				int my_slot = i % 4;
+				if (frames_since >= my_slot) {
+					DeathmatchScoreboardMessage(ent, NULL);
+#ifndef NO_BOTS
+					if (!ent->is_bot)
+#endif
+					gi.unicast(ent, true);
+					ent->client->needs_intermission_scoreboard = false;
+				}
+			}
 		}
 		return;
 	}
 
+	// teams_changed forces immediate update for all clients
 	if( teams_changed && FRAMESYNC )
 	{
 		updateLayout = 1;
 		teams_changed = false;
 		UpdateJoinMenu();
 	}
-	else if( !(level.realFramenum % (3 * HZ)) )
-		updateLayout = 1;
 
 	// calc the player views now that all pushing
 	// and damage has been added
@@ -852,7 +869,20 @@ void ClientEndServerFrames (void)
 
 		ClientEndServerFrame(ent);
 
-		if (updateLayout && ent->client->layout) {
+		// Stagger periodic layout updates: each client on a different frame
+		// within the cycle, unless forced by teams_changed.
+		// Cycle = max(3*HZ, maxclients) so every client gets a unique slot.
+		// When maxclients <= 3*HZ (typical), cycle stays 3s and the refresh
+		// rate is unchanged. When maxclients > 3*HZ (e.g., 64-player server
+		// at HZ=10 gives 3*HZ=30), the cycle expands to maxclients frames
+		// so refresh slows slightly but no two clients collide into the
+		// same frame slot (which previously left some slots empty and
+		// others double-loaded).
+		int stagger_cycle = (game.maxclients > 3 * HZ) ? game.maxclients : 3 * HZ;
+		int clientUpdate = updateLayout ||
+			((level.realFramenum % stagger_cycle) == (i % stagger_cycle));
+
+		if (clientUpdate && ent->client->layout) {
 			if (ent->client->layout == LAYOUT_MENU)
 				PMenu_Update(ent);
 			else
@@ -867,7 +897,8 @@ void ClientEndServerFrames (void)
 			spectators++;
 	}
 
-	if (updateLayout && spectators && spectator_hud->value >= 0) {
+	int updateSpectators = updateLayout || !(level.realFramenum % (3 * HZ));
+	if (updateSpectators && spectators && spectator_hud->value >= 0) {
 		G_UpdateSpectatorStatusbar();
 		if (level.spec_statusbar_lastupdate >= level.realFramenum - 3 * HZ)
 		{
@@ -1251,6 +1282,17 @@ void ExitLevel (void)
 	// clear some things before going to next level
 	if (teamplay->value)
 	{
+		// Save scores for carryover if enabled in matchmode
+		if (mm_carryover->value && matchmode->value && !game.carryover_active)
+		{
+			for(i=TEAM1; i<TEAM_TOP; i++)
+				game.carryover_scores[i] = teams[i].score;
+			gi.dprintf("Matchmode carryover: saved scores t1=%d t2=%d t3=%d\n",
+				game.carryover_scores[TEAM1],
+				game.carryover_scores[TEAM2],
+				game.carryover_scores[TEAM3]);
+		}
+
 		for(i=TEAM1; i<TEAM_TOP; i++)
 		{
 			teams[i].score = 0;

@@ -50,7 +50,7 @@ jobs:
         #arch: ["i686", "x86_64"]
         arch: ["x86_64"]
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
       - uses: actions/cache@v4
         with:
@@ -70,7 +70,7 @@ jobs:
           meson compile -vC builddir
 
       - name: Generate Win Mingw archives
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: q2pro-mingw-${{ matrix.arch }}
           path: |
@@ -85,7 +85,7 @@ jobs:
         #arch: ["x86", "x64"]
         arch: ["x64"]
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
       - uses: actions/cache@v4
         with:
@@ -107,7 +107,7 @@ jobs:
           meson compile -C builddir
 
       - name: Generate Win MSVC archives
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: q2pro-msvc-${{ matrix.arch }}
           path: |
@@ -122,7 +122,7 @@ jobs:
       matrix:
         cc: [gcc, clang]
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
       - name: Install dependencies
         run: |
@@ -158,7 +158,7 @@ jobs:
           chmod +x builddir/q2pro*
           
       - name: Generate Linux x64 archives
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: q2pro-lin-${{ matrix.cc }}-x86_64
           path: |
@@ -172,7 +172,7 @@ jobs:
       matrix:
         cc: [gcc]
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
       # - name: Install dependencies
       #   run: |
@@ -195,7 +195,7 @@ jobs:
           chmod +x builddir/q2pro*
 
       - name: Generate Linux ARM archives
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: q2pro-lin-arm64
           path: |
@@ -206,7 +206,7 @@ jobs:
   fedora:
     runs-on: [self-hosted, linux, fedora]
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
       # Already installed, run this manually to update/patch versions
       # - name: Install dependencies
@@ -229,7 +229,7 @@ jobs:
           chmod +x builddir/q2pro*
 
       - name: Generate Linux Fedora archives
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: q2pro-fedora-x86_64
           path: |
@@ -240,7 +240,7 @@ jobs:
   darwin:
     runs-on: macos-15-intel
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
       - name: Install dependencies
         run: |
@@ -262,7 +262,7 @@ jobs:
           chmod +x builddir/q2pro*
 
       - name: Generate Mac archives
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: q2pro-darwin-x86_64
           path: |
@@ -273,7 +273,7 @@ jobs:
   darwin-arm64:
     runs-on: macos-14
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
       - name: Install dependencies
         run: |
@@ -293,7 +293,7 @@ jobs:
           chmod +x builddir/q2pro*
 
       - name: Generate Mac archives
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: q2pro-darwin-arm64
           path: |

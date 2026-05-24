@@ -59,6 +59,8 @@ Additions and enhancements by darksaint, Reki, Rektek and the AQ2World team
     - [Grenade Strength](#grenade-strength)
       - [Commands](#commands-21)
     - [Total Kills](#total-kills)
+    - [Scoreboard Delivery](#scoreboard-delivery)
+    - [Configurable Scoreboard](#configurable-scoreboard)
     - [Random Rotation](#random-rotation)
       - [Commands](#commands-22)
     - [Vote Rotation](#vote-rotation)
@@ -254,6 +256,28 @@ Clients will have a few more things to do during matchmode: they have to have a 
   - `lock` - allows a captain to lock his team. When a team is locked, no one can join it. Locks are removed on a new map
   - `unlock` - allows a captain to unlock his team
   - `timeout` - Request a timeout for your team. Must be a captain. The timeout will be granted at the end of the current round. Each team gets a limited number of timeouts per match.
+  - `forfeit` - Captain-only command to forfeit the match. Must be typed twice to confirm — the first use signals intent, the second confirms. The match ends immediately on confirmation. Requires `use_forfeit 1`.
+
+#### Forfeit Settings
+
+The forfeit system provides two ways to end a match early: captain-initiated forfeit and automatic abandonment detection.
+
+- Server settings:
+  - `use_forfeit [0/1]` - Enables the forfeit command and abandonment detection (default: 0)
+  - `forfeit_abandon_time [#]` - Seconds to wait before ending an abandoned match (default: 60)
+
+**Captain Forfeit**: When enabled, a team captain can type `forfeit` to signal intent. The server broadcasts a warning to all players. The captain must type `forfeit` a second time to confirm. Once confirmed, the match ends with no score awarded to either team. The pending state persists until confirmed or until the captain resigns/disconnects.
+
+**Abandonment Forfeit**: When enabled, if all teams have zero players during a match in progress (at least one round played or any team has a score), the abandon timer begins counting down. If a player reconnects and joins a team before the timer expires, it resets. Warnings are printed at 30 seconds, 10 seconds, and a final 5-second countdown. If the timer expires, the match ends with no score awarded.
+
+#### Score Carryover
+
+In multi-map matches (e.g., best-of-two), team scores are normally reset when the map changes. Enabling `mm_carryover` preserves team scores from the first map into the second map, so the final scoreboard reflects the cumulative result across both maps.
+
+- Server settings:
+  - `mm_carryover [0/1]` - Carry over team scores from map 1 to map 2 (default: 0). Requires matchmode to be enabled. Supports `use_3teams`.
+
+After the second map concludes, the carryover is automatically cleared. Stat logging subtracts the carried-over scores so that per-map statistics remain accurate.
 
 #### Timeout Settings
 
@@ -582,6 +606,46 @@ Grenades are a little bit more powerful, so they're not as useless as they were 
 ### Total Kills
 The scoreboard of TNG will now show the total kills for each player. Kills is the total number of kills without the negatives (suicides, cratering, teamkills) subtracted.
 
+### Scoreboard Delivery
+
+Scoreboard layout messages are staggered across multiple server frames to prevent packet buffer overflows on servers with many players. Previously, all connected clients received their scoreboard update in a single frame, which could overwhelm the server's outbound message buffers — particularly for legacy clients with small reliable message limits (~1400 bytes). With 32 players this could cause client disconnects or server crashes.
+
+**Periodic updates**: Each player's scoreboard refreshes every 3 seconds, but individual clients are spread across different frames within that window. A 32-player server sends ~1 scoreboard per frame instead of 32 at once. Team roster changes (`teams_changed`) still trigger an immediate update to all clients.
+
+**Intermission (end-of-map) scoreboards**: When intermission begins, scoreboard sends are spread across 4 frames (~0.4 seconds) instead of sending all at once. This is imperceptible to players since intermission lasts several seconds.
+
+**On-demand (TAB key)**: Scoreboard requests from pressing the score key are sent as unreliable messages. If the packet is lost, the periodic 3-second refresh fills it in. This eliminates the risk of dropping a client whose reliable buffer was already full.
+
+The maximum scoreboard buffer has been increased from 1024 to 1400 bytes, and the maximum players shown per team raised from 8 to 10, taking advantage of the reduced burst pressure from staggering.
+
+### Configurable Scoreboard
+
+The `scoreboard` cvar accepts a string of field codes that define which columns appear on the in-game scoreboard (accessed via TAB). Each character maps to a column:
+
+| Code | Column | Width |
+|------|--------|-------|
+| `F` | Frags | 5 chars |
+| `N` | Player name | 15 chars |
+| `M` | Time (minutes) | 4 chars |
+| `P` | Ping | 4 chars |
+| `S` | Score | 5 chars |
+| `K` | Kills | 5 chars |
+| `D` | Deaths | 6 chars |
+| `I` | Damage (raw) | 6 chars |
+| `A` | Accuracy (%) | 3 chars |
+| `T` | Team | 4 chars |
+| `C` | CTF Caps | 4 chars |
+
+Default layouts (when `scoreboard` is empty):
+- Standard teamplay: `FNMPIT`
+- Team deathmatch: `FNMPDT`
+- CTF: `SNMPCT`
+- No-score mode: `NMP`
+
+Example: `set scoreboard "FNMPKIT"` replaces frags with kills and adds both raw damage and team columns.
+
+The layout string sent to clients is constrained to 1400 bytes. Each additional column adds approximately 7-8 bytes per player row. Server operators should be mindful of the total column count when many players are connected — if the string exceeds the limit it will be truncated, which may cut off players at the bottom of the list.
+
 ### Random Rotation
 Random Map Rotation will make the server pick a random map from the maplist when the current map ends. This will make the rotations less static.
 
@@ -895,6 +959,17 @@ Antilag allows server operator to enable lag-compensation for aiming with hitsca
 **Commands:**
 - `sv_antilag [0/1]` (default: "1") - Setting to "1" enables lag compensation functionality when firing hitscan weapons.
 - `sv_antilag_interp [0/1]` (default: "0") - Setting to "1" enables interpolation for hitscan weapons. Requires sv_antilag "1".
+
+### Extrapolation (XERP)
+Extrapolation predicts where other players and physics entities will be on the next frame, reducing the visual effect of network latency. When enabled, other players appear to move more smoothly and responsively. The server controls whether clients are allowed to use extrapolation, and can optionally force a specific extrapolation mode on all clients.
+
+**Commands:**
+- `use_xerp [0/1]` (default: "1") - Server cvar, allows clients to use `cl_xerp`. Set to "0" to disallow extrapolation entirely.
+- `force_cl_xerp [0/1/2]` (default: "0") - Server cvar, forces all clients to use a specific extrapolation mode, overriding their `cl_xerp` setting. Set to "0" to let clients choose their own setting.
+- `cl_xerp [0/1/2]` (default: "0") - Client cvar (synced via cvarsync), controls extrapolation mode:
+  - `0` — disabled (classic behavior)
+  - `1` — full extrapolation
+  - `2` — conservative extrapolation (lower extrapolation cap)
 
 ### General quality of life improvements
 `sv_limp_highping [#]` - server cvar, players above this ping threshold will have movement prediction disabled with leg damage to make things less jittery. Value is set in ping ms, players with a ping value equal or higher to this value will have less jittery movement. Default value is '70'

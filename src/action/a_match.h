@@ -37,6 +37,8 @@ void Cmd_Teamnone_f (edict_t * ent);
 void Cmd_TeamLock_f (edict_t * ent, int a_switch);
 int CheckForCaptains (int cteam);
 
+void Cmd_Forfeit_f (edict_t * ent);
+qboolean CheckAbandon (void);
 void Cmd_SetAdmin_f (edict_t * ent);
 void Cmd_CallTimeout_f (edict_t *ent);
 void Cmd_TogglePause_f(edict_t * ent, qboolean pause);

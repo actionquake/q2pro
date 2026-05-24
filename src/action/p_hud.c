@@ -132,9 +132,8 @@ void MoveClientToIntermission(edict_t *ent)
 	if( ent->is_bot )
 		return;
 #endif
-	// add the layout
-	DeathmatchScoreboardMessage(ent, NULL);
-	gi.unicast(ent, true);
+	// Defer the layout send to ClientEndServerFrames for staggered delivery
+	ent->client->needs_intermission_scoreboard = true;
 }
 
 void BeginIntermission(edict_t *targ)
@@ -415,6 +414,11 @@ void DeathmatchScoreboard(edict_t *ent)
 		return;
 #endif
 	DeathmatchScoreboardMessage(ent, ent->enemy);
+	/* Reliable: this is a per-client on-demand request (TAB key), not part
+	 * of the periodic broadcast burst the stagger changes are reducing. The
+	 * 3-second periodic refresh is too slow to mask a dropped TAB response,
+	 * and a single-client unicast doesn't contribute to the full-server
+	 * burst problem. */
 	gi.unicast(ent, true);
 }
 

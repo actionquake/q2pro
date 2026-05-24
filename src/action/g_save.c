@@ -492,6 +492,8 @@ void InitGame( void )
 	mm_pausetime = gi.cvar( "mm_pausetime", "2", CVAR_LATCH );
 	mm_timeoutcount = gi.cvar( "mm_timeoutcount", "1", CVAR_LATCH ); // 1 timeout
 	mm_timeouttime = gi.cvar( "mm_timeouttime", "60", CVAR_LATCH ); // 60 seconds
+	use_forfeit = gi.cvar( "use_forfeit", "0", 0 ); // Enable forfeit command
+	forfeit_abandon_time = gi.cvar( "forfeit_abandon_time", "60", 0 ); // Abandon timer in seconds
 
 	teams[TEAM1].teamscore = gi.cvar("t1", "0", CVAR_SERVERINFO | CVAR_SERVERINFO_EXT | CVAR_NOSET);
 	teams[TEAM2].teamscore = gi.cvar("t2", "0", CVAR_SERVERINFO | CVAR_SERVERINFO_EXT | CVAR_NOSET);
@@ -693,12 +695,14 @@ void InitGame( void )
 
 	// 2026
 	use_buggy_ent_hitbox = gi.cvar("use_buggy_ent_hitbox", "1", 0);
+	mm_carryover = gi.cvar("mm_carryover", "0", CVAR_LATCH);
 
 	// new AQtion Extension cvars
 #ifdef AQTION_EXTENSION
 	use_newirvision = gi.cvar("use_newirvision", "1", CVAR_SERVERINFO_EXT);
 	use_indicators = gi.cvar("use_indicators", "1", CVAR_SERVERINFO_EXT);
 	use_xerp = gi.cvar("use_xerp", "1", CVAR_SERVERINFO_EXT);
+	force_cl_xerp = gi.cvar("force_cl_xerp", "0", CVAR_SERVERINFO_EXT);
 #endif
 
 	// Discord SDK integration with Q2Pro

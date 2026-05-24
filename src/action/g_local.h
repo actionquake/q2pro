@@ -879,6 +879,10 @@ typedef struct
 
   // LRCON configuration
   lrcon_config_t lrcon_config;
+
+  // Matchmode carryover scores (persist across map changes)
+  int carryover_scores[TEAM_TOP];
+  qboolean carryover_active; // true if we're on map 2 with carried-over scores
 }
 game_locals_t;
 
@@ -972,6 +976,7 @@ typedef struct
   int timeoutFrames;
   float matchTime;
   float emptyTime;
+  int abandonFrames;  // Countdown for abandon forfeit
   int weapon_sound_framenum;
   int pic_teamplay_timer_icon;
 
@@ -1277,6 +1282,8 @@ extern cvar_t *mm_pausecount;
 extern cvar_t *mm_pausetime;
 extern cvar_t *mm_timeoutcount;
 extern cvar_t *mm_timeouttime;
+extern cvar_t *use_forfeit;
+extern cvar_t *forfeit_abandon_time;
 
 extern cvar_t *teamdm;
 extern cvar_t *teamdm_respawn;
@@ -1448,6 +1455,7 @@ extern cvar_t *bots; // If bots are enabled and in the server
 
 // 2026
 extern cvar_t *use_buggy_ent_hitbox;
+extern cvar_t *mm_carryover; // Carry over team scores across maps in matchmode
 
 #ifdef AQTION_EXTENSION
 extern int (*engine_Client_GetVersion)(edict_t *ent);
@@ -1516,6 +1524,7 @@ extern cvar_t *sv_idleremove; // Remove idlers
 extern cvar_t *use_newirvision;		// enable new irvision (only highlight baddies)
 extern cvar_t *use_indicators;		// enable/allow indicators
 extern cvar_t *use_xerp;			// allow clients to use cl_xerp
+extern cvar_t *force_cl_xerp;		// force cl_xerp value on all clients (0 = don't force)
 #endif
 
 // Discord SDK integration with Q2Pro
@@ -2170,6 +2179,7 @@ struct gclient_s
 	int			damage_dealt;		// total damage dealt to other players (used for hit markers)
 
 	float		killer_yaw;			// when dead, look at killer
+	qboolean	needs_intermission_scoreboard;	// deferred intermission layout send
 
 	weaponstate_t	weaponstate;
 	vec3_t		kick_angles;		// weapon kicks
@@ -3010,6 +3020,8 @@ typedef struct team_s
 #endif
   	// Timeout feature
   	int timeout_count;
+	// Forfeit
+	int forfeit;  // 0 = none, 1 = pending, 2 = confirmed
 }team_t;
 
 extern team_t teams[TEAM_TOP];
