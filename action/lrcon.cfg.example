@@ -1,0 +1,70 @@
+// LRCON Configuration Example
+// Copy to lrcon.cfg and customize for your server
+//
+// LRCON provides limited remote console access allowing players to
+// claim temporary admin rights and execute restricted server commands
+
+[settings]
+// Enable or disable LRCON on this server
+enabled 1
+
+// Quit the server when the last player leaves
+// Set to 1 to enable, 0 to disable (default)
+quit_on_empty 0
+
+[allowed_cvars]
+// List of cvars that can be queried and modified via lrcon
+// One cvar per line - only whitelisted cvars can be changed
+//
+// WARNING: Do NOT whitelist sensitive cvars here. In particular, NEVER add:
+//   rcon_password         - full server takeover
+//   password              - lock all other players out
+//   sv_load_ent           - bypass entity sandboxing
+//   sys_forcegamelib      - load arbitrary game DLLs
+//   sys_*                 - system-level cvars
+// Whitelist only gameplay-tuning cvars.
+//
+// Examples:
+timelimit
+fraglimit
+teamdm
+ctf
+maxclients
+hostname
+dmflags
+roundlimit
+matchmode
+teamplay
+g_select_empty
+sv_gravity
+sv_fps
+sv_antilag
+
+[allowed_stuffcmds]
+// Comma-delimited list of commands that may be sent to clients via
+// `lrcon stuffcmd <id|all> <command>`.
+//
+// SECURITY: If this section is empty or missing, all stuffcmds are DENIED.
+// Without an allowlist, a claimer can stuffcmd `disconnect`, `quit`,
+// arbitrary `bind`s, or chain commands — effectively RCE on every client.
+//
+// Recommended baseline allowlist (uncomment to enable):
+// disconnect, reconnect, say, say_team, record, stoprecord
+
+[modes]
+// Server configuration modes - allows players to switch configs quickly
+// Format: mode_name|exec <filename>.cfg
+//
+// SECURITY: mode commands MUST be of the form `exec <filename>.cfg`.
+// Filenames may only contain alphanumeric characters, '_', '-', '/', '.'.
+// No '..' path traversal, no absolute paths, no command chaining.
+// Malformed entries are rejected at startup with a warning.
+//
+// Examples:
+//
+// teamdm|exec cfg/teamdm.cfg
+// ctf|exec cfg/ctf.cfg
+// ffa|exec cfg/ffa.cfg
+// duel|exec cfg/1v1.cfg
+// instagib|exec cfg/instagib.cfg
+// campmode|exec cfg/campmode.cfg
