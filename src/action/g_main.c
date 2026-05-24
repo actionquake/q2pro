@@ -828,24 +828,37 @@ void ClientEndServerFrames (void)
 	int i, updateLayout = 0, spectators = 0;
 	edict_t *ent;
 
+	// Stagger intermission scoreboard sends across frames
 	if (level.intermission_framenum) {
 		for (i = 0, ent = g_edicts + 1; i < game.maxclients; i++, ent++) {
 			if (!ent->inuse || !ent->client)
 				continue;
 
 			ClientEndServerFrame(ent);
+
+			if (ent->client->needs_intermission_scoreboard) {
+				int frames_since = level.realFramenum - level.intermission_framenum;
+				int my_slot = i % 4;
+				if (frames_since >= my_slot) {
+					DeathmatchScoreboardMessage(ent, NULL);
+#ifndef NO_BOTS
+					if (!ent->is_bot)
+#endif
+					gi.unicast(ent, true);
+					ent->client->needs_intermission_scoreboard = false;
+				}
+			}
 		}
 		return;
 	}
 
+	// teams_changed forces immediate update for all clients
 	if( teams_changed && FRAMESYNC )
 	{
 		updateLayout = 1;
 		teams_changed = false;
 		UpdateJoinMenu();
 	}
-	else if( !(level.realFramenum % (3 * HZ)) )
-		updateLayout = 1;
 
 	// calc the player views now that all pushing
 	// and damage has been added
@@ -856,7 +869,20 @@ void ClientEndServerFrames (void)
 
 		ClientEndServerFrame(ent);
 
-		if (updateLayout && ent->client->layout) {
+		// Stagger periodic layout updates: each client on a different frame
+		// within the cycle, unless forced by teams_changed.
+		// Cycle = max(3*HZ, maxclients) so every client gets a unique slot.
+		// When maxclients <= 3*HZ (typical), cycle stays 3s and the refresh
+		// rate is unchanged. When maxclients > 3*HZ (e.g., 64-player server
+		// at HZ=10 gives 3*HZ=30), the cycle expands to maxclients frames
+		// so refresh slows slightly but no two clients collide into the
+		// same frame slot (which previously left some slots empty and
+		// others double-loaded).
+		int stagger_cycle = (game.maxclients > 3 * HZ) ? game.maxclients : 3 * HZ;
+		int clientUpdate = updateLayout ||
+			((level.realFramenum % stagger_cycle) == (i % stagger_cycle));
+
+		if (clientUpdate && ent->client->layout) {
 			if (ent->client->layout == LAYOUT_MENU)
 				PMenu_Update(ent);
 			else
@@ -871,7 +897,8 @@ void ClientEndServerFrames (void)
 			spectators++;
 	}
 
-	if (updateLayout && spectators && spectator_hud->value >= 0) {
+	int updateSpectators = updateLayout || !(level.realFramenum % (3 * HZ));
+	if (updateSpectators && spectators && spectator_hud->value >= 0) {
 		G_UpdateSpectatorStatusbar();
 		if (level.spec_statusbar_lastupdate >= level.realFramenum - 3 * HZ)
 		{
