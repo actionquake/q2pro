@@ -555,6 +555,8 @@ extern cvar_t   *cl_rollhack;
 extern cvar_t   *cl_noglow;
 extern cvar_t   *cl_nobob;
 extern cvar_t   *cl_nolerp;
+extern cvar_t   *cl_betterspec_vangles;
+
 
 //STEPSOUND
 extern cvar_t   *cl_enhanced_footsteps;

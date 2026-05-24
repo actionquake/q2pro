@@ -298,6 +298,7 @@ typedef enum {
 #define AQPS_PMFLAGS		BIT(0)
 #define AQPS_TIMESTAMP		BIT(1)
 #define AQPS_LEGHITS		BIT(2)
+#define AQPS_BETTERSPEC		BIT(3)
 
 
 //==============================================

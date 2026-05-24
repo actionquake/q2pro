@@ -1412,14 +1412,14 @@ void CL_CalcViewValues(void)
         }
 
     } else {
-        int i;
         // just use interpolated values
-        for (i = 0; i < 3; i++) {
+        for (int i = 0; i < 3; i++) {
             cl.refdef.vieworg[i] = SHORT2COORD(ops->pmove.origin[i] +
                 lerp * (ps->pmove.origin[i] - ops->pmove.origin[i]));
         }
+
 #if USE_FPS
-		LerpVector(keyops->viewoffset, keyps->viewoffset, cl.keylerpfrac, viewoffset);
+        LerpVector(keyops->viewoffset, keyps->viewoffset, cl.keylerpfrac, viewoffset);
 #else
     LerpVector(ops->viewoffset, ps->viewoffset, lerp, viewoffset);
 #endif
@@ -1451,7 +1451,31 @@ void CL_CalcViewValues(void)
 #endif
     } else {
         // just use interpolated values
-        LerpAngles(ops->viewangles, ps->viewangles, lerp, cl.refdef.viewangles);
+        //betterspec sends 3 additional viewangle values
+        //to bypass the 10hz restriction.
+        //spectating viewangles become more accurate
+        //old lerping:
+        //OLD ----------------------------> NEW
+        //new lerping:
+        //OLD -> BS[0] -> BS[1] -> BS[2] -> NEW
+        qboolean highfps_server = false; //don't want to do this on high sv_fps servers
+#if USE_FPS
+        if (cl.lerpfrac != cl.keylerpfrac) //idk how else to detect it
+            highfps_server = true;
+#endif
+        if (highfps_server || VectorEmpty(ps->betterspec_vangles[0]) || cl_betterspec_vangles->integer == 0) 
+            LerpAngles(ops->viewangles, ps->viewangles, lerp, cl.refdef.viewangles);
+        else {
+            if (lerp < 0.25) {
+                LerpAngles(ops->viewangles, ps->betterspec_vangles[0], lerp * 4, cl.refdef.viewangles);
+            } else if (lerp < 0.5) {
+                LerpAngles(ps->betterspec_vangles[0], ps->betterspec_vangles[1], (lerp - 0.25) * 4, cl.refdef.viewangles);
+            } else if (lerp < 0.75) {
+                LerpAngles(ps->betterspec_vangles[1], ps->betterspec_vangles[2], (lerp - 0.5) * 4, cl.refdef.viewangles);
+            } else {
+                LerpAngles(ps->betterspec_vangles[2], ps->viewangles, (lerp - 0.75) * 4, cl.refdef.viewangles);
+            }
+        }
     }
 
     // interpolate blend

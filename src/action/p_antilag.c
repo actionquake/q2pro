@@ -171,3 +171,30 @@ void antilag_unmove_all(void)
 		gi.linkentity(who);
 	}
 }
+
+void betterspec_serverframe(edict_t *ent)
+{
+	//ended up being unused
+}
+
+void betterspec_clientframe(edict_t *ent)
+{
+	gclient_t *client = ent->client;
+	if (ent->client->chase_target)
+		UpdateChaseCam(ent); //make chasecam less glitchly, still not perfect
+	float advanced_since_svframe = client->antilag_state.curr_timestamp - level.time + FRAMETIME;
+	advanced_since_svframe *= 1000;
+	if (advanced_since_svframe <= 0) return;
+	int index = -1;
+	if (advanced_since_svframe <= 25) {
+		index = 0;
+	}
+	else if (advanced_since_svframe <= 50) {
+		index = 1;
+	}
+	else if (advanced_since_svframe <= 75) {
+		index = 2;
+	}
+	if (index == -1) return;
+	VectorCopy(client->ps.viewangles, client->ps.betterspec_vangles[index]);
+}

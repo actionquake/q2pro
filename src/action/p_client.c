@@ -4149,6 +4149,7 @@ void ClientThink(edict_t * ent, usercmd_t * ucmd)
 	client = ent->client;
 	
 	client->antilag_state.curr_timestamp += (float)ucmd->msec / 1000; // antilag needs sub-server-frame timestamps
+	betterspec_clientframe(ent);
 
 	if (level.intermission_framenum) {
 		client->ps.pmove.pm_type = PM_FREEZE;
@@ -6392,9 +6393,13 @@ void ClientBeginServerFrame(edict_t * ent)
 
 	client = ent->client;
 
-	if (sv_antilag->value) // if sv_antilag is enabled, we want to track our player position for later reference
+	//if (sv_antilag->value) // if sv_antilag is enabled, we want to track our player position for later reference
+	//mikota: leave the update on always
+	//we still check if it's enabled during the actual rollback
+	//but I need the antilag states to be updated always
+	//for betterspec
 		antilag_update(ent);
-
+	betterspec_serverframe(ent);
 	//PaTMaN's jmod
 	if(jump->value) {
 		if ((client->resp.toggle_lca) && (client->pers.spectator))

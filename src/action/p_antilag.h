@@ -25,6 +25,8 @@ extern cvar_t *sv_antilag_interp;
 void antilag_update(edict_t *ent);
 void antilag_rewind_all(edict_t *ent);
 void antilag_unmove_all(void);
+void betterspec_serverframe(edict_t *ent);
+void betterspec_clientframe(edict_t *ent);
 
 
 

@@ -128,37 +128,37 @@ static bool SV_TruncPacketEntities(client_t *client, const client_frame_t *from,
 #ifdef AQTION_EXTENSION
 static void SV_Ghud_SendUpdateToClient(client_t *client, const client_frame_t *oldframe, client_frame_t *frame)
 {
-	if (client->protocol == PROTOCOL_VERSION_AQTION && client->version >= PROTOCOL_VERSION_AQTION_GHUD)
-	{
-		int protocolflags, maxelements;
+    if (client->protocol == PROTOCOL_VERSION_AQTION && client->version >= PROTOCOL_VERSION_AQTION_GHUD)
+    {
+        int protocolflags, maxelements;
 
-		maxelements = 0;
-		protocolflags = 0;
-		if (client->version >= PROTOCOL_VERSION_AQTION_GHUD2)
-		{
-			maxelements = MAX_GHUDS;
-			protocolflags |= 1;
-		}
-		else
-		{	
-			maxelements = 64; // we have to obey old kinda broken ghud for older clients
-		}
+        maxelements = 0;
+        protocolflags = 0;
+        if (client->version >= PROTOCOL_VERSION_AQTION_GHUD2)
+        {
+            maxelements = MAX_GHUDS;
+            protocolflags |= 1;
+        }
+        else
+        {	
+            maxelements = 64; // we have to obey old kinda broken ghud for older clients
+        }
 
-		if (oldframe != NULL) {
+        if (oldframe != NULL) {
             memcpy(frame->ghud, oldframe->ghud, sizeof(frame->ghud)); // use oldframe as baseline in case we can't fit all the updates in one package
         } else {
             memset(frame->ghud, 0, sizeof(frame->ghud)); // initialize to zero if oldframe is NULL
         }
-		MSG_WriteByte(svc_ghudupdate);
-		qboolean written = false;
-		int i;
-		for (i = 0; i < maxelements; i++)
-		{
-			ghud_element_t *element = &client->ghud[i];
-			size_t old_size;
-			int uflags = 0;
+        MSG_WriteByte(svc_ghudupdate);
+        qboolean written = false;
+        int i;
+        for (i = 0; i < maxelements; i++)
+        {
+            ghud_element_t *element = &client->ghud[i];
+            size_t old_size;
+            int uflags = 0;
 
-			if (oldframe != NULL) {
+            if (oldframe != NULL) {
                 uflags = MSG_DeltaGhud(&oldframe->ghud[i], element, protocolflags);
                 if (oldframe->ghud[i].flags & GHF_FORCE || element->flags & GHF_FORCE)
                     uflags |= 0x7F;
@@ -167,30 +167,30 @@ static void SV_Ghud_SendUpdateToClient(client_t *client, const client_frame_t *o
                     uflags |= 0x7F;
             }
 
-			if (!uflags)
-				continue;
+            if (!uflags)
+                continue;
 
-			old_size = msg_write.cursize;
+            old_size = msg_write.cursize;
 
-			MSG_WriteByte(i);
-			MSG_WriteGhud(element, uflags);
+            MSG_WriteByte(i);
+            MSG_WriteGhud(element, uflags);
 
-			if (msg_write.cursize >= client->netchan.maxpacketlen)
-			{
-				msg_write.cursize = old_size;
-				break;
-			}
+            if (msg_write.cursize >= client->netchan.maxpacketlen)
+            {
+                msg_write.cursize = old_size;
+                break;
+            }
 
-			written = true;
-			memcpy(&frame->ghud[i], element, sizeof(ghud_element_t)); // update the ghud since it made it into the frame
-			element->flags &= ~GHF_FORCE;
-		}
+            written = true;
+            memcpy(&frame->ghud[i], element, sizeof(ghud_element_t)); // update the ghud since it made it into the frame
+            element->flags &= ~GHF_FORCE;
+        }
 
-		if (written)
-			MSG_WriteByte(255);
-		else
-			msg_write.cursize--;
-	}
+        if (written)
+            MSG_WriteByte(255);
+        else
+            msg_write.cursize--;
+    }
 }
 #endif
 
@@ -488,69 +488,69 @@ bool SV_WriteFrameToClient_Enhanced(client_t *client, unsigned maxsize)
 
 bool SV_WriteFrameToClient_Aqtion(client_t *client, unsigned maxsize)
 {
-	client_frame_t  *frame, *oldframe;
-	player_packed_t *oldstate;
-	uint32_t        extraflags, delta;
-	int             suppressed;
-	byte            *b1, *b2;
-	msgPsFlags_t    psFlags;
-	int             clientEntityNum;
+    client_frame_t  *frame, *oldframe;
+    player_packed_t *oldstate;
+    uint32_t        extraflags, delta;
+    int             suppressed;
+    byte            *b1, *b2;
+    msgPsFlags_t    psFlags;
+    int             clientEntityNum;
 
-	// this is the frame we are creating
-	frame = &client->frames[client->framenum & UPDATE_MASK];
+    // this is the frame we are creating
+    frame = &client->frames[client->framenum & UPDATE_MASK];
 
-	// this is the frame we are delta'ing from
-	oldframe = get_last_frame(client);
-	if (oldframe) {
-		oldstate = &oldframe->ps;
-		delta = client->framenum - client->lastframe;
-	} else {
-		oldstate = NULL;
-		delta = 31;
-	}
+    // this is the frame we are delta'ing from
+    oldframe = get_last_frame(client);
+    if (oldframe) {
+        oldstate = &oldframe->ps;
+        delta = client->framenum - client->lastframe;
+    } else {
+        oldstate = NULL;
+        delta = 31;
+    }
 
-	// first byte to be patched
-	b1 = SZ_GetSpace(&msg_write, 1);
+    // first byte to be patched
+    b1 = SZ_GetSpace(&msg_write, 1);
 
-	MSG_WriteLong((client->framenum & FRAMENUM_MASK) | (delta << FRAMENUM_BITS));
+    MSG_WriteLong((client->framenum & FRAMENUM_MASK) | (delta << FRAMENUM_BITS));
 
-	// second byte to be patched
-	b2 = SZ_GetSpace(&msg_write, 1);
+    // second byte to be patched
+    b2 = SZ_GetSpace(&msg_write, 1);
 
-	// send over the areabits
-	MSG_WriteByte(frame->areabytes);
-	MSG_WriteData(frame->areabits, frame->areabytes);
+    // send over the areabits
+    MSG_WriteByte(frame->areabytes);
+    MSG_WriteData(frame->areabits, frame->areabytes);
 
-	// ignore some parts of playerstate if not recording demo
-	psFlags = client->psFlags;
-	if (!client->settings[CLS_RECORDING]) {
-		if (client->settings[CLS_NOGUN]) {
-			psFlags |= MSG_PS_IGNORE_GUNFRAMES;
-			if (client->settings[CLS_NOGUN] != 2) {
-				psFlags |= MSG_PS_IGNORE_GUNINDEX;
-			}
-		}
-		if (client->settings[CLS_NOBLEND]) {
-			psFlags |= MSG_PS_IGNORE_BLEND;
-		}
-		if (frame->ps.pmove.pm_type < PM_DEAD) {
-			if (!(frame->ps.pmove.pm_flags & PMF_NO_PREDICTION)) {
-				psFlags |= MSG_PS_IGNORE_VIEWANGLES;
-			}
-		} else {
-			// lying dead on a rotating platform?
-			psFlags |= MSG_PS_IGNORE_DELTAANGLES;
-		}
-	}
+    // ignore some parts of playerstate if not recording demo
+    psFlags = client->psFlags;
+    if (!client->settings[CLS_RECORDING]) {
+        if (client->settings[CLS_NOGUN]) {
+            psFlags |= MSG_PS_IGNORE_GUNFRAMES;
+            if (client->settings[CLS_NOGUN] != 2) {
+                psFlags |= MSG_PS_IGNORE_GUNINDEX;
+            }
+        }
+        if (client->settings[CLS_NOBLEND]) {
+            psFlags |= MSG_PS_IGNORE_BLEND;
+        }
+        if (frame->ps.pmove.pm_type < PM_DEAD) {
+            if (!(frame->ps.pmove.pm_flags & PMF_NO_PREDICTION)) {
+                psFlags |= MSG_PS_IGNORE_VIEWANGLES;
+            }
+        } else {
+            // lying dead on a rotating platform?
+            psFlags |= MSG_PS_IGNORE_DELTAANGLES;
+        }
+    }
 
-	clientEntityNum = 0;
-	if (frame->ps.pmove.pm_type < PM_DEAD && !client->settings[CLS_RECORDING]) {
-		clientEntityNum = frame->clientNum + 1;
-	}
-	if (client->settings[CLS_NOPREDICT]) {
-		psFlags |= MSG_PS_IGNORE_PREDICTION;
-	}
-	suppressed = client->frameflags;
+    clientEntityNum = 0;
+    if (frame->ps.pmove.pm_type < PM_DEAD && !client->settings[CLS_RECORDING]) {
+        clientEntityNum = frame->clientNum + 1;
+    }
+    if (client->settings[CLS_NOPREDICT]) {
+        psFlags |= MSG_PS_IGNORE_PREDICTION;
+    }
+    suppressed = client->frameflags;
     
     if (client->csr->extended) {
         psFlags |= MSG_PS_EXTENSIONS;
@@ -558,9 +558,9 @@ bool SV_WriteFrameToClient_Aqtion(client_t *client, unsigned maxsize)
 
     // delta encode the playerstate
     MSG_WriteByte(svc_playerinfo);
-	extraflags = MSG_WriteDeltaPlayerstate_Aqtion(oldstate, &frame->ps, psFlags);
+    extraflags = MSG_WriteDeltaPlayerstate_Aqtion(oldstate, &frame->ps, psFlags);
 
-	if (client->protocol == PROTOCOL_VERSION_AQTION) {
+    if (client->protocol == PROTOCOL_VERSION_AQTION) {
         // delta encode the clientNum
         if ((oldframe ? oldframe->clientNum : 0) != frame->clientNum) {
             extraflags |= EPS_CLIENTNUM;
@@ -572,19 +572,19 @@ bool SV_WriteFrameToClient_Aqtion(client_t *client, unsigned maxsize)
         }
     }
 
-	// save 3 high bits of extraflags
-	*b1 = svc_frame | (((extraflags & 0x70) << 1));
+    // save 3 high bits of extraflags
+    *b1 = svc_frame | (((extraflags & 0x70) << 1));
 
-	// save 4 low bits of extraflags
-	*b2 = (suppressed & SUPPRESSCOUNT_MASK) |
-		((extraflags & 0x0F) << SUPPRESSCOUNT_BITS);
+    // save 4 low bits of extraflags
+    *b2 = (suppressed & SUPPRESSCOUNT_MASK) |
+        ((extraflags & 0x0F) << SUPPRESSCOUNT_BITS);
 
-	client->suppress_count = 0;
-	client->frameflags = 0;
+    client->suppress_count = 0;
+    client->frameflags = 0;
 
-	// delta encode the entities
+    // delta encode the entities
     MSG_WriteByte(svc_packetentities);
-	return SV_EmitPacketEntities(client, oldframe, frame, clientEntityNum, maxsize);
+    return SV_EmitPacketEntities(client, oldframe, frame, clientEntityNum, maxsize);
 }
 
 
@@ -894,12 +894,12 @@ void SV_BuildClientFrame(client_t *client)
         ent = edicts[i];
         e = ent->s.number;
 
-		entity_state_t ent_state;
-		ent_state = ent->s;
+        entity_state_t ent_state;
+        ent_state = ent->s;
 #ifdef AQTION_EXTENSION
-		if (GE_customizeentityforclient)
-			if (!GE_customizeentityforclient(client->edict, ent, &ent_state))
-				continue;
+        if (GE_customizeentityforclient)
+            if (!GE_customizeentityforclient(client->edict, ent, &ent_state))
+                continue;
 #endif
 
         // add it to the circular client_entities array

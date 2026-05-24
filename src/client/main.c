@@ -45,6 +45,7 @@ cvar_t  *cl_rollhack;
 cvar_t  *cl_noglow;
 cvar_t  *cl_nobob;
 cvar_t  *cl_nolerp;
+cvar_t  *cl_betterspec_vangles;
 
 #if USE_DEBUG
 cvar_t  *cl_shownet;
