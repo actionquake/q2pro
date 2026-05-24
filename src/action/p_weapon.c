@@ -390,6 +390,13 @@ qboolean Pickup_Weapon(edict_t* ent, edict_t* other)
 		if (other->client->inventory[index] < other->client->knife_max)
 		{
 			other->client->inventory[index]++;
+			if (!(ent->spawnflags & (DROPPED_ITEM | DROPPED_PLAYER_ITEM)))
+			{
+				if (DMFLAGS(DF_WEAPONS_STAY))
+					ent->flags |= FL_RESPAWN;
+				else
+					SetRespawn(ent, weapon_respawn->value);
+			}
 			return true;
 		}
 
