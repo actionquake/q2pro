@@ -1430,6 +1430,9 @@ void G_RunFrame (void)
 
 				ClientBeginServerFrame (ent);
 
+			if (team_game_going && ent->client->resp.team != NOTEAM && !ent->client->resp.subteam)
+				ent->client->resp.active_frames++;
+
 #ifndef NO_BOTS
 				// allow bots to think
 				if(!ent->is_bot)

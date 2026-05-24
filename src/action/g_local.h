@@ -2035,6 +2035,7 @@ typedef struct
   int ctf_lastfraggedcarrier;
 
   int joined_team;		// last frame # at which the player joined a team
+  int active_frames;		// frames actively playing on a team during a match
   int lastWave;			//last time used wave
 
   radio_t radio;
@@ -2889,6 +2890,7 @@ typedef struct
 	int team_kills;
 	int streakKillsHighest;
 	int streakHSHighest;
+	int active_frames;
 
 }
 gghost_t;

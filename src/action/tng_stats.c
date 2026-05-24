@@ -436,7 +436,9 @@ void A_ScoreboardEndLevel (edict_t * ent, edict_t * killer)
 		else
 			accuracy = 0;
 
-		secs = (level.framenum - cl->resp.enterframe) / HZ;
+		secs = cl->resp.active_frames > 0
+			? cl->resp.active_frames / HZ
+			: (level.framenum - cl->resp.enterframe) / HZ;
 		if (secs > 0)
 			fpm = (double)cl->resp.score * 60.0 / (double)secs;
 		else
@@ -738,7 +740,9 @@ void G_RegisterScore(void)
 	if (roundbased && game.roundNum > 0) {
 		fragsper = c->resp.score / game.roundNum;
 	} else {
-		sec = (level.framenum - c->resp.enterframe) / HZ;
+		sec = c->resp.active_frames > 0
+			? c->resp.active_frames / HZ
+			: (level.framenum - c->resp.enterframe) / HZ;
 		if (!sec)
             sec = 1;
 		fragsper = c->resp.score * 3600 / sec;
@@ -1418,7 +1422,9 @@ void WriteLogEndMatchStats(gclient_t *cl)
 	char msg[1024];
 
 	shots = min( cl->resp.shotsTotal, 9999 );
-	secs = (level.framenum - cl->resp.enterframe) / HZ;
+	secs = cl->resp.active_frames > 0
+		? cl->resp.active_frames / HZ
+		: (level.framenum - cl->resp.enterframe) / HZ;
 
 	if (shots)
 			accuracy = (double)cl->resp.hitsTotal * 100.0 / (double)cl->resp.shotsTotal;
@@ -1597,6 +1603,7 @@ void LogEndMatchStats(void)
 			ghlient->resp.team_kills = ghost->team_kills;
 			ghlient->resp.streakKillsHighest = ghost->streakKillsHighest;
 			ghlient->resp.streakHSHighest = ghost->streakHSHighest;
+			ghlient->resp.active_frames = ghost->active_frames;
 			ghlient->resp.shotsTotal = ghost->shotsTotal;
 			ghlient->resp.hitsTotal = ghost->hitsTotal;
 
