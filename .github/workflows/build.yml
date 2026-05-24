@@ -393,13 +393,20 @@ jobs:
           ls -la AQtion.app/Contents/MacOS/AQtion-launcher
           file AQtion.app/Contents/MacOS/AQtion-launcher
 
-      # Upload the .app directly so actions/upload-artifact zips ONCE.
-      # User downloads AQtion-darwin-arm64.zip, extracts → AQtion.app.
-      # No double zip, no manual archiving needed.
+      # Pre-archive with ditto (Apple's tool, preserves codesign,
+      # xattrs, exec bits, and the AQtion.app directory wrapper that
+      # actions/upload-artifact otherwise strips when given a directory
+      # path). The double-archive is unavoidable since upload-artifact
+      # always wraps in zip — but using ditto for the inner archive
+      # guarantees the .app survives intact through the round trip.
+      - name: Archive .app with ditto (preserves macOS metadata)
+        run: |
+          ditto -c -k --sequesterRsrc --keepParent AQtion.app AQtion.zip
+
       - uses: actions/upload-artifact@v6
         with:
           name: AQtion-darwin-arm64
-          path: AQtion.app
+          path: AQtion.zip
 
   # Same as above for Intel Macs. Kept as a separate job so each artifact
   # is independently testable. (A future "lipo into universal" job can
@@ -476,10 +483,14 @@ jobs:
           ls -la AQtion.app/Contents/MacOS/AQtion-launcher
           file AQtion.app/Contents/MacOS/AQtion-launcher
 
+      - name: Archive .app with ditto (preserves macOS metadata)
+        run: |
+          ditto -c -k --sequesterRsrc --keepParent AQtion.app AQtion.zip
+
       - uses: actions/upload-artifact@v6
         with:
           name: AQtion-darwin-x86_64
-          path: AQtion.app
+          path: AQtion.zip
 
   # Linux turnkey build for Steam. Runs inside the official Steam Linux
   # Runtime "Sniper" SDK container — the binary links against exactly the
