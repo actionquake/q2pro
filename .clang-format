@@ -1,0 +1,20 @@
+BasedOnStyle: LLVM
+IndentWidth: 4
+ColumnLimit: 120
+
+AlignConsecutiveDeclarations:
+    Enabled: true
+    AcrossEmptyLines: true
+    AcrossComments: true
+    AlignFunctionDeclarations: false
+AlignConsecutiveMacros:
+    Enabled: true
+    AcrossEmptyLines: true
+    AcrossComments: true
+AllowShortEnumsOnASingleLine: false
+AllowShortFunctionsOnASingleLine: None
+BreakAfterOpenBracketBracedList: true
+BreakBeforeBraces: Custom
+BreakBeforeCloseBracketBracedList: true
+BraceWrapping:
+    AfterFunction: true
