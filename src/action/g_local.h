@@ -2181,6 +2181,7 @@ struct gclient_s
 	int			damage_dealt;		// total damage dealt to other players (used for hit markers)
 
 	float		killer_yaw;			// when dead, look at killer
+	qboolean	needs_intermission_scoreboard;	// deferred intermission layout send
 
 	weaponstate_t	weaponstate;
 	vec3_t		kick_angles;		// weapon kicks
