@@ -421,6 +421,13 @@ qboolean CheckAbandon(void)
 	if (!matchmode->value || !use_forfeit->value)
 		return false;
 
+	/* Treat forfeit_abandon_time <= 0 as "abandonment detection disabled".
+	 * Without this guard, abandonFrames becomes 0 in the registration path,
+	 * the `!level.abandonFrames` branch fires every server tick, and the
+	 * announcement spams the log forever. */
+	if (forfeit_abandon_time->value <= 0)
+		return false;
+
 	if (!team_game_going)
 		return false;
 
@@ -495,6 +502,22 @@ qboolean CheckAbandon(void)
 	return false;
 }
 
+/*
+ * Replace shell/stuffcmd-dangerous characters with '_' in-place.
+ * Why: team names are echoed into stuffcmd'd console commands (autorecord,
+ * etc.). An unescaped '"', ';', '\n', or '$' lets a captain inject commands
+ * into every other player's console.
+ */
+static void sanitize_command_arg(char *s)
+{
+	for (; *s; s++) {
+		if (*s == '"' || *s == '\\' || *s == '\n' || *s == '\r' ||
+		    *s == ';' || *s == '$' || (unsigned char)*s < 0x20) {
+			*s = '_';
+		}
+	}
+}
+
 void Cmd_Teamname_f(edict_t * ent)
 {
 	int i, argc, teamNum;
@@ -554,6 +577,11 @@ void Cmd_Teamname_f(edict_t * ent)
 		}
 		temp[18] = 0;
 	}
+
+	if (!temp[0])
+		strcpy( temp, "noname" );
+
+	sanitize_command_arg(temp);
 
 	if (!temp[0])
 		strcpy( temp, "noname" );
@@ -656,7 +684,10 @@ void Cmd_Teamnone_f(edict_t *ent)
 		return;
 	}
 
-	if (gi.argc() < 1) {
+	/* gi.argc() always returns at least 1 (the command name itself), so the
+	 * previous `< 1` guard was dead code — missing-arg silently fell through
+	 * with playernum=0 from atoi(""). */
+	if (gi.argc() < 2) {
 		gi.cprintf(ent, PRINT_HIGH, "You need to provide a playernum for this command\nUse 'playerlist' to get a list of playernums\n");
 		return;
 	}
@@ -908,7 +939,10 @@ void Cmd_CallTimeout_f(edict_t * ent)
 		return;
 	}
 
-	if (level.matchTime >= timelimit->value * 60) {
+	/* Skip the last-round guard when timelimit is unlimited (0). Otherwise
+	 * `matchTime >= 0` is always true and timeouts are blocked permanently
+	 * on unlimited-time servers. */
+	if (timelimit->value > 0 && level.matchTime >= timelimit->value * 60) {
 		gi.cprintf(ent, PRINT_HIGH, "You cannot call for a timeout on the last round of the match\n");
 		return;
 	}

@@ -3849,11 +3849,14 @@ qboolean ClientConnect(edict_t * ent, char *userinfo)
 		IRC_printf(IRC_T_SERVER, "%n@%s connected", value, ipaddr_buf);
 	}
 
-	// LRCON: Check if reconnecting claimer and restore claim
+	// LRCON: Check if reconnecting claimer and restore claim.
+	// Use Q_stricmp to match Lrcon_CheckClaimer's case-insensitive compare;
+	// otherwise a claimer reconnecting as "admin" (was "Admin") passes the
+	// permission check at command time but silently fails restore here.
 	value = Info_ValueForKey(userinfo, "name");
 	if (game.lrcon_config.enabled && lrcon_claimer_name->string && *lrcon_claimer_name->string &&
-		!strcmp(lrcon_claimer_name->string, value) &&
-		!strcmp(lrcon_claimer_ip->string, ipaddr_buf)) {
+		!Q_stricmp(lrcon_claimer_name->string, value) &&
+		!Q_stricmp(lrcon_claimer_ip->string, ipaddr_buf)) {
 		level.lrcon.claimed = true;
 		Q_strncpyz(level.lrcon.claimer_name, lrcon_claimer_name->string,
 				   sizeof(level.lrcon.claimer_name));
@@ -3913,7 +3916,12 @@ void ClientDisconnect(edict_t * ent)
 	if (!ent->client)
 		return;
 
-	if (esp->value && matchmode->value) {
+	/* Only fire the captain-disconnect broadcast for actual captains.
+	 * Previously this ran for every disconnect from an esp+matchmode game,
+	 * including spectators (resp.team == NOTEAM), which would read
+	 * teams[NOTEAM].name — empty/stale slot. */
+	if (esp->value && matchmode->value &&
+	    ent->client->resp.team != NOTEAM && IS_CAPTAIN(ent)) {
 		char tempmsg[128];
 		// We have to kill him first before he is removed as captain/leader
 		killPlayer(ent, false);

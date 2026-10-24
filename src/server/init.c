@@ -481,6 +481,11 @@ void SV_InitGame(unsigned mvd_spawn)
         SV_MvdPostInit();
     }
 
+    // Reset bot client slots on game (re)initialization. Cold-start gets
+    // zeroed bot_clients[] via BSS, but SV_InitGame can be called on
+    // restart/map-change where in-progress state could otherwise persist.
+    SV_BotInit();
+
     if (svs.csr.extended && IS_NEW_GAME_API)
         PmoveEnableExt(&svs.pmp);
 
