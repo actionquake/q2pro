@@ -152,6 +152,103 @@ static void term_handler(int signum)
     terminate = signum;
 }
 
+#ifdef __APPLE__
+#include <pthread/qos.h>
+#include <objc/runtime.h>
+#include <objc/message.h>
+
+// exported by libobjc, not declared in the public headers
+extern void *objc_autoreleasePoolPush(void);
+extern void objc_autoreleasePoolPop(void *pool);
+
+#define ACTIVITY_OPTIONS \
+    (0x00EFFFFFULL |    /* NSActivityUserInitiatedAllowingIdleSystemSleep */ \
+     0xFF00000000ULL)   /* NSActivityLatencyCritical */
+
+static cvar_t *sys_lowlatency;
+static qos_class_t main_qos_default;
+static id latency_activity;
+
+static id process_info(void)
+{
+    Class cls = objc_getClass("NSProcessInfo");
+
+    if (!cls)
+        return nil;
+    return ((id (*)(Class, SEL))objc_msgSend)(cls, sel_registerName("processInfo"));
+}
+
+// Under background load macOS lowers a default-QoS thread's priority,
+// moves it to efficiency cores and coalesces its timers. Mark the main
+// thread user-interactive and the process latency-critical (which also
+// opts out of App Nap and timer coalescing) so it keeps its slot.
+static void sys_lowlatency_changed(cvar_t *self)
+{
+    void *pool = objc_autoreleasePoolPush();
+    id info = process_info();
+
+    if (self->integer) {
+        pthread_set_qos_class_self_np(QOS_CLASS_USER_INTERACTIVE, 0);
+
+        if (info && !latency_activity) {
+            id reason = ((id (*)(id, SEL, const char *))objc_msgSend)(
+                ((id (*)(Class, SEL))objc_msgSend)(objc_getClass("NSString"), sel_registerName("alloc")),
+                sel_registerName("initWithUTF8String:"), "real-time game loop");
+            latency_activity = ((id (*)(id, SEL, unsigned long long, id))objc_msgSend)(
+                info, sel_registerName("beginActivityWithOptions:reason:"), ACTIVITY_OPTIONS, reason);
+            if (latency_activity)
+                ((id (*)(id, SEL))objc_msgSend)(latency_activity, sel_registerName("retain"));
+            ((void (*)(id, SEL))objc_msgSend)(reason, sel_registerName("release"));
+        }
+    } else {
+        pthread_set_qos_class_self_np(main_qos_default, 0);
+
+        if (info && latency_activity) {
+            ((void (*)(id, SEL, id))objc_msgSend)(info, sel_registerName("endActivity:"), latency_activity);
+            ((void (*)(id, SEL))objc_msgSend)(latency_activity, sel_registerName("release"));
+            latency_activity = nil;
+        }
+    }
+
+    objc_autoreleasePoolPop(pool);
+    Com_DPrintf("sys_lowlatency %d: main thread QoS 0x%x, latency activity %s\n",
+                self->integer, qos_class_self(), latency_activity ? "on" : "off");
+}
+
+static void sys_init_lowlatency(void)
+{
+    main_qos_default = qos_class_self();
+    if (main_qos_default == QOS_CLASS_UNSPECIFIED)
+        main_qos_default = QOS_CLASS_DEFAULT;
+
+    sys_lowlatency = Cvar_Get("sys_lowlatency", "1", 0);
+    sys_lowlatency->changed = sys_lowlatency_changed;
+    sys_lowlatency_changed(sys_lowlatency);
+}
+#elif defined(__linux__)
+#include <sys/prctl.h>
+
+static cvar_t *sys_lowlatency;
+
+// Linux defers timer wakeups (select, nanosleep) by up to the thread's
+// timer slack, 50 usec by default, to batch them. cl_sleep sleeps in
+// slices of a few hundred usec, so ask for exact wakeups. This sets the
+// calling (main) thread's slack, which threads created later inherit;
+// 0 restores the default.
+static void sys_lowlatency_changed(cvar_t *self)
+{
+    if (prctl(PR_SET_TIMERSLACK, self->integer ? 1UL : 0UL, 0, 0, 0) == -1)
+        Com_WPrintf("Couldn't set timer slack: %s\n", strerror(errno));
+}
+
+static void sys_init_lowlatency(void)
+{
+    sys_lowlatency = Cvar_Get("sys_lowlatency", "1", 0);
+    sys_lowlatency->changed = sys_lowlatency_changed;
+    sys_lowlatency_changed(sys_lowlatency);
+}
+#endif
+
 /*
 =================
 Sys_Init
@@ -208,6 +305,10 @@ void Sys_Init(void)
 
     sys_homedir = Cvar_Get("homedir", homedir, CVAR_NOSET);
     sys_libdir = Cvar_Get("libdir", LIBDIR, CVAR_NOSET);
+
+#if defined(__APPLE__) || defined(__linux__)
+    sys_init_lowlatency();
+#endif
 
     tty_init_input();
 }

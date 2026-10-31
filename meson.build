@@ -479,6 +479,9 @@ endif
 if host_machine.system() == 'darwin'
   # Darwin is warning-spamming because of its SDL_config defines
   add_project_arguments('-Wno-macro-redefined', language : 'c')
+  # sys_lowlatency talks to NSProcessInfo through the objc runtime
+  common_deps += dependency('appleframeworks', modules: ['Foundation'])
+  exe_link_args += '-lobjc'
   opengl = dependency('opengl',
     allow_fallback:  win32,
     default_options: fallback_opt,

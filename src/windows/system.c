@@ -22,6 +22,8 @@ with this program; if not, write to the Free Software Foundation, Inc.,
 #include "common/prompt.h"
 #include "shared/atomic.h"
 
+#include <mmsystem.h>
+
 #if USE_WINSVC
 #include <winsvc.h>
 #include <setjmp.h>
@@ -887,6 +889,62 @@ const char *Sys_ErrorString(int err)
 
 /*
 ================
+sys_lowlatency
+
+Windows 11 runs processes it considers in the background on efficiency
+cores at low clocks (EcoQoS) and ignores their timer resolution requests,
+and the default timer tick is 15.6 ms. Opt out of both and ask for a 1 ms
+tick: the counterparts of the macOS App Nap and timer coalescing opt-outs.
+================
+*/
+
+#define POWER_THROTTLING_VERSION            1
+#define POWER_THROTTLING_EXECUTION_SPEED    0x1
+#define POWER_THROTTLING_IGNORE_TIMER_RES   0x4
+#define PROCESS_INFO_POWER_THROTTLING       4   // ProcessPowerThrottling
+
+typedef struct {
+    ULONG   Version;
+    ULONG   ControlMask;
+    ULONG   StateMask;
+} power_throttling_t;
+
+typedef BOOL (WINAPI *SETPROCESSINFORMATION)(HANDLE, int, LPVOID, DWORD);
+
+static cvar_t   *sys_lowlatency;
+static bool     timer_period_set;
+
+static bool set_power_throttling(SETPROCESSINFORMATION func, ULONG mask)
+{
+    // a bit set in ControlMask and clear in StateMask turns that
+    // throttling off; a clear ControlMask hands it back to the system
+    power_throttling_t pt = { POWER_THROTTLING_VERSION, mask, 0 };
+    return func(GetCurrentProcess(), PROCESS_INFO_POWER_THROTTLING, &pt, sizeof(pt));
+}
+
+static void sys_lowlatency_changed(cvar_t *self)
+{
+    // Windows 8+; the throttling class itself is Windows 10 1709+
+    SETPROCESSINFORMATION func = (SETPROCESSINFORMATION)(void *)
+        GetProcAddress(GetModuleHandleA("kernel32.dll"), "SetProcessInformation");
+
+    if (func) {
+        ULONG mask = self->integer ? POWER_THROTTLING_EXECUTION_SPEED | POWER_THROTTLING_IGNORE_TIMER_RES : 0;
+        // the timer resolution bit is Windows 11+
+        if (!set_power_throttling(func, mask) && mask)
+            set_power_throttling(func, POWER_THROTTLING_EXECUTION_SPEED);
+    }
+
+    if (self->integer && !timer_period_set) {
+        timer_period_set = timeBeginPeriod(1) == TIMERR_NOERROR;
+    } else if (!self->integer && timer_period_set) {
+        timeEndPeriod(1);
+        timer_period_set = false;
+    }
+}
+
+/*
+================
 Sys_Init
 ================
 */
@@ -907,6 +965,10 @@ void Sys_Init(void)
     sys_homedir = Cvar_Get("homedir", "", CVAR_NOSET);
 
     sys_exitonerror = Cvar_Get("sys_exitonerror", "0", 0);
+
+    sys_lowlatency = Cvar_Get("sys_lowlatency", "1", 0);
+    sys_lowlatency->changed = sys_lowlatency_changed;
+    sys_lowlatency_changed(sys_lowlatency);
 
 #if USE_WINSVC
     Cmd_AddCommand("installservice", Sys_InstallService_f);
