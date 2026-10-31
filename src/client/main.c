@@ -35,6 +35,7 @@ cvar_t  *cl_gun_z;
 cvar_t  *cl_warn_on_fps_rounding;
 cvar_t  *cl_maxfps;
 cvar_t  *cl_async;
+static cvar_t  *s_async;
 cvar_t  *r_maxfps;
 cvar_t  *cl_autopause;
 
@@ -2775,6 +2776,8 @@ static void CL_InitLocal(void)
     cl_async->changed = cl_sync_changed;
     r_maxfps = Cvar_Get("r_maxfps", "0", 0);
     r_maxfps->changed = cl_sync_changed;
+    // update sound on every client frame, not only on rendered ones
+    s_async = Cvar_Get("s_async", "1", 0);
     cl_autopause = Cvar_Get("cl_autopause", "1", 0);
     cl_rollhack = Cvar_Get("cl_rollhack", "1", 0);
     cl_noglow = Cvar_Get("cl_noglow", "0", 0);
@@ -3441,8 +3444,9 @@ unsigned CL_Frame(unsigned msec)
 
         // update audio after the 3D view was drawn
         S_Update();
-    } else if (sync_mode == SYNC_SLEEP_10) {
-        // force audio and effects update if not rendering
+    } else if (sync_mode == SYNC_SLEEP_10 || s_async->integer) {
+        // start new sounds and move the listener without waiting for
+        // the next drawn frame
         CL_CalcViewValues();
         S_Update();
     }
