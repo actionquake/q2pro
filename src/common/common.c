@@ -142,6 +142,7 @@ time_t      com_startTime;
 
 #if USE_CLIENT
 cvar_t  *host_speeds;
+static cvar_t  *cl_sleep;
 
 // host_speeds times
 unsigned    time_before_game;
@@ -912,6 +913,9 @@ void Qcommon_Init(int argc, char **argv)
 #endif
 #if USE_CLIENT
     host_speeds = Cvar_Get("host_speeds", "0", 0);
+    // longest sleep (usec) between input/network polls while waiting for
+    // the next millisecond; 0 busy-waits
+    cl_sleep = Cvar_Get("cl_sleep", "250", 0);
 #endif
 #if USE_DEBUG
     developer = Cvar_Get("developer", "0", 0);
@@ -1105,6 +1109,15 @@ void Qcommon_Frame(void)
     // spin until msec is non-zero if running a client
     if (!dedicated->integer && !com_timedemo->integer) {
         while (msec < 1) {
+            // Sleep on the sockets instead of spinning: a packet wakes
+            // the loop at once, input is polled every slice, and the
+            // core is free for the render thread and everything else
+            // (some schedulers also demote a thread that spins).
+            if (cl_sleep->integer > 0) {
+                unsigned slice = Cvar_ClampInteger(cl_sleep, 1, 1000);
+                unsigned left = 1000 - Sys_Microseconds() % 1000;
+                NET_SleepUs(min(slice, left));
+            }
             bool break_now = CL_ProcessEvents();
             com_eventTime = Sys_Milliseconds();
             msec = com_eventTime - oldtime;

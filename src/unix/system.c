@@ -71,6 +71,14 @@ unsigned Sys_Milliseconds(void)
     return ts.tv_sec * 1000UL + ts.tv_nsec / 1000000UL;
 }
 
+// same clock as Sys_Milliseconds, so millisecond boundaries line up
+uint64_t Sys_Microseconds(void)
+{
+    struct timespec ts;
+    (void)clock_gettime(CLOCK_MONOTONIC, &ts);
+    return ts.tv_sec * UINT64_C(1000000) + ts.tv_nsec / 1000;
+}
+
 /*
 =================
 Sys_Quit

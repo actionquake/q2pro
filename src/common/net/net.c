@@ -53,6 +53,7 @@ with this program; if not, write to the Free Software Foundation, Inc.,
 #include <sys/ioctl.h>
 #include <arpa/inet.h>
 #include <poll.h>
+#include <sys/select.h>
 #include <errno.h>
 #ifdef __linux__
 #include <linux/types.h>
@@ -728,6 +729,107 @@ int NET_Sleep(int msec)
 
     return ret;
 }
+
+#ifndef _WIN32
+
+/*
+=============
+NET_SleepUs
+
+Like NET_Sleep, with microsecond precision. select() does the waiting
+(poll() only takes milliseconds); a zero-timeout poll() then fills in
+revents for the readers.
+=============
+*/
+int NET_SleepUs(unsigned usec)
+{
+    struct timeval tv = { .tv_sec = usec / 1000000, .tv_usec = usec % 1000000 };
+    fd_set rfds, wfds;
+    int i, maxfd = -1;
+
+    FD_ZERO(&rfds);
+    FD_ZERO(&wfds);
+    for (i = 0; i < io_numfds; i++) {
+        const struct pollfd *e = &io_entries[i];
+        if (e->fd == -1)
+            continue;
+        if (e->fd >= FD_SETSIZE)
+            return NET_Sleep((usec + 999) / 1000);
+        if (e->events & POLLIN)
+            FD_SET(e->fd, &rfds);
+        if (e->events & POLLOUT)
+            FD_SET(e->fd, &wfds);
+        maxfd = max(maxfd, e->fd);
+    }
+
+    if (select(maxfd + 1, &rfds, &wfds, NULL, &tv) == -1 && errno != EINTR)
+        Com_EPrintf("%s: %s\n", __func__, strerror(errno));
+
+    return io_numfds ? NET_Sleep(0) : 0;
+}
+
+#else // !_WIN32
+
+#ifndef CREATE_WAITABLE_TIMER_HIGH_RESOLUTION
+#define CREATE_WAITABLE_TIMER_HIGH_RESOLUTION   0x00000002
+#endif
+
+/*
+=============
+NET_SleepUs
+
+Like NET_Sleep, with microsecond precision. A select() or WSAPoll()
+timeout is rounded to the timer tick, so wait on a high resolution
+waitable timer (Windows 10 1803+) and an event the sockets signal.
+Without that timer this returns at once, which keeps the old busy-wait.
+=============
+*/
+int NET_SleepUs(unsigned usec)
+{
+    static HANDLE timer;
+    static WSAEVENT wake = WSA_INVALID_EVENT;
+    static bool initialized;
+    HANDLE handles[2];
+    LARGE_INTEGER due;
+    DWORD n = 0;
+    int i;
+
+    if (!initialized) {
+        timer = CreateWaitableTimerExW(NULL, NULL, CREATE_WAITABLE_TIMER_HIGH_RESOLUTION, TIMER_ALL_ACCESS);
+        wake = WSACreateEvent();
+        initialized = true;
+    }
+
+    due.QuadPart = -(LONGLONG)usec * 10;    // relative, in 100 ns units
+    if (!timer || wake == WSA_INVALID_EVENT || !SetWaitableTimer(timer, &due, 0, NULL, NULL, FALSE))
+        return io_numfds ? NET_Sleep(0) : 0;
+    handles[n++] = timer;
+
+    WSAResetEvent(wake);
+    for (i = 0; i < io_numfds; i++) {
+        const struct pollfd *e = &io_entries[i];
+        long events = 0;
+
+        if (e->fd == -1)
+            continue;
+        if (e->events & POLLIN)
+            events |= FD_READ | FD_ACCEPT | FD_CLOSE;
+        if (e->events & POLLOUT)
+            events |= FD_WRITE | FD_CONNECT;
+        // re-selecting also signals for data that is already waiting
+        if (events && WSAEventSelect(e->fd, wake, events) == 0)
+            n = 2;
+    }
+    if (n == 2)
+        handles[1] = wake;
+
+    if (WaitForMultipleObjects(n, handles, FALSE, INFINITE) == WAIT_FAILED)
+        Com_EPrintf("%s: %s\n", __func__, Sys_ErrorString(GetLastError()));
+
+    return io_numfds ? NET_Sleep(0) : 0;
+}
+
+#endif // _WIN32
 
 #if USE_AC_SERVER
 

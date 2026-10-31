@@ -864,6 +864,17 @@ unsigned Sys_Milliseconds(void)
     return tm.QuadPart * 1000ULL / timer_freq.QuadPart;
 }
 
+// same clock as Sys_Milliseconds, so millisecond boundaries line up;
+// split to keep ticks * 1000000 from overflowing
+uint64_t Sys_Microseconds(void)
+{
+    LARGE_INTEGER tm;
+    uint64_t t, f = timer_freq.QuadPart;
+    QueryPerformanceCounter(&tm);
+    t = tm.QuadPart;
+    return t / f * 1000000 + t % f * 1000000 / f;
+}
+
 void Sys_AddDefaultConfig(void)
 {
 }
