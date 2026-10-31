@@ -33,6 +33,7 @@ with this program; if not, write to the Free Software Foundation, Inc.,
 #include "system/hunk.h"
 #include "images.h"
 #include "qgl.h"
+#include "thread.h"
 
 /*
  * gl_main.c

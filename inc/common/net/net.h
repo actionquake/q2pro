@@ -216,6 +216,7 @@ void            NET_FreePollFd(struct pollfd *e);
 
 int         NET_Sleep(int msec);
 int         NET_SleepUs(unsigned usec);
+void        NET_Wake(void);
 #if USE_AC_SERVER
 int         NET_Sleep1(int msec, struct pollfd *e);
 #endif

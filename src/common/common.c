@@ -48,6 +48,7 @@ with this program; if not, write to the Free Software Foundation, Inc.,
 #include "server/server.h"
 #include "system/system.h"
 #include "system/hunk.h"
+#include "system/pthread.h"
 
 #if USE_DEBUG
 #include "features.h"
@@ -423,11 +424,95 @@ Both client and server can use this, and it will output
 to the apropriate place.
 =============
 */
+#define WORKER_PRINTS       64
+#define WORKER_PRINT_LEN    512
+
+static q_thread_local jmp_buf *worker_abort;
+
+static struct {
+    pthread_mutex_t lock;
+    unsigned        head, tail;
+    print_type_t    types[WORKER_PRINTS];
+    char            text[WORKER_PRINTS][WORKER_PRINT_LEN];
+    error_type_t    error_code;
+    char            error_msg[MAXERRORMSG];
+} worker = { .lock = PTHREAD_MUTEX_INITIALIZER };
+
+void Com_EnterWorker(jmp_buf *abort_point)
+{
+    worker_abort = abort_point;
+}
+
+bool Com_IsWorker(void)
+{
+    return worker_abort;
+}
+
+static void worker_print(print_type_t type, const char *msg)
+{
+    pthread_mutex_lock(&worker.lock);
+    if (worker.head - worker.tail < WORKER_PRINTS) {
+        unsigned i = worker.head++ % WORKER_PRINTS;
+        worker.types[i] = type;
+        Q_strlcpy(worker.text[i], msg, WORKER_PRINT_LEN);
+    }
+    pthread_mutex_unlock(&worker.lock);
+}
+
+q_noreturn
+static void worker_error(error_type_t code, const char *msg)
+{
+    pthread_mutex_lock(&worker.lock);
+    if (!worker.error_code) {
+        worker.error_code = code;
+        Q_strlcpy(worker.error_msg, msg, sizeof(worker.error_msg));
+    }
+    pthread_mutex_unlock(&worker.lock);
+    longjmp(*worker_abort, 1);
+}
+
+void Com_FlushWorker(void)
+{
+    print_type_t type;
+    error_type_t code;
+    char text[MAXERRORMSG];
+
+    while (1) {
+        pthread_mutex_lock(&worker.lock);
+        if (worker.tail == worker.head) {
+            pthread_mutex_unlock(&worker.lock);
+            break;
+        }
+        unsigned i = worker.tail++ % WORKER_PRINTS;
+        type = worker.types[i];
+        Q_strlcpy(text, worker.text[i], sizeof(text));
+        pthread_mutex_unlock(&worker.lock);
+        Com_LPrintf(type, "%s", text);
+    }
+
+    pthread_mutex_lock(&worker.lock);
+    code = worker.error_code;
+    Q_strlcpy(text, worker.error_msg, sizeof(text));
+    worker.error_code = 0;
+    pthread_mutex_unlock(&worker.lock);
+
+    if (code)
+        Com_Error(code, "%s", text);
+}
+
 void Com_LPrintf(print_type_t type, const char *fmt, ...)
 {
     va_list     argptr;
     char        msg[MAXPRINTMSG];
     size_t      len;
+
+    if (worker_abort) {
+        va_start(argptr, fmt);
+        Q_vscnprintf(msg, sizeof(msg), fmt, argptr);
+        va_end(argptr);
+        worker_print(type, msg);
+        return;
+    }
 
     // may be entered recursively only once
     if (com_printEntered >= 2) {
@@ -521,6 +606,13 @@ void Com_Error(error_type_t code, const char *fmt, ...)
     char            msg[MAXERRORMSG];
     va_list         argptr;
     size_t          len;
+
+    if (worker_abort) {
+        va_start(argptr, fmt);
+        Q_vscnprintf(msg, sizeof(msg), fmt, argptr);
+        va_end(argptr);
+        worker_error(code, msg);
+    }
 
     // may not be entered recursively
     if (com_errorEntered) {
@@ -1085,6 +1177,7 @@ void Qcommon_Frame(void)
     }
 
     Com_CompleteAsyncWork();
+    Com_FlushWorker();
 
 #if USE_CLIENT
     time_before = time_event = time_between = time_after = 0;

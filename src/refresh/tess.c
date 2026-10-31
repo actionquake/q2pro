@@ -401,7 +401,7 @@ void GL_DrawFlares(void)
         if (!q)
             continue;
 
-        if (q->pending && q->timestamp != com_eventTime) {
+        if (q->pending && q->timestamp != r_eventtime) {
             if (gl_config.caps & QGL_CAP_QUERY_RESULT_NO_WAIT) {
                 result = -1;
                 qglGetQueryObjectuiv(q->query, GL_QUERY_RESULT_NO_WAIT, &result);

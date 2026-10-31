@@ -390,6 +390,10 @@ static void mode_changed(void)
     int width = wl.width * wl.scale_factor;
     int height = wl.height * wl.scale_factor;
 
+    // the render thread (r_thread) attaches and commits to this surface
+    // in eglSwapBuffers; keep it out while the main thread changes it
+    R_WaitIdle();
+
     if (wl.egl_window)
         wl_egl_window_resize(wl.egl_window, width, height, 0, 0);
 
@@ -405,6 +409,7 @@ static void update_scale(void)
     wl_list_for_each(output, &wl.surface_outputs, surf)
         scale = max(scale, output->scale);
 
+    R_WaitIdle();
     wl_surface_set_buffer_scale(wl.surface, scale);
     wl_surface_commit(wl.surface);
     if (wl.scale_factor != scale) {
@@ -489,6 +494,7 @@ static void frame_configure(struct libdecor_frame *frame,
             wl.flags &= ~QVF_FULLSCREEN;
     }
 
+    R_WaitIdle();
     struct libdecor_state *state = libdecor_state_new(width, height);
     libdecor_frame_commit(frame, state, configuration);
     libdecor_state_free(state);
@@ -506,6 +512,7 @@ static void frame_close(struct libdecor_frame *frame, void *user_data)
 
 static void frame_commit(struct libdecor_frame *frame, void *user_data)
 {
+    R_WaitIdle();
     wl_surface_commit(wl.surface);
 }
 
@@ -875,6 +882,17 @@ static void swap_buffers(void)
     eglSwapBuffers(wl.egl_display, wl.egl_surface);
 }
 
+static bool make_current(bool current)
+{
+    EGLSurface surf = current ? wl.egl_surface : EGL_NO_SURFACE;
+
+    if (!eglMakeCurrent(wl.egl_display, surf, surf, current ? wl.egl_context : EGL_NO_CONTEXT)) {
+        egl_error("eglMakeCurrent");
+        return false;
+    }
+    return true;
+}
+
 
 /*
 ===============================================================================
@@ -1200,6 +1218,7 @@ const vid_driver_t vid_wayland = {
 
     .get_proc_addr = get_proc_addr,
     .swap_buffers = swap_buffers,
+    .make_current = make_current,
 
     .get_selection_data = get_selection_data,
     .get_clipboard_data = get_clipboard_data,

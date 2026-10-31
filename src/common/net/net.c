@@ -45,6 +45,7 @@ with this program; if not, write to the Free Software Foundation, Inc.,
 #undef IPV6_RECVERR
 #else // _WIN32
 #include <unistd.h>
+#include <fcntl.h>
 #include <sys/types.h>
 #include <sys/socket.h>
 #include <netinet/in.h>
@@ -732,13 +733,40 @@ int NET_Sleep(int msec)
 
 #ifndef _WIN32
 
+// NET_Wake writes a byte, NET_SleepUs selects on the other end
+static int net_wake_fds[2] = { -1, -1 };
+
+static void net_wake_init(void)
+{
+    if (net_wake_fds[0] != -1 || pipe(net_wake_fds))
+        return;
+    for (int i = 0; i < 2; i++) {
+        fcntl(net_wake_fds[i], F_SETFL, fcntl(net_wake_fds[i], F_GETFL) | O_NONBLOCK);
+        fcntl(net_wake_fds[i], F_SETFD, FD_CLOEXEC);
+    }
+}
+
+/*
+=============
+NET_Wake
+
+Ends the NET_SleepUs in progress, or else the next one. Any thread.
+=============
+*/
+void NET_Wake(void)
+{
+    if (net_wake_fds[1] != -1 && write(net_wake_fds[1], "", 1) < 0) {
+        // full pipe: a wake-up is pending already
+    }
+}
+
 /*
 =============
 NET_SleepUs
 
-Like NET_Sleep, with microsecond precision. select() does the waiting
-(poll() only takes milliseconds); a zero-timeout poll() then fills in
-revents for the readers.
+Like NET_Sleep, with microsecond precision, and NET_Wake ends it early.
+select() does the waiting (poll() only takes milliseconds); a
+zero-timeout poll() then fills in revents for the readers.
 =============
 */
 int NET_SleepUs(unsigned usec)
@@ -746,6 +774,7 @@ int NET_SleepUs(unsigned usec)
     struct timeval tv = { .tv_sec = usec / 1000000, .tv_usec = usec % 1000000 };
     fd_set rfds, wfds;
     int i, maxfd = -1;
+    char buf[64];
 
     FD_ZERO(&rfds);
     FD_ZERO(&wfds);
@@ -761,9 +790,17 @@ int NET_SleepUs(unsigned usec)
             FD_SET(e->fd, &wfds);
         maxfd = max(maxfd, e->fd);
     }
+    if (net_wake_fds[0] != -1 && net_wake_fds[0] < FD_SETSIZE) {
+        FD_SET(net_wake_fds[0], &rfds);
+        maxfd = max(maxfd, net_wake_fds[0]);
+    }
 
     if (select(maxfd + 1, &rfds, &wfds, NULL, &tv) == -1 && errno != EINTR)
         Com_EPrintf("%s: %s\n", __func__, strerror(errno));
+
+    if (net_wake_fds[0] != -1 && FD_ISSET(net_wake_fds[0], &rfds))
+        while (read(net_wake_fds[0], buf, sizeof(buf)) > 0)
+            ;
 
     return io_numfds ? NET_Sleep(0) : 0;
 }
@@ -774,38 +811,63 @@ int NET_SleepUs(unsigned usec)
 #define CREATE_WAITABLE_TIMER_HIGH_RESOLUTION   0x00000002
 #endif
 
+static HANDLE   net_wake_event;     // auto-reset; NET_Wake sets it
+
+static void net_wake_init(void)
+{
+    if (!net_wake_event)
+        net_wake_event = CreateEventW(NULL, FALSE, FALSE, NULL);
+}
+
+/*
+=============
+NET_Wake
+
+Ends the NET_SleepUs in progress, or else the next one. Any thread.
+=============
+*/
+void NET_Wake(void)
+{
+    if (net_wake_event)
+        SetEvent(net_wake_event);
+}
+
 /*
 =============
 NET_SleepUs
 
-Like NET_Sleep, with microsecond precision. A select() or WSAPoll()
-timeout is rounded to the timer tick, so wait on a high resolution
-waitable timer (Windows 10 1803+) and an event the sockets signal.
-Without that timer this returns at once, which keeps the old busy-wait.
+Like NET_Sleep, with microsecond precision, and NET_Wake ends it early.
+A select() or WSAPoll() timeout is rounded to the timer tick, so wait on
+a high resolution waitable timer (Windows 10 1803+), the wake event and
+an event the sockets signal. Without that timer this returns at once,
+which keeps the old busy-wait.
 =============
 */
 int NET_SleepUs(unsigned usec)
 {
     static HANDLE timer;
-    static WSAEVENT wake = WSA_INVALID_EVENT;
+    static WSAEVENT sockets = WSA_INVALID_EVENT;
     static bool initialized;
-    HANDLE handles[2];
+    HANDLE handles[3];
     LARGE_INTEGER due;
     DWORD n = 0;
+    bool selected = false;
     int i;
 
     if (!initialized) {
         timer = CreateWaitableTimerExW(NULL, NULL, CREATE_WAITABLE_TIMER_HIGH_RESOLUTION, TIMER_ALL_ACCESS);
-        wake = WSACreateEvent();
+        sockets = WSACreateEvent();
         initialized = true;
     }
 
     due.QuadPart = -(LONGLONG)usec * 10;    // relative, in 100 ns units
-    if (!timer || wake == WSA_INVALID_EVENT || !SetWaitableTimer(timer, &due, 0, NULL, NULL, FALSE))
+    if (!timer || sockets == WSA_INVALID_EVENT || !SetWaitableTimer(timer, &due, 0, NULL, NULL, FALSE))
         return io_numfds ? NET_Sleep(0) : 0;
     handles[n++] = timer;
+    if (net_wake_event)
+        handles[n++] = net_wake_event;
 
-    WSAResetEvent(wake);
+    WSAResetEvent(sockets);
     for (i = 0; i < io_numfds; i++) {
         const struct pollfd *e = &io_entries[i];
         long events = 0;
@@ -817,11 +879,11 @@ int NET_SleepUs(unsigned usec)
         if (e->events & POLLOUT)
             events |= FD_WRITE | FD_CONNECT;
         // re-selecting also signals for data that is already waiting
-        if (events && WSAEventSelect(e->fd, wake, events) == 0)
-            n = 2;
+        if (events && WSAEventSelect(e->fd, sockets, events) == 0)
+            selected = true;
     }
-    if (n == 2)
-        handles[1] = wake;
+    if (selected)
+        handles[n++] = sockets;
 
     if (WaitForMultipleObjects(n, handles, FALSE, INFINITE) == WAIT_FAILED)
         Com_EPrintf("%s: %s\n", __func__, Sys_ErrorString(GetLastError()));
@@ -1930,6 +1992,7 @@ NET_Init
 void NET_Init(void)
 {
     os_net_init();
+    net_wake_init();
 
     net_ip = Cvar_Get("net_ip", "", 0);
     net_ip->changed = net_udp_param_changed;

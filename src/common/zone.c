@@ -20,6 +20,7 @@ with this program; if not, write to the Free Software Foundation, Inc.,
 #include "shared/list.h"
 #include "common/common.h"
 #include "common/zone.h"
+#include "system/pthread.h"
 
 #define Z_MAGIC     0x1d0d
 
@@ -42,6 +43,11 @@ typedef struct {
 
 static list_t       z_chain;
 static zstats_t     z_stats[TAG_MAX];
+
+// the render thread allocates too (lazy shader programs, scrap uploads);
+// guards z_chain and z_stats. malloc and free run outside it, realloc
+// inside, since the block is relinked.
+static pthread_mutex_t  z_lock = PTHREAD_MUTEX_INITIALIZER;
 
 #define S(d) \
     { .z = { .magic = Z_MAGIC, .tag = TAG_STATIC, .size = sizeof(zstatic_t) }, .data = d }
@@ -83,21 +89,31 @@ static inline void Z_CountAlloc(const zhead_t *z)
     s->bytes += z->size;
 }
 
+#define Z_Valid(z) \
+    ((z)->magic == Z_MAGIC && (z)->tag != TAG_FREE)
+
 #define Z_Validate(z) \
-    Q_assert((z)->magic == Z_MAGIC && (z)->tag != TAG_FREE)
+    Q_assert(Z_Valid(z))
+
+// For walks under z_lock: a failed assert raises an error, and the error
+// path frees memory, which would deadlock on the lock still held.
+#define Z_ValidateLocked(z) \
+    do { if (!Z_Valid(z)) { pthread_mutex_unlock(&z_lock); Z_Validate(z); } } while (0)
 
 void Z_LeakTest(memtag_t tag)
 {
     zhead_t *z;
     size_t numLeaks = 0, numBytes = 0;
 
+    pthread_mutex_lock(&z_lock);
     LIST_FOR_EACH(zhead_t, z, &z_chain, entry) {
-        Z_Validate(z);
+        Z_ValidateLocked(z);
         if (z->tag == tag || (tag == TAG_FREE && z->tag >= TAG_MAX)) {
             numLeaks++;
             numBytes += z->size;
         }
     }
+    pthread_mutex_unlock(&z_lock);
 
     if (numLeaks) {
         Com_WPrintf("************* Z_LeakTest *************\n"
@@ -125,10 +141,13 @@ void Z_Free(void *ptr)
 
     Z_Validate(z);
 
+    pthread_mutex_lock(&z_lock);
     Z_CountFree(z);
+    if (z->tag != TAG_STATIC)
+        List_Remove(&z->entry);
+    pthread_mutex_unlock(&z_lock);
 
     if (z->tag != TAG_STATIC) {
-        List_Remove(&z->entry);
         z->magic = 0xdead;
         z->tag = TAG_FREE;
         free(z);
@@ -182,10 +201,13 @@ void *Z_Realloc(void *ptr, size_t size)
 
     Q_assert(z->tag != TAG_STATIC);
 
+    // list neighbours point at the old block until it is relinked
+    pthread_mutex_lock(&z_lock);
     Z_CountFree(z);
 
     z = realloc(z, size);
     if (!z) {
+        pthread_mutex_unlock(&z_lock);
         Com_Error(ERR_FATAL, "%s: couldn't realloc %zu bytes", __func__, size);
     }
 
@@ -193,6 +215,7 @@ void *Z_Realloc(void *ptr, size_t size)
     List_Relink(&z->entry);
 
     Z_CountAlloc(z);
+    pthread_mutex_unlock(&z_lock);
 
     return z + 1;
 }
@@ -213,13 +236,17 @@ Z_Stats_f
 void Z_Stats_f(void)
 {
     size_t bytes = 0, count = 0;
-    zstats_t *s;
+    zstats_t stats[TAG_MAX], *s;
     int i;
+
+    pthread_mutex_lock(&z_lock);
+    memcpy(stats, z_stats, sizeof(stats));
+    pthread_mutex_unlock(&z_lock);
 
     Com_Printf("    bytes blocks name\n"
                "--------- ------ -------\n");
 
-    for (i = 0, s = z_stats; i < TAG_MAX; i++, s++) {
+    for (i = 0, s = stats; i < TAG_MAX; i++, s++) {
         if (!s->count) {
             continue;
         }
@@ -241,12 +268,25 @@ Z_FreeTags
 void Z_FreeTags(memtag_t tag)
 {
     zhead_t *z, *n;
+    list_t doomed;
 
+    List_Init(&doomed);
+
+    pthread_mutex_lock(&z_lock);
     LIST_FOR_EACH_SAFE(zhead_t, z, n, &z_chain, entry) {
-        Z_Validate(z);
+        Z_ValidateLocked(z);
         if (z->tag == tag) {
-            Z_Free(z + 1);
+            Z_CountFree(z);
+            List_Remove(&z->entry);
+            List_Append(&doomed, &z->entry);
         }
+    }
+    pthread_mutex_unlock(&z_lock);
+
+    LIST_FOR_EACH_SAFE(zhead_t, z, n, &doomed, entry) {
+        z->magic = 0xdead;
+        z->tag = TAG_FREE;
+        free(z);
     }
 }
 
@@ -275,15 +315,16 @@ static void *Z_TagMallocInternal(size_t size, memtag_t tag, bool init)
     z->tag = tag;
     z->size = size;
 
-    List_Insert(&z_chain, &z->entry);
-
 #if USE_TESTS
     if (!init && z_perturb && z_perturb->integer) {
         memset(z + 1, z_perturb->integer, size - sizeof(*z));
     }
 #endif
 
+    pthread_mutex_lock(&z_lock);
+    List_Insert(&z_chain, &z->entry);
     Z_CountAlloc(z);
+    pthread_mutex_unlock(&z_lock);
 
     return z + 1;
 }

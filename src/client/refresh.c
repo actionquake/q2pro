@@ -272,6 +272,8 @@ void CL_RunRefresh(void)
     vid->pump_events();
 
     if (mode_changed) {
+        // don't change the window under a frame being presented
+        R_WaitIdle();
         if (mode_changed & MODE_FULLSCREEN) {
             vid->set_mode();
             if (vid_fullscreen->integer) {

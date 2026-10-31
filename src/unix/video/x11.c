@@ -109,6 +109,15 @@ static void swap_buffers(void)
     glXSwapBuffers(x11.dpy, x11.win);
 }
 
+static bool make_current(bool current)
+{
+    if (!glXMakeCurrent(x11.dpy, current ? x11.win : None, current ? x11.ctx : NULL)) {
+        Com_EPrintf("Couldn't %s GL context\n", current ? "make current" : "release");
+        return false;
+    }
+    return true;
+}
+
 static void swap_interval(int val)
 {
     if (val < 0 && !(x11.extensions & GLX_EXT_swap_control_tear)) {
@@ -271,6 +280,9 @@ static void get_dpi_scale_physical(void)
 
 static bool init(void)
 {
+    // the render thread (r_thread) swaps on the same display connection
+    XInitThreads();
+
     if (!(x11.dpy = XOpenDisplay(NULL))) {
         Com_EPrintf("Failed to open X display\n");
         return false;
@@ -911,7 +923,12 @@ static void set_clipboard_data(const char *data)
 
 static bool probe(void)
 {
-    Display *dpy = XOpenDisplay(NULL);
+    Display *dpy;
+
+    // must precede any other Xlib call
+    XInitThreads();
+
+    dpy = XOpenDisplay(NULL);
 
     if (dpy) {
         XCloseDisplay(dpy);
@@ -937,6 +954,7 @@ const vid_driver_t vid_x11 = {
     .get_proc_addr = get_proc_addr,
     .swap_buffers = swap_buffers,
     .swap_interval = swap_interval,
+    .make_current = make_current,
 
     .get_selection_data = get_selection_data,
     .get_clipboard_data = get_clipboard_data,

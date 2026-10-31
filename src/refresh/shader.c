@@ -1032,6 +1032,7 @@ void GL_UpdateBlurParams(void)
 
 static void gl_bloom_sigma_changed(cvar_t *self)
 {
+    RT_Acquire();
     GL_UpdateBlurParams();
 }
 

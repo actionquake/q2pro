@@ -379,6 +379,15 @@ static void wgl_swap_buffers(void)
     SwapBuffers(win.dc);
 }
 
+static bool wgl_make_current(bool current)
+{
+    if (!wglMakeCurrent(current ? win.dc : NULL, current ? wgl.context : NULL)) {
+        print_error("wglMakeCurrent");
+        return false;
+    }
+    return true;
+}
+
 static void wgl_swap_interval(int val)
 {
     if (val < 0 && !(wgl.extensions & QWGL_EXT_swap_control_tear)) {
@@ -411,6 +420,7 @@ const vid_driver_t vid_win32wgl = {
     .get_proc_addr = wgl_get_proc_addr,
     .swap_buffers = wgl_swap_buffers,
     .swap_interval = wgl_swap_interval,
+    .make_current = wgl_make_current,
 
     .get_clipboard_data = Win_GetClipboardData,
     .set_clipboard_data = Win_SetClipboardData,

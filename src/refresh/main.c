@@ -1302,38 +1302,25 @@ void DrawBox(int number, vec3_t origin, uint32_t color, vec3_t mins, vec3_t maxs
 }
 static void GL_DrawBoxes(void)
 {
-    // Get number of boxes to render
-    qboolean boxes_in_use = false; // Boxes in use
-    int num_boxes = 0; // Batches boxes
-    if (sv.cm.draw && sv.cm.draw->boxes_inuse == true) // Only run when there's at least one or more in use
-    {
-        for (int i = 0; i < MAX_DRAW_BOXES; i++)
-        {
-            if (draw_boxes[i].time)
-            {
-                boxes_in_use = true;
-                draw_boxes[i].time--;
+    debug_frame_t *f = &r_debugframe;
+    int num_boxes = 0; // Batched boxes
 
-                if (draw_boxes[i].occluded) // Batched boxes
-                    num_boxes++;
-                else // Just do a single draw call for non-occluded boxes
-                    GL_DrawBox(draw_boxes[i].origin, draw_boxes[i].color, draw_boxes[i].mins, draw_boxes[i].maxs, draw_boxes[i].occluded);
-            }
-        }
+    for (int i = 0; i < f->num_boxes; i++) {
+        draw_boxes_t *b = &f->boxes[i];
+        if (b->occluded)
+            num_boxes++;
+        else // Just do a single draw call for non-occluded boxes
+            GL_DrawBox(b->origin, b->color, b->mins, b->maxs, b->occluded);
     }
 
     if (num_boxes) // Batch draw the boxes
     {
         ALLOC_BoxPoints(num_boxes); // Memory allocation
 
-        // Add them to the batch
-        for (int i = 0; i < MAX_DRAW_BOXES; i++)
-        {
-            if (draw_boxes[i].time)
-            {
-                //draw_boxes[i].time--;
-                GL_AddDrawBox(draw_boxes[i].origin, draw_boxes[i].color, draw_boxes[i].mins, draw_boxes[i].maxs, draw_boxes[i].occluded);
-            }
+        for (int i = 0; i < f->num_boxes; i++) {
+            draw_boxes_t *b = &f->boxes[i];
+            if (b->occluded)
+                GL_AddDrawBox(b->origin, b->color, b->mins, b->maxs, b->occluded);
         }
         drawbox_count = 0; // Reset the box point counter
 
@@ -1342,9 +1329,6 @@ static void GL_DrawBoxes(void)
     }
     else if (drawbox_total)
         FREE_BoxPoint(); // Free memory
-
-    if (sv.cm.draw && sv.cm.draw->boxes_inuse && boxes_in_use == false) // Check if it's possible to reduce debug drawing calls when not in use
-        sv.cm.draw->boxes_inuse = false;
 }
 
 // Adds the arrow to an array of arrows to draw.
@@ -1372,48 +1356,33 @@ void DrawArrow(int number, vec3_t start, vec3_t end, uint32_t color, float line_
 }
 static void GL_DrawArrows(void)
 {
-    // Get number of arrows to render
-    qboolean arrows_in_use = false; // Arrows in use
+    debug_frame_t *f = &r_debugframe;
     int num_arrows = 0; // Batched arrows
-    if (sv.cm.draw && sv.cm.draw->arrows_inuse == true) // Only run when there's at least one or more in use
-    {
-        for (int i = 0; i < MAX_DRAW_ARROWS; i++)
-        {
-            if (draw_arrows[i].time)
-            {
-                arrows_in_use = true;
-                draw_arrows[i].time--;
 
-                if (draw_arrows[i].occluded && draw_arrows[i].line_width == 1.0f) // Batched arrows
-                    num_arrows++;
-                else  // Just do a single draw call for non-occluded arrows
-                    GL_DrawArrow(draw_arrows[i].start, draw_arrows[i].end, draw_arrows[i].color, draw_arrows[i].line_width, draw_arrows[i].occluded);
-            }
-        }
+    for (int i = 0; i < f->num_arrows; i++) {
+        draw_arrows_t *a = &f->arrows[i];
+        if (a->occluded && a->line_width == 1.0f)
+            num_arrows++;
+        else  // Just do a single draw call for non-occluded arrows
+            GL_DrawArrow(a->start, a->end, a->color, a->line_width, a->occluded);
     }
 
     if (num_arrows) // Batch draw the arrows
     {
         ALLOC_Arrows(num_arrows); // Memory allocation
 
-        // Add them to the batch
-        for (int i = 0; i < MAX_DRAW_ARROWS; i++)
-        {
-            if (draw_arrows[i].time)
-            {
-                GL_AddDrawArrow(draw_arrows[i].start, draw_arrows[i].end, draw_arrows[i].color, draw_arrows[i].line_width, draw_arrows[i].occluded);
-            }
+        for (int i = 0; i < f->num_arrows; i++) {
+            draw_arrows_t *a = &f->arrows[i];
+            if (a->occluded && a->line_width == 1.0f)
+                GL_AddDrawArrow(a->start, a->end, a->color, a->line_width, a->occluded);
         }
         drawarrow_count = 0; // Reset the counter
 
         // Batch render them all in one pass
         GL_BatchDrawArrows(true);
     }
-    else if (drawarrow_total || num_arrows == 0)
+    else
         FREE_Arrows(); // Free memory
-
-    if (sv.cm.draw && sv.cm.draw->arrows_inuse && arrows_in_use == false) // Check if it's possible to reduce debug drawing calls when not in use
-        sv.cm.draw->arrows_inuse = false;
 }
 
 //GL_DrawSelectionSquare
@@ -1439,11 +1408,63 @@ void DrawSelection(vec3_t start, vec3_t end, float min, float max, uint32_t colo
 }
 static void GL_DrawSelection(void)
 {
-    if (draw_selection.time)
-    {
-        //Com_Printf("%s start [%f %f %f] -- end [%f %f %f]\n", __func__, draw_selection.start[0], draw_selection.start[1], draw_selection.start[2], draw_selection.end[0], draw_selection.end[1], draw_selection.end[2]);
+    draw_selection_t *s = &r_debugframe.sel;
+
+    if (r_debugframe.selection)
+        GL_DrawSelectionSquare(s->start, s->end, s->min, s->max, s->color, s->line_width, s->occluded);
+}
+
+// Overlay entries live for `time` drawn frames. The game writes them from
+// SV_Frame on the main thread, and sv.cm.draw is freed on every map
+// change, so the render thread (r_thread) must touch neither. When a
+// frame is recorded, the main thread ages the entries here and copies the
+// live ones out; the renderer only draws the copy (r_debugframe).
+static draw_boxes_t     snap_boxes[MAX_DRAW_BOXES];
+static draw_arrows_t    snap_arrows[MAX_DRAW_ARROWS];
+
+debug_frame_t r_debugframe;
+
+void GL_DebugDrawSnapshot(debug_frame_t *f)
+{
+    bool live;
+
+    memset(f, 0, sizeof(*f));
+    f->boxes = snap_boxes;
+    f->arrows = snap_arrows;
+
+    if (draw_selection.time) {
         draw_selection.time--;
-        GL_DrawSelectionSquare(draw_selection.start, draw_selection.end, draw_selection.min, draw_selection.max, draw_selection.color, draw_selection.line_width, draw_selection.occluded);
+        f->selection = true;
+        f->sel = draw_selection;
+    }
+
+    if (!sv.cm.draw)
+        return;
+
+    if (sv.cm.draw->boxes_inuse) {
+        live = false;
+        for (int i = 0; i < MAX_DRAW_BOXES; i++) {
+            if (draw_boxes[i].time) {
+                live = true;
+                draw_boxes[i].time--;
+                snap_boxes[f->num_boxes++] = draw_boxes[i];
+            }
+        }
+        if (!live) // reduce debug drawing calls when not in use
+            sv.cm.draw->boxes_inuse = false;
+    }
+
+    if (sv.cm.draw->arrows_inuse) {
+        live = false;
+        for (int i = 0; i < MAX_DRAW_ARROWS; i++) {
+            if (draw_arrows[i].time) {
+                live = true;
+                draw_arrows[i].time--;
+                snap_arrows[f->num_arrows++] = draw_arrows[i];
+            }
+        }
+        if (!live)
+            sv.cm.draw->arrows_inuse = false;
     }
 }
 
@@ -1525,13 +1546,13 @@ static void GL_OccludeFlares(void)
 
         if (q) {
             // reset visibility if entity disappeared
-            if (com_eventTime - q->timestamp >= 2500) {
+            if (r_eventtime - q->timestamp >= 2500) {
                 q->pending = q->visible = false;
                 q->frac = 0;
             } else {
                 if (q->pending)
                     continue;
-                if (com_eventTime - q->timestamp <= 33)
+                if (r_eventtime - q->timestamp <= 33)
                     continue;
             }
         } else {
@@ -1574,7 +1595,7 @@ static void GL_OccludeFlares(void)
         qglEndQuery(gl_static.samples_passed);
         GL_UnlockArrays();
 
-        q->timestamp = com_eventTime;
+        q->timestamp = r_eventtime;
         q->pending = true;
 
         c.occlusionQueries++;
@@ -1781,8 +1802,8 @@ void R_RenderFrame(const refdef_t *fd)
 
     Q_assert(gl_static.world.cache || (fd->rdflags & RDF_NOWORLDMODEL));
 
-    glr.frametime = (com_eventTime - glr.timestamp) * 0.001f;
-    glr.timestamp = com_eventTime;
+    glr.frametime = (r_eventtime - glr.timestamp) * 0.001f;
+    glr.timestamp = r_eventtime;
 
     glr.drawframe++;
 
@@ -1937,6 +1958,7 @@ void R_EndFrame(void)
 
 static void GL_Strings_f(void)
 {
+    RT_Acquire();
     GLint integer = 0;
     GLfloat value = 0;
 
@@ -1990,6 +2012,7 @@ static size_t GL_ViewCluster_m(char *buffer, size_t size)
 
 static void gl_lightmap_changed(cvar_t *self)
 {
+    RT_Acquire();
     lm.scale = Cvar_ClampValue(gl_coloredlightmaps, 0, 1);
     lm.comp = !(gl_config.caps & QGL_CAP_TEXTURE_BITS) ? GL_RGBA : lm.scale ? GL_RGB : GL_LUMINANCE;
     lm.add = 255 * Cvar_ClampValue(gl_brightness, -1, 1);
@@ -2002,12 +2025,14 @@ static void gl_lightmap_changed(cvar_t *self)
 
 static void gl_modulate_entities_changed(cvar_t *self)
 {
+    RT_Acquire();
     gl_static.entity_modulate = Cvar_ClampValue(gl_modulate, 0, 1e6f);
     gl_static.entity_modulate *= Cvar_ClampValue(gl_modulate_entities, 0, 1e6f);
 }
 
 static void gl_modulate_changed(cvar_t *self)
 {
+    RT_Acquire();
     gl_lightmap_changed(self);
     gl_modulate_entities_changed(self);
 }
@@ -2015,17 +2040,20 @@ static void gl_modulate_changed(cvar_t *self)
 // ugly hack to reset sky
 static void gl_drawsky_changed(cvar_t *self)
 {
+    RT_Acquire();
     if (gl_static.world.cache)
         CL_SetSky();
 }
 
 static void gl_novis_changed(cvar_t *self)
 {
+    RT_Acquire();
     glr.viewcluster1 = glr.viewcluster2 = -2;
 }
 
 static void gl_swapinterval_changed(cvar_t *self)
 {
+    RT_Acquire();
     if (vid && vid->swap_interval)
         vid->swap_interval(self->integer);
 }

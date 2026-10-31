@@ -241,6 +241,14 @@ void    R_ModeChanged(int width, int height, int flags);
 
 r_opengl_config_t R_GetGLConfig(void);
 
+// render thread (r_thread): true when a new frame can be handed over
+// without waiting; R_WaitIdle waits for the frame in flight to finish
+bool    R_FrameReady(void);
+void    R_WaitIdle(void);
+#if USE_TESTS
+unsigned R_FramesFinished(void);
+#endif
+
 
 // This used to be in images.c but I moved it because
 // download.c in src/client needs to know what to do

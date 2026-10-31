@@ -98,6 +98,27 @@ static void swap_buffers(void)
     SDL_GL_SwapWindow(sdl.window);
 }
 
+static bool make_current(bool current)
+{
+#ifdef __APPLE__
+    // Older SDL can't dispatch Cocoa GL context updates asynchronously
+    // (SDL_MAC_OPENGL_ASYNC_DISPATCH, set in init), and the render thread
+    // would deadlock against a main thread waiting for it.
+    SDL_version v;
+    SDL_GetVersion(&v);
+    if (SDL_VERSIONNUM(v.major, v.minor, v.patch) < SDL_VERSIONNUM(2, 24, 0)) {
+        Com_EPrintf("The render thread needs SDL 2.24.0 or later on macOS.\n");
+        return false;
+    }
+#endif
+    if (SDL_GL_MakeCurrent(sdl.window, current ? sdl.context : NULL)) {
+        Com_EPrintf("Couldn't %s GL context: %s\n",
+                    current ? "make current" : "release", SDL_GetError());
+        return false;
+    }
+    return true;
+}
+
 static void swap_interval(int val)
 {
     if (SDL_GL_SetSwapInterval(val) < 0)
@@ -277,6 +298,11 @@ static bool create_window_and_context(const vrect_t *rc)
 static bool init(void)
 {
     vrect_t rc;
+
+    // With the render thread swapping, SDL's Cocoa GL context update
+    // would otherwise dispatch_sync to the main thread, which may be
+    // blocked waiting for the render thread: deadlock.
+    SDL_SetHint("SDL_MAC_OPENGL_ASYNC_DISPATCH", "1");
 
     if (SDL_InitSubSystem(SDL_INIT_VIDEO) == -1) {
         Com_EPrintf("Couldn't initialize SDL video: %s\n", SDL_GetError());
@@ -581,6 +607,7 @@ const vid_driver_t vid_sdl = {
     .get_proc_addr = get_proc_addr,
     .swap_buffers = swap_buffers,
     .swap_interval = swap_interval,
+    .make_current = make_current,
 
     .get_clipboard_data = get_clipboard_data,
     .set_clipboard_data = set_clipboard_data,

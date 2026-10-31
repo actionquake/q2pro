@@ -105,6 +105,7 @@ static void update_image_params(unsigned mask)
 
 static void gl_texturemode_changed(cvar_t *self)
 {
+    RT_Acquire();
     int i;
 
     for (i = 0; i < numFilterModes; i++)
@@ -136,6 +137,7 @@ static void gl_texturemode_g(genctx_t *ctx)
 
 static void gl_anisotropy_changed(cvar_t *self)
 {
+    RT_Acquire();
     GLfloat value = 1;
 
     if (!(gl_config.caps & QGL_CAP_TEXTURE_ANISOTROPY))
@@ -150,12 +152,14 @@ static void gl_anisotropy_changed(cvar_t *self)
 
 static void gl_bilerp_chars_changed(cvar_t *self)
 {
+    RT_Acquire();
     // change all the existing charset texture objects
     update_image_params(BIT(IT_FONT));
 }
 
 static void gl_bilerp_pics_changed(cvar_t *self)
 {
+    RT_Acquire();
     // change all the existing pic texture objects
     update_image_params(BIT(IT_PIC));
     if (r_numImages)
@@ -164,12 +168,14 @@ static void gl_bilerp_pics_changed(cvar_t *self)
 
 static void gl_bilerp_skies_changed(cvar_t *self)
 {
+    RT_Acquire();
     // change all the existing sky texture objects
     update_image_params(BIT(IT_SKY));
 }
 
 static void gl_texturebits_changed(cvar_t *self)
 {
+    RT_Acquire();
     if (!(gl_config.caps & QGL_CAP_TEXTURE_BITS)) {
         gl_tex_alpha_format = GL_RGBA;
         gl_tex_solid_format = GL_RGBA;
@@ -990,6 +996,7 @@ static void GL_BuildGammaTables(void)
 
 static void gl_gamma_changed(cvar_t *self)
 {
+    RT_Acquire();
     GL_BuildGammaTables();
     if (vid && vid->update_gamma)
         vid->update_gamma(gammatable);
@@ -1228,6 +1235,7 @@ bool GL_InitFramebuffers(void)
 
 static void gl_partshape_changed(cvar_t *self)
 {
+    RT_Acquire();
     GL_InitParticleTexture();
 }
 
