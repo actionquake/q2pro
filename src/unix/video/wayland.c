@@ -774,6 +774,10 @@ static bool init(void)
 
     if (!wl.compositor || !wl.seat) {
         Com_EPrintf("Required wayland interfaces missing\n");
+        // Without a seat there is no input on this compositor, so keep the
+        // SDL fallback off it too; SDL 2.0.20 even crashes there.
+        if (!wl.seat)
+            setenv("SDL_VIDEODRIVER", "x11", 0);
         goto fail;
     }
 
