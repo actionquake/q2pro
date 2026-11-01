@@ -386,6 +386,29 @@ Specifies client physics frame rate if ‘cl\_async’ 1 or 2 is used.
 Otherwise, limits both rendering and physics frame rates. Default value
 is 60.
 
+### cl\_sleep  
+Specifies, in microseconds, the longest the main loop sleeps at a time
+while it waits for the next millisecond. The loop sleeps on the network
+sockets, so an incoming packet wakes it at once, and input is checked
+after every sleep. On Windows this needs Windows 10 version 1803 or
+later; older versions keep busy-waiting. Range is 1-1000. Default value
+is 250. Setting this to 0 restores the old busy-wait, which keeps one
+CPU core at 100%.
+
+### sys\_lowlatency  
+Asks the operating system not to throttle the game loop. Default value
+is 1 (enabled). Can be changed at any time.
+
+-   On macOS, opts out of App Nap and timer coalescing, and runs the
+    main thread at user-interactive priority
+
+-   On Windows, requests a 1 ms timer resolution and opts out of power
+    throttling (EcoQoS), including while the window is minimized or
+    hidden
+
+-   On Linux, sets the timer slack to its minimum, so short sleeps end
+    on time
+
 ### cl\_gibs  
 Controls rendering of entities with ‘EF\_GIB’ flag set. When using Q2PRO
 protocol, disabling this saves some bandwidth since the server stops
@@ -582,6 +605,12 @@ Specifies which sound engine to use. Default value is 1.
 -   1 — use DMA sound engine
 
 -   2 — use OpenAL sound engine
+
+### s\_async  
+Updates sound on every client frame, not only on frames that are drawn,
+so new sounds start and the listener moves without waiting for the next
+rendered frame. Matters most with ‘r\_thread’ and a low ‘r\_maxfps’.
+Default value is 1 (enabled).
 
 ### s\_ambient  
 Specifies if ambient sounds are played. Default value is 1.
@@ -1027,6 +1056,19 @@ Exit on fatal error instead of showing error message. Can be set from
 command line only.
 
 ## OpenGL Renderer
+
+### r\_thread  
+Renders and presents frames on a dedicated render thread. Waiting for
+the swap (vsync, compositor) then no longer holds up reading input and
+network packets, or sending commands. The main thread starts a new frame
+only when the previous one has been presented, so frames never queue
+up. Takes effect at the next frame. Video drivers that can’t hand the
+OpenGL context between threads keep rendering on the main thread.
+Default value is 1 on macOS, 0 elsewhere.
+
+-   0 — render on the main thread
+
+-   1 — render on a dedicated thread
 
 ### gl\_gamma\_scale\_pics  
 Apply software gamma scaling not only to textures and skins, but to HUD
