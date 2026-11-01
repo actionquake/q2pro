@@ -22,8 +22,10 @@ with this program; if not, write to the Free Software Foundation, Inc.,
 #include "common/common.h"
 #include "common/files.h"
 #include "common/mdfour.h"
+#include "common/net/net.h"
 #include "common/tests.h"
 #include "refresh/refresh.h"
+#include "system/pthread.h"
 #include "system/system.h"
 #include "client/client.h"
 #include "client/sound/sound.h"
@@ -856,6 +858,317 @@ static void Com_Extract_f(void)
         Com_Printf("Extracted %s (%d bytes)\n", path, len);
 }
 
+// Sys_Microseconds must never go backwards and must agree with
+// Sys_Milliseconds: cl_sleep uses it to find the next millisecond.
+static void Com_TestTime_f(void)
+{
+    uint64_t prev = Sys_Microseconds(), a, b;
+    unsigned ms;
+    int i, backwards = 0, mismatched = 0, count = 200000;
+
+    for (i = 0; i < count; i++) {
+        a = Sys_Microseconds();
+        ms = Sys_Milliseconds();
+        b = Sys_Microseconds();
+        if (a < prev || b < a)
+            backwards++;
+        if (ms - (unsigned)(a / 1000) > (unsigned)(b / 1000 - a / 1000))
+            mismatched++;
+        prev = b;
+    }
+
+    Com_Printf("%d failures (%d backwards, %d disagree with Sys_Milliseconds), %d reads tested\n",
+               backwards + mismatched, backwards, mismatched, count);
+}
+
+// How long NET_SleepUs (cl_sleep) really sleeps. A packet or NET_Wake (the
+// render thread) ends a sleep early, so early wakes are counted, not
+// failed; a sleep that runs long on average means the timer is tick-based
+// and cl_sleep can't work.
+static void Com_TestSleep_f(void)
+{
+    unsigned usec = Cmd_Argc() > 1 ? Q_clip(Q_atoi(Cmd_Argv(1)), 1, 100000) : 250;
+    int i, count = Cmd_Argc() > 2 ? Q_clip(Q_atoi(Cmd_Argv(2)), 1, 100000) : 400;
+    uint64_t start, took, total = 0, worst = 0;
+    int early = 0, errors;
+
+    for (i = 0; i < count; i++) {
+        start = Sys_Microseconds();
+        NET_SleepUs(usec);
+        took = Sys_Microseconds() - start;
+        if (took < usec)
+            early++;
+        total += took;
+        worst = max(worst, took);
+    }
+
+    errors = total / count > usec + 500;
+    Com_Printf("%d failures, %d sleeps of %u usec: average %u, worst %u, %d woke early\n",
+               errors, count, usec, (unsigned)(total / count), (unsigned)worst, early);
+    if (errors)
+        Com_Printf("Sleeps are rounded to the timer tick; cl_sleep will oversleep.\n");
+    else if (early == count)
+        Com_Printf("Every sleep woke early: busy-wait fallback (no high resolution timer?).\n");
+}
+
+typedef struct {
+    int     id;
+    int     count;
+    int     errors;
+} testthread_t;
+
+static char     worker_text[8192];
+static size_t   worker_len;
+static char     worker_rdbuf[1024];
+
+static void worker_capture(int target, const char *buffer, size_t len)
+{
+    len = min(len, sizeof(worker_text) - 1 - worker_len);
+    memcpy(worker_text + worker_len, buffer, len);
+    worker_len += len;
+    worker_text[worker_len] = 0;
+}
+
+static void *wake_thread(void *arg)
+{
+    Sys_Sleep(5);
+    NET_Wake();
+    return NULL;
+}
+
+// NET_Wake from another thread ends a long NET_SleepUs at once, and a
+// wake that comes first ends the next sleep: the render thread uses it
+// to start the next frame without waiting for the next millisecond.
+static void Com_TestWake_f(void)
+{
+    pthread_t thread;
+    uint64_t start, took, total = 0;
+    int i, errors = 0, count = 10;
+
+    NET_SleepUs(1);     // take any wake-up still pending
+
+    for (i = 0; i < count; i++) {
+        if (pthread_create(&thread, NULL, wake_thread, NULL)) {
+            Com_EPrintf("Couldn't create test thread\n");
+            return;
+        }
+        start = Sys_Microseconds();
+        NET_SleepUs(500000);
+        took = Sys_Microseconds() - start;
+        pthread_join(thread, NULL);
+        errors += took > 100000;
+        total += took;
+    }
+
+    NET_Wake();
+    start = Sys_Microseconds();
+    NET_SleepUs(500000);
+    took = Sys_Microseconds() - start;
+    errors += took > 100000;
+
+    Com_Printf("%d failures, %d wakes tested (woken after %u usec on average, "
+               "the wake came after ~5000; pending wake: %u usec)\n",
+               errors, count + 1, (unsigned)(total / count), (unsigned)took);
+}
+
+static void *worker_print_thread(void *arg)
+{
+    testthread_t *t = arg;
+    jmp_buf abort_point;
+
+    Com_EnterWorker(&abort_point);
+    for (int n = 0; n < t->count; n++)
+        Com_Printf("workertest %d %d\n", t->id, n);
+    return NULL;
+}
+
+static void *worker_error_thread(void *arg)
+{
+    testthread_t *t = arg;
+    jmp_buf abort_point;
+
+    Com_EnterWorker(&abort_point);
+    if (setjmp(abort_point)) {
+        t->errors = 0;  // Com_Error came back here
+        return NULL;
+    }
+    t->errors = 1;
+    Com_Error(ERR_DROP, "workertest: error raised on a worker thread (expected)");
+    return NULL;
+}
+
+// Runs the threads, flushes their prints on this thread and checks that
+// each thread's lines arrive in order, as an unbroken prefix 0..n-1.
+// Returns the number of lines delivered per thread in got[].
+static int worker_run(testthread_t *t, int numthreads, int got[])
+{
+    pthread_t threads[4];
+    char *line, *next;
+    int i, id, n, errors = 0;
+
+    Com_FlushWorker();  // drain what other workers queued so far
+
+    for (i = 0; i < numthreads; i++) {
+        got[i] = 0;
+        if (pthread_create(&threads[i], NULL, worker_print_thread, &t[i]))
+            break;
+    }
+    for (n = 0; n < i; n++)
+        pthread_join(threads[n], NULL);
+    if (i < numthreads)
+        return -1;
+
+    worker_len = 0;
+    worker_text[0] = 0;
+    Com_BeginRedirect(1, worker_rdbuf, sizeof(worker_rdbuf) - 1, worker_capture);
+    Com_FlushWorker();
+    Com_EndRedirect();
+
+    for (line = worker_text; *line; line = next) {
+        next = strchr(line, '\n');
+        next = next ? next + 1 : line + strlen(line);
+        if (sscanf(line, "workertest %d %d", &id, &n) != 2 || id < 0 || id >= numthreads)
+            continue;   // a real worker (the render thread) printed meanwhile
+        if (n != got[id])
+            errors++;
+        got[id] = n + 1;
+    }
+
+    return errors;
+}
+
+static void Com_TestWorker_f(void)
+{
+    testthread_t t[4] = { { 0, 8 }, { 1, 8 }, { 2, 8 }, { 3, 8 } };
+    testthread_t flood = { 0, 1000 };
+    int got[4], errors = 0, ret, i;
+    pthread_t thread;
+
+    // four threads, fewer lines than the queue holds: all of them arrive
+    ret = worker_run(t, 4, got);
+    if (ret < 0) {
+        Com_EPrintf("Couldn't create test threads\n");
+        return;
+    }
+    errors += ret;
+    for (i = 0; i < 4; i++)
+        errors += got[i] != t[i].count;
+
+    // more lines than the queue holds: the oldest ones survive, in order
+    ret = worker_run(&flood, 1, got);
+    errors += ret < 0 || ret > 0 || got[0] == 0 || got[0] >= flood.count;
+
+    Com_Printf("%d failures, %d queued prints tested (queue kept %d of %d)\n",
+               errors, 4 * 8 + flood.count, got[0], flood.count);
+
+    if (strcmp(Cmd_Argv(1), "error"))
+        return;
+
+    // Com_Error on a worker returns to its abort point, and is raised
+    // here by Com_FlushWorker; this ends the command with a drop.
+    t[0].errors = 1;
+    if (pthread_create(&thread, NULL, worker_error_thread, &t[0])) {
+        Com_EPrintf("Couldn't create test thread\n");
+        return;
+    }
+    pthread_join(thread, NULL);
+    Com_Printf("%d failures, worker Com_Error returned to its abort point\n", t[0].errors);
+    Com_FlushWorker();
+    Com_Printf("1 failures, Com_FlushWorker didn't raise the worker's error\n");
+}
+
+// private tag in the game's namespace, so the chain walk only counts ours
+#define ZONETEST_TAG    ((memtag_t)(TAG_MAX + 0x7000))
+
+static void *zone_thread(void *arg)
+{
+    testthread_t *t = arg;
+    byte *slots[16] = { NULL };
+    size_t sizes[16] = { 0 };
+    uint32_t seed = 0x9e3779b9u * (t->id + 1);
+
+    for (int n = 0; n < t->count; n++) {
+        int s = n % q_countof(slots);
+        byte fill = t->id * 16 + s;
+
+        if (slots[s]) {
+            for (size_t i = 0; i < sizes[s]; i++) {
+                if (slots[s][i] != fill) {
+                    t->errors++;
+                    break;
+                }
+            }
+            Z_Free(slots[s]);
+        }
+
+        seed = seed * 1664525 + 1013904223;
+        sizes[s] = 1 + (seed >> 16) % 512;
+        slots[s] = Z_TagMalloc(sizes[s], ZONETEST_TAG);
+        memset(slots[s], fill, sizes[s]);
+    }
+
+    for (int s = 0; s < q_countof(slots); s++)
+        Z_Free(slots[s]);
+    return NULL;
+}
+
+// The render thread allocates too; hammer the zone from several threads
+// at once. A broken lock shows up as corrupted blocks, as a chain that
+// doesn't add up afterwards (or fails validation), or as a crash.
+static void Com_TestZone_f(void)
+{
+    testthread_t t[4];
+    pthread_t threads[4];
+    int i, started = 0, errors = 0;
+    unsigned start = Sys_Milliseconds();
+    size_t left;
+
+    if (Z_TagCount(ZONETEST_TAG)) {
+        Com_EPrintf("Zone already has blocks with the test tag\n");
+        return;
+    }
+
+    for (i = 0; i < 4; i++) {
+        t[i] = (testthread_t){ .id = i, .count = 250000 };
+        if (pthread_create(&threads[i], NULL, zone_thread, &t[i]))
+            break;
+        started++;
+    }
+    for (i = 0; i < started; i++) {
+        pthread_join(threads[i], NULL);
+        errors += t[i].errors;
+    }
+
+    // every block was freed, so none may be left linked
+    left = Z_TagCount(ZONETEST_TAG);
+    errors += left > 0;
+
+    if (started < 4)
+        Com_EPrintf("Couldn't create test threads\n");
+    Com_Printf("%u msec, %d failures (%zu blocks left in the chain), "
+               "%d allocations on %d threads tested\n",
+               Sys_Milliseconds() - start, errors, left, started * t[0].count, started);
+}
+
+#if USE_REF
+// What a bad HUD layout from a server does: an error between R_BeginFrame
+// and R_EndFrame. Frames must still finish afterwards; with r_thread 1 an
+// abandoned frame used to keep every later frame from being submitted.
+// The error ends this command, so it queues its own check first.
+static void Com_TestFrameAbort_f(void)
+{
+    if (!strcmp(Cmd_Argv(1), "check")) {
+        unsigned done = R_FramesFinished() - strtoul(Cmd_Argv(2), NULL, 10);
+        Com_Printf("%d failures, %u frames finished after an aborted one\n", !done, done);
+        return;
+    }
+
+    Cbuf_InsertText(&cmd_buffer, va("wait 30; frameabort check %u\n", R_FramesFinished()));
+    R_BeginFrame();
+    Com_Error(ERR_DROP, "frameabort: error in the middle of a frame (expected)");
+}
+#endif
+
 static const cmdreg_t c_test[] = {
     { "error", Com_Error_f },
     { "errordrop", Com_ErrorDrop_f },
@@ -871,6 +1184,7 @@ static const cmdreg_t c_test[] = {
 #if USE_REF
     { "modeltest", Com_TestModels_f },
     { "imagetest", Com_TestImages_f },
+    { "frameabort", Com_TestFrameAbort_f },
 #endif
 #if USE_CLIENT
     { "soundtest", Com_TestSounds_f },
@@ -881,6 +1195,11 @@ static const cmdreg_t c_test[] = {
     { "extcmptest", Com_ExtCmpTest_f },
     { "nextpathtest", Com_NextPathTest_f },
     { "extract", Com_Extract_f },
+    { "timetest", Com_TestTime_f },
+    { "sleeptest", Com_TestSleep_f },
+    { "waketest", Com_TestWake_f },
+    { "workertest", Com_TestWorker_f },
+    { "zonetest", Com_TestZone_f },
     { NULL }
 };
 

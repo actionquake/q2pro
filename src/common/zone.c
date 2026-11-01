@@ -100,20 +100,37 @@ static inline void Z_CountAlloc(const zhead_t *z)
 #define Z_ValidateLocked(z) \
     do { if (!Z_Valid(z)) { pthread_mutex_unlock(&z_lock); Z_Validate(z); } } while (0)
 
-void Z_LeakTest(memtag_t tag)
+// walks (and validates) the whole chain
+static size_t Z_CountTag(memtag_t tag, size_t *bytes)
 {
     zhead_t *z;
-    size_t numLeaks = 0, numBytes = 0;
+    size_t count = 0;
 
+    *bytes = 0;
     pthread_mutex_lock(&z_lock);
     LIST_FOR_EACH(zhead_t, z, &z_chain, entry) {
         Z_ValidateLocked(z);
         if (z->tag == tag || (tag == TAG_FREE && z->tag >= TAG_MAX)) {
-            numLeaks++;
-            numBytes += z->size;
+            count++;
+            *bytes += z->size;
         }
     }
     pthread_mutex_unlock(&z_lock);
+
+    return count;
+}
+
+#if USE_TESTS
+size_t Z_TagCount(memtag_t tag)
+{
+    size_t bytes;
+    return Z_CountTag(tag, &bytes);
+}
+#endif
+
+void Z_LeakTest(memtag_t tag)
+{
+    size_t numBytes, numLeaks = Z_CountTag(tag, &numBytes);
 
     if (numLeaks) {
         Com_WPrintf("************* Z_LeakTest *************\n"
