@@ -856,6 +856,15 @@ void T_Damage (edict_t * targ, edict_t * inflictor, edict_t * attacker, const ve
 		else
 			SpawnDamage(te_sparks, point, normal, take);
 
+		// True damage tracking (victim-side): cap at remaining HP
+		if (instant_dam && client && take > 0 && targ->health > 0) {
+			int true_take = (take > targ->health) ? targ->health : take;
+			if (attacker->client && attacker != targ)
+				client->truedmg_player += true_take;
+			else
+				client->truedmg_env += true_take;
+		}
+
 		// all things that have at least some instantaneous damage, i.e. bruising/falling
 		if (instant_dam)
 			targ->health = targ->health - take;
@@ -869,6 +878,15 @@ void T_Damage (edict_t * targ, edict_t * inflictor, edict_t * attacker, const ve
 						attacker->client->resp.damage_dealt += damage;
 						// Hit markers
 						attacker->client->damage_dealt += damage;
+
+						// True damage dealt: only credit instant hits here.
+						// Bleeding damage is credited in Do_Bleeding when HP actually drops.
+						if (instant_dam) {
+							int pre_health = targ->health + take;  // reconstruct pre-reduction HP
+							int true_take_att = (damage > pre_health) ? pre_health : damage;
+							if (true_take_att > 0)
+								attacker->client->resp.true_damage_dealt += true_take_att;
+						}
 					}
 					if (mod > 0 && mod < MAX_GUNSTAT) {
 						attacker->client->resp.gunstats[mod].damage += damage;
@@ -880,7 +898,7 @@ void T_Damage (edict_t * targ, edict_t * inflictor, edict_t * attacker, const ve
 					mod != MOD_TARGET_LASER) {
 						attacker->client->damage_dealt += take + psave + asave;
 					}
-			
+
 				client->attacker = attacker;
 				client->attacker_mod = mod;
 				client->attacker_loc = damage_type;
@@ -936,6 +954,15 @@ void T_Damage (edict_t * targ, edict_t * inflictor, edict_t * attacker, const ve
 					attacker->client->resp.damage_dealt += damage;
 					// Hit markers
 					attacker->client->damage_dealt += damage;
+
+					// True damage dealt: only credit instant hits here.
+					// Bleeding damage is credited in Do_Bleeding when HP actually drops.
+					if (instant_dam) {
+						int victim_hp = targ->health + take;  // reconstruct pre-reduction HP
+						int true_dmg = (damage > victim_hp) ? victim_hp : damage;
+						if (true_dmg > 0)
+							attacker->client->resp.true_damage_dealt += true_dmg;
+					}
 				}
 				// All normal weapon damage
 				if (mod > 0 && mod < MAX_GUNSTAT) {

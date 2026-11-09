@@ -1981,6 +1981,7 @@ void ResetScores (qboolean playerScores)
 		ent->client->resp.score = 0;
 		ent->client->resp.kills = 0;
 		ent->client->resp.damage_dealt = 0;
+		ent->client->resp.true_damage_dealt = 0;
 		ent->client->resp.streakHS = 0;
 		ent->client->resp.streakKills = 0;
 		ent->client->resp.roundStreakKills = 0;
@@ -3834,6 +3835,7 @@ void A_ScoreboardMessage (edict_t * ent, edict_t * killer)
 			else if( field == 'K' ) chars +=  5;
 			else if( field == 'D' ) chars +=  6;
 			else if( field == 'I' ) chars +=  6;
+			else if( field == 'E' ) chars +=  6;
 			else if( field == 'A' ) chars +=  3;
 			else chars ++;
 		}
@@ -3862,6 +3864,7 @@ void A_ScoreboardMessage (edict_t * ent, edict_t * killer)
 			else if( field == 'K' ) strcat( string, "Kills" );
 			else if( field == 'D' ) strcat( string, "Deaths" );
 			else if( field == 'I' ) strcat( string, "Damage" );
+			else if( field == 'E' ) strcat( string, "TrDmg " );
 			else if( field == 'A' ) strcat( string, "Acc" );
 			else sprintf( string + strlen(string), "%c", sb[ i ] );
 		}
@@ -3884,6 +3887,7 @@ void A_ScoreboardMessage (edict_t * ent, edict_t * killer)
 			else if( field == 'K' ) strcat( string, "\x9D\x9E\x9E\x9E\x9F" );
 			else if( field == 'D' ) strcat( string, "\x9D\x9E\x9E\x9E\x9E\x9F" );
 			else if( field == 'I' ) strcat( string, "\x9D\x9E\x9E\x9E\x9E\x9F" );
+			else if( field == 'E' ) strcat( string, "\x9D\x9E\x9E\x9E\x9E\x9F" );
 			else if( field == 'A' ) strcat( string, "\x9D\x9E\x9F" );
 			else sprintf( string + strlen(string), "%c", sb[ i ] );
 		}
@@ -3958,6 +3962,7 @@ void A_ScoreboardMessage (edict_t * ent, edict_t * killer)
 				else if( field == 'K' ) Q_snprintf( buf, sizeof(buf), "%5i", min( 99999, cl->resp.kills) );
 				else if( field == 'D' ) Q_snprintf( buf, sizeof(buf), "%6i", min( 999999, cl->resp.deaths) );
 				else if( field == 'I' ) Q_snprintf( buf, sizeof(buf), "%6i", min( 999999, cl->resp.damage_dealt) );
+				else if( field == 'E' ) Q_snprintf( buf, sizeof(buf), "%6i", min( 999999, cl->resp.true_damage_dealt) );
 				else if( field == 'A' ) Q_snprintf( buf, sizeof(buf), "%3.f", cl->resp.shotsTotal ? (double) cl->resp.hitsTotal * 100.0 / (double) cl->resp.shotsTotal : 0. );
 				else sprintf( buf, "%c", sb[ j ] );
 

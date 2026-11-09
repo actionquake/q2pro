@@ -1203,11 +1203,22 @@ void Do_Bleeding (edict_t * ent)
 	damage = (int) (ent->client->bleed_remain / BLEED_TIME);
 	if (ent->client->bleed_remain >= BLEED_TIME)
 	{
+		// True damage tracking: cap bleed at remaining HP
+		if (damage > 0 && ent->health > 0) {
+			int true_bleed = (damage > ent->health) ? ent->health : damage;
+			ent->client->truedmg_bleed += true_bleed;
+
+			// Credit the attacker's true_damage_dealt when HP actually drops
+			if (ent->client->attacker && ent->client->attacker->client
+				&& ent->client->attacker != ent)
+				ent->client->attacker->client->resp.true_damage_dealt += true_bleed;
+		}
+
 		ent->health -= damage;
 		if (damage > 1)
 		{
 			// action doens't do this
-			//ent->client->damage_blood += damage; // for feedback                                
+			//ent->client->damage_blood += damage; // for feedback
 		}
 		if (ent->health <= 0)
 		{

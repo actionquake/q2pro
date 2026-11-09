@@ -1798,6 +1798,10 @@ static void Cmd_PrintStats_f (edict_t *ent) {
 	Cmd_Stats_f(ent, gi.argv(1));
 }
 
+static void Cmd_PrintTrueDmg_f (edict_t *ent) {
+	Cmd_TrueDmg_f(ent);
+}
+
 static void Cmd_Timeout_f (edict_t *ent) {
 	Cmd_CallTimeout_f(ent);
 }
@@ -1994,6 +1998,7 @@ static cmdList_t commandList[] =
 	{ "unlock", Cmd_UnlockTeam_f, 0 },
 	{ "entcount", Cmd_Ent_Count_f, 0 },
 	{ "stats", Cmd_PrintStats_f, 0 },
+	{ "truedmg", Cmd_PrintTrueDmg_f, 0 },
 	{ "flashlight", FL_make, CMDF_PAUSE },
 	{ "matchadmin", Cmd_SetAdmin_f, 0 },
 	{ "roundtimeleft", Cmd_Roundtimeleft_f, 0 },
