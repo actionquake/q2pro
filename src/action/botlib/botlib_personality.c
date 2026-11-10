@@ -289,6 +289,7 @@ void BOTLIB_PersonalityFile(void) {
         DeactivateBotPersonality();
 		return; // No file
     }
+    fclose(fIn); // existence probe only
     // Now that we have the file, let's load the bots
     BOTLIB_LoadPersonalities(filename);
 }

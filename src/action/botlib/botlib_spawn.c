@@ -369,6 +369,7 @@ qboolean BOTLIB_AddBotsFromPreviousMap(float percent)
 	{
 		return false; // Ignore if file doesn't exist
 	}
+	fclose(f); // existence probe only; reopened below
 
 	// Open and check for success
 	if ((f = fopen(filename, "r")) != NULL) // Read text file
@@ -383,7 +384,7 @@ qboolean BOTLIB_AddBotsFromPreviousMap(float percent)
 		if (print_dbg) Com_Printf("%s line[%d] version[%d]\n", __func__, ++line_num, version);
 		if (version != BOTS_FILE_PREV_MAP_VERSION)
 		{
-			return false;
+			{ fclose(f); return false; }
 		}
 
 		// Get previous bot count
@@ -393,7 +394,7 @@ qboolean BOTLIB_AddBotsFromPreviousMap(float percent)
 		if (prev_bot_count <= 0)
 		{
 			//gi.dprintf("%s failed to process bot count from file: %s\n", __func__, filename);
-			return false;
+			{ fclose(f); return false; }
 		}
 
 		// Get previous bot_maxteam num
@@ -405,7 +406,7 @@ qboolean BOTLIB_AddBotsFromPreviousMap(float percent)
 		{
 			gi.cvar_set("bot_maxteam", va("%d", 0)); // Override if manually added
 			gi.dprintf("%s failed to process bot_maxteam from file: %s\n", __func__, filename);
-			return false;
+			{ fclose(f); return false; }
 		}
 
 		// Get gamemode
@@ -437,7 +438,7 @@ qboolean BOTLIB_AddBotsFromPreviousMap(float percent)
 			if (prev_gender < GENDER_MALE || prev_gender > GENDER_NEUTRAL)
 			{
 				Com_Printf("%s failed to process bot gender from file: %s\n", __func__, filename);
-				return false;
+				{ fclose(f); return false; }
 			}
 
 			// Get team
@@ -446,7 +447,7 @@ qboolean BOTLIB_AddBotsFromPreviousMap(float percent)
 			if (prev_team < NOTEAM || prev_team > TEAM3)
 			{
 				Com_Printf("%s failed to process bot team from file: %s\n", __func__, filename);
-				return false;
+				{ fclose(f); return false; }
 			}
 
 			// Get name
