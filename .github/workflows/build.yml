@@ -312,7 +312,7 @@ jobs:
   # @executable_path/../Frameworks/ — player needs zero brew installs.
   # Game data (baseaq/, action/) is expected ALONGSIDE the .app, not inside.
   darwin-arm64-turnkey:
-    runs-on: macos-14
+    runs-on: macos-latest
     steps:
       - uses: actions/checkout@v6
 
