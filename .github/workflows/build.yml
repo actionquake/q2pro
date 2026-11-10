@@ -271,7 +271,7 @@ jobs:
             builddir/gamex86_64.dylib
 
   darwin-arm64:
-    runs-on: macos-14
+    runs-on: macos-15
     steps:
       - uses: actions/checkout@v6
 
