@@ -369,7 +369,15 @@ jobs:
           echo
           echo "=== Any reference to /usr/local, /opt, or absolute brew paths? ==="
           FILES=$(find "$APP/Contents/MacOS" "$APP/Contents/Frameworks" -type f \( -name "*.dylib" -o -perm -u+x \) ! -name AQtion-launcher)
-          if otool -L $FILES 2>/dev/null | grep -E "/usr/local/|/opt/homebrew|/opt/local|@rpath" ; then
+          BAD=0
+          for f in $FILES; do
+            # otool -L prints "file:" then, for dylibs, the dylib's own id; skip both
+            case "$f" in *.dylib) SKIP=3 ;; *) SKIP=2 ;; esac
+            if otool -L "$f" | tail -n +$SKIP | grep -E "/usr/local/|/opt/homebrew|/opt/local|@rpath"; then
+              echo "leak in $f"; BAD=1
+            fi
+          done
+          if [ $BAD = 1 ]; then
             echo "ERROR: external dependency leaked into bundle"
             exit 1
           fi
@@ -473,7 +481,15 @@ jobs:
           echo
           echo "=== Any reference to /usr/local, /opt, or absolute brew paths? ==="
           FILES=$(find "$APP/Contents/MacOS" "$APP/Contents/Frameworks" -type f \( -name "*.dylib" -o -perm -u+x \) ! -name AQtion-launcher)
-          if otool -L $FILES 2>/dev/null | grep -E "/usr/local/|/opt/homebrew|/opt/local|@rpath" ; then
+          BAD=0
+          for f in $FILES; do
+            # otool -L prints "file:" then, for dylibs, the dylib's own id; skip both
+            case "$f" in *.dylib) SKIP=3 ;; *) SKIP=2 ;; esac
+            if otool -L "$f" | tail -n +$SKIP | grep -E "/usr/local/|/opt/homebrew|/opt/local|@rpath"; then
+              echo "leak in $f"; BAD=1
+            fi
+          done
+          if [ $BAD = 1 ]; then
             echo "ERROR: external dependency leaked into bundle"
             exit 1
           fi
