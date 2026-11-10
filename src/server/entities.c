@@ -126,6 +126,37 @@ static bool SV_TruncPacketEntities(client_t *client, const client_frame_t *from,
 }
 
 #ifdef AQTION_EXTENSION
+/*
+=============
+SV_Ghud_MayHold
+
+Returns true if the client may still hold ghud element `i` as in use:
+either the delta base had it in use, or a frame sent after the base did
+(the client keeps a single ghud array, so in-flight frames count too).
+Without a delta base, every frame still in the backup ring is checked.
+=============
+*/
+static bool SV_Ghud_MayHold(const client_t *client, const client_frame_t *oldframe, int i)
+{
+    int n;
+
+    if (oldframe) {
+        if (oldframe->ghud[i].flags & GHF_INUSE)
+            return true;
+        n = oldframe->number + 1;
+    } else {
+        n = client->framenum - UPDATE_BACKUP + 1;
+    }
+
+    for (; n < client->framenum; n++) {
+        const client_frame_t *f = &client->frames[n & UPDATE_MASK];
+        if (f->number == n && (f->ghud[i].flags & GHF_INUSE))
+            return true;
+    }
+
+    return false;
+}
+
 static void SV_Ghud_SendUpdateToClient(client_t *client, const client_frame_t *oldframe, client_frame_t *frame)
 {
 	if (client->protocol == PROTOCOL_VERSION_AQTION && client->version >= PROTOCOL_VERSION_AQTION_GHUD)
@@ -160,11 +191,17 @@ static void SV_Ghud_SendUpdateToClient(client_t *client, const client_frame_t *o
 
 			if (oldframe != NULL) {
                 uflags = MSG_DeltaGhud(&oldframe->ghud[i], element, protocolflags);
+                if ((protocolflags & 1) && !(element->flags & GHF_INUSE) && !SV_Ghud_MayHold(client, oldframe, i))
+                    uflags = 0; // client already has this element blank
                 if (oldframe->ghud[i].flags & GHF_FORCE || element->flags & GHF_FORCE)
                     uflags |= 0x7F;
             } else {
-                if (element->flags & GHF_FORCE)
-                    uflags |= 0x7F;
+                // no delta base: client state is unknown, send in-use elements whole
+                // and blank any slot the client may still hold
+                if (element->flags & (GHF_INUSE | GHF_FORCE))
+                    uflags = 0x7F;
+                else if (SV_Ghud_MayHold(client, NULL, i))
+                    uflags = (protocolflags & 1) ? (GHU_BLANK | GHU_EXTRAF) : 0x7F;
             }
 
 			if (!uflags)
@@ -297,8 +334,7 @@ static bool SV_EmitPacketEntities(client_t *client, const client_frame_t *from,
 // return type changed from void to bool and it's now returning SV_EmitPacketEntities()
 // rather than just calling it
 #ifdef AQTION_EXTENSION
-    if(from)
-        SV_Ghud_SendUpdateToClient(client, from, to);
+    SV_Ghud_SendUpdateToClient(client, from, to);
 #endif
     return ret;
 }
