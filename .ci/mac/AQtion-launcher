@@ -22,4 +22,5 @@ APP_PARENT="$(cd "$SELF_DIR/../../.." && pwd)"   # folder containing AQtion.app
 
 cd "$APP_PARENT"
 
-exec "$SELF_DIR/q2pro" "$@"
+# Game library lives in the bundle: <libdir>/action/game<cpu>.dylib
+exec "$SELF_DIR/q2pro" +set libdir "$SELF_DIR" "$@"

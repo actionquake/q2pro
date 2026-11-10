@@ -336,7 +336,8 @@ jobs:
 
           cp builddir/q2pro          "$APP/Contents/MacOS/"
           cp builddir/q2proded       "$APP/Contents/MacOS/"
-          cp builddir/gamearm64.dylib "$APP/Contents/MacOS/"
+          mkdir -p "$APP/Contents/MacOS/action"
+          cp builddir/gamearm64.dylib "$APP/Contents/MacOS/action/"
 
           cp .ci/mac/Info.plist               "$APP/Contents/Info.plist"
           install -m 0755 .ci/mac/AQtion-launcher "$APP/Contents/MacOS/AQtion-launcher"
@@ -356,7 +357,7 @@ jobs:
           dylibbundler -od -b \
             -x "$APP/Contents/MacOS/q2pro" \
             -x "$APP/Contents/MacOS/q2proded" \
-            -x "$APP/Contents/MacOS/gamearm64.dylib" \
+            -x "$APP/Contents/MacOS/action/gamearm64.dylib" \
             -d "$APP/Contents/Frameworks/" \
             -p "@executable_path/../Frameworks/"
 
@@ -367,12 +368,20 @@ jobs:
           otool -L "$APP/Contents/MacOS/q2pro"
           echo
           echo "=== Any reference to /usr/local, /opt, or absolute brew paths? ==="
-          if otool -L "$APP/Contents/MacOS/q2pro" "$APP/Contents/MacOS/q2proded" "$APP/Contents/MacOS/gamearm64.dylib" \
-              | grep -E "/usr/local/|/opt/homebrew|/opt/local" ; then
+          FILES=$(find "$APP/Contents/MacOS" "$APP/Contents/Frameworks" -type f \( -name "*.dylib" -o -perm -u+x \) ! -name AQtion-launcher)
+          if otool -L $FILES 2>/dev/null | grep -E "/usr/local/|/opt/homebrew|/opt/local|@rpath" ; then
             echo "ERROR: external dependency leaked into bundle"
             exit 1
           fi
           echo "OK — bundle is self-contained"
+
+      - name: Stamp LSMinimumSystemVersion from bundled binaries
+        run: |
+          APP=AQtion.app
+          FILES=$(find "$APP/Contents/MacOS" "$APP/Contents/Frameworks" -type f \( -name "*.dylib" -o -perm -u+x \) ! -name AQtion-launcher)
+          MIN=$(for f in $FILES; do otool -l "$f" | awk '/minos/{print $2} /LC_VERSION_MIN_MACOSX/{m=1} m&&/ version /{print $2; m=0}'; done | sort -V | tail -1)
+          echo "Highest minimum macOS among bundled code: $MIN"
+          plutil -replace LSMinimumSystemVersion -string "$MIN" "$APP/Contents/Info.plist"
 
       - name: Ad-hoc codesign the .app
         run: |
@@ -436,7 +445,8 @@ jobs:
 
           cp builddir/q2pro            "$APP/Contents/MacOS/"
           cp builddir/q2proded         "$APP/Contents/MacOS/"
-          cp builddir/gamex86_64.dylib "$APP/Contents/MacOS/"
+          mkdir -p "$APP/Contents/MacOS/action"
+          cp builddir/gamex86_64.dylib "$APP/Contents/MacOS/action/"
 
           cp .ci/mac/Info.plist               "$APP/Contents/Info.plist"
           install -m 0755 .ci/mac/AQtion-launcher "$APP/Contents/MacOS/AQtion-launcher"
@@ -451,7 +461,7 @@ jobs:
           dylibbundler -od -b \
             -x "$APP/Contents/MacOS/q2pro" \
             -x "$APP/Contents/MacOS/q2proded" \
-            -x "$APP/Contents/MacOS/gamex86_64.dylib" \
+            -x "$APP/Contents/MacOS/action/gamex86_64.dylib" \
             -d "$APP/Contents/Frameworks/" \
             -p "@executable_path/../Frameworks/"
 
@@ -462,12 +472,20 @@ jobs:
           otool -L "$APP/Contents/MacOS/q2pro"
           echo
           echo "=== Any reference to /usr/local, /opt, or absolute brew paths? ==="
-          if otool -L "$APP/Contents/MacOS/q2pro" "$APP/Contents/MacOS/q2proded" "$APP/Contents/MacOS/gamex86_64.dylib" \
-              | grep -E "/usr/local/|/opt/homebrew|/opt/local" ; then
+          FILES=$(find "$APP/Contents/MacOS" "$APP/Contents/Frameworks" -type f \( -name "*.dylib" -o -perm -u+x \) ! -name AQtion-launcher)
+          if otool -L $FILES 2>/dev/null | grep -E "/usr/local/|/opt/homebrew|/opt/local|@rpath" ; then
             echo "ERROR: external dependency leaked into bundle"
             exit 1
           fi
           echo "OK — bundle is self-contained"
+
+      - name: Stamp LSMinimumSystemVersion from bundled binaries
+        run: |
+          APP=AQtion.app
+          FILES=$(find "$APP/Contents/MacOS" "$APP/Contents/Frameworks" -type f \( -name "*.dylib" -o -perm -u+x \) ! -name AQtion-launcher)
+          MIN=$(for f in $FILES; do otool -l "$f" | awk '/minos/{print $2} /LC_VERSION_MIN_MACOSX/{m=1} m&&/ version /{print $2; m=0}'; done | sort -V | tail -1)
+          echo "Highest minimum macOS among bundled code: $MIN"
+          plutil -replace LSMinimumSystemVersion -string "$MIN" "$APP/Contents/Info.plist"
 
       - name: Ad-hoc codesign the .app
         run: |
@@ -524,13 +542,6 @@ jobs:
             ${{ env.MESON_ARGS }} ${{ env.MESON_ARGS_LINUX }} builddir
           meson compile -C builddir
 
-      - name: patchelf Discord SDK path
-        run: |
-          patchelf --replace-needed \
-            /home/runner/work/q2pro/q2pro/extern/discord/lib/x86_64/discord_game_sdk.so \
-            ./discord_game_sdk.so \
-            builddir/q2pro || true
-
       - name: Set binaries as executable
         run: |
           chmod +x builddir/q2pro*
@@ -539,7 +550,9 @@ jobs:
         run: |
           echo "=== q2pro linkage ==="
           ldd builddir/q2pro
-          echo "OK — verify above that all libs resolve inside the Sniper runtime"
+          if ldd builddir/q2pro | grep "not found"; then
+            echo "ERROR: unresolved library"; exit 1
+          fi
 
       - uses: actions/upload-artifact@v6
         with:
