@@ -356,7 +356,7 @@ bool SV_ParseMapCmd(mapcmd_t *cmd)
             *ch = 0;
 
         // see if map exists and can be loaded
-        if (parse_and_check_server(cmd, s, ch)) {
+        if (parse_and_check_server(cmd, s, ch != NULL)) {
             if (ch)
                 Cvar_Set("nextserver", va("gamemap \"!%s\"", ch + 1));
             else

@@ -514,7 +514,7 @@ static bool parse_gl_version(void)
     if (gl_es) {
         gl_config.ver_es = ver;
         if (ver >= QGL_VER(3, 0))
-            gl_config.webgl = strstr(s, "WebGL");
+            gl_config.webgl = strstr(s, "WebGL") != NULL;
         return ver;
     }
 

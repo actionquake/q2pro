@@ -708,7 +708,7 @@ static bool match_cvar_val(const char *s, const char *v)
     case '>':
         return Q_atof(v) > Q_atof(s);
     case '~':
-        return Q_stristr(v, s);
+        return Q_stristr(v, s) != NULL;
     case '#':
         return !Q_stricmp(v, s);
     default:

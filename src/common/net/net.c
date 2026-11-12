@@ -1780,8 +1780,8 @@ NET_Restart_f
 static void NET_Restart_f(void)
 {
     netflag_t flag = net_active;
-    bool listen4 = tcp_socket;
-    bool listen6 = tcp6_socket;
+    bool listen4 = tcp_socket != NULL;
+    bool listen6 = tcp6_socket != NULL;
 
     Com_DPrintf("%s\n", __func__);
 
