@@ -777,7 +777,7 @@ static bool GL_UploadCubemap(image_t *image, byte *pic)
 {
     int width = image->upload_width;
     int height = image->upload_height;
-    const byte *ofs, *src;
+    const byte *ofs = gl_env_ofs[0], *src;
     byte *buffer, *dst;
     int i, s, t, size;
 
