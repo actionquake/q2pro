@@ -369,6 +369,7 @@ jobs:
             -x "$APP/Contents/MacOS/q2proded" \
             -x "$APP/Contents/MacOS/action/gamearm64.dylib" \
             -d "$APP/Contents/Frameworks/" \
+            -s /Users/runner/sdl2/lib \
             -p "@executable_path/../Frameworks/"
 
       - name: Dedupe LC_RPATH (dyld aborts on duplicates)
@@ -503,6 +504,7 @@ jobs:
             -x "$APP/Contents/MacOS/q2proded" \
             -x "$APP/Contents/MacOS/action/gamex86_64.dylib" \
             -d "$APP/Contents/Frameworks/" \
+            -s /Users/runner/sdl2/lib \
             -p "@executable_path/../Frameworks/"
 
       - name: Dedupe LC_RPATH (dyld aborts on duplicates)
