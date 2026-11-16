@@ -277,7 +277,7 @@ jobs:
 
       - name: Install dependencies
         run: |
-          brew install pkg-config meson libpng sdl2 openal-soft zlib curl ffmpeg jpeg-turbo jansson ossp-uuid
+          brew install pkg-config meson cmake libpng openal-soft zlib curl ffmpeg jpeg-turbo jansson ossp-uuid
 
       - name: Build
         run: |
@@ -318,7 +318,17 @@ jobs:
 
       - name: Install build + bundling dependencies
         run: |
-          brew install pkg-config meson libpng sdl2 openal-soft zlib curl ffmpeg jpeg-turbo jansson ossp-uuid dylibbundler
+          brew install pkg-config meson cmake libpng openal-soft zlib curl ffmpeg jpeg-turbo jansson ossp-uuid dylibbundler
+
+      - name: Build real SDL2 from source (Homebrew sdl2 is sdl2-compat, which dlopens SDL3 at runtime and can't be bundled)
+        run: |
+          curl -fsSL https://github.com/libsdl-org/SDL/releases/download/release-$SDLV/SDL2-$SDLV.tar.gz | tar xz
+          cmake -S SDL2-$SDLV -B sdl2-build -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX="$HOME/sdl2" \
+            -DCMAKE_OSX_DEPLOYMENT_TARGET=11.0 -DSDL_STATIC=OFF -DSDL_TEST=OFF
+          cmake --build sdl2-build -j4
+          cmake --install sdl2-build
+        env:
+          SDLV: "2.32.10"
 
       - name: Build
         run: |
@@ -326,7 +336,7 @@ jobs:
           meson compile -vC builddir
         env:
           CC: "gcc"
-          PKG_CONFIG_PATH: "/opt/homebrew/opt/openal-soft/lib/pkgconfig"
+          PKG_CONFIG_PATH: "/Users/runner/sdl2/lib/pkgconfig:/opt/homebrew/opt/openal-soft/lib/pkgconfig"
           CFLAGS: "-target arm64-apple-macos11"
 
       - name: Assemble AQtion.app bundle
@@ -360,6 +370,18 @@ jobs:
             -x "$APP/Contents/MacOS/action/gamearm64.dylib" \
             -d "$APP/Contents/Frameworks/" \
             -p "@executable_path/../Frameworks/"
+
+      - name: Dedupe LC_RPATH (dyld aborts on duplicates)
+        run: |
+          APP=AQtion.app
+          RP="@executable_path/../Frameworks/"
+          for f in "$APP/Contents/MacOS/q2pro" "$APP/Contents/MacOS/q2proded" "$APP/Contents/MacOS/action/"*.dylib; do
+            n=$(otool -l "$f" | grep -c "path $RP ")
+            while [ "$n" -gt 1 ]; do
+              install_name_tool -delete_rpath "$RP" "$f"
+              n=$((n-1))
+            done
+          done
 
       - name: Verify .app has no external dylib references
         run: |
@@ -435,7 +457,17 @@ jobs:
 
       - name: Install build + bundling dependencies
         run: |
-          brew install pkg-config meson libpng sdl2 openal-soft zlib curl ffmpeg jpeg-turbo ossp-uuid jansson dylibbundler
+          brew install pkg-config meson cmake libpng openal-soft zlib curl ffmpeg jpeg-turbo ossp-uuid jansson dylibbundler
+
+      - name: Build real SDL2 from source (Homebrew sdl2 is sdl2-compat, which dlopens SDL3 at runtime and can't be bundled)
+        run: |
+          curl -fsSL https://github.com/libsdl-org/SDL/releases/download/release-$SDLV/SDL2-$SDLV.tar.gz | tar xz
+          cmake -S SDL2-$SDLV -B sdl2-build -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX="$HOME/sdl2" \
+            -DCMAKE_OSX_DEPLOYMENT_TARGET=10.13 -DSDL_STATIC=OFF -DSDL_TEST=OFF
+          cmake --build sdl2-build -j4
+          cmake --install sdl2-build
+        env:
+          SDLV: "2.32.10"
 
       - name: Build
         run: |
@@ -443,7 +475,7 @@ jobs:
           meson compile -vC builddir
         env:
           CC: "gcc"
-          PKG_CONFIG_PATH: "/usr/local/opt/openal-soft/lib/pkgconfig"
+          PKG_CONFIG_PATH: "/Users/runner/sdl2/lib/pkgconfig:/usr/local/opt/openal-soft/lib/pkgconfig"
           CFLAGS: "-mmacosx-version-min=10.7"
 
       - name: Assemble AQtion.app bundle
@@ -472,6 +504,18 @@ jobs:
             -x "$APP/Contents/MacOS/action/gamex86_64.dylib" \
             -d "$APP/Contents/Frameworks/" \
             -p "@executable_path/../Frameworks/"
+
+      - name: Dedupe LC_RPATH (dyld aborts on duplicates)
+        run: |
+          APP=AQtion.app
+          RP="@executable_path/../Frameworks/"
+          for f in "$APP/Contents/MacOS/q2pro" "$APP/Contents/MacOS/q2proded" "$APP/Contents/MacOS/action/"*.dylib; do
+            n=$(otool -l "$f" | grep -c "path $RP ")
+            while [ "$n" -gt 1 ]; do
+              install_name_tool -delete_rpath "$RP" "$f"
+              n=$((n-1))
+            done
+          done
 
       - name: Verify .app has no external dylib references
         run: |
