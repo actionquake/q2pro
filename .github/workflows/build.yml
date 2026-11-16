@@ -42,9 +42,15 @@ env:
     -Dx11=disabled
     -Dicmp-errors=disabled
 
+# Cancel superseded runs on the same ref so pushes do not pile up.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   mingw:
     runs-on: ubuntu-24.04
+    timeout-minutes: 30
     strategy:
       matrix:
         #arch: ["i686", "x86_64"]
@@ -80,6 +86,7 @@ jobs:
 
   msvc:
     runs-on: windows-latest
+    timeout-minutes: 30
     strategy:
       matrix:
         #arch: ["x86", "x64"]
@@ -117,6 +124,7 @@ jobs:
 
   linux64:
     runs-on: ubuntu-22.04
+    timeout-minutes: 30
     #runs-on: [self-hosted, x86]
     strategy:
       matrix:
@@ -168,6 +176,7 @@ jobs:
 
   linuxARM64:
     runs-on: [self-hosted, ARM64]
+    timeout-minutes: 30
     strategy:
       matrix:
         cc: [gcc]
@@ -205,6 +214,7 @@ jobs:
 
   fedora:
     runs-on: [self-hosted, linux, fedora]
+    timeout-minutes: 30
     steps:
       - uses: actions/checkout@v6
 
@@ -239,6 +249,7 @@ jobs:
 
   darwin:
     runs-on: macos-15-intel
+    timeout-minutes: 30
     steps:
       - uses: actions/checkout@v6
 
@@ -272,6 +283,7 @@ jobs:
 
   darwin-arm64:
     runs-on: macos-latest
+    timeout-minutes: 30
     steps:
       - uses: actions/checkout@v6
 
@@ -313,6 +325,7 @@ jobs:
   # Game data (baseaq/, action/) is expected ALONGSIDE the .app, not inside.
   darwin-arm64-turnkey:
     runs-on: macos-latest
+    timeout-minutes: 30
     steps:
       - uses: actions/checkout@v6
 
@@ -327,6 +340,9 @@ jobs:
             -DCMAKE_OSX_DEPLOYMENT_TARGET=11.0 -DSDL_STATIC=OFF -DSDL_TEST=OFF
           cmake --build sdl2-build -j4
           cmake --install sdl2-build
+          # absolute id so q2pro links it by path (dylibbundler cannot resolve @rpath)
+          install_name_tool -id "$HOME/sdl2/lib/libSDL2-2.0.0.dylib" "$HOME/sdl2/lib/libSDL2-2.0.0.dylib"
+          ls -l "$HOME/sdl2/lib"
         env:
           SDLV: "2.32.10"
 
@@ -359,18 +375,20 @@ jobs:
           fi
 
       - name: Bundle all dylib dependencies into the .app
+        timeout-minutes: 5
         run: |
           APP=AQtion.app
           # Walk every linked dylib for the main binary, the dedicated server,
           # and the game library; copy them into Frameworks/ and rewrite
           # the binaries' install_name references.
+          # stdin closed + timeout: dylibbundler prompts forever on a missing lib
           dylibbundler -od -b \
             -x "$APP/Contents/MacOS/q2pro" \
             -x "$APP/Contents/MacOS/q2proded" \
             -x "$APP/Contents/MacOS/action/gamearm64.dylib" \
             -d "$APP/Contents/Frameworks/" \
             -s /Users/runner/sdl2/lib \
-            -p "@executable_path/../Frameworks/"
+            -p "@executable_path/../Frameworks/" </dev/null
 
       - name: Dedupe LC_RPATH (dyld aborts on duplicates)
         run: |
@@ -453,6 +471,7 @@ jobs:
   # combine the two .app bundles.)
   darwin-x86_64-turnkey:
     runs-on: macos-15-intel
+    timeout-minutes: 30
     steps:
       - uses: actions/checkout@v6
 
@@ -467,6 +486,9 @@ jobs:
             -DCMAKE_OSX_DEPLOYMENT_TARGET=10.13 -DSDL_STATIC=OFF -DSDL_TEST=OFF
           cmake --build sdl2-build -j4
           cmake --install sdl2-build
+          # absolute id so q2pro links it by path (dylibbundler cannot resolve @rpath)
+          install_name_tool -id "$HOME/sdl2/lib/libSDL2-2.0.0.dylib" "$HOME/sdl2/lib/libSDL2-2.0.0.dylib"
+          ls -l "$HOME/sdl2/lib"
         env:
           SDLV: "2.32.10"
 
@@ -497,15 +519,17 @@ jobs:
           fi
 
       - name: Bundle all dylib dependencies into the .app
+        timeout-minutes: 5
         run: |
           APP=AQtion.app
+          # stdin closed + timeout: dylibbundler prompts forever on a missing lib
           dylibbundler -od -b \
             -x "$APP/Contents/MacOS/q2pro" \
             -x "$APP/Contents/MacOS/q2proded" \
             -x "$APP/Contents/MacOS/action/gamex86_64.dylib" \
             -d "$APP/Contents/Frameworks/" \
             -s /Users/runner/sdl2/lib \
-            -p "@executable_path/../Frameworks/"
+            -p "@executable_path/../Frameworks/" </dev/null
 
       - name: Dedupe LC_RPATH (dyld aborts on duplicates)
         run: |
@@ -583,6 +607,7 @@ jobs:
   # Sniper container automatically.
   linux-steam-sniper:
     runs-on: ubuntu-24.04
+    timeout-minutes: 30
     container:
       image: registry.gitlab.steamos.cloud/steamrt/sniper/sdk:latest
     steps:
