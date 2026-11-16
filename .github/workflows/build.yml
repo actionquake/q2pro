@@ -395,7 +395,7 @@ jobs:
           APP=AQtion.app
           RP="@executable_path/../Frameworks/"
           for f in "$APP/Contents/MacOS/q2pro" "$APP/Contents/MacOS/q2proded" "$APP/Contents/MacOS/action/"*.dylib; do
-            n=$(otool -l "$f" | grep -c "path $RP ")
+            n=$(otool -l "$f" | grep -c "path $RP " || true)
             while [ "$n" -gt 1 ]; do
               install_name_tool -delete_rpath "$RP" "$f"
               n=$((n-1))
@@ -536,7 +536,7 @@ jobs:
           APP=AQtion.app
           RP="@executable_path/../Frameworks/"
           for f in "$APP/Contents/MacOS/q2pro" "$APP/Contents/MacOS/q2proded" "$APP/Contents/MacOS/action/"*.dylib; do
-            n=$(otool -l "$f" | grep -c "path $RP ")
+            n=$(otool -l "$f" | grep -c "path $RP " || true)
             while [ "$n" -gt 1 ]; do
               install_name_tool -delete_rpath "$RP" "$f"
               n=$((n-1))
