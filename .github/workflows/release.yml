@@ -103,19 +103,14 @@ jobs:
 
       # ----- Turnkey ("no-install") artifacts (additive) -----
 
-      - name: Download Darwin ARM64 turnkey .app
+      # Universal (arm64 + x86_64) AQtion.app, single zip. Downloaded UNPACKED
+      # (no skip_unpack) so the release gets AQtion-darwin-universal.zip itself,
+      # not a zip containing a zip.
+      - name: Download Darwin universal turnkey .app
         uses: dawidd6/action-download-artifact@v2
         with:
           workflow: build.yml
-          name: AQtion-darwin-arm64
-          skip_unpack: true
-
-      - name: Download Darwin x86_64 turnkey .app
-        uses: dawidd6/action-download-artifact@v2
-        with:
-          workflow: build.yml
-          name: AQtion-darwin-x86_64
-          skip_unpack: true
+          name: AQtion-darwin-universal
 
       - name: Download Linux Steam (Sniper) build artifacts
         uses: dawidd6/action-download-artifact@v2
@@ -140,6 +135,5 @@ jobs:
             q2pro-darwin-x86_64.zip
             q2pro-darwin-arm64.zip
             q2pro-fedora-x86_64.zip
-            AQtion-darwin-arm64.zip
-            AQtion-darwin-x86_64.zip
+            AQtion-darwin-universal.zip
             q2pro-linux-x86_64-steam-sniper.zip

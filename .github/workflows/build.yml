@@ -596,6 +596,65 @@ jobs:
           name: AQtion-darwin-x86_64
           path: AQtion.zip
 
+  # One universal (arm64 + x86_64) AQtion.app from the two turnkey jobs.
+  # Mach-O files present in both bundles are merged with lipo; the per-CPU
+  # game libraries (gamearm64.dylib / gamex86_64.dylib) have different
+  # names, so both are simply kept. Runs on Intel (arm64 hosted pool is
+  # often queue-starved); lipo/codesign work on any host.
+  # The artifact holds ONE file, AQtion-darwin-universal.zip (ditto), so the
+  # release step can download it unpacked and attach it without a nested zip.
+  darwin-universal-turnkey:
+    needs: [darwin-arm64-turnkey, darwin-x86_64-turnkey]
+    runs-on: macos-15-intel
+    timeout-minutes: 15
+    steps:
+      - uses: actions/download-artifact@v6
+        with: { name: AQtion-darwin-arm64,  path: in-arm }
+      - uses: actions/download-artifact@v6
+        with: { name: AQtion-darwin-x86_64, path: in-x86 }
+
+      - name: Merge into a universal .app
+        run: |
+          mkdir arm x86
+          ditto -x -k in-arm/AQtion.zip arm
+          ditto -x -k in-x86/AQtion.zip x86
+          cp -R arm/AQtion.app AQtion.app          # arm64 bundle is the base
+
+          # Everything from the x86 bundle that arm64 doesn't have (game lib, ...)
+          (cd x86/AQtion.app && find . -type f) | while read -r f; do
+            [ -e "AQtion.app/$f" ] || { mkdir -p "AQtion.app/$(dirname "$f")"; cp "x86/AQtion.app/$f" "AQtion.app/$f"; }
+          done
+
+          # Files in both that are Mach-O: lipo them together
+          (cd arm/AQtion.app && find . -type f) | while read -r f; do
+            if [ -e "x86/AQtion.app/$f" ] && file "arm/AQtion.app/$f" | grep -q "Mach-O"; then
+              lipo -create "arm/AQtion.app/$f" "x86/AQtion.app/$f" -output "AQtion.app/$f"
+            fi
+          done
+
+          # Lowest minimum OS of the two (arm64 slices need 11+ regardless)
+          MIN=$(for a in arm x86; do /usr/libexec/PlistBuddy -c "Print :LSMinimumSystemVersion" $a/AQtion.app/Contents/Info.plist; done | sort -V | head -1)
+          plutil -replace LSMinimumSystemVersion -string "$MIN" AQtion.app/Contents/Info.plist
+
+      - name: Verify both architectures
+        run: |
+          for f in AQtion.app/Contents/MacOS/q2pro AQtion.app/Contents/MacOS/q2proded; do
+            archs=$(lipo -archs "$f"); echo "$f: $archs"
+            case "$archs" in *arm64*x86_64*|*x86_64*arm64*) ;; *) echo "not universal: $f"; exit 1 ;; esac
+          done
+          ls AQtion.app/Contents/MacOS/action
+
+      - name: Ad-hoc codesign and zip
+        run: |
+          codesign --force --deep --sign - AQtion.app
+          codesign --verify --verbose AQtion.app
+          ditto -c -k --sequesterRsrc --keepParent AQtion.app AQtion-darwin-universal.zip
+
+      - uses: actions/upload-artifact@v6
+        with:
+          name: AQtion-darwin-universal
+          path: AQtion-darwin-universal.zip
+
   # Linux turnkey build for Steam. Runs inside the official Steam Linux
   # Runtime "Sniper" SDK container — the binary links against exactly the
   # libs Steam ships with every Steam install (sniper provides SDL2,
