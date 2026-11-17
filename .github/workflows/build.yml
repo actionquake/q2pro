@@ -348,7 +348,10 @@ jobs:
 
       - name: Build
         run: |
-          meson setup ${{ env.MESON_ARGS }} ${{ env.MESON_ARGS_MAC }} builddir
+          # libpng: build the meson wrap statically instead of bundling the Homebrew
+          # bottle, whose dylib targets the runner's macOS (14.0 Intel / 26.0 arm64)
+          # and would make the .app refuse to run on older macOS. Later -Dwrap_mode wins.
+          meson setup ${{ env.MESON_ARGS }} ${{ env.MESON_ARGS_MAC }} -Dwrap_mode=default --force-fallback-for=libpng builddir
           meson compile -vC builddir
         env:
           CC: "gcc"
@@ -494,7 +497,10 @@ jobs:
 
       - name: Build
         run: |
-          meson setup ${{ env.MESON_ARGS }} ${{ env.MESON_ARGS_MAC }} builddir
+          # libpng: build the meson wrap statically instead of bundling the Homebrew
+          # bottle, whose dylib targets the runner's macOS (14.0 Intel / 26.0 arm64)
+          # and would make the .app refuse to run on older macOS. Later -Dwrap_mode wins.
+          meson setup ${{ env.MESON_ARGS }} ${{ env.MESON_ARGS_MAC }} -Dwrap_mode=default --force-fallback-for=libpng builddir
           meson compile -vC builddir
         env:
           CC: "gcc"
