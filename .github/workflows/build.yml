@@ -282,6 +282,11 @@ jobs:
             builddir/gamex86_64.dylib
 
   darwin-arm64:
+    # Serialize the two macos-latest (arm64) jobs: the hosted arm64 pool is
+    # capacity-limited, so run the turnkey build first and this one after it.
+    # !cancelled() = still run if the turnkey job failed (needs alone would skip it).
+    needs: darwin-arm64-turnkey
+    if: ${{ !cancelled() }}
     runs-on: macos-latest
     timeout-minutes: 30
     steps:
