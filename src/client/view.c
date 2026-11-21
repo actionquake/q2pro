@@ -338,7 +338,7 @@ static void V_TestLights(void)
 
 void CL_UpdateBlendSetting(void)
 {
-    if (cls.netchan.protocol < PROTOCOL_VERSION_R1Q2) {
+    if (!cls.q2proto_ctx.features.setting) {
         return;
     }
 

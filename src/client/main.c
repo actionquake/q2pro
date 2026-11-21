@@ -189,7 +189,7 @@ static void CL_UpdateGunSetting(void)
 {
     int nogun;
 
-    if (cls.netchan.protocol < PROTOCOL_VERSION_R1Q2) {
+    if (!cls.q2proto_ctx.features.setting) {
         return;
     }
 
@@ -210,7 +210,7 @@ static void CL_UpdateGunSetting(void)
 
 static void CL_UpdateGibSetting(void)
 {
-    if (cls.netchan.protocol != PROTOCOL_VERSION_Q2PRO && cls.serverProtocol != PROTOCOL_VERSION_RERELEASE) {
+    if (!cls.q2proto_ctx.features.setting || cls.serverProtocol < PROTOCOL_VERSION_Q2PRO) {
         return;
     }
 
@@ -223,7 +223,7 @@ static void CL_UpdateGibSetting(void)
 
 static void CL_UpdateFootstepsSetting(void)
 {
-    if (cls.netchan.protocol != PROTOCOL_VERSION_Q2PRO && cls.serverProtocol != PROTOCOL_VERSION_RERELEASE) {
+    if (!cls.q2proto_ctx.features.setting || cls.serverProtocol < PROTOCOL_VERSION_Q2PRO) {
         return;
     }
 
@@ -236,7 +236,7 @@ static void CL_UpdateFootstepsSetting(void)
 
 static void CL_UpdatePredictSetting(void)
 {
-    if (cls.netchan.protocol != PROTOCOL_VERSION_Q2PRO && cls.serverProtocol != PROTOCOL_VERSION_RERELEASE) {
+    if (!cls.q2proto_ctx.features.setting || cls.serverProtocol < PROTOCOL_VERSION_Q2PRO) {
         return;
     }
 
@@ -251,7 +251,7 @@ static void CL_UpdatePredictSetting(void)
 static void CL_UpdateRateSetting(void)
 {
     // Rerelease protocol sends framerate in server data
-    if (cls.netchan.protocol != PROTOCOL_VERSION_Q2PRO) {
+    if (!cls.q2proto_ctx.features.setting || cls.serverProtocol != PROTOCOL_VERSION_Q2PRO) {
         return;
     }
 
@@ -267,7 +267,7 @@ void CL_UpdateRecordingSetting(void)
 {
     int rec;
 
-    if (cls.netchan.protocol < PROTOCOL_VERSION_R1Q2) {
+    if (!cls.q2proto_ctx.features.setting) {
         return;
     }
 
@@ -292,7 +292,7 @@ void CL_UpdateRecordingSetting(void)
 
 static void CL_UpdateFlaresSetting(void)
 {
-    if (cls.netchan.protocol != PROTOCOL_VERSION_Q2PRO && cls.serverProtocol != PROTOCOL_VERSION_RERELEASE) {
+    if (!cls.q2proto_ctx.features.setting || cls.serverProtocol < PROTOCOL_VERSION_Q2PRO) {
         return;
     }
     if (!cl.csr.extended) {

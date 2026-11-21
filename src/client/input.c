@@ -949,7 +949,7 @@ static void build_delta_move(q2proto_clc_move_delta_t* delta_move, const usercmd
         from = &nullUserCmd;
     }
 
-    bool needs_upmove = cls.q2proto_ctx.features.has_upmove;
+    bool needs_upmove = cls.q2proto_ctx.features.upmove;
 
     int from_buttons = from->buttons;
     short from_upmove = 0;

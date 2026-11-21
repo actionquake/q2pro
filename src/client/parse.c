@@ -436,7 +436,7 @@ static void CL_ParseFrame(const q2proto_svc_frame_t *frame_msg)
     apply_playerstate(&frame_msg->playerstate, from, &frame.ps);
     if(frame_msg->playerstate.delta_bits & Q2P_PSD_CLIENTNUM) {
         frame.clientNum = frame_msg->playerstate.clientnum;
-    } else if (cls.q2proto_ctx.features.has_clientnum && oldframe) {
+    } else if (cls.q2proto_ctx.features.clientnum && oldframe) {
         frame.clientNum = oldframe->clientNum;
     } else {
         frame.clientNum = cl.clientNum;
@@ -655,7 +655,7 @@ static void CL_ParseServerData(const q2proto_svc_serverdata_t *serverdata)
             cl.pmp.strafehack = true;
         }
         cl.esFlags |= MSG_ES_BEAMORIGIN;
-        if (cls.q2proto_ctx.features.has_solid32) {
+        if (cls.q2proto_ctx.features.solid32) {
             cl.esFlags |= MSG_ES_LONGSOLID;
         }
         cl.pmp.speedmult = 2;
