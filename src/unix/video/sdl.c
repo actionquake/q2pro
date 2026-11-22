@@ -121,6 +121,7 @@ VIDEO
 
 #ifdef __APPLE__
 #include <dlfcn.h>
+#include <pthread.h>
 #include <mach-o/dyld.h>
 
 #define Q_EGL_WIDTH     0x3057
@@ -226,17 +227,47 @@ static void mode_changed(void)
 }
 
 #ifdef __APPLE__
+// surface size seen by the render thread (r_thread), for the main thread
+static int egl_pending_w, egl_pending_h;
+static int egl_pending;
+
 // ANGLE applies layer resizes at swap time, so a query made when the
 // resize event arrives can still return the previous size. Re-check
 // after every swap and re-sync when the surface actually changed.
+// With the render thread swapping, the re-sync (client code) is handed
+// to the main thread, along with the size: the main thread may not hold
+// the context, so it can't query the surface itself.
 static void check_egl_resize(void)
 {
     int w, h;
 
     if (!qeglQuerySurface)
         return; // never resolved: not an EGL context
-    if (egl_query_size(&w, &h) && (w != sdl.width || h != sdl.height))
+    if (!egl_query_size(&w, &h) || (w == sdl.width && h == sdl.height))
+        return;
+
+    if (pthread_main_np()) {
         mode_changed();
+        return;
+    }
+
+    egl_pending_w = w;
+    egl_pending_h = h;
+    __atomic_store_n(&egl_pending, 1, __ATOMIC_RELEASE);
+}
+
+static void apply_egl_resize(void)
+{
+    if (!__atomic_exchange_n(&egl_pending, 0, __ATOMIC_ACQUIRE))
+        return;
+
+    mode_changed();
+    if (sdl.width != egl_pending_w || sdl.height != egl_pending_h) {
+        sdl.width = egl_pending_w;
+        sdl.height = egl_pending_h;
+        R_ModeChanged(sdl.width, sdl.height, sdl.flags);
+        SCR_ModeChanged();
+    }
 }
 #endif
 
@@ -609,6 +640,10 @@ static void mouse_wheel_event(SDL_MouseWheelEvent *event)
 static void pump_events(void)
 {
     SDL_Event    event;
+
+#ifdef __APPLE__
+    apply_egl_resize();
+#endif
 
     while (SDL_PollEvent(&event)) {
         switch (event.type) {
