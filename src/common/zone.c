@@ -417,6 +417,8 @@ char *Z_CvarCopyString(const char *in)
 
     // return static storage
     z = &z_static[i];
+    pthread_mutex_lock(&z_lock);
     Z_CountAlloc(&z->z);
+    pthread_mutex_unlock(&z_lock);
     return (char *)z->data;
 }
