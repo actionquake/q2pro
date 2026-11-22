@@ -121,10 +121,52 @@ VIDEO
 
 #ifdef __APPLE__
 #include <dlfcn.h>
+#include <mach-o/dyld.h>
 
 #define Q_EGL_WIDTH     0x3057
 #define Q_EGL_HEIGHT    0x3056
 #define Q_EGL_DRAW      0x3059
+
+static bool preload_dylib(const char *dir, const char *name)
+{
+    char path[1024];
+
+    if (Q_snprintf(path, sizeof(path), "%s/%s", dir, name) >= sizeof(path))
+        return false;
+    return dlopen(path, RTLD_LAZY | RTLD_GLOBAL) != NULL;
+}
+
+// Self-configure the ANGLE (ES 3.0 -> Metal) path when its dylibs sit
+// next to the executable: preload them by absolute path so SDL's (and
+// qal.c's) later leaf-name dlopen resolves to the loaded images without
+// DYLD_LIBRARY_PATH, point SDL at EGL, and default gl_profile to es3.0.
+// setenv doesn't overwrite and +set wins over the default, so the user
+// environment and command line always take precedence.
+static void macos_angle_bootstrap(void)
+{
+    char exe[1024];
+    uint32_t size = sizeof(exe);
+    char *slash;
+
+    if (_NSGetExecutablePath(exe, &size) != 0)
+        return;
+    slash = strrchr(exe, '/');
+    if (!slash)
+        return;
+    *slash = 0;
+
+    // best effort for the OpenAL backend, loaded by leaf name too
+    preload_dylib(exe, "libopenal.1.dylib");
+
+    if (!preload_dylib(exe, "libEGL.dylib") ||
+        !preload_dylib(exe, "libGLESv2.dylib"))
+        return;
+
+    setenv("SDL_OPENGL_ES_DRIVER", "1", 0);
+    setenv("ANGLE_DEFAULT_PLATFORM", "metal", 0);
+    cvar_t *var = Cvar_Get("gl_profile", "es3.0", CVAR_REFRESH);
+    Com_Printf("Found ANGLE dylibs (gl_profile \"%s\").\n", var->string);
+}
 
 static void *(*qeglGetCurrentDisplay)(void);
 static void *(*qeglGetCurrentSurface)(int);
@@ -347,6 +389,10 @@ static bool create_window_and_context(const vrect_t *rc)
 static bool init(void)
 {
     vrect_t rc;
+
+#ifdef __APPLE__
+    macos_angle_bootstrap();
+#endif
 
     if (SDL_InitSubSystem(SDL_INIT_VIDEO) == -1) {
         Com_EPrintf("Couldn't initialize SDL video: %s\n", SDL_GetError());
