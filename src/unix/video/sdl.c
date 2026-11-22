@@ -112,11 +112,57 @@ VIDEO
 ===============================================================================
 */
 
+#ifdef __APPLE__
+#include <dlfcn.h>
+
+#define Q_EGL_WIDTH     0x3057
+#define Q_EGL_HEIGHT    0x3056
+#define Q_EGL_DRAW      0x3059
+
+// SDL's Cocoa EGL path reports the window's logical size, but ANGLE
+// backs the surface with a Metal layer at native (Retina) scale.
+// Query the real surface size from EGL; no-op for desktop GL contexts.
+static void egl_drawable_size(int *width, int *height)
+{
+    static void *(*getDisplay)(void);
+    static void *(*getSurface)(int);
+    static unsigned (*querySurface)(void *, void *, int, int *);
+    static bool resolved;
+
+    if (!resolved) {
+        resolved = true;
+        void *egl = dlopen("libEGL.dylib", RTLD_LAZY | RTLD_NOLOAD);
+        if (egl) {
+            getDisplay = dlsym(egl, "eglGetCurrentDisplay");
+            getSurface = dlsym(egl, "eglGetCurrentSurface");
+            querySurface = dlsym(egl, "eglQuerySurface");
+        }
+    }
+    if (!getDisplay || !getSurface || !querySurface)
+        return;
+
+    void *dpy = getDisplay();
+    void *surf = getSurface(Q_EGL_DRAW);
+    int w = 0, h = 0;
+    if (dpy && surf &&
+        querySurface(dpy, surf, Q_EGL_WIDTH, &w) &&
+        querySurface(dpy, surf, Q_EGL_HEIGHT, &h) &&
+        w > 0 && h > 0) {
+        *width = w;
+        *height = h;
+    }
+}
+#endif
+
 static void mode_changed(void)
 {
     SDL_GetWindowSize(sdl.window, &sdl.win_width, &sdl.win_height);
 
     SDL_GL_GetDrawableSize(sdl.window, &sdl.width, &sdl.height);
+
+#ifdef __APPLE__
+    egl_drawable_size(&sdl.width, &sdl.height);
+#endif
 
     Uint32 flags = SDL_GetWindowFlags(sdl.window);
     if (flags & SDL_WINDOW_FULLSCREEN)
