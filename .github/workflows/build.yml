@@ -282,6 +282,11 @@ jobs:
             builddir/gamex86_64.dylib
 
   darwin-arm64:
+    # Serialize the two macos-latest (arm64) jobs: the hosted arm64 pool is
+    # capacity-limited, so run the turnkey build first and this one after it.
+    # !cancelled() = still run if the turnkey job failed (needs alone would skip it).
+    needs: darwin-arm64-turnkey
+    if: ${{ !cancelled() }}
     runs-on: macos-latest
     timeout-minutes: 30
     steps:
@@ -348,7 +353,10 @@ jobs:
 
       - name: Build
         run: |
-          meson setup ${{ env.MESON_ARGS }} ${{ env.MESON_ARGS_MAC }} builddir
+          # libpng: build the meson wrap statically instead of bundling the Homebrew
+          # bottle, whose dylib targets the runner's macOS (14.0 Intel / 26.0 arm64)
+          # and would make the .app refuse to run on older macOS. Later -Dwrap_mode wins.
+          meson setup ${{ env.MESON_ARGS }} ${{ env.MESON_ARGS_MAC }} -Dwrap_mode=default --force-fallback-for=libpng builddir
           meson compile -vC builddir
         env:
           CC: "gcc"
@@ -494,7 +502,10 @@ jobs:
 
       - name: Build
         run: |
-          meson setup ${{ env.MESON_ARGS }} ${{ env.MESON_ARGS_MAC }} builddir
+          # libpng: build the meson wrap statically instead of bundling the Homebrew
+          # bottle, whose dylib targets the runner's macOS (14.0 Intel / 26.0 arm64)
+          # and would make the .app refuse to run on older macOS. Later -Dwrap_mode wins.
+          meson setup ${{ env.MESON_ARGS }} ${{ env.MESON_ARGS_MAC }} -Dwrap_mode=default --force-fallback-for=libpng builddir
           meson compile -vC builddir
         env:
           CC: "gcc"
