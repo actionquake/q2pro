@@ -136,6 +136,7 @@ static struct {
     int             rec;        // arena the main thread records into
     int             depth;      // R_BeginFrame nesting
     unsigned        framenum;   // com_framenum when the outer frame began
+    size_t          framestart; // arena offset where the outer frame began
     unsigned        finished;   // outer frames ended (tests)
 } rt = {
     .lock = PTHREAD_MUTEX_INITIALIZER,
@@ -155,8 +156,24 @@ COMMAND BUFFER
 ===============================================================================
 */
 
+// A Com_Error between R_BeginFrame and R_EndFrame unwinds to the top of
+// Qcommon_Frame, which then starts a new com_framenum. Forget the abandoned
+// frame, or it would never be submitted, and drop what it recorded: before
+// the next submit a map load may free the images and models it points to.
+static void rt_drop_abandoned(void)
+{
+    if (!rt.depth || rt.framenum == com_framenum)
+        return;
+
+    rt.depth = 0;
+    if (rt.arenas[rt.rec].cursize > rt.framestart)
+        rt.arenas[rt.rec].cursize = rt.framestart;
+}
+
 static rcmd_t *rt_cmd(rcmd_type_t type, size_t extra)
 {
+    rt_drop_abandoned();
+
     arena_t *a = &rt.arenas[rt.rec];
     size_t size = RCMD_HEADER + Q_ALIGN(extra, RCMD_ALIGN);
     rcmd_t *c;
@@ -519,6 +536,7 @@ static void rt_stop(void)
     if (!rt.running)
         return;
 
+    rt_drop_abandoned();
     RT_Acquire();
 
     pthread_mutex_lock(&rt.lock);
@@ -686,17 +704,12 @@ void R_UpdateRawPic(int pic_w, int pic_h, const uint32_t *pic)
 
 void R_BeginFrame(void)
 {
-    // A Com_Error between R_BeginFrame and R_EndFrame unwinds to the top
-    // of Qcommon_Frame, which then starts a new com_framenum. Forget the
-    // abandoned frame, or it would never be submitted. What it recorded
-    // replays with the next frame, as an unfinished frame would without
-    // the render thread.
-    if (rt.depth && rt.framenum != com_framenum)
-        rt.depth = 0;
+    rt_drop_abandoned();
 
     if (!rt.depth) {
         rt_update();
         rt.framenum = com_framenum;
+        rt.framestart = rt.arenas[rt.rec].cursize;
     }
 
     rt.depth++;
