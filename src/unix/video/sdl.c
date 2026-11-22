@@ -123,6 +123,8 @@ VIDEO
 #include <dlfcn.h>
 #include <pthread.h>
 #include <mach-o/dyld.h>
+#include <sys/sysctl.h>
+#include <unistd.h>
 
 #define Q_EGL_WIDTH     0x3057
 #define Q_EGL_HEIGHT    0x3056
@@ -137,17 +139,22 @@ static bool preload_dylib(const char *dir, const char *name)
     return dlopen(path, RTLD_LAZY | RTLD_GLOBAL) != NULL;
 }
 
-// Self-configure the ANGLE (ES 3.0 -> Metal) path when its dylibs sit
-// next to the executable: preload them by absolute path so SDL's (and
-// qal.c's) later leaf-name dlopen resolves to the loaded images without
-// DYLD_LIBRARY_PATH, point SDL at EGL, and default gl_profile to es3.0.
-// setenv doesn't overwrite and +set wins over the default, so the user
-// environment and command line always take precedence.
+// libEGL, when the bootstrap loaded ANGLE
+static void *angle_egl;
+
+// ANGLE (OpenGL ES 3.0 on Metal) is used when the player picks an ES
+// gl_profile and the ANGLE dylibs are bundled, in the .app's Frameworks
+// folder or next to the executable. SDL gets them by absolute path, since
+// the .app launcher changes the working directory, and ANGLE is pointed at
+// Metal. Variables already set in the environment win.
 static void macos_angle_bootstrap(void)
 {
-    char exe[1024];
+    static const char *const subdirs[] = { "/../Frameworks", "" };
+    char exe[1024], egl[1100], gles[1100], ver[32];
     uint32_t size = sizeof(exe);
+    size_t len = sizeof(ver);
     char *slash;
+    int i;
 
     if (_NSGetExecutablePath(exe, &size) != 0)
         return;
@@ -159,14 +166,40 @@ static void macos_angle_bootstrap(void)
     // best effort for the OpenAL backend, loaded by leaf name too
     preload_dylib(exe, "libopenal.1.dylib");
 
-    if (!preload_dylib(exe, "libEGL.dylib") ||
-        !preload_dylib(exe, "libGLESv2.dylib"))
+    if (Q_strncasecmp(Cvar_VariableString("gl_profile"), "es", 2))
         return;
 
+    // the bundled ANGLE build needs macOS 11
+    if (sysctlbyname("kern.osproductversion", ver, &len, NULL, 0) || atoi(ver) < 11) {
+        Com_WPrintf("ANGLE needs macOS 11 or later.\n");
+        return;
+    }
+
+    for (i = 0; i < q_countof(subdirs); i++) {
+        Q_snprintf(egl, sizeof(egl), "%s%s/libEGL.dylib", exe, subdirs[i]);
+        Q_snprintf(gles, sizeof(gles), "%s%s/libGLESv2.dylib", exe, subdirs[i]);
+        if (access(egl, R_OK) || access(gles, R_OK))
+            continue;
+        angle_egl = dlopen(egl, RTLD_LAZY | RTLD_GLOBAL);
+        if (angle_egl && dlopen(gles, RTLD_LAZY | RTLD_GLOBAL))
+            break;
+        Com_EPrintf("Couldn't load ANGLE: %s\n", dlerror());
+        return;
+    }
+    if (i == q_countof(subdirs)) {
+        Com_WPrintf("ANGLE dylibs not found; using the system OpenGL ES, if any.\n");
+        return;
+    }
+
+    setenv("SDL_VIDEO_EGL_DRIVER", egl, 0);
+    setenv("SDL_VIDEO_GL_DRIVER", gles, 0);
     setenv("SDL_OPENGL_ES_DRIVER", "1", 0);
     setenv("ANGLE_DEFAULT_PLATFORM", "metal", 0);
-    cvar_t *var = Cvar_Get("gl_profile", "es3.0", CVAR_REFRESH);
-    Com_Printf("Found ANGLE dylibs (gl_profile \"%s\").\n", var->string);
+    char *dir = realpath(egl, NULL);
+    if (dir && (slash = strrchr(dir, '/')))
+        *slash = 0;
+    Com_Printf("Using ANGLE from %s.\n", dir ? dir : egl);
+    free(dir);
 }
 
 static void *(*qeglGetCurrentDisplay)(void);
@@ -181,7 +214,7 @@ static unsigned (*qeglQuerySurface)(void *, void *, int, int *);
 static bool egl_query_size(int *width, int *height)
 {
     if (!qeglQuerySurface) {
-        void *egl = dlopen("libEGL.dylib", RTLD_LAZY | RTLD_NOLOAD);
+        void *egl = angle_egl ? angle_egl : dlopen("libEGL.dylib", RTLD_LAZY | RTLD_NOLOAD);
         if (!egl)
             return false;
         qeglGetCurrentDisplay = dlsym(egl, "eglGetCurrentDisplay");
