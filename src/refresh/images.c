@@ -32,6 +32,7 @@ with this program; if not, write to the Free Software Foundation, Inc.,
 #include "format/pcx.h"
 #include "format/wal.h"
 #include "images.h"
+#include "thread.h"
 
 #if USE_PNG
 #define PNG_SKIP_SETJMP_CHECK
@@ -1340,6 +1341,7 @@ if no formats are available.
 */
 static void IMG_ScreenShot_f(void)
 {
+    RT_Acquire();
 #if USE_JPG || USE_PNG
     const char *s;
 
@@ -1391,6 +1393,7 @@ can be also specified, as well as quality and compression options.
 #if USE_TGA
 static void IMG_ScreenShotTGA_f(void)
 {
+    RT_Acquire();
     if (Cmd_Argc() > 2) {
         Com_Printf("Usage: %s [name]\n", Cmd_Argv(0));
         return;
@@ -1403,6 +1406,7 @@ static void IMG_ScreenShotTGA_f(void)
 #if USE_JPG
 static void IMG_ScreenShotJPG_f(void)
 {
+    RT_Acquire();
     int quality;
 
     if (Cmd_Argc() > 3) {
@@ -1423,6 +1427,7 @@ static void IMG_ScreenShotJPG_f(void)
 #if USE_PNG
 static void IMG_ScreenShotPNG_f(void)
 {
+    RT_Acquire();
     int compression;
 
     if (Cmd_Argc() > 3) {
@@ -1743,6 +1748,7 @@ static void add_texture_format(imageformat_t fmt)
 
 static void r_texture_formats_changed(cvar_t *self)
 {
+    RT_Acquire();
     const char *s;
 
     // reset the search order
@@ -2072,6 +2078,25 @@ image_t *IMG_ForHandle(qhandle_t h)
 R_RegisterImage
 ===============
 */
+static size_t normalize_image_name(char *fullname, const char *name, imagetype_t type)
+{
+    size_t len;
+
+    if (type == IT_SKIN || type == IT_SPRITE) {
+        len = FS_NormalizePathBuffer(fullname, name, MAX_QPATH);
+    } else if (*name == '/' || *name == '\\') {
+        len = FS_NormalizePathBuffer(fullname, name + 1, MAX_QPATH);
+    } else {
+        len = Q_concat(fullname, MAX_QPATH, "pics/", name);
+        if (len < MAX_QPATH) {
+            FS_NormalizePath(fullname);
+            len = COM_DefaultExtension(fullname, ".pcx", MAX_QPATH);
+        }
+    }
+
+    return len;
+}
+
 qhandle_t R_RegisterImage(const char *name, imagetype_t type, imageflags_t flags)
 {
     image_t     *image;
@@ -2088,18 +2113,7 @@ qhandle_t R_RegisterImage(const char *name, imagetype_t type, imageflags_t flags
     if (!r_numImages)
         return 0;
 
-    if (type == IT_SKIN || type == IT_SPRITE) {
-        len = FS_NormalizePathBuffer(fullname, name, sizeof(fullname));
-    } else if (*name == '/' || *name == '\\') {
-        len = FS_NormalizePathBuffer(fullname, name + 1, sizeof(fullname));
-    } else {
-        len = Q_concat(fullname, sizeof(fullname), "pics/", name);
-        if (len < sizeof(fullname)) {
-            FS_NormalizePath(fullname);
-            len = COM_DefaultExtension(fullname, ".pcx", sizeof(fullname));
-        }
-    }
-
+    len = normalize_image_name(fullname, name, type);
     if (len >= sizeof(fullname)) {
         print_error(fullname, flags, Q_ERR(ENAMETOOLONG));
         return 0;
@@ -2109,6 +2123,47 @@ qhandle_t R_RegisterImage(const char *name, imagetype_t type, imageflags_t flags
         return image - r_images;
 
     return 0;
+}
+
+/*
+===============
+IMG_LookupHandle
+
+R_RegisterImage for images that are already known (loaded, or a cached
+load failure): same result and side effects, but never touches GL or
+the filesystem, so the render thread can keep running. Returns false
+when the image would have to be loaded.
+===============
+*/
+bool IMG_LookupHandle(const char *name, imagetype_t type, imageflags_t flags, qhandle_t *handle)
+{
+    image_t     *image;
+    char        fullname[MAX_QPATH];
+    size_t      len, baselen;
+
+    *handle = 0;
+
+    if (!name || !*name || !r_numImages)
+        return true;
+
+    len = normalize_image_name(fullname, name, type);
+    if (len >= sizeof(fullname))
+        return false;
+
+    baselen = COM_FileExtension(fullname) - fullname;
+    if (baselen < 1 || fullname[baselen] != '.')
+        return false;
+
+    image = lookup_image(fullname, type, FS_HashPathLen(fullname, baselen, RIMAGES_HASH), baselen);
+    if (!image)
+        return false;
+
+    image->registration_sequence = r_registration_sequence;
+    if (image->upload_width && image->upload_height) {
+        image->flags |= flags & IF_PERMANENT;
+        *handle = image - r_images;
+    }
+    return true;
 }
 
 /*

@@ -35,6 +35,7 @@ cvar_t  *cl_gun_z;
 cvar_t  *cl_warn_on_fps_rounding;
 cvar_t  *cl_maxfps;
 cvar_t  *cl_async;
+static cvar_t  *s_async;
 cvar_t  *r_maxfps;
 cvar_t  *cl_autopause;
 
@@ -2775,6 +2776,8 @@ static void CL_InitLocal(void)
     cl_async->changed = cl_sync_changed;
     r_maxfps = Cvar_Get("r_maxfps", "0", 0);
     r_maxfps->changed = cl_sync_changed;
+    // update sound on every client frame, not only on rendered ones
+    s_async = Cvar_Get("s_async", "0", 0);
     cl_autopause = Cvar_Get("cl_autopause", "1", 0);
     cl_rollhack = Cvar_Get("cl_rollhack", "1", 0);
     cl_noglow = Cvar_Get("cl_noglow", "0", 0);
@@ -3187,6 +3190,9 @@ static int ref_msec, phys_msec, main_msec;
 static int ref_extra, phys_extra, main_extra;
 static sync_mode_t sync_mode;
 
+// a refresh is due but the render thread is still busy with the last one
+static bool ref_waiting;
+
 #define MIN_PHYS_HZ 10
 #define MAX_PHYS_HZ 250
 #define MIN_REF_HZ MIN_PHYS_HZ
@@ -3301,6 +3307,8 @@ unsigned CL_Frame(unsigned msec)
 
     CL_ProcessEvents();
 
+    ref_waiting = false;
+
     switch (sync_mode) {
     case SYNC_TIMEDEMO:
         // timedemo just runs at full speed
@@ -3331,10 +3339,25 @@ unsigned CL_Frame(unsigned msec)
         } else if (ref_extra > ref_msec * 4) {
             ref_extra = ref_msec;
         }
+
+        // with the render thread, build a frame only once the previous
+        // one is done: as late as possible, never queued behind another
+        if (ref_frame && !R_FrameReady()) {
+            ref_frame = false;
+            ref_waiting = true;
+        }
         break;
     case SYNC_MAXFPS:
         // everything ticks in sync with refresh
         if (main_extra < main_msec) {
+            if (!cl.sendPacketNow) {
+                return 0;
+            }
+            ref_frame = false;
+        } else if (!R_FrameReady()) {
+            // the render thread is still presenting: retry as soon as it
+            // is done rather than drop this refresh
+            ref_waiting = true;
             if (!cl.sendPacketNow) {
                 return 0;
             }
@@ -3421,8 +3444,9 @@ unsigned CL_Frame(unsigned msec)
 
         // update audio after the 3D view was drawn
         S_Update();
-    } else if (sync_mode == SYNC_SLEEP_10) {
-        // force audio and effects update if not rendering
+    } else if (sync_mode == SYNC_SLEEP_10 || s_async->integer) {
+        // start new sounds and move the listener without waiting for
+        // the next drawn frame
         CL_CalcViewValues();
         S_Update();
     }
@@ -3467,7 +3491,11 @@ bool CL_ProcessEvents(void)
     CL_RunDiscord();
 #endif //rekkie -- discord -- e
 
-    return cl.sendPacketNow;
+    // Run a frame now rather than at the next millisecond: an urgent
+    // packet, or a refresh that only waited for the render thread (which
+    // ends the main loop's sleep when it is done). Frames would otherwise
+    // snap to whole milliseconds: 1.1 ms of rendering would mean 500 fps.
+    return cl.sendPacketNow || (ref_waiting && R_FrameReady());
 }
 
 //============================================================================

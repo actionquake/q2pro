@@ -166,6 +166,17 @@ static void egl_swap_buffers(void)
     qeglSwapBuffers(egl.dpy, egl.surf);
 }
 
+static bool egl_make_current(bool current)
+{
+    EGLSurface surf = current ? egl.surf : EGL_NO_SURFACE;
+
+    if (!qeglMakeCurrent(egl.dpy, surf, surf, current ? egl.ctx : EGL_NO_CONTEXT)) {
+        print_error("eglMakeCurrent");
+        return false;
+    }
+    return true;
+}
+
 static void egl_swap_interval(int val)
 {
     if (!qeglSwapInterval(egl.dpy, val))
@@ -193,6 +204,7 @@ const vid_driver_t vid_win32egl = {
     .get_proc_addr = egl_get_proc_addr,
     .swap_buffers = egl_swap_buffers,
     .swap_interval = egl_swap_interval,
+    .make_current = egl_make_current,
 
     .get_clipboard_data = Win_GetClipboardData,
     .set_clipboard_data = Win_SetClipboardData,

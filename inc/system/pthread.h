@@ -25,8 +25,8 @@ with this program; if not, write to the Free Software Foundation, Inc.,
 #include <process.h>
 #include <errno.h>
 
-#define PTHREAD_MUTEX_INITIALIZER   {0}
-#define PTHREAD_COND_INITIALIZER    {0}
+#define PTHREAD_MUTEX_INITIALIZER   { SRWLOCK_INIT }
+#define PTHREAD_COND_INITIALIZER    { CONDITION_VARIABLE_INIT }
 
 typedef void pthread_attr_t;
 typedef void pthread_mutexattr_t;

@@ -52,8 +52,12 @@ static list_t debug_texts_active;
 static cvar_t *gl_debug_linewidth;
 static cvar_t *gl_debug_distfrac;
 
+// the game adds these from SV_Frame, while the render thread walks the
+// lists and unlinks expired entries; wait for it (once per frame in
+// practice)
 void R_ClearDebugLines(void)
 {
+    RT_Wait();
     List_Init(&debug_lines_free);
     List_Init(&debug_lines_active);
 
@@ -63,6 +67,7 @@ void R_ClearDebugLines(void)
 
 void R_AddDebugLine(const vec3_t start, const vec3_t end, uint32_t color, uint32_t time, qboolean depth_test)
 {
+    RT_Wait();
     debug_line_t *l = LIST_FIRST(debug_line_t, &debug_lines_free, entry);
 
     if (LIST_EMPTY(&debug_lines_free)) {
@@ -329,6 +334,8 @@ static void R_AddDebugTextInternal(const vec3_t origin, const vec3_t angles, con
                                    size_t len, float size, uint32_t color, uint32_t time,
                                    qboolean depth_test)
 {
+    RT_Wait();
+
     if (!len)
         return;
 

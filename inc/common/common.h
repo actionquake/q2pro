@@ -22,6 +22,8 @@ with this program; if not, write to the Free Software Foundation, Inc.,
 #include "common/cmd.h"
 #include "common/utils.h"
 
+#include <setjmp.h>
+
 //
 // common.h -- definitions common between client and server, but not game.dll
 //
@@ -97,6 +99,15 @@ const char  *Com_GetLastError(void);
 
 q_noreturn
 void        Com_Quit(const char *reason, error_type_t type);
+
+// Worker threads (the render thread) may print and raise errors. Their
+// prints are queued, and Com_Error longjmps to the worker's own abort
+// point; Com_FlushWorker, at the top of every Qcommon_Frame, prints the
+// queue and re-raises the error on the main thread. Com_IsWorker is true
+// on a thread that called Com_EnterWorker.
+void        Com_EnterWorker(jmp_buf *abort_point);
+void        Com_FlushWorker(void);
+bool        Com_IsWorker(void);
 
 void        Com_SetColor(color_index_t color);
 

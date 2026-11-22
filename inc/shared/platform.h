@@ -145,6 +145,7 @@ with this program; if not, write to the Free Software Foundation, Inc.,
 #endif
 
 #define q_forceinline       inline __attribute__((always_inline))
+#define q_thread_local      _Thread_local
 
 #else /* __GNUC__ */
 
@@ -155,6 +156,7 @@ with this program; if not, write to the Free Software Foundation, Inc.,
 #define q_alignof(t)        __alignof(t)
 #define q_unreachable()     __assume(0)
 #define q_forceinline       __forceinline
+#define q_thread_local      __declspec(thread)
 #else
 #define q_noreturn
 #define q_noinline
@@ -162,6 +164,7 @@ with this program; if not, write to the Free Software Foundation, Inc.,
 #define q_alignof(t)        1
 #define q_unreachable()     abort()
 #define q_forceinline       inline
+#define q_thread_local      _Thread_local
 #endif
 
 #define q_printf(f, a)

@@ -543,6 +543,10 @@ Cvar_ClampInteger
 */
 int Cvar_ClampInteger(cvar_t *var, int min, int max)
 {
+    // cvars belong to the main thread; a worker (the render thread)
+    // only gets the clamped value
+    if (Com_IsWorker())
+        return Q_clip(var->integer, min, max);
     if (var->integer < min) {
         Cvar_SetInteger(var, min, FROM_CODE);
         return min;
@@ -561,6 +565,8 @@ Cvar_ClampValue
 */
 float Cvar_ClampValue(cvar_t *var, float min, float max)
 {
+    if (Com_IsWorker())
+        return Q_clipf(var->value, min, max);
     if (var->value < min) {
         Cvar_SetValue(var, min, FROM_CODE);
         return min;

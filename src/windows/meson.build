@@ -4,6 +4,7 @@ common_src += files('system.c', 'hunk.c')
 client_src += files('client.c', 'wgl.c')
 
 common_deps += cc.find_library('ws2_32')
+common_deps += cc.find_library('winmm')   # timeBeginPeriod (sys_lowlatency)
 client_deps += cc.find_library('opengl32')
 
 rc_args = ['-DHAVE_CONFIG_H']

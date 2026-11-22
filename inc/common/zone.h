@@ -58,6 +58,9 @@ q_malloc
 char    *Z_TagCopyString(const char *in, memtag_t tag);
 void    Z_FreeTags(memtag_t tag);
 void    Z_LeakTest(memtag_t tag);
+#if USE_TESTS
+size_t  Z_TagCount(memtag_t tag);
+#endif
 void    Z_Stats_f(void);
 
 // may return pointer to static memory

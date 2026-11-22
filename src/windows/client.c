@@ -362,6 +362,9 @@ Win_SetMode
 */
 void Win_SetMode(void)
 {
+    // keep display mode changes out of a swap on the render thread (r_thread)
+    R_WaitIdle();
+
     // set full screen mode if requested
     if (vid_fullscreen->integer > 0) {
         LONG ret;
@@ -471,6 +474,10 @@ static void Win_Activate(WPARAM wParam)
             Win_DisableAltTab();
         }
     }
+
+    // the render thread (r_thread) may be presenting on win.dc
+    if (win.flags & (QVF_GAMMARAMP | QVF_FULLSCREEN))
+        R_WaitIdle();
 
     if (win.flags & QVF_GAMMARAMP) {
         if (active == ACT_ACTIVATED) {
