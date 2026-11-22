@@ -434,6 +434,7 @@ static struct {
     unsigned        head, tail;
     print_type_t    types[WORKER_PRINTS];
     char            text[WORKER_PRINTS][WORKER_PRINT_LEN];
+    bool            error_pending;
     error_type_t    error_code;
     char            error_msg[MAXERRORMSG];
 } worker = { .lock = PTHREAD_MUTEX_INITIALIZER };
@@ -463,7 +464,8 @@ q_noreturn
 static void worker_error(error_type_t code, const char *msg)
 {
     pthread_mutex_lock(&worker.lock);
-    if (!worker.error_code) {
+    if (!worker.error_pending) {
+        worker.error_pending = true;
         worker.error_code = code;
         Q_strlcpy(worker.error_msg, msg, sizeof(worker.error_msg));
     }
@@ -475,6 +477,7 @@ void Com_FlushWorker(void)
 {
     print_type_t type;
     error_type_t code;
+    bool pending;
     char text[MAXERRORMSG];
 
     while (1) {
@@ -491,12 +494,13 @@ void Com_FlushWorker(void)
     }
 
     pthread_mutex_lock(&worker.lock);
+    pending = worker.error_pending;
     code = worker.error_code;
     Q_strlcpy(text, worker.error_msg, sizeof(text));
-    worker.error_code = 0;
+    worker.error_pending = false;
     pthread_mutex_unlock(&worker.lock);
 
-    if (code)
+    if (pending)
         Com_Error(code, "%s", text);
 }
 
