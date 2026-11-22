@@ -93,9 +93,16 @@ static void *get_proc_addr(const char *sym)
     return SDL_GL_GetProcAddress(sym);
 }
 
+#ifdef __APPLE__
+static void check_egl_resize(void);
+#endif
+
 static void swap_buffers(void)
 {
     SDL_GL_SwapWindow(sdl.window);
+#ifdef __APPLE__
+    check_egl_resize();
+#endif
 }
 
 static void swap_interval(int val)
@@ -119,38 +126,40 @@ VIDEO
 #define Q_EGL_HEIGHT    0x3056
 #define Q_EGL_DRAW      0x3059
 
+static void *(*qeglGetCurrentDisplay)(void);
+static void *(*qeglGetCurrentSurface)(int);
+static unsigned (*qeglQuerySurface)(void *, void *, int, int *);
+
 // SDL's Cocoa EGL path reports the window's logical size, but ANGLE
 // backs the surface with a Metal layer at native (Retina) scale.
 // Query the real surface size from EGL; no-op for desktop GL contexts.
-static void egl_drawable_size(int *width, int *height)
+// libEGL may not be loaded on the first call (desktop GL fallback boot);
+// keep retrying so a later vid_restart into an ES context still works.
+static bool egl_query_size(int *width, int *height)
 {
-    static void *(*getDisplay)(void);
-    static void *(*getSurface)(int);
-    static unsigned (*querySurface)(void *, void *, int, int *);
-    static bool resolved;
-
-    if (!resolved) {
-        resolved = true;
+    if (!qeglQuerySurface) {
         void *egl = dlopen("libEGL.dylib", RTLD_LAZY | RTLD_NOLOAD);
-        if (egl) {
-            getDisplay = dlsym(egl, "eglGetCurrentDisplay");
-            getSurface = dlsym(egl, "eglGetCurrentSurface");
-            querySurface = dlsym(egl, "eglQuerySurface");
-        }
+        if (!egl)
+            return false;
+        qeglGetCurrentDisplay = dlsym(egl, "eglGetCurrentDisplay");
+        qeglGetCurrentSurface = dlsym(egl, "eglGetCurrentSurface");
+        qeglQuerySurface = dlsym(egl, "eglQuerySurface");
     }
-    if (!getDisplay || !getSurface || !querySurface)
-        return;
+    if (!qeglGetCurrentDisplay || !qeglGetCurrentSurface || !qeglQuerySurface)
+        return false;
 
-    void *dpy = getDisplay();
-    void *surf = getSurface(Q_EGL_DRAW);
+    void *dpy = qeglGetCurrentDisplay();
+    void *surf = qeglGetCurrentSurface(Q_EGL_DRAW);
     int w = 0, h = 0;
-    if (dpy && surf &&
-        querySurface(dpy, surf, Q_EGL_WIDTH, &w) &&
-        querySurface(dpy, surf, Q_EGL_HEIGHT, &h) &&
-        w > 0 && h > 0) {
-        *width = w;
-        *height = h;
-    }
+    if (!dpy || !surf ||
+        !qeglQuerySurface(dpy, surf, Q_EGL_WIDTH, &w) ||
+        !qeglQuerySurface(dpy, surf, Q_EGL_HEIGHT, &h) ||
+        w <= 0 || h <= 0)
+        return false;
+
+    *width = w;
+    *height = h;
+    return true;
 }
 #endif
 
@@ -161,7 +170,7 @@ static void mode_changed(void)
     SDL_GL_GetDrawableSize(sdl.window, &sdl.width, &sdl.height);
 
 #ifdef __APPLE__
-    egl_drawable_size(&sdl.width, &sdl.height);
+    egl_query_size(&sdl.width, &sdl.height);
 #endif
 
     Uint32 flags = SDL_GetWindowFlags(sdl.window);
@@ -173,6 +182,21 @@ static void mode_changed(void)
     R_ModeChanged(sdl.width, sdl.height, sdl.flags);
     SCR_ModeChanged();
 }
+
+#ifdef __APPLE__
+// ANGLE applies layer resizes at swap time, so a query made when the
+// resize event arrives can still return the previous size. Re-check
+// after every swap and re-sync when the surface actually changed.
+static void check_egl_resize(void)
+{
+    int w, h;
+
+    if (!qeglQuerySurface)
+        return; // never resolved: not an EGL context
+    if (egl_query_size(&w, &h) && (w != sdl.width || h != sdl.height))
+        mode_changed();
+}
+#endif
 
 static void set_mode(void)
 {
@@ -440,12 +464,23 @@ static void window_event(SDL_WindowEvent *event)
         break;
 
     case SDL_WINDOWEVENT_RESIZED:
+        // only fires for external changes; SIZE_CHANGED below handles the resize itself
         if (!(flags & SDL_WINDOW_FULLSCREEN)) {
             SDL_GetWindowPosition(sdl.window, &rc.x, &rc.y);
             rc.width = event->data1;
             rc.height = event->data2;
             VID_SetGeometry(&rc);
         }
+        break;
+
+    case SDL_WINDOWEVENT_SIZE_CHANGED:
+        // fires for every size change, including API-initiated and
+        // fullscreen transitions that never send RESIZED
+#if SDL_VERSION_ATLEAST(2, 0, 18)
+    case SDL_WINDOWEVENT_DISPLAY_CHANGED:
+        // moving to a display with a different backing scale changes the
+        // drawable size without changing the window size
+#endif
         mode_changed();
         break;
     }
