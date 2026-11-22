@@ -8,6 +8,7 @@ on:
 
 jobs:
   generate_release:
+    if: github.repository == 'actionquake/q2pro'
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
