@@ -24,20 +24,23 @@ Apple's OpenGL.
 
 ## What it changes
 
-Measured on an Apple M3 Pro at 120 Hz, in a 1280x720 window on wfall:
+Measured on an Apple M3 Pro with a 120 Hz display, fullscreen on wfall,
+with `gl_swapinterval 0`, `cl_maxfps 125` and `r_maxfps 0`. CPU is the game
+process's CPU time as a share of one core:
 
 | | ANGLE Metal | Apple OpenGL |
 |---|---|---|
-| vsync off, `r_maxfps 120` | 120 fps, 8% CPU | 125 fps, 98% CPU |
-| same, with `cl_sleep 250` | 120 fps, 10% CPU | 125 fps, 10% CPU |
-| vsync off, uncapped | 120 fps | 1000 fps |
+| default | 120 frames/s, 9-11% CPU | 1000 frames/s, 97-100% CPU |
+| `r_thread 1`, `cl_sleep 250` | 120 frames/s, 11-12% CPU | 1000 frames/s, 28-30% CPU |
 
-- ANGLE presents in step with the display even with vsync off. Apple's
-  OpenGL renders as many frames as the loop allows, and without `cl_sleep`
-  the loop spins a CPU core between them.
-- At the same frame rate, the two cost about the same CPU.
-- Uncapped, Apple's OpenGL renders far more frames. ANGLE in a window stays
-  at the refresh rate.
+- ANGLE draws one frame per display refresh, even with vsync off. Apple's
+  OpenGL draws as many as the loop allows, and most of them never reach the
+  screen.
+- Without `cl_sleep`, the loop busy-waits between frames, so Apple's OpenGL
+  uses a whole core even when capped with `r_maxfps 120`.
+- On ANGLE the swap waits for the display, so without `r_thread` the client
+  loop runs at the refresh rate. With `r_thread 1`, the swap happens on the
+  render thread, and input, prediction and network run at about 1100 Hz.
 - Both render at the display's native (Retina) resolution.
 
 ## Checking that it is on Metal
