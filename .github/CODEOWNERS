@@ -1,0 +1,9 @@
+# Changes to CI, build scripts and bundled dependencies need review from the
+# maintainer before merging (enable "Require review from Code Owners" in the
+# branch protection rule for this to be enforced).
+/.github/           @darkshade9
+/.ci/               @darkshade9
+/meson.build        @darkshade9
+/meson_options.txt  @darkshade9
+/subprojects/       @darkshade9
+/extern/            @darkshade9

@@ -42,6 +42,9 @@ env:
     -Dx11=disabled
     -Dicmp-errors=disabled
 
+permissions:
+  contents: read
+
 # Cancel superseded runs on the same ref so pushes do not pile up.
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
@@ -101,11 +104,11 @@ jobs:
           path: subprojects/packagecache
           key: ${{ hashFiles('subprojects/*.wrap') }}
 
-      - uses: ilammy/msvc-dev-cmd@v1
+      - uses: ilammy/msvc-dev-cmd@0b201ec74fa43914dc39ae48a89fd1d8cb592756 # v1
         with:
           arch: ${{ matrix.arch }}
 
-      - uses: ilammy/setup-nasm@v1
+      - uses: ilammy/setup-nasm@72793074d3c8cdda771dba85f6deafe00623038b # v1
 
       - name: Install dependencies
         run: pip3 install --no-input meson ninja
@@ -178,7 +181,10 @@ jobs:
             builddir/gamex86_64.so
 
   linuxARM64:
-    if: github.repository == 'actionquake/q2pro'
+    # self-hosted: never run code from a fork PR on our own machines. A fork PR gets
+    # no run here until a maintainer pushes the branch to this repo (skipped = passing).
+    if: github.repository == 'actionquake/q2pro' &&
+      (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository)
     runs-on: [self-hosted, ARM64]
     timeout-minutes: 30
     strategy:
@@ -217,7 +223,10 @@ jobs:
             builddir/gamearm64.so
 
   fedora:
-    if: github.repository == 'actionquake/q2pro'
+    # self-hosted: never run code from a fork PR on our own machines. A fork PR gets
+    # no run here until a maintainer pushes the branch to this repo (skipped = passing).
+    if: github.repository == 'actionquake/q2pro' &&
+      (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository)
     runs-on: [self-hosted, linux, fedora]
     timeout-minutes: 30
     steps:
