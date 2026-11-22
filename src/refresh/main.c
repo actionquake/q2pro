@@ -2313,6 +2313,17 @@ bool R_Init(bool total)
     if (!QGL_Init())
         goto fail;
 
+#ifdef __APPLE__
+    // an ES context on macOS is only worth having on ANGLE's Metal
+    // backend; anything else means a translation stack snuck back in
+    if (gl_config.ver_es) {
+        const char *renderer = (const char *)qglGetString(GL_RENDERER);
+        if (!renderer || !strstr(renderer, "ANGLE Metal Renderer"))
+            Com_WPrintf("ES context is not on ANGLE's Metal backend; "
+                        "check ANGLE_DEFAULT_PLATFORM=metal.\n");
+    }
+#endif
+
     // get various limits from OpenGL
     GL_SetupConfig();
 

@@ -410,6 +410,16 @@ jobs:
             done
           done
 
+      - name: Bundle ANGLE (Metal backend, used with gl_profile es3.0)
+        run: |
+          . .ci/mac/angle.env
+          C12=${ANGLE_COMMIT:0:12}
+          curl -fsSL -o angle.tar.gz "https://github.com/$ANGLE_REPO/releases/download/angle-$C12/angle-$C12-macos.tar.gz"
+          echo "$ANGLE_SHA256  angle.tar.gz" | shasum -a 256 -c -
+          mkdir angle && tar -xzf angle.tar.gz -C angle
+          cp angle/arm64/libEGL.dylib angle/arm64/libGLESv2.dylib AQtion.app/Contents/Frameworks/
+          cp angle/ANGLE-LICENSE angle/ANGLE-VERSION AQtion.app/Contents/Resources/
+
       - name: Verify .app has no external dylib references
         run: |
           APP=AQtion.app
@@ -435,7 +445,7 @@ jobs:
       - name: Stamp LSMinimumSystemVersion from bundled binaries
         run: |
           APP=AQtion.app
-          FILES=$(find "$APP/Contents/MacOS" "$APP/Contents/Frameworks" -type f \( -name "*.dylib" -o -perm -u+x \) ! -name AQtion-launcher)
+          FILES=$(find "$APP/Contents/MacOS" "$APP/Contents/Frameworks" -type f \( -name "*.dylib" -o -perm -u+x \) ! -name AQtion-launcher ! -name libEGL.dylib ! -name libGLESv2.dylib)
           MIN=$(for f in $FILES; do otool -l "$f" | awk '/minos/{print $2} /LC_VERSION_MIN_MACOSX/{m=1} m&&/ version /{print $2; m=0}'; done | sort -V | tail -1)
           echo "Highest minimum macOS among bundled code: $MIN"
           plutil -replace LSMinimumSystemVersion -string "$MIN" "$APP/Contents/Info.plist"
@@ -554,6 +564,16 @@ jobs:
             done
           done
 
+      - name: Bundle ANGLE (Metal backend, used with gl_profile es3.0)
+        run: |
+          . .ci/mac/angle.env
+          C12=${ANGLE_COMMIT:0:12}
+          curl -fsSL -o angle.tar.gz "https://github.com/$ANGLE_REPO/releases/download/angle-$C12/angle-$C12-macos.tar.gz"
+          echo "$ANGLE_SHA256  angle.tar.gz" | shasum -a 256 -c -
+          mkdir angle && tar -xzf angle.tar.gz -C angle
+          cp angle/x86_64/libEGL.dylib angle/x86_64/libGLESv2.dylib AQtion.app/Contents/Frameworks/
+          cp angle/ANGLE-LICENSE angle/ANGLE-VERSION AQtion.app/Contents/Resources/
+
       - name: Verify .app has no external dylib references
         run: |
           APP=AQtion.app
@@ -579,7 +599,7 @@ jobs:
       - name: Stamp LSMinimumSystemVersion from bundled binaries
         run: |
           APP=AQtion.app
-          FILES=$(find "$APP/Contents/MacOS" "$APP/Contents/Frameworks" -type f \( -name "*.dylib" -o -perm -u+x \) ! -name AQtion-launcher)
+          FILES=$(find "$APP/Contents/MacOS" "$APP/Contents/Frameworks" -type f \( -name "*.dylib" -o -perm -u+x \) ! -name AQtion-launcher ! -name libEGL.dylib ! -name libGLESv2.dylib)
           MIN=$(for f in $FILES; do otool -l "$f" | awk '/minos/{print $2} /LC_VERSION_MIN_MACOSX/{m=1} m&&/ version /{print $2; m=0}'; done | sort -V | tail -1)
           echo "Highest minimum macOS among bundled code: $MIN"
           plutil -replace LSMinimumSystemVersion -string "$MIN" "$APP/Contents/Info.plist"

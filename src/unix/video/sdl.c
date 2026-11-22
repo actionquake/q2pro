@@ -93,9 +93,16 @@ static void *get_proc_addr(const char *sym)
     return SDL_GL_GetProcAddress(sym);
 }
 
+#ifdef __APPLE__
+static void check_egl_resize(void);
+#endif
+
 static void swap_buffers(void)
 {
     SDL_GL_SwapWindow(sdl.window);
+#ifdef __APPLE__
+    check_egl_resize();
+#endif
 }
 
 static void swap_interval(int val)
@@ -112,11 +119,135 @@ VIDEO
 ===============================================================================
 */
 
+#ifdef __APPLE__
+#include <dlfcn.h>
+#include <pthread.h>
+#include <mach-o/dyld.h>
+#include <sys/sysctl.h>
+#include <unistd.h>
+
+#define Q_EGL_WIDTH     0x3057
+#define Q_EGL_HEIGHT    0x3056
+#define Q_EGL_DRAW      0x3059
+
+static bool preload_dylib(const char *dir, const char *name)
+{
+    char path[1024];
+
+    if (Q_snprintf(path, sizeof(path), "%s/%s", dir, name) >= sizeof(path))
+        return false;
+    return dlopen(path, RTLD_LAZY | RTLD_GLOBAL) != NULL;
+}
+
+// libEGL, when the bootstrap loaded ANGLE
+static void *angle_egl;
+
+// ANGLE (OpenGL ES 3.0 on Metal) is used when the player picks an ES
+// gl_profile and the ANGLE dylibs are bundled, in the .app's Frameworks
+// folder or next to the executable. SDL gets them by absolute path, since
+// the .app launcher changes the working directory, and ANGLE is pointed at
+// Metal. Variables already set in the environment win.
+static void macos_angle_bootstrap(void)
+{
+    static const char *const subdirs[] = { "/../Frameworks", "" };
+    char exe[1024], egl[1100], gles[1100], ver[32];
+    uint32_t size = sizeof(exe);
+    size_t len = sizeof(ver);
+    char *slash;
+    int i;
+
+    if (_NSGetExecutablePath(exe, &size) != 0)
+        return;
+    slash = strrchr(exe, '/');
+    if (!slash)
+        return;
+    *slash = 0;
+
+    // best effort for the OpenAL backend, loaded by leaf name too
+    preload_dylib(exe, "libopenal.1.dylib");
+
+    if (Q_strncasecmp(Cvar_VariableString("gl_profile"), "es", 2))
+        return;
+
+    // the bundled ANGLE build needs macOS 11
+    if (sysctlbyname("kern.osproductversion", ver, &len, NULL, 0) || atoi(ver) < 11) {
+        Com_WPrintf("ANGLE needs macOS 11 or later.\n");
+        return;
+    }
+
+    for (i = 0; i < q_countof(subdirs); i++) {
+        Q_snprintf(egl, sizeof(egl), "%s%s/libEGL.dylib", exe, subdirs[i]);
+        Q_snprintf(gles, sizeof(gles), "%s%s/libGLESv2.dylib", exe, subdirs[i]);
+        if (access(egl, R_OK) || access(gles, R_OK))
+            continue;
+        angle_egl = dlopen(egl, RTLD_LAZY | RTLD_GLOBAL);
+        if (angle_egl && dlopen(gles, RTLD_LAZY | RTLD_GLOBAL))
+            break;
+        Com_EPrintf("Couldn't load ANGLE: %s\n", dlerror());
+        return;
+    }
+    if (i == q_countof(subdirs)) {
+        Com_WPrintf("ANGLE dylibs not found; using the system OpenGL ES, if any.\n");
+        return;
+    }
+
+    setenv("SDL_VIDEO_EGL_DRIVER", egl, 0);
+    setenv("SDL_VIDEO_GL_DRIVER", gles, 0);
+    setenv("SDL_OPENGL_ES_DRIVER", "1", 0);
+    setenv("ANGLE_DEFAULT_PLATFORM", "metal", 0);
+    char *dir = realpath(egl, NULL);
+    if (dir && (slash = strrchr(dir, '/')))
+        *slash = 0;
+    Com_Printf("Using ANGLE from %s.\n", dir ? dir : egl);
+    free(dir);
+}
+
+static void *(*qeglGetCurrentDisplay)(void);
+static void *(*qeglGetCurrentSurface)(int);
+static unsigned (*qeglQuerySurface)(void *, void *, int, int *);
+
+// SDL's Cocoa EGL path reports the window's logical size, but ANGLE
+// backs the surface with a Metal layer at native (Retina) scale.
+// Query the real surface size from EGL; no-op for desktop GL contexts.
+// libEGL may not be loaded on the first call (desktop GL fallback boot);
+// keep retrying so a later vid_restart into an ES context still works.
+static bool egl_query_size(int *width, int *height)
+{
+    if (!qeglQuerySurface) {
+        void *egl = angle_egl ? angle_egl : dlopen("libEGL.dylib", RTLD_LAZY | RTLD_NOLOAD);
+        if (!egl)
+            return false;
+        qeglGetCurrentDisplay = dlsym(egl, "eglGetCurrentDisplay");
+        qeglGetCurrentSurface = dlsym(egl, "eglGetCurrentSurface");
+        qeglQuerySurface = dlsym(egl, "eglQuerySurface");
+    }
+    if (!qeglGetCurrentDisplay || !qeglGetCurrentSurface || !qeglQuerySurface)
+        return false;
+
+    void *dpy = qeglGetCurrentDisplay();
+    void *surf = qeglGetCurrentSurface(Q_EGL_DRAW);
+    int w = 0, h = 0;
+    if (!dpy || !surf ||
+        !qeglQuerySurface(dpy, surf, Q_EGL_WIDTH, &w) ||
+        !qeglQuerySurface(dpy, surf, Q_EGL_HEIGHT, &h) ||
+        w <= 0 || h <= 0)
+        return false;
+
+    *width = w;
+    *height = h;
+    return true;
+}
+#endif
+
 static void mode_changed(void)
 {
     SDL_GetWindowSize(sdl.window, &sdl.win_width, &sdl.win_height);
 
     SDL_GL_GetDrawableSize(sdl.window, &sdl.width, &sdl.height);
+
+#ifdef __APPLE__
+    egl_query_size(&sdl.width, &sdl.height);
+#endif
 
     Uint32 flags = SDL_GetWindowFlags(sdl.window);
     if (flags & SDL_WINDOW_FULLSCREEN)
@@ -127,6 +258,51 @@ static void mode_changed(void)
     R_ModeChanged(sdl.width, sdl.height, sdl.flags);
     SCR_ModeChanged();
 }
+
+#ifdef __APPLE__
+// surface size seen by the render thread (r_thread), for the main thread
+static int egl_pending_w, egl_pending_h;
+static int egl_pending;
+
+// ANGLE applies layer resizes at swap time, so a query made when the
+// resize event arrives can still return the previous size. Re-check
+// after every swap and re-sync when the surface actually changed.
+// With the render thread swapping, the re-sync (client code) is handed
+// to the main thread, along with the size: the main thread may not hold
+// the context, so it can't query the surface itself.
+static void check_egl_resize(void)
+{
+    int w, h;
+
+    if (!qeglQuerySurface)
+        return; // never resolved: not an EGL context
+    if (!egl_query_size(&w, &h) || (w == sdl.width && h == sdl.height))
+        return;
+
+    if (pthread_main_np()) {
+        mode_changed();
+        return;
+    }
+
+    egl_pending_w = w;
+    egl_pending_h = h;
+    __atomic_store_n(&egl_pending, 1, __ATOMIC_RELEASE);
+}
+
+static void apply_egl_resize(void)
+{
+    if (!__atomic_exchange_n(&egl_pending, 0, __ATOMIC_ACQUIRE))
+        return;
+
+    mode_changed();
+    if (sdl.width != egl_pending_w || sdl.height != egl_pending_h) {
+        sdl.width = egl_pending_w;
+        sdl.height = egl_pending_h;
+        R_ModeChanged(sdl.width, sdl.height, sdl.flags);
+        SCR_ModeChanged();
+    }
+}
+#endif
 
 static void set_mode(void)
 {
@@ -278,6 +454,10 @@ static bool init(void)
 {
     vrect_t rc;
 
+#ifdef __APPLE__
+    macos_angle_bootstrap();
+#endif
+
     if (SDL_InitSubSystem(SDL_INIT_VIDEO) == -1) {
         Com_EPrintf("Couldn't initialize SDL video: %s\n", SDL_GetError());
         return false;
@@ -394,12 +574,23 @@ static void window_event(SDL_WindowEvent *event)
         break;
 
     case SDL_WINDOWEVENT_RESIZED:
+        // only fires for external changes; SIZE_CHANGED below handles the resize itself
         if (!(flags & SDL_WINDOW_FULLSCREEN)) {
             SDL_GetWindowPosition(sdl.window, &rc.x, &rc.y);
             rc.width = event->data1;
             rc.height = event->data2;
             VID_SetGeometry(&rc);
         }
+        break;
+
+    case SDL_WINDOWEVENT_SIZE_CHANGED:
+        // fires for every size change, including API-initiated and
+        // fullscreen transitions that never send RESIZED
+#if SDL_VERSION_ATLEAST(2, 0, 18)
+    case SDL_WINDOWEVENT_DISPLAY_CHANGED:
+        // moving to a display with a different backing scale changes the
+        // drawable size without changing the window size
+#endif
         mode_changed();
         break;
     }
@@ -482,6 +673,10 @@ static void mouse_wheel_event(SDL_MouseWheelEvent *event)
 static void pump_events(void)
 {
     SDL_Event    event;
+
+#ifdef __APPLE__
+    apply_egl_resize();
+#endif
 
     while (SDL_PollEvent(&event)) {
         switch (event.type) {

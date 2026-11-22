@@ -473,8 +473,10 @@ static bool parse_gl_version(void)
     if (!qglGetString)
         return false;
 
-    Com_DPrintf("GL_VENDOR: %s\n", qglGetString(GL_VENDOR));
-    Com_DPrintf("GL_RENDERER: %s\n", qglGetString(GL_RENDERER));
+    // unconditional: every session log fingerprints the active backend
+    // (ANGLE/Metal vs desktop GL), so "am I on Metal?" is greppable
+    Com_Printf("GL_VENDOR: %s\n", qglGetString(GL_VENDOR));
+    Com_Printf("GL_RENDERER: %s\n", qglGetString(GL_RENDERER));
 
     // get version string
     s = (const char *)qglGetString(GL_VERSION);

@@ -1,0 +1,100 @@
+name: angle
+
+# Builds ANGLE's libEGL and libGLESv2 (Metal backend only) for arm64 and
+# x86_64 at the commit pinned in .ci/mac/angle.env, and publishes them as the
+# release asset the macOS turnkey jobs bundle. Run by hand after changing
+# the pin.
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: macos-26
+    timeout-minutes: 300
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Read the pin
+        run: |
+          grep -E '^ANGLE_(COMMIT|CHROME)=' .ci/mac/angle.env >> "$GITHUB_ENV"
+          df -h "$GITHUB_WORKSPACE"
+          xcodebuild -version
+          xcrun --show-sdk-version
+
+      - name: Metal toolchain
+        run: xcodebuild -downloadComponent MetalToolchain || true
+
+      - name: Check out ANGLE and its dependencies
+        run: |
+          git clone --depth 1 https://chromium.googlesource.com/chromium/tools/depot_tools.git "$RUNNER_TEMP/depot_tools"
+          export PATH="$RUNNER_TEMP/depot_tools:$PATH"
+          echo "$RUNNER_TEMP/depot_tools" >> "$GITHUB_PATH"
+          mkdir "$RUNNER_TEMP/angle" && cd "$RUNNER_TEMP/angle"
+          git init -q
+          git remote add origin https://chromium.googlesource.com/angle/angle
+          git fetch -q --depth 1 origin "$ANGLE_COMMIT"
+          git checkout -q FETCH_HEAD
+          python3 scripts/bootstrap.py
+          gclient sync --no-history --shallow
+          df -h .
+
+      - name: Build
+        working-directory: ${{ runner.temp }}/angle
+        run: |
+          for cpu in arm64 x64; do
+            gn gen out/$cpu --args="target_cpu=\"$cpu\" is_debug=false is_component_build=false
+              symbol_level=0 treat_warnings_as_errors=false mac_deployment_target=\"11.0\"
+              angle_enable_metal=true angle_enable_gl=false angle_enable_vulkan=false
+              angle_enable_swiftshader=false angle_enable_null=false angle_enable_wgpu=false
+              angle_build_tests=false"
+            autoninja -C out/$cpu libEGL libGLESv2
+          done
+
+      - name: Package
+        working-directory: ${{ runner.temp }}/angle
+        run: |
+          C12=${ANGLE_COMMIT:0:12}
+          PKG="$RUNNER_TEMP/pkg"
+          for cpu in arm64 x64; do
+            arch=$([ $cpu = x64 ] && echo x86_64 || echo arm64)
+            mkdir -p "$PKG/$arch"
+            cp out/$cpu/libEGL.dylib out/$cpu/libGLESv2.dylib "$PKG/$arch/"
+            for f in "$PKG/$arch"/*.dylib; do
+              old=$(otool -D "$f" | tail -1)
+              install_name_tool -id "@loader_path/$(basename "$f")" "$f"
+              for other in "$PKG/$arch"/*.dylib; do
+                install_name_tool -change "$old" "@loader_path/$(basename "$f")" "$other" 2>/dev/null || true
+              done
+            done
+            strip -x "$PKG/$arch"/*.dylib
+            codesign --force --sign - "$PKG/$arch"/*.dylib
+            for f in "$PKG/$arch"/*.dylib; do
+              echo "== $f"; lipo -archs "$f"; otool -L "$f"; otool -l "$f" | grep -A3 LC_BUILD_VERSION | grep minos
+            done
+          done
+          cp LICENSE "$PKG/ANGLE-LICENSE"
+          echo "$ANGLE_COMMIT (Chrome $ANGLE_CHROME)" > "$PKG/ANGLE-VERSION"
+          tar -czf "$RUNNER_TEMP/angle-$C12-macos.tar.gz" -C "$PKG" .
+          cd "$RUNNER_TEMP"
+          shasum -a 256 "angle-$C12-macos.tar.gz" | tee "angle-$C12-macos.tar.gz.sha256"
+          echo "C12=$C12" >> "$GITHUB_ENV"
+
+      - uses: actions/upload-artifact@v6
+        with:
+          name: angle-macos
+          path: ${{ runner.temp }}/angle-*-macos.tar.gz*
+
+      - name: Publish the release asset
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          cd "$RUNNER_TEMP"
+          gh release create "angle-$C12" -R "$GITHUB_REPOSITORY" \
+            --title "ANGLE $C12 (Chrome $ANGLE_CHROME), macOS" \
+            --notes "libEGL and libGLESv2, Metal backend only, arm64 and x86_64. ANGLE $ANGLE_COMMIT, built by run $GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID. BSD license in ANGLE-LICENSE." \
+            "angle-$C12-macos.tar.gz" "angle-$C12-macos.tar.gz.sha256"
+          echo "ANGLE_SHA256=$(cut -d' ' -f1 angle-$C12-macos.tar.gz.sha256)"
