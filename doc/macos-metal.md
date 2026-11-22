@@ -7,19 +7,38 @@ every draw call into Metal. The renderer itself is unchanged.
 
 ## Turning it on
 
-Put `libEGL.dylib` and `libGLESv2.dylib` from an ANGLE build next to the
-`q2pro` executable. At startup the client then:
+The macOS `.app` ships ANGLE in `Contents/Frameworks`. It is off by
+default. To use it, set `gl_profile es3.0`: in the console (video restarts
+by itself), in `autoexec.cfg`, or with `+set gl_profile es3.0` in the launch
+options. `gl_profile gl3.2`, the macOS default, goes back to Apple's OpenGL.
 
-- loads both dylibs by absolute path, so no `DYLD_LIBRARY_PATH` is needed
-- sets `SDL_OPENGL_ES_DRIVER=1` and `ANGLE_DEFAULT_PLATFORM=metal`, unless
-  they are already set in the environment
-- defaults `gl_profile` to `es3.0`
-
-Without the dylibs nothing changes. To go back to Apple's OpenGL with the
-dylibs in place, use `+set gl_profile gl3.2` (the usual macOS default) or
-remove the dylibs.
+With an ES `gl_profile`, the client loads `libEGL.dylib` and
+`libGLESv2.dylib` from `Contents/Frameworks`, or else from next to the
+executable, and hands SDL their absolute paths. It also sets
+`SDL_OPENGL_ES_DRIVER=1` and `ANGLE_DEFAULT_PLATFORM=metal`, unless these are
+already set in the environment. The bundled build needs macOS 11 or later.
+On older versions, or without the dylibs, the client warns and falls back to
+Apple's OpenGL.
 
 `libopenal.1.dylib` next to the executable is loaded the same way.
+
+## What it changes
+
+Measured on an Apple M3 Pro at 120 Hz, in a 1280x720 window on wfall:
+
+| | ANGLE Metal | Apple OpenGL |
+|---|---|---|
+| vsync off, `r_maxfps 120` | 120 fps, 8% CPU | 125 fps, 98% CPU |
+| same, with `cl_sleep 250` | 120 fps, 10% CPU | 125 fps, 10% CPU |
+| vsync off, uncapped | 120 fps | 1000 fps |
+
+- ANGLE presents in step with the display even with vsync off. Apple's
+  OpenGL renders as many frames as the loop allows, and without `cl_sleep`
+  the loop spins a CPU core between them.
+- At the same frame rate, the two cost about the same CPU.
+- Uncapped, Apple's OpenGL renders far more frames. ANGLE in a window stays
+  at the refresh rate.
+- Both render at the display's native (Retina) resolution.
 
 ## Checking that it is on Metal
 
@@ -39,9 +58,14 @@ again after each swap because ANGLE resizes the surface at swap time. With
 
 ## Building ANGLE
 
-Build the Metal backend only, so there is no OpenGL backend to fall back
-to. The first fetch downloads depot_tools and a Chromium toolchain of
-about 15–20 GB.
+CI bundles the build pinned in `.ci/mac/angle.env`. To update it, set
+`ANGLE_COMMIT` to the `angle` hash of a Chrome Stable release (listed on
+chromiumdash.appspot.com), run the `angle` workflow, and copy the
+`ANGLE_SHA256` it prints into the same file. The workflow builds the Metal
+backend only, for arm64 and x86_64, and publishes the dylibs with ANGLE's
+BSD license as a release asset.
+
+To build it by hand:
 
 ```sh
 git clone --depth 1 https://chromium.googlesource.com/chromium/tools/depot_tools.git
@@ -53,10 +77,6 @@ gn gen out/Metal --args='is_debug=false is_component_build=false
   angle_enable_swiftshader=false angle_build_tests=false'
 autoninja -C out/Metal libEGL libGLESv2
 ```
-
-Copy `out/Metal/libEGL.dylib` and `out/Metal/libGLESv2.dylib` next to
-`q2pro`, with ANGLE's `LICENSE` (BSD). Record the ANGLE commit
-(`git rev-parse HEAD`) so the build can be reproduced.
 
 ## Latency
 
