@@ -229,9 +229,10 @@ static void sys_init_lowlatency(void)
     if (main_qos_default == QOS_CLASS_UNSPECIFIED)
         main_qos_default = QOS_CLASS_DEFAULT;
 
-    sys_lowlatency = Cvar_Get("sys_lowlatency", "1", 0);
+    sys_lowlatency = Cvar_Get("sys_lowlatency", "0", 0);
     sys_lowlatency->changed = sys_lowlatency_changed;
-    sys_lowlatency_changed(sys_lowlatency);
+    if (sys_lowlatency->integer)
+        sys_lowlatency_changed(sys_lowlatency);
 }
 #elif defined(__linux__)
 #include <sys/prctl.h>
@@ -251,9 +252,10 @@ static void sys_lowlatency_changed(cvar_t *self)
 
 static void sys_init_lowlatency(void)
 {
-    sys_lowlatency = Cvar_Get("sys_lowlatency", "1", 0);
+    sys_lowlatency = Cvar_Get("sys_lowlatency", "0", 0);
     sys_lowlatency->changed = sys_lowlatency_changed;
-    sys_lowlatency_changed(sys_lowlatency);
+    if (sys_lowlatency->integer)
+        sys_lowlatency_changed(sys_lowlatency);
 }
 #endif
 

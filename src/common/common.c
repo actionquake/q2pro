@@ -1011,7 +1011,7 @@ void Qcommon_Init(int argc, char **argv)
     host_speeds = Cvar_Get("host_speeds", "0", 0);
     // longest sleep (usec) between input/network polls while waiting for
     // the next millisecond; 0 busy-waits
-    cl_sleep = Cvar_Get("cl_sleep", "250", 0);
+    cl_sleep = Cvar_Get("cl_sleep", "0", 0);
 #endif
 #if USE_DEBUG
     developer = Cvar_Get("developer", "0", 0);

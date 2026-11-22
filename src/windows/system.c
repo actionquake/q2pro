@@ -977,9 +977,10 @@ void Sys_Init(void)
 
     sys_exitonerror = Cvar_Get("sys_exitonerror", "0", 0);
 
-    sys_lowlatency = Cvar_Get("sys_lowlatency", "1", 0);
+    sys_lowlatency = Cvar_Get("sys_lowlatency", "0", 0);
     sys_lowlatency->changed = sys_lowlatency_changed;
-    sys_lowlatency_changed(sys_lowlatency);
+    if (sys_lowlatency->integer)
+        sys_lowlatency_changed(sys_lowlatency);
 
 #if USE_WINSVC
     Cmd_AddCommand("installservice", Sys_InstallService_f);

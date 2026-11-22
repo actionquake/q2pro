@@ -616,14 +616,8 @@ void R_WaitIdle(void)
 
 bool R_Init(bool total)
 {
-    if (!r_thread) {
-        // on by default where it has had the most play-testing
-#ifdef __APPLE__
-        r_thread = Cvar_Get("r_thread", "1", 0);
-#else
+    if (!r_thread)
         r_thread = Cvar_Get("r_thread", "0", 0);
-#endif
-    }
     return RB_Init(total);
 }
 

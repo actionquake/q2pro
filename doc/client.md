@@ -391,13 +391,13 @@ Specifies, in microseconds, the longest the main loop sleeps at a time
 while it waits for the next millisecond. The loop sleeps on the network
 sockets, so an incoming packet wakes it at once, and input is checked
 after every sleep. On Windows this needs Windows 10 version 1803 or
-later; older versions keep busy-waiting. Range is 1-1000. Default value
-is 250. Setting this to 0 restores the old busy-wait, which keeps one
-CPU core at 100%.
+later; older versions keep busy-waiting. Range is 0-1000; 250 is a good
+value. Default value is 0, the old busy-wait, which keeps one CPU core
+at 100%.
 
 ### sys\_lowlatency  
 Asks the operating system not to throttle the game loop. Default value
-is 1 (enabled). Can be changed at any time.
+is 0 (disabled). Can be changed at any time.
 
 -   On macOS, opts out of App Nap and timer coalescing, and runs the
     main thread at user-interactive priority
@@ -610,7 +610,7 @@ Specifies which sound engine to use. Default value is 1.
 Updates sound on every client frame, not only on frames that are drawn,
 so new sounds start and the listener moves without waiting for the next
 rendered frame. Matters most with ‘r\_thread’ and a low ‘r\_maxfps’.
-Default value is 1 (enabled).
+Default value is 0 (disabled).
 
 ### s\_ambient  
 Specifies if ambient sounds are played. Default value is 1.
@@ -1064,7 +1064,7 @@ network packets, or sending commands. The main thread starts a new frame
 only when the previous one has been presented, so frames never queue
 up. Takes effect at the next frame. Video drivers that can’t hand the
 OpenGL context between threads keep rendering on the main thread.
-Default value is 1 on macOS, 0 elsewhere.
+Default value is 0.
 
 -   0 — render on the main thread
 
