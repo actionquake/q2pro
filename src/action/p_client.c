@@ -6421,7 +6421,11 @@ void ClientBeginServerFrame(edict_t * ent)
 
 	if (client->resp.hud_type == 1)
 	{
-		client->dimension_observe |= 0xE; // true spectators can see all teams
+		// True spectators (no team) see all teams. Dead players still on a team
+		// stay restricted under limchasecam, matching HUD_SpectatorUpdate;
+		// otherwise enemy indicator arrows leak to dead cl_indicators 2 players.
+		if (!client->resp.team || !limchasecam->value)
+			client->dimension_observe |= 0xE;
 		HUD_SpectatorUpdate(ent);
 	}
 	else
