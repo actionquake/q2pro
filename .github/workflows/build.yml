@@ -42,6 +42,9 @@ env:
     -Dx11=disabled
     -Dicmp-errors=disabled
 
+permissions:
+  contents: read
+
 # Cancel superseded runs on the same ref so pushes do not pile up.
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
@@ -49,6 +52,7 @@ concurrency:
 
 jobs:
   mingw:
+    if: github.repository == 'actionquake/q2pro'
     runs-on: ubuntu-24.04
     timeout-minutes: 30
     strategy:
@@ -85,6 +89,7 @@ jobs:
             builddir/gamex86_64.dll
 
   msvc:
+    if: github.repository == 'actionquake/q2pro'
     runs-on: windows-latest
     timeout-minutes: 30
     strategy:
@@ -99,11 +104,11 @@ jobs:
           path: subprojects/packagecache
           key: ${{ hashFiles('subprojects/*.wrap') }}
 
-      - uses: ilammy/msvc-dev-cmd@v1
+      - uses: ilammy/msvc-dev-cmd@0b201ec74fa43914dc39ae48a89fd1d8cb592756 # v1
         with:
           arch: ${{ matrix.arch }}
 
-      - uses: ilammy/setup-nasm@v1
+      - uses: ilammy/setup-nasm@72793074d3c8cdda771dba85f6deafe00623038b # v1
 
       - name: Install dependencies
         run: pip3 install --no-input meson ninja
@@ -123,6 +128,7 @@ jobs:
             builddir/gamex86_64.dll
 
   linux64:
+    if: github.repository == 'actionquake/q2pro'
     runs-on: ubuntu-22.04
     timeout-minutes: 30
     #runs-on: [self-hosted, x86]
@@ -175,6 +181,10 @@ jobs:
             builddir/gamex86_64.so
 
   linuxARM64:
+    # self-hosted: never run code from a fork PR on our own machines. A fork PR gets
+    # no run here until a maintainer pushes the branch to this repo (skipped = passing).
+    if: github.repository == 'actionquake/q2pro' &&
+      (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository)
     runs-on: [self-hosted, ARM64]
     timeout-minutes: 30
     strategy:
@@ -213,6 +223,10 @@ jobs:
             builddir/gamearm64.so
 
   fedora:
+    # self-hosted: never run code from a fork PR on our own machines. A fork PR gets
+    # no run here until a maintainer pushes the branch to this repo (skipped = passing).
+    if: github.repository == 'actionquake/q2pro' &&
+      (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository)
     runs-on: [self-hosted, linux, fedora]
     timeout-minutes: 30
     steps:
@@ -248,6 +262,7 @@ jobs:
             builddir/gamex86_64.so
 
   darwin:
+    if: github.repository == 'actionquake/q2pro'
     runs-on: macos-15-intel
     timeout-minutes: 30
     steps:
@@ -286,7 +301,7 @@ jobs:
     # capacity-limited, so run the turnkey build first and this one after it.
     # !cancelled() = still run if the turnkey job failed (needs alone would skip it).
     needs: darwin-arm64-turnkey
-    if: ${{ !cancelled() }}
+    if: ${{ !cancelled() && github.repository == 'actionquake/q2pro' }}
     runs-on: macos-latest
     timeout-minutes: 30
     steps:
@@ -329,6 +344,7 @@ jobs:
   # @executable_path/../Frameworks/ — player needs zero brew installs.
   # Game data (baseaq/, action/) is expected ALONGSIDE the .app, not inside.
   darwin-arm64-turnkey:
+    if: github.repository == 'actionquake/q2pro'
     runs-on: macos-latest
     timeout-minutes: 30
     steps:
@@ -478,6 +494,7 @@ jobs:
   # is independently testable. (A future "lipo into universal" job can
   # combine the two .app bundles.)
   darwin-x86_64-turnkey:
+    if: github.repository == 'actionquake/q2pro'
     runs-on: macos-15-intel
     timeout-minutes: 30
     steps:
@@ -615,6 +632,7 @@ jobs:
   # The artifact holds ONE file, AQtion-darwin-universal.zip (ditto), so the
   # release step can download it unpacked and attach it without a nested zip.
   darwin-universal-turnkey:
+    if: github.repository == 'actionquake/q2pro'
     needs: [darwin-arm64-turnkey, darwin-x86_64-turnkey]
     runs-on: macos-15-intel
     timeout-minutes: 15
@@ -676,6 +694,7 @@ jobs:
   # set "linux_runtime" "sniper" so Steam launches the game inside the
   # Sniper container automatically.
   linux-steam-sniper:
+    if: github.repository == 'actionquake/q2pro'
     runs-on: ubuntu-24.04
     timeout-minutes: 30
     container:
